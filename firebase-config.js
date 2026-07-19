@@ -11,7 +11,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const storage = firebase.storage();
 
 // 아직 실제 값으로 안 바꾸고 자리표시자가 남아있는지 확인
 const FIREBASE_NOT_CONFIGURED = firebaseConfig.apiKey.includes('여기에');
