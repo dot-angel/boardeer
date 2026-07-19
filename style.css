@@ -3,28 +3,29 @@
    컨셉: "다이어리 방안지 위에 핀으로 고정한 스크랩북 카드"
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Song+Myung&family=Noto+Serif+KR:wght@400;500;700&family=Noto+Sans+KR:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap');
 
 :root{
   /* ---- 검붉은 팔레트 (사용자가 위젯별로 덮어쓸 수 있음) ---- */
-  --paper: #1a0e10;
-  --dot: #3a161a;
-  --ink: #f3e6e2;
-  --ink-soft: #b98d8a;
-  --rose: #c81f3f;
-  --sage: #8a2f36;
-  --gold: #caa457;
-  --card-bg: #2a1417;
-  --card-bg2: #33181c;
-  --card-border: #4d2226;
-  --shadow: 0 8px 22px rgba(0,0,0,0.55);
-  --shadow-press: 0 3px 10px rgba(0,0,0,0.6);
+  --paper: #140b0c;
+  --dot: #331519;
+  --ink: #ece1d8;
+  --ink-soft: #a8877e;
+  --rose: #9c1c30;
+  --sage: #7a2f36;
+  --gold: #c6a15b;
+  --gold-soft: #8a7145;
+  --card-bg: #1f1112;
+  --card-bg2: #281618;
+  --card-border: #4a2a2a;
+  --shadow: 0 10px 26px rgba(0,0,0,0.6);
+  --shadow-press: 0 3px 10px rgba(0,0,0,0.65);
 
-  --font-display: 'Gowun Batang', serif;
-  --font-body: 'Gowun Dodum', sans-serif;
+  --font-display: 'Song Myung', 'Noto Serif KR', serif;
+  --font-body: 'Noto Sans KR', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  --radius: 14px;
+  --radius: 4px;
 }
 
 *{ box-sizing: border-box; }
@@ -52,7 +53,7 @@ body{
   padding: 10px 22px;
   background: rgba(26,14,16,0.85);
   backdrop-filter: blur(6px);
-  border-bottom: 1px dashed var(--card-border);
+  border-bottom: 1px solid var(--gold-soft);
 }
 .site-topbar .site-name{
   font-family: var(--font-display);
@@ -67,7 +68,7 @@ body{
   background: var(--card-bg);
   color: var(--ink);
   padding: 7px 14px;
-  border-radius: 999px;
+  border-radius: 2px;
   cursor: pointer;
   font-size: .85rem;
   transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
@@ -83,7 +84,7 @@ body{
 .lock-badge{
   font-size: .75rem;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: 2px;
   display:flex; align-items:center; gap:6px;
   border: 1px solid var(--card-border);
   background: var(--card-bg);
@@ -118,17 +119,10 @@ body{
 .widget[data-span="8"]{ grid-column: span 8; }
 .widget[data-span="12"]{ grid-column: span 12; }
 
-/* 스크랩북처럼 카드마다 살짝 다른 기울기 — 클릭/호버 시 반듯해짐 */
-.widget:nth-child(6n+1){ transform: rotate(-0.6deg); }
-.widget:nth-child(6n+2){ transform: rotate(0.5deg); }
-.widget:nth-child(6n+3){ transform: rotate(-0.3deg); }
-.widget:nth-child(6n+4){ transform: rotate(0.7deg); }
-.widget:nth-child(6n+5){ transform: rotate(-0.5deg); }
-.widget:nth-child(6n+6){ transform: rotate(0.3deg); }
-.widget:hover{ transform: rotate(0deg) scale(1.01); z-index: 2; }
+.widget:hover{ transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,0.6); border-color: var(--gold-soft); z-index: 2; }
 
 @media (max-width: 980px){
-  .widget, .widget[data-span]{ grid-column: 1 / -1; grid-row: auto !important; transform:none !important; }
+  .widget, .widget[data-span]{ grid-column: 1 / -1; grid-row: auto !important; }
   .dashboard{ grid-auto-rows: auto; }
 }
 
@@ -146,15 +140,20 @@ body{
 .widget.has-bg .widget-body,
 .widget.has-bg .widget-header{ position:relative; z-index:1; }
 
-/* 핀 장식 — 시그니처 요소 */
-.widget::before{
+/* 모서리 금장 브래킷 — 동양 액자를 연상시키는 시그니처 요소 */
+.widget::before, .widget::after{
   content:"";
-  position:absolute; top:10px; left:50%; transform: translateX(-50%);
-  width:10px; height:10px; border-radius:50%;
-  background: radial-gradient(circle at 35% 30%, #fff, var(--rose) 60%, #9c525b 100%);
-  box-shadow: 0 2px 3px rgba(0,0,0,.25);
-  z-index: 3;
+  position:absolute; width:14px; height:14px;
+  border-color: var(--gold);
+  border-style: solid;
+  opacity:.65;
+  z-index:3;
+  pointer-events:none;
+  transition: opacity .18s ease, border-color .18s ease;
 }
+.widget::before{ top:9px; left:9px; border-width:1px 0 0 1px; }
+.widget::after{ bottom:9px; right:9px; border-width:0 1px 1px 0; }
+.widget:hover::before, .widget:hover::after{ opacity: 1; }
 
 .widget-header{
   display:flex; align-items:center; justify-content:space-between;
@@ -163,9 +162,10 @@ body{
 .widget-title{
   font-family: var(--font-display);
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 400;
+  letter-spacing: .02em;
   outline: none;
-  border-radius: 6px;
+  border-radius: 2px;
   padding: 2px 4px;
 }
 .widget-title[contenteditable="true"]:hover{ background: rgba(255,255,255,0.07); cursor: text; }
@@ -203,7 +203,7 @@ body{
 /* ---------- 디데이 ---------- */
 .dday-item{
   display:flex; align-items:baseline; justify-content:space-between;
-  border-bottom: 1px dashed var(--card-border);
+  border-bottom: 1px solid var(--card-border);
   padding: 6px 0;
 }
 .dday-label{ font-size:.9rem; }
@@ -215,7 +215,7 @@ body{
 .cal-dow{ text-align:center; color:var(--ink-soft); padding-bottom:4px; }
 .cal-day{
   aspect-ratio: 1/1; display:flex; align-items:center; justify-content:center;
-  border-radius: 6px; cursor:pointer; position:relative;
+  border-radius: 2px; cursor:pointer; position:relative;
   border: 1px solid transparent;
 }
 .cal-day.today{ border-color: var(--rose); font-weight:700; }
@@ -229,18 +229,18 @@ body{
 /* ---------- 갤러리 ---------- */
 .gallery-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:6px; }
 .gallery-grid img{
-  width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:8px; cursor:pointer;
+  width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:2px; cursor:pointer;
   border: 1px solid var(--card-border);
   transition: transform .15s;
 }
 .gallery-grid img:hover{ transform: scale(1.03); }
 .gallery-add{
-  aspect-ratio:1/1; border-radius:8px; border:1px dashed var(--card-border);
+  aspect-ratio:1/1; border-radius:2px; border:1px dashed var(--card-border);
   display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--ink-soft);
 }
 
 /* ---------- 외부 링크 임베드 ---------- */
-.embed-frame-wrap{ border-radius:10px; overflow:hidden; border:1px solid var(--card-border); background: var(--card-bg2); }
+.embed-frame-wrap{ border-radius:2px; overflow:hidden; border:1px solid var(--card-border); background: var(--card-bg2); }
 .embed-frame-wrap iframe{ width:100%; height: 280px; border:0; display:block; }
 .embed-fallback{ padding: 14px; font-size:.82rem; color: var(--ink-soft); text-align:center; }
 
@@ -248,7 +248,7 @@ body{
 .backup-cards{ display:flex; flex-direction:column; gap:8px; }
 .backup-card{
   display:flex; align-items:center; gap:10px;
-  border: 1px solid var(--card-border); border-radius: 10px; padding: 8px 10px;
+  border: 1px solid var(--card-border); border-radius: 2px; padding: 8px 10px;
   background: var(--card-bg2);
 }
 .backup-card .bc-icon{ font-size:1.2rem; }
@@ -259,7 +259,7 @@ body{
 
 /* ---------- 음악 플레이어 ---------- */
 .player-track{
-  display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; cursor:pointer;
+  display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:2px; cursor:pointer;
   font-size:.85rem;
 }
 .player-track.active{ background: rgba(201,123,132,0.12); font-weight:600; }
@@ -272,12 +272,12 @@ body{
 
 /* ---------- 썰 / 커미션 리스트 ---------- */
 .story-entry, .commission-card{
-  border: 1px solid var(--card-border); border-radius:10px; padding:10px; background: var(--card-bg2);
+  border: 1px solid var(--card-border); border-radius:2px; padding:10px; background: var(--card-bg2);
 }
 .story-entry h4, .commission-card h4{ margin:0 0 4px 0; font-family: var(--font-display); font-size:.95rem; }
 .story-entry .meta, .commission-card .meta{ font-size:.72rem; color:var(--ink-soft); margin-bottom:4px; }
 .story-entry .content{ font-size:.85rem; line-height:1.5; white-space:pre-wrap; }
-.commission-card img{ width:100%; border-radius:8px; margin-bottom:6px; }
+.commission-card img{ width:100%; border-radius:2px; margin-bottom:6px; }
 
 /* ---------- 위젯 추가 바 ---------- */
 .add-widget-bar{
@@ -294,7 +294,7 @@ body{
 @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
 .modal{
   background: var(--paper);
-  border-radius: 16px;
+  border-radius: 3px;
   padding: 22px;
   width: min(420px, 90vw);
   max-height: 85vh; overflow:auto;
@@ -307,14 +307,14 @@ body{
 .modal input[type=text], .modal input[type=password], .modal input[type=date],
 .modal input[type=url], .modal input[type=number], .modal textarea, .modal select,
 .modal input[type=file]{
-  width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--card-border);
+  width:100%; padding:8px 10px; border-radius:2px; border:1px solid var(--card-border);
   font-family: var(--font-body); font-size:.85rem; background: var(--card-bg2); color: var(--ink);
 }
 .modal textarea{ min-height:90px; resize:vertical; }
 .modal .row{ display:flex; gap:8px; }
 .modal .row > *{ flex:1; }
 .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
-.modal input[type=color]{ width:44px; height:32px; padding:0; border:1px solid var(--card-border); border-radius:6px; }
+.modal input[type=color]{ width:44px; height:32px; padding:0; border:1px solid var(--card-border); border-radius:2px; }
 
 .color-row{ display:flex; align-items:center; gap:8px; }
 .color-row span{ font-size:.78rem; color:var(--ink-soft); }
@@ -323,6 +323,6 @@ body{
 
 .toast{
   position: fixed; bottom: 20px; left:50%; transform: translateX(-50%);
-  background: var(--ink); color:#fff; padding: 10px 18px; border-radius: 999px;
+  background: var(--ink); color:#fff; padding: 10px 18px; border-radius: 2px;
   font-size:.82rem; z-index: 300; animation: fadeIn .15s ease;
 }
