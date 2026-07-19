@@ -6,18 +6,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&family=JetBrains+Mono:wght@400;600&display=swap');
 
 :root{
-  /* ---- 기본 팔레트 (사용자가 위젯별로 덮어쓸 수 있음) ---- */
-  --paper: #faf7f2;
-  --dot: #ddd6ca;
-  --ink: #3a3532;
-  --ink-soft: #7a726a;
-  --rose: #c97b84;
-  --sage: #8a9a7e;
-  --gold: #c9a227;
-  --card-bg: #fffdf9;
-  --card-border: #e7dfd2;
-  --shadow: 0 6px 16px rgba(58,53,50,0.10);
-  --shadow-press: 0 2px 6px rgba(58,53,50,0.14);
+  /* ---- 검붉은 팔레트 (사용자가 위젯별로 덮어쓸 수 있음) ---- */
+  --paper: #1a0e10;
+  --dot: #3a161a;
+  --ink: #f3e6e2;
+  --ink-soft: #b98d8a;
+  --rose: #c81f3f;
+  --sage: #8a2f36;
+  --gold: #caa457;
+  --card-bg: #2a1417;
+  --card-bg2: #33181c;
+  --card-border: #4d2226;
+  --shadow: 0 8px 22px rgba(0,0,0,0.55);
+  --shadow-press: 0 3px 10px rgba(0,0,0,0.6);
 
   --font-display: 'Gowun Batang', serif;
   --font-body: 'Gowun Dodum', sans-serif;
@@ -49,7 +50,7 @@ body{
   position: sticky; top:0; z-index: 50;
   display:flex; align-items:center; justify-content:space-between;
   padding: 10px 22px;
-  background: rgba(250,247,242,0.85);
+  background: rgba(26,14,16,0.85);
   backdrop-filter: blur(6px);
   border-bottom: 1px dashed var(--card-border);
 }
@@ -72,12 +73,12 @@ body{
   transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
   box-shadow: var(--shadow);
 }
-.btn:hover{ background:#fff; }
+.btn:hover{ background: var(--card-bg2); }
 .btn:active{ transform: translateY(3px); box-shadow: var(--shadow-press); }
 .btn.primary{ background: var(--rose); color:#fff; border-color: var(--rose); }
 .btn.ghost{ background: transparent; box-shadow:none; }
 .btn.small{ padding: 4px 10px; font-size: .75rem; }
-.btn.danger{ background:#fff; color:#b5504f; border-color:#e4b9b8; }
+.btn.danger{ background: var(--card-bg); color:#ff8b8b; border-color:#6b2a2a; }
 
 .lock-badge{
   font-size: .75rem;
@@ -87,7 +88,7 @@ body{
   border: 1px solid var(--card-border);
   background: var(--card-bg);
 }
-.lock-badge.unlocked{ border-color: var(--sage); color:#4d5b45; }
+.lock-badge.unlocked{ border-color: var(--gold); color: var(--gold); }
 
 /* ---------- 대시보드 그리드 ---------- */
 .dashboard{
@@ -96,6 +97,8 @@ body{
   padding: 0 22px;
   display: grid;
   grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: 8px;
+  grid-auto-flow: dense;
   gap: 20px;
 }
 
@@ -109,15 +112,24 @@ body{
   overflow: hidden;
   transition: transform .18s ease, box-shadow .18s ease;
   display:flex; flex-direction:column;
-  min-height: 160px;
 }
 .widget[data-span="4"]{ grid-column: span 4; }
 .widget[data-span="6"]{ grid-column: span 6; }
 .widget[data-span="8"]{ grid-column: span 8; }
 .widget[data-span="12"]{ grid-column: span 12; }
 
+/* 스크랩북처럼 카드마다 살짝 다른 기울기 — 클릭/호버 시 반듯해짐 */
+.widget:nth-child(6n+1){ transform: rotate(-0.6deg); }
+.widget:nth-child(6n+2){ transform: rotate(0.5deg); }
+.widget:nth-child(6n+3){ transform: rotate(-0.3deg); }
+.widget:nth-child(6n+4){ transform: rotate(0.7deg); }
+.widget:nth-child(6n+5){ transform: rotate(-0.5deg); }
+.widget:nth-child(6n+6){ transform: rotate(0.3deg); }
+.widget:hover{ transform: rotate(0deg) scale(1.01); z-index: 2; }
+
 @media (max-width: 980px){
-  .widget, .widget[data-span]{ grid-column: 1 / -1; }
+  .widget, .widget[data-span]{ grid-column: 1 / -1; grid-row: auto !important; transform:none !important; }
+  .dashboard{ grid-auto-rows: auto; }
 }
 
 /* 클릭 애니메이션: 살짝 눌리는 느낌 */
@@ -156,7 +168,7 @@ body{
   border-radius: 6px;
   padding: 2px 4px;
 }
-.widget-title[contenteditable="true"]:hover{ background: rgba(0,0,0,0.04); cursor: text; }
+.widget-title[contenteditable="true"]:hover{ background: rgba(255,255,255,0.07); cursor: text; }
 
 .widget-tools{ display:flex; gap:4px; opacity:0; transition:opacity .15s; }
 .widget:hover .widget-tools{ opacity:1; }
@@ -167,7 +179,7 @@ body{
   width: 26px; height:26px;
   border-radius: 50%;
   border: 1px solid var(--card-border);
-  background: #fff;
+  background: var(--card-bg2);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer; font-size:.75rem;
   transition: transform .15s;
@@ -209,10 +221,10 @@ body{
 .cal-day.today{ border-color: var(--rose); font-weight:700; }
 .cal-day.has-event::after{
   content:""; position:absolute; bottom:3px; width:4px; height:4px; border-radius:50%;
-  background: var(--sage);
+  background: var(--gold);
 }
 .cal-day.empty{ visibility:hidden; }
-.cal-day:hover{ background: rgba(0,0,0,0.05); }
+.cal-day:hover{ background: rgba(255,255,255,0.06); }
 
 /* ---------- 갤러리 ---------- */
 .gallery-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:6px; }
@@ -228,7 +240,7 @@ body{
 }
 
 /* ---------- 외부 링크 임베드 ---------- */
-.embed-frame-wrap{ border-radius:10px; overflow:hidden; border:1px solid var(--card-border); background:#fff; }
+.embed-frame-wrap{ border-radius:10px; overflow:hidden; border:1px solid var(--card-border); background: var(--card-bg2); }
 .embed-frame-wrap iframe{ width:100%; height: 280px; border:0; display:block; }
 .embed-fallback{ padding: 14px; font-size:.82rem; color: var(--ink-soft); text-align:center; }
 
@@ -237,7 +249,7 @@ body{
 .backup-card{
   display:flex; align-items:center; gap:10px;
   border: 1px solid var(--card-border); border-radius: 10px; padding: 8px 10px;
-  background: #fff;
+  background: var(--card-bg2);
 }
 .backup-card .bc-icon{ font-size:1.2rem; }
 .backup-card .bc-main{ flex:1; min-width:0; }
@@ -260,7 +272,7 @@ body{
 
 /* ---------- 썰 / 커미션 리스트 ---------- */
 .story-entry, .commission-card{
-  border: 1px solid var(--card-border); border-radius:10px; padding:10px; background:#fff;
+  border: 1px solid var(--card-border); border-radius:10px; padding:10px; background: var(--card-bg2);
 }
 .story-entry h4, .commission-card h4{ margin:0 0 4px 0; font-family: var(--font-display); font-size:.95rem; }
 .story-entry .meta, .commission-card .meta{ font-size:.72rem; color:var(--ink-soft); margin-bottom:4px; }
@@ -293,9 +305,10 @@ body{
 .modal h3{ font-family: var(--font-display); margin-top:0; }
 .modal label{ display:block; font-size:.8rem; color:var(--ink-soft); margin: 10px 0 4px; }
 .modal input[type=text], .modal input[type=password], .modal input[type=date],
-.modal input[type=url], .modal input[type=number], .modal textarea, .modal select{
+.modal input[type=url], .modal input[type=number], .modal textarea, .modal select,
+.modal input[type=file]{
   width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--card-border);
-  font-family: var(--font-body); font-size:.85rem; background:#fff;
+  font-family: var(--font-body); font-size:.85rem; background: var(--card-bg2); color: var(--ink);
 }
 .modal textarea{ min-height:90px; resize:vertical; }
 .modal .row{ display:flex; gap:8px; }
