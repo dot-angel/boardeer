@@ -630,15 +630,8 @@ function render_music(w){
         </div>
       `).join('') || `<div class="empty-hint">등록된 곡이 없어요</div>`}
     </div>
-    <audio data-player="${w.id}" style="display:none;"></audio>
+    <audio data-player="${w.id}" style="margin-top:6px;" controls></audio>
     <div class="yt-frame" data-ytframe="${w.id}" style="display:none;margin-top:6px;"></div>
-    <div class="player-panel" data-panel="${w.id}" style="display:none;">
-      <div class="player-now" data-now="${w.id}">&nbsp;</div>
-      <input type="range" class="player-seek" data-seek="${w.id}" min="0" max="100" value="0" step="0.1">
-      <div class="player-controls">
-        <button data-mu-playpause="${w.id}">▶</button>
-      </div>
-    </div>
     ${editMode ? `<button class="btn small" data-mu-add="${w.id}" style="margin-top:6px;">+ 곡 추가</button>` : ''}
   `;
 }
@@ -879,58 +872,19 @@ function bindMusic(){
     const t = w.data.tracks[idx];
     const audioEl = document.querySelector(`[data-player="${id}"]`);
     const ytEl = document.querySelector(`[data-ytframe="${id}"]`);
-    const panelEl = document.querySelector(`[data-panel="${id}"]`);
-    const nowEl = document.querySelector(`[data-now="${id}"]`);
-    const seekEl = document.querySelector(`[data-seek="${id}"]`);
     const ytId = extractYouTubeId(t.url);
     if(ytId){
-      audioEl.pause(); audioEl.removeAttribute('src');
-      if(panelEl) panelEl.style.display = 'none';
+      audioEl.pause(); audioEl.removeAttribute('src'); audioEl.style.display = 'none';
       ytEl.style.display = 'block';
       ytEl.innerHTML = `<iframe height="190" src="https://www.youtube.com/embed/${ytId}?autoplay=1" title="${escapeHtml(t.title)}" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
     } else {
       ytEl.style.display = 'none'; ytEl.innerHTML = '';
+      audioEl.style.display = 'block';
       audioEl.src = t.url; audioEl.play().catch(()=>{});
-      if(panelEl) panelEl.style.display = 'flex';
-      if(nowEl) nowEl.textContent = t.title;
-      if(seekEl) seekEl.value = 0;
     }
     document.querySelectorAll(`[data-track^="${id}:"]`).forEach(x=> x.classList.remove('active'));
     el.classList.add('active');
   }));
-
-  // 재생/일시정지 버튼 — 팔레트 컬러(Night Bordeaux) 원형 버튼으로 브라우저 기본 오디오 UI를 대체
-  document.querySelectorAll('[data-mu-playpause]').forEach(el=> el.addEventListener('click', e=>{
-    e.stopPropagation();
-    const id = el.dataset.muPlaypause;
-    const audioEl = document.querySelector(`[data-player="${id}"]`);
-    if(!audioEl || !audioEl.src) return;
-    if(audioEl.paused) audioEl.play().catch(()=>{}); else audioEl.pause();
-  }));
-
-  // 탐색바(seek) — 팔레트 컬러로 직접 그린 슬라이더
-  document.querySelectorAll('[data-seek]').forEach(el=>{
-    el.addEventListener('input', e=>{
-      e.stopPropagation();
-      const id = el.dataset.seek;
-      const audioEl = document.querySelector(`[data-player="${id}"]`);
-      if(!audioEl || !audioEl.duration) return;
-      audioEl.currentTime = (el.value/100) * audioEl.duration;
-    });
-    el.addEventListener('click', e=> e.stopPropagation());
-  });
-
-  document.querySelectorAll('[data-player]').forEach(audioEl=>{
-    const id = audioEl.dataset.player;
-    const seekEl = document.querySelector(`[data-seek="${id}"]`);
-    const playBtn = document.querySelector(`[data-mu-playpause="${id}"]`);
-    audioEl.addEventListener('timeupdate', ()=>{
-      if(seekEl && audioEl.duration) seekEl.value = (audioEl.currentTime/audioEl.duration)*100;
-    });
-    audioEl.addEventListener('play', ()=>{ if(playBtn) playBtn.textContent = '⏸'; });
-    audioEl.addEventListener('pause', ()=>{ if(playBtn) playBtn.textContent = '▶'; });
-    audioEl.addEventListener('ended', ()=>{ if(playBtn) playBtn.textContent = '▶'; if(seekEl) seekEl.value = 0; });
-  });
 }
 
 refreshLockUI();
