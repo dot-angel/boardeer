@@ -8,23 +8,24 @@
 </head>
 <body>
 
-  <!-- 배너: 고정 요소 -->
+  <!-- 배너: 제목/잠금/테마 버튼이 전부 여기 하단에 함께 있어요 (별도 제목바 없음) -->
   <div class="site-banner" id="siteBanner">
     <div class="site-banner-scrim"></div>
-    <div class="site-banner-sub" id="bannerSub" contenteditable="false" data-placeholder="배너 부제목을 적어주세요"></div>
-    <button class="btn small banner-edit-btn" id="bannerEditBtn" style="display:none;">배너 이미지 변경</button>
-  </div>
-
-  <div class="site-topbar">
-    <div class="site-name" id="siteName" contenteditable="false">노은</div>
-    <div class="topbar-actions">
-      <span class="lock-badge" id="lockBadge">🔒 보기 전용</span>
-      <button class="btn small" id="globalStyleBtn">🎨 테마 편집</button>
-      <button class="btn small" id="lockBtn">잠금 해제</button>
+    <div class="banner-bottom">
+      <div class="banner-bottom-left">
+        <div class="site-name" id="siteName" contenteditable="false">노은</div>
+        <div class="site-banner-sub" id="bannerSub" contenteditable="false" data-placeholder="배너 부제목을 적어주세요"></div>
+      </div>
+      <div class="banner-bottom-right">
+        <span class="lock-badge" id="lockBadge">🔒 보기 전용</span>
+        <button class="btn small" id="globalStyleBtn">🎨 테마 편집</button>
+        <button class="btn small banner-edit-btn" id="bannerEditBtn" style="display:none;">배너 이미지 변경</button>
+        <button class="btn small" id="lockBtn">잠금 해제</button>
+      </div>
     </div>
   </div>
 
-  <!-- 고정 레이아웃: 위젯을 추가/삭제하는 게 아니라, 정해진 8개 영역이 항상 이 구성대로 보여요 -->
+  <!-- 고정 레이아웃: 정해진 영역이 항상 이 구성대로 보여요. 위젯 제목은 전부 없앰(애플 위젯 스타일) -->
   <div class="board">
 
     <div class="row row-1">
@@ -32,7 +33,6 @@
       <div class="row-1-right">
         <div class="w-card w-music" id="cardMusic"></div>
         <div class="w-card w-dday" id="cardDday">
-          <div class="w-title" id="ddayTitle" contenteditable="false">D-Day</div>
           <div class="w-body scroll" id="ddayBody"></div>
           <div class="w-edit-row" id="ddayAddWrap"></div>
         </div>
@@ -41,7 +41,6 @@
 
     <div class="row row-2">
       <div class="w-card w-guestbook" id="cardGuestbook">
-        <div class="w-title" id="guestbookTitle" contenteditable="false">방명록</div>
         <div class="w-body scroll" id="guestbookBody"></div>
         <div class="gb-form" id="guestbookForm">
           <input type="text" id="gbName" placeholder="이름">
@@ -54,6 +53,13 @@
 
     <div class="row row-3">
       <div class="w-card w-gallery" id="cardGallery"></div>
+    </div>
+
+    <div class="row row-docs">
+      <div class="w-card w-docs" id="cardDocs">
+        <div class="doc-list" id="docList"></div>
+        <div class="w-edit-row" id="docAddWrap"></div>
+      </div>
     </div>
 
     <div class="row row-4">
