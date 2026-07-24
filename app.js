@@ -1,8 +1,9 @@
 /* =========================================================
-   노은 — app.js (전면 재제작)
-   위젯을 자유롭게 추가/삭제하던 방식은 없애고, 정해진 8개 영역
-   (이미지 슬라이드 · 음악 · 디데이 · 방명록 · 캘린더 · 갤러리 · 세션카드 · 체크보드)
-   이 항상 같은 구성으로 보이도록 각각 고정 렌더 함수로 관리함.
+   노은 — app.js
+   정해진 영역(이미지 슬라이드 · 음악 · 디데이 · 방명록 · 캘린더 · 갤러리 ·
+   문서 정리 · 세션카드 · 체크보드)이 항상 같은 구성으로 보이도록
+   각각 고정 렌더 함수로 관리함. 위젯 제목은 전부 없음(애플 위젯 스타일),
+   사이트 이름/잠금/테마 버튼은 배너 하단에 통합되어 있음.
    ========================================================= */
 
 let editMode = sessionStorage.getItem('gh_edit') === '1';
@@ -15,8 +16,6 @@ const siteBannerEl = document.getElementById('siteBanner');
 const bannerSubEl = document.getElementById('bannerSub');
 const bannerEditBtn = document.getElementById('bannerEditBtn');
 const globalStyleBtn = document.getElementById('globalStyleBtn');
-const ddayTitleEl = document.getElementById('ddayTitle');
-const guestbookTitleEl = document.getElementById('guestbookTitle');
 
 /* ---------------- 설정 미완료 안내 ---------------- */
 
@@ -60,6 +59,67 @@ function escapeHtml(s){
 }
 
 function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+
+/* 이미지 슬라이드/갤러리에서 공통으로 쓰는 확대보기 팝업.
+   onDelete를 넘기면(편집모드일 때만) 팝업 안에 삭제 버튼도 같이 보여줌 */
+function openImageLightbox(url, onDelete){
+  openModal(`
+    <img src="${escapeHtml(url)}" style="width:100%;border-radius:10px;">
+    <div class="modal-actions">
+      ${onDelete ? `<button class="btn danger" id="del">삭제</button>` : ''}
+      <button class="btn ghost" id="c">닫기</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    if(onDelete) m.querySelector('#del').onclick = async ()=>{ await onDelete(); closeModal(); };
+    attachImgFallback(m.querySelector('img'));
+  });
+}
+
+/* imgur 공유 페이지 링크(예: imgur.com/xxxxx)는 실제 이미지 파일이 아니라 HTML 페이지라
+   <img>에 넣으면 깨짐. 직접 이미지 주소(i.imgur.com/xxxxx.jpg)로 자동 변환해줌. */
+function normalizeImageUrl(url){
+  if(!url) return url;
+  url = url.trim();
+  const m = url.match(/^https?:\/\/(?:www\.)?imgur\.com\/(?!a\/|gallery\/|t\/)([a-zA-Z0-9]+)(?:[.?#].*)?$/i);
+  if(m) return `https://i.imgur.com/${m[1]}.jpg`;
+  return url;
+}
+
+/* 확장자를 정확히 몰라도(.jpg로 변환했는데 실제로는 png/gif인 경우 등) 로딩에 실패하면
+   다른 확장자로 자동 재시도. i.imgur.com 주소에만 적용됨 */
+function attachImgFallback(imgEl){
+  if(!imgEl) return;
+  const src = imgEl.getAttribute('src') || '';
+  const m = src.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
+  if(!m) return;
+  const exts = ['jpg','jpeg','png','gif','webp'];
+  let tries = 0;
+  imgEl.addEventListener('error', function handler(){
+    tries++;
+    if(tries < exts.length){ imgEl.src = `${m[1]}.${exts[tries]}`; }
+    else{ imgEl.removeEventListener('error', handler); }
+  });
+}
+
+/* 배너는 <img>가 아니라 CSS background-image라 위 방식이 안 통해서, 미리 로드 테스트 후 적용 */
+function setBannerImageWithFallback(url){
+  if(!url) return;
+  const m = url.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
+  if(!m){ siteBannerEl.style.backgroundImage = `url('${url}')`; return; }
+  siteBannerEl.style.backgroundImage = `url('${url}')`; // 우선 낙관적으로 적용
+  const exts = ['jpg','jpeg','png','gif','webp'];
+  let i = 0;
+  const tryNext = ()=>{
+    if(i >= exts.length) return;
+    const testUrl = `${m[1]}.${exts[i]}`;
+    const testImg = new Image();
+    testImg.onload = ()=>{ siteBannerEl.style.backgroundImage = `url('${testUrl}')`; };
+    testImg.onerror = ()=>{ i++; tryNext(); };
+    testImg.src = testUrl;
+  };
+  tryNext();
+}
 
 function extractYouTubeId(url){
   if(!url) return null;
@@ -112,8 +172,6 @@ function refreshLockUI(){
   document.body.classList.toggle('edit-mode', editMode);
   siteNameEl.setAttribute('contenteditable', editMode ? 'true' : 'false');
   bannerSubEl.setAttribute('contenteditable', editMode ? 'true' : 'false');
-  ddayTitleEl.setAttribute('contenteditable', editMode ? 'true' : 'false');
-  guestbookTitleEl.setAttribute('contenteditable', editMode ? 'true' : 'false');
   bannerEditBtn.style.display = editMode ? 'inline-flex' : 'none';
   document.getElementById('checklistAddWrap').style.display = editMode ? 'flex' : 'none';
   lockBadge.textContent = editMode ? '🔓 편집 가능' : '🔒 보기 전용';
@@ -123,7 +181,7 @@ function refreshLockUI(){
 
 function renderAllModules(){
   renderImages(); renderMusic(); renderDday(); renderGuestbook();
-  renderCalendar(); renderGallery(); renderSessions(); renderChecklist();
+  renderCalendar(); renderGallery(); renderDocs(); renderSessions(); renderChecklist();
 }
 
 lockBtn.addEventListener('click', async ()=>{
@@ -206,21 +264,6 @@ db.collection('meta').doc('site').onSnapshot(doc=>{
   if(doc.exists && doc.data().name && document.activeElement !== siteNameEl){ siteNameEl.textContent = doc.data().name; }
 });
 
-ddayTitleEl.addEventListener('blur', ()=>{
-  if(!editMode) return;
-  db.collection('meta').doc('labels').set({ dday: ddayTitleEl.textContent.trim() || 'D-Day' }, {merge:true});
-});
-guestbookTitleEl.addEventListener('blur', ()=>{
-  if(!editMode) return;
-  db.collection('meta').doc('labels').set({ guestbook: guestbookTitleEl.textContent.trim() || '방명록' }, {merge:true});
-});
-db.collection('meta').doc('labels').onSnapshot(doc=>{
-  if(!doc.exists) return;
-  const d = doc.data();
-  if(d.dday && document.activeElement !== ddayTitleEl) ddayTitleEl.textContent = d.dday;
-  if(d.guestbook && document.activeElement !== guestbookTitleEl) guestbookTitleEl.textContent = d.guestbook;
-});
-
 /* ---------------- 배너 (항상 최상단 고정) ---------------- */
 
 bannerSubEl.addEventListener('blur', ()=>{
@@ -248,7 +291,7 @@ bannerEditBtn.addEventListener('click', async ()=>{
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const file = m.querySelector('#bImgFile').files[0];
-      let image = m.querySelector('#bImg').value.trim();
+      let image = normalizeImageUrl(m.querySelector('#bImg').value.trim());
       if(file){
         saveBtn.disabled = true;
         saveBtn.textContent = '사진 처리 중…';
@@ -276,7 +319,7 @@ bannerEditBtn.addEventListener('click', async ()=>{
 db.collection('meta').doc('banner').onSnapshot(doc=>{
   if(!doc.exists) return;
   const d = doc.data();
-  if(d.image) siteBannerEl.style.backgroundImage = `url('${d.image}')`;
+  if(d.image) setBannerImageWithFallback(d.image);
   if(typeof d.subtitle === 'string' && document.activeElement !== bannerSubEl){
     bannerSubEl.textContent = d.subtitle;
   }
@@ -421,8 +464,6 @@ globalStyleBtn.addEventListener('click', async ()=>{
 
 let imagesData = { items: [] };
 let imgSlideIndex = 0;
-let slidePaused = false;
-let slideAutoTimer = null;
 
 function renderImages(){
   const box = document.getElementById('cardImages');
@@ -436,7 +477,7 @@ function renderImages(){
     if(imgSlideIndex >= items.length) imgSlideIndex = 0;
     box.innerHTML = `
       <div class="slide-viewport" id="slideViewport">
-        <img src="${items[imgSlideIndex]}">
+        <img src="${items[imgSlideIndex]}" id="slideImg" title="눌러서 크게 보기">
         ${editMode ? `<button class="icon-btn slide-del" id="imgDelBtn" title="이 사진 삭제">✕</button>` : ''}
         ${items.length>1 ? `<button class="slide-nav prev" id="imgPrev">‹</button><button class="slide-nav next" id="imgNext">›</button>` : ''}
       </div>
@@ -455,14 +496,24 @@ function bindImages(){
   if(next) next.onclick = ()=>{ imgSlideIndex = (imgSlideIndex + 1) % imagesData.items.length; renderImages(); };
   box.querySelectorAll('[data-dot]').forEach(d=> d.onclick = ()=>{ imgSlideIndex = Number(d.dataset.dot); renderImages(); });
   const del = box.querySelector('#imgDelBtn');
-  if(del) del.onclick = async ()=>{
+  if(del) del.onclick = async (e)=>{
+    e.stopPropagation();
     const items = [...imagesData.items]; items.splice(imgSlideIndex,1);
     await docRef('images').set({items}, {merge:true});
   };
   const addBtn = box.querySelector('#imgAddBtn');
   if(addBtn) addBtn.onclick = openImagesAddModal;
-  box.onmouseenter = ()=> slidePaused = true;
-  box.onmouseleave = ()=> slidePaused = false;
+  const img = box.querySelector('#slideImg');
+  if(img){
+    attachImgFallback(img);
+    img.onclick = ()=>{
+      const idx = imgSlideIndex;
+      openImageLightbox(imagesData.items[idx], editMode ? async ()=>{
+        const arr = [...imagesData.items]; arr.splice(idx,1);
+        await docRef('images').set({items:arr}, {merge:true});
+      } : null);
+    };
+  }
 }
 
 function openImagesAddModal(){
@@ -479,7 +530,7 @@ function openImagesAddModal(){
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const files = Array.from(m.querySelector('#imgFiles').files || []);
-      const url = m.querySelector('#imgUrl').value.trim();
+      const url = normalizeImageUrl(m.querySelector('#imgUrl').value.trim());
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -507,13 +558,6 @@ function openImagesAddModal(){
 }
 
 docRef('images').onSnapshot(doc=>{ imagesData = doc.exists ? doc.data() : {items:[]}; renderImages(); });
-
-slideAutoTimer = setInterval(()=>{
-  if(!slidePaused && imagesData.items && imagesData.items.length > 1){
-    imgSlideIndex = (imgSlideIndex + 1) % imagesData.items.length;
-    renderImages();
-  }
-}, 5000);
 
 /* ---------------- 2. 음악 위젯 ---------------- */
 
@@ -649,7 +693,7 @@ function openDdayAddModal(){
   });
 }
 
-docRef('dday').onSnapshot(doc=>{ ddayData = doc.exists ? doc.data() : {items:[]}; renderDday(); });
+docRef('dday').onSnapshot(doc=>{ ddayData = doc.exists ? doc.data() : {items:[]}; renderDday(); renderCalendar(); });
 
 /* ---------------- 4. 방명록 (누구나 남길 수 있음, 삭제만 편집모드 전용) ---------------- */
 
@@ -699,6 +743,28 @@ document.getElementById('gbSubmit').addEventListener('click', async ()=>{
 let calendarData = { events: {} };
 let calState = (()=>{ const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })();
 
+const DDAY_MILESTONE_INTERVAL = 50; // "50일 간격" 기념일 자동 표시 주기
+
+function daysBetween(baseDateStr, targetDateStr){
+  const base = new Date(baseDateStr + 'T00:00:00');
+  const target = new Date(targetDateStr + 'T00:00:00');
+  return Math.round((target - base) / 86400000);
+}
+
+// 디데이 위젯에 등록된 날짜를 기준으로, 해당 날짜와 그 뒤 50일 단위가 되는 날짜마다
+// 캘린더에 자동으로 기념일 표시를 띄워줌 (직접 캘린더에 따로 입력할 필요 없음)
+function ddayMilestonesForDate(dateStr){
+  const marks = [];
+  (ddayData.items || []).forEach(it=>{
+    if(!it.date) return;
+    const diff = daysBetween(it.date, dateStr);
+    if(diff >= 0 && diff % DDAY_MILESTONE_INTERVAL === 0){
+      marks.push(diff === 0 ? `${it.label} 시작일` : `${it.label} ${diff}일`);
+    }
+  });
+  return marks;
+}
+
 function renderCalendar(){
   const box = document.getElementById('cardCalendar');
   const events = calendarData.events || {};
@@ -710,8 +776,15 @@ function renderCalendar(){
   for(let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
     const dateStr = `${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const has = events[dateStr] && events[dateStr].length;
-    cells += `<div class="cal-day ${dateStr===todayStr?'today':''} ${has?'has-event':''}" data-day="${dateStr}">${d}</div>`;
+    const hasManual = events[dateStr] && events[dateStr].length;
+    const ddayMarks = ddayMilestonesForDate(dateStr);
+    const cls = [
+      'cal-day',
+      dateStr===todayStr ? 'today' : '',
+      (hasManual || ddayMarks.length) ? 'has-event' : '',
+      ddayMarks.length ? 'has-dday' : ''
+    ].filter(Boolean).join(' ');
+    cells += `<div class="${cls}" data-day="${dateStr}" title="${ddayMarks.length ? escapeHtml(ddayMarks.join(', ')) : ''}">${d}</div>`;
   }
   box.innerHTML = `
     <div class="cal-head">
@@ -731,18 +804,21 @@ function renderCalendar(){
 
 function openDayModal(dateStr){
   const events = calendarData.events || {};
-  const current = (events[dateStr]||[]).join('\n');
+  const manual = events[dateStr] || [];
+  const ddayMarks = ddayMilestonesForDate(dateStr);
   if(!editMode){
-    if(!current){ toast('이 날은 등록된 일정이 없어요'); return; }
-    openModal(`<h3>${dateStr}</h3><div style="white-space:pre-wrap;font-size:.88rem;">${escapeHtml(current)}</div>
+    if(!manual.length && !ddayMarks.length){ toast('이 날은 등록된 일정이 없어요'); return; }
+    const lines = [...ddayMarks.map(t=>`🎉 ${t}`), ...manual];
+    openModal(`<h3>${dateStr}</h3><div style="white-space:pre-wrap;font-size:.88rem;">${escapeHtml(lines.join('\n'))}</div>
       <div class="modal-actions"><button class="btn ghost" id="c">닫기</button></div>`,
       m=> m.querySelector('#c').onclick = closeModal);
     return;
   }
   openModal(`
     <h3>${dateStr} 일정</h3>
+    ${ddayMarks.length ? `<p class="hint">🎉 디데이 연동: ${escapeHtml(ddayMarks.join(', '))} (자동으로 표시되는 항목이라 여기서 지울 필요 없어요)</p>` : ''}
     <label>내용 (줄바꿈으로 여러 개 가능)</label>
-    <textarea id="evText">${escapeHtml(current)}</textarea>
+    <textarea id="evText">${escapeHtml(manual.join('\n'))}</textarea>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -773,26 +849,17 @@ function renderGallery(){
     ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   box.querySelectorAll('.pin-item').forEach(el=> el.addEventListener('click', ()=> openGalleryViewModal(Number(el.dataset.idx))));
+  box.querySelectorAll('.pin-item img').forEach(attachImgFallback);
   const addBtn = box.querySelector('#galAddBtn');
   if(addBtn) addBtn.onclick = openGalleryAddModal;
 }
 
 function openGalleryViewModal(idx){
   const url = galleryData.items[idx];
-  openModal(`
-    <img src="${escapeHtml(url)}" style="width:100%;border-radius:10px;">
-    <div class="modal-actions">
-      ${editMode ? `<button class="btn danger" id="del">삭제</button>` : ''}
-      <button class="btn ghost" id="c">닫기</button>
-    </div>
-  `, m=>{
-    m.querySelector('#c').onclick = closeModal;
-    if(editMode) m.querySelector('#del').onclick = async ()=>{
-      const arr = [...galleryData.items]; arr.splice(idx,1);
-      await docRef('gallery').set({items:arr}, {merge:true});
-      closeModal();
-    };
-  });
+  openImageLightbox(url, editMode ? async ()=>{
+    const arr = [...galleryData.items]; arr.splice(idx,1);
+    await docRef('gallery').set({items:arr}, {merge:true});
+  } : null);
 }
 
 function openGalleryAddModal(){
@@ -809,7 +876,7 @@ function openGalleryAddModal(){
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const files = Array.from(m.querySelector('#galFiles').files || []);
-      const url = m.querySelector('#galUrl').value.trim();
+      const url = normalizeImageUrl(m.querySelector('#galUrl').value.trim());
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -837,6 +904,99 @@ function openGalleryAddModal(){
 }
 
 docRef('gallery').onSnapshot(doc=>{ galleryData = doc.exists ? doc.data() : {items:[]}; renderGallery(); });
+
+/* ---------------- 6-1. 문서 정리 (갤러리와 세션카드 사이) ---------------- */
+
+let docsData = { cards: [] };
+const DOC_FILE_MAX_BYTES = 650000;
+
+function renderDocs(){
+  const list = document.getElementById('docList');
+  const cards = docsData.cards || [];
+  list.innerHTML = cards.map((c,i)=> `
+    <div class="doc-row" data-idx="${i}">
+      <span class="doc-icon">${escapeHtml(c.icon || '📄')}</span>
+      <div class="doc-main">
+        <div class="doc-title">${escapeHtml(c.title)}</div>
+        ${c.desc ? `<div class="doc-desc">${escapeHtml(c.desc)}</div>` : ''}
+      </div>
+      ${c.link ? `<a class="doc-open" href="${escapeHtml(c.link)}" target="_blank" rel="noopener">열기 ↗</a>` : ''}
+      ${editMode ? `<button class="doc-del" data-del="${i}">✕</button>` : ''}
+    </div>
+  `).join('') || `<div class="w-empty">정리된 문서가 없어요</div>`;
+
+  list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async ()=>{
+    const idx = Number(btn.dataset.del);
+    const arr = [...docsData.cards]; arr.splice(idx,1);
+    await docRef('documents').set({cards:arr}, {merge:true});
+  }));
+
+  const wrap = document.getElementById('docAddWrap');
+  wrap.innerHTML = editMode ? `<button class="btn small doc-add" id="docAddBtn">+ 문서 추가</button>` : '';
+  const addBtn = document.getElementById('docAddBtn');
+  if(addBtn) addBtn.onclick = openDocAddModal;
+}
+
+function openDocAddModal(){
+  openModal(`
+    <h3>문서 추가</h3>
+    <label>아이콘(이모지, 선택)</label><input type="text" id="dcIcon" placeholder="📄" maxlength="2">
+    <label>제목</label><input type="text" id="dcTitle" placeholder="예: 설정집, 규칙 정리">
+    <label>설명 (선택)</label><input type="text" id="dcDesc" placeholder="한 줄 설명">
+    <div class="radio-row">
+      <label><input type="radio" name="doc-src" value="link" checked> 링크로 연결</label>
+      <label><input type="radio" name="doc-src" value="file"> 파일 올리기</label>
+    </div>
+    <div id="dcLinkWrap">
+      <label>문서 링크 (구글드라이브 공유 링크 등)</label><input type="url" id="dcLink" placeholder="https://drive.google.com/...">
+    </div>
+    <div id="dcFileWrap" style="display:none">
+      <label>파일 선택</label><input type="file" id="dcFile">
+      <p class="hint">약 ${Math.round(DOC_FILE_MAX_BYTES/1024)}KB보다 큰 파일은 여기서 바로 못 올려요. 그럴 땐 "링크로 연결"을 이용해주세요.</p>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
+  `, m=>{
+    m.querySelectorAll('input[name="doc-src"]').forEach(r=> r.addEventListener('change', ()=>{
+      const isLink = m.querySelector('input[name="doc-src"]:checked').value === 'link';
+      m.querySelector('#dcLinkWrap').style.display = isLink ? '' : 'none';
+      m.querySelector('#dcFileWrap').style.display = isLink ? 'none' : '';
+    }));
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const title = m.querySelector('#dcTitle').value.trim();
+      const desc = m.querySelector('#dcDesc').value.trim();
+      const icon = m.querySelector('#dcIcon').value.trim();
+      if(!title){ toast('제목을 입력해주세요'); return; }
+      const isLink = m.querySelector('input[name="doc-src"]:checked').value === 'link';
+      let link = '';
+      if(isLink){
+        link = m.querySelector('#dcLink').value.trim();
+      } else {
+        const file = m.querySelector('#dcFile').files[0];
+        if(file){
+          if(file.size > DOC_FILE_MAX_BYTES){
+            toast('파일이 너무 커요. "링크로 연결"을 이용해주세요.');
+            return;
+          }
+          saveBtn.disabled = true; saveBtn.textContent = '처리 중…';
+          try{ link = await fileToBase64(file); }
+          catch(err){ toast('파일을 읽지 못했어요'); saveBtn.disabled=false; saveBtn.textContent='추가'; return; }
+        }
+      }
+      try{
+        await docRef('documents').set({ cards: [...(docsData.cards||[]), {icon, title, desc, link}] }, {merge:true});
+      }catch(err){
+        toast('저장하지 못했어요. 파일이 크면 링크 방식을 이용해주세요.');
+        saveBtn.disabled = false; saveBtn.textContent = '추가';
+        return;
+      }
+      closeModal();
+    };
+  });
+}
+
+docRef('documents').onSnapshot(doc=>{ docsData = doc.exists ? doc.data() : {cards:[]}; renderDocs(); });
 
 /* ---------------- 7. TRPG 세션카드 (클릭하면 PDF로 연결) ---------------- */
 
