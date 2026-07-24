@@ -323,13 +323,14 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .pin-item:hover img{ transform: scale(1.03); }
 @media (max-width: 900px){ .pin-grid{ column-count:2; } }
 @media (max-width: 600px){ .pin-grid{ column-count:1; } }
+@media (max-width: 600px){ .doc-list{ grid-template-columns: 1fr; } }
 .gallery-add-fab{
   position:absolute; right:26px; bottom:26px; width:44px; height:44px; border-radius:50%;
   background: var(--rose-solid); color:#fff; border:none; font-size:1.2rem; box-shadow: var(--shadow); cursor:pointer;
 }
 
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
-.doc-list{ flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; overflow-y:auto; padding-right:2px; }
+.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(2,1fr); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
 .doc-list::-webkit-scrollbar{ width:5px; }
 .doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .doc-row{
