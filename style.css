@@ -24,6 +24,16 @@
   font-display: swap;
 }
 
+/* 이미지 위젯(사진 슬라이드) 안의 문구 전용 폰트 — 첨부해주신 VITRO INSPIRE 사용.
+   fonts/VITRO_INSPIRE_TTF.ttf 파일을 다른 폰트와 함께 반드시 같이 업로드해야 적용돼요. */
+@font-face{
+  font-family:'VITRO INSPIRE';
+  src: url('./fonts/VITRO_INSPIRE_TTF.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root{
   color-scheme: dark;
 
@@ -148,14 +158,14 @@ body::before{
   position: relative; z-index: 1;
 }
 .row{ display:grid; gap:20px; }
-.row-1{ grid-template-columns: 2fr 1fr; }
-.row-1-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
-.row-1-right > .w-card{ min-height:0; } /* 그리드 트랙 크기대로 카드가 실제로 줄어들 수 있도록 */
+.row-strip{ grid-template-columns: 1fr 1fr 1fr; }
+.row-strip > .w-card{ height: 360px; min-height:0; } /* 음악/디데이/문서를 같은 높이로 나란히 */
 .row-2{ grid-template-columns: 1fr 2fr; }
 .row-4{ grid-template-columns: 2fr 1fr; }
 
 @media (max-width: 900px){
-  .row-1, .row-2, .row-4{ grid-template-columns: 1fr; }
+  .row-2, .row-4, .row-strip{ grid-template-columns: 1fr; }
+  .row-strip > .w-card{ height: auto; }
 }
 
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
@@ -185,7 +195,7 @@ body::before{
 .w-edit-row{ margin-top:8px; flex:0 0 auto; }
 
 /* ---------- 이미지 위젯 (가로형 슬라이드 + 사진 위 타이포그래피) ---------- */
-.w-images{ min-height: 340px; padding:0; }
+.w-images{ min-height: 460px; padding:0; }
 .slide-viewport{ position:relative; width:100%; height:100%; flex:1; min-height:280px; background: rgba(0,0,0,0.2); }
 .slide-viewport img{ width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
 .slide-viewport::after{
@@ -194,7 +204,7 @@ body::before{
 }
 .slide-caption{
   position:absolute; left:20px; right:20px; bottom:20px; z-index:2;
-  font-family: var(--font-body); font-weight:800; font-size: clamp(1.3rem, 3vw, 2.1rem);
+  font-family: 'VITRO INSPIRE', var(--font-body); font-weight:800; font-size: clamp(1.3rem, 3vw, 2.1rem);
   line-height:1.15; letter-spacing:-0.01em; color:#fff;
   text-shadow: 0 6px 26px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.7);
   pointer-events:none;
@@ -318,7 +328,9 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 }
 
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
-.doc-list{ display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto; padding-right:2px; }
+.doc-list{ flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; overflow-y:auto; padding-right:2px; }
+.doc-list::-webkit-scrollbar{ width:5px; }
+.doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .doc-row{
   display:flex; align-items:center; gap:10px;
   border: 1px solid var(--card-border); border-radius: 16px; padding: 10px 13px;

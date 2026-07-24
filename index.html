@@ -31,14 +31,19 @@
   <!-- 고정 레이아웃: 정해진 영역이 항상 이 구성대로 보여요. 위젯 제목은 전부 없앰(애플 위젯 스타일) -->
   <div class="board">
 
-    <div class="row row-1">
+    <div class="row row-images">
       <div class="w-card w-images" id="cardImages"></div>
-      <div class="row-1-right">
-        <div class="w-card w-music" id="cardMusic"></div>
-        <div class="w-card w-dday" id="cardDday">
-          <div class="w-body scroll" id="ddayBody"></div>
-          <div class="w-edit-row" id="ddayAddWrap"></div>
-        </div>
+    </div>
+
+    <div class="row row-strip">
+      <div class="w-card w-music" id="cardMusic"></div>
+      <div class="w-card w-dday" id="cardDday">
+        <div class="w-body scroll" id="ddayBody"></div>
+        <div class="w-edit-row" id="ddayAddWrap"></div>
+      </div>
+      <div class="w-card w-docs" id="cardDocs">
+        <div class="doc-list" id="docList"></div>
+        <div class="w-edit-row" id="docAddWrap"></div>
       </div>
     </div>
 
@@ -56,13 +61,6 @@
 
     <div class="row row-3">
       <div class="w-card w-gallery" id="cardGallery"></div>
-    </div>
-
-    <div class="row row-docs">
-      <div class="w-card w-docs" id="cardDocs">
-        <div class="doc-list" id="docList"></div>
-        <div class="w-edit-row" id="docAddWrap"></div>
-      </div>
     </div>
 
     <div class="row row-4">

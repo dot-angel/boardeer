@@ -974,9 +974,10 @@ let galleryData = { items: [] };
 function renderGallery(){
   const box = document.getElementById('cardGallery');
   const items = galleryData.items || [];
+  const order = items.map((url,i)=>({url,i})).reverse(); // 신규 업로드가 먼저 보이도록
   box.innerHTML = `
     <div class="pin-grid">
-      ${items.map((url,i)=> `<div class="pin-item" data-idx="${i}"><img src="${escapeHtml(url)}"></div>`).join('')}
+      ${order.map(({url,i})=> `<div class="pin-item" data-idx="${i}"><img src="${escapeHtml(url)}"></div>`).join('')}
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
     ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
