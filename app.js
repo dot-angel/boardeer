@@ -1159,7 +1159,7 @@ function openDocAddModal(){
     </div>
     <div id="dcFileWrap" style="display:none">
       <label>파일 선택</label><input type="file" id="dcFile">
-      <p class="hint">약 ${Math.round(DOC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 바로 올릴 수 있어요. 그보다 크면 "링크로 연결"을 이용해주세요. (용량이 크면 저장/열기에 몇 초 더 걸릴 수 있어요)</p>
+      <p class="hint">약 ${Math.round(DOC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 파이어스토리지 없이 바로 올릴 수 있어요. 그보다 크면 "링크로 연결"을 이용해주세요. (용량이 크면 저장/열기에 몇 초 더 걸릴 수 있어요)</p>
     </div>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
@@ -1201,13 +1201,16 @@ function openDocAddModal(){
       }
       const newCard = { icon, title, desc, link };
       if(chunkInfo){ newCard.chunked = true; newCard.fileId = chunkInfo.fileId; newCard.chunkTotal = chunkInfo.total; }
+      const updatedCards = [...(docsData.cards||[]), newCard];
       try{
-        await docRef('documents').set({ cards: [...(docsData.cards||[]), newCard] }, {merge:true});
+        await docRef('documents').set({ cards: updatedCards }, {merge:true});
       }catch(err){
         toast('저장하지 못했어요. 링크 방식을 이용해주세요.');
         saveBtn.disabled = false; saveBtn.textContent = '추가';
         return;
       }
+      docsData = { ...docsData, cards: updatedCards };
+      renderDocs();
       closeModal();
     };
   });
@@ -1276,7 +1279,7 @@ function openSessionAddModal(){
     </div>
     <div id="pdfFileWrap">
       <label>PDF 파일</label><input type="file" id="sPdfFile" accept="application/pdf">
-      <p class="hint">약 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB까지 바로 올릴 수 있어요. 그보다 크면 오른쪽 "링크로 연결"을 골라서 구글드라이브 공유 링크를 붙여넣어주세요. (용량이 크면 저장/열기에 몇 초 더 걸릴 수 있어요)</p>
+      <p class="hint">약 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB까지 파이어스토리지 없이 바로 올릴 수 있어요. 그보다 크면 오른쪽 "링크로 연결"을 골라서 구글드라이브 공유 링크를 붙여넣어주세요. (용량이 크면 저장/열기에 몇 초 더 걸릴 수 있어요)</p>
     </div>
     <div id="pdfLinkWrap" style="display:none">
       <label>링크 (구글드라이브 공유 링크 등)</label><input type="url" id="sPdfLink" placeholder="https://drive.google.com/...">
@@ -1329,13 +1332,16 @@ function openSessionAddModal(){
       }
       const newCard = { title, thumb, pdf };
       if(pdfChunkInfo){ newCard.chunked = true; newCard.fileId = pdfChunkInfo.fileId; newCard.chunkTotal = pdfChunkInfo.total; }
+      const updatedCards = [...(sessionsData.cards||[]), newCard];
       try{
-        await docRef('sessions').set({ cards: [...(sessionsData.cards||[]), newCard] }, {merge:true});
+        await docRef('sessions').set({ cards: updatedCards }, {merge:true});
       }catch(err){
         toast('저장하지 못했어요. PDF 용량이 크면 링크 방식을 이용해주세요.');
         saveBtn.disabled = false; saveBtn.textContent = '추가';
         return;
       }
+      sessionsData = { ...sessionsData, cards: updatedCards };
+      renderSessions();
       closeModal();
     };
   });
