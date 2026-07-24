@@ -61,6 +61,89 @@ function escapeHtml(s){
 
 function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
 
+/* ---------------- 옵션(분류) 관리 + 필터 칩 — 문서 위젯과 모든 갤러리가 공용으로 씀 ----------------
+   위젯마다 별도의 옵션 문서(storeName)를 두고, 그 안의 options 배열을 목록/필터에 함께 씀.
+   각 항목(카드/사진)은 opt 필드에 옵션 문자열 하나를 들고 있고, "전체" 또는 옵션 하나를
+   골라 그것만 모아볼 수 있음. */
+
+function openOptionsManagerModal(storeName, currentOptions, onSaved){
+  let workingOptions = [...(currentOptions||[])];
+  openModal(`
+    <h3>옵션 관리</h3>
+    <p class="hint">여기서 만든 옵션은 추가할 때 고를 수 있고, 옵션별로 필터링해서 모아볼 수 있어요.</p>
+    <div class="opt-list" id="optList"></div>
+    <div class="w-edit-row" style="display:flex;gap:6px;">
+      <input type="text" id="optNew" placeholder="새 옵션">
+      <button class="btn small" id="optAddBtn">+ 추가</button>
+    </div>
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
+  `, m=>{
+    const listEl = m.querySelector('#optList');
+    const draw = ()=>{
+      listEl.innerHTML = workingOptions.map((opt,i)=> `
+        <div class="opt-row" data-idx="${i}">
+          <input type="text" class="opt-input" value="${escapeHtml(opt)}">
+          <button class="btn small danger" data-del="${i}">✕</button>
+        </div>
+      `).join('') || `<div class="w-empty">등록된 옵션이 없어요</div>`;
+      listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
+        workingOptions.splice(Number(btn.dataset.del), 1);
+        draw();
+      }));
+    };
+    draw();
+    m.querySelector('#optAddBtn').onclick = ()=>{
+      const input = m.querySelector('#optNew');
+      const val = input.value.trim();
+      if(!val) return;
+      workingOptions.push(val);
+      input.value = '';
+      draw();
+    };
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const options = Array.from(listEl.querySelectorAll('.opt-input')).map(inp=> inp.value.trim()).filter(Boolean);
+      saveBtn.disabled = true; saveBtn.textContent = '저장 중…';
+      try{ await docRef(storeName).set({ options }, {merge:true}); }
+      catch(err){ toast('저장하지 못했어요'); saveBtn.disabled=false; saveBtn.textContent='저장'; return; }
+      onSaved(options);
+      closeModal();
+    };
+  });
+}
+
+function renderOptionFilterChips(container, options, active, onSelect){
+  if(!container) return;
+  if(!options || !options.length){ container.innerHTML=''; container.style.display='none'; return; }
+  container.style.display='flex';
+  container.innerHTML = `
+    <button class="tag-chip ${!active?'active':''}" data-opt="">전체</button>
+    ${options.map(o=> `<button class="tag-chip ${active===o?'active':''}" data-opt="${escapeHtml(o)}">${escapeHtml(o)}</button>`).join('')}
+  `;
+  container.querySelectorAll('[data-opt]').forEach(btn=> btn.onclick = ()=> onSelect(btn.dataset.opt || null));
+}
+
+/* 사진 한 장의 옵션(분류)만 바로 바꾸는 작은 모달 — 갤러리/갤러리2에서 씀 */
+function openItemOptEditModal(currentOpt, optionsList, onSave){
+  openModal(`
+    <h3>옵션 지정</h3>
+    <label>옵션</label>
+    <select id="itemOptSel">
+      <option value="">없음</option>
+      ${(optionsList||[]).map(o=> `<option value="${escapeHtml(o)}" ${o===currentOpt?'selected':''}>${escapeHtml(o)}</option>`).join('')}
+    </select>
+    <p class="hint">옵션 목록 자체를 늘리거나 고치려면 위젯의 "⚙ 옵션 관리"를 이용해주세요.</p>
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      await onSave(m.querySelector('#itemOptSel').value);
+      closeModal();
+    };
+  });
+}
+
 /* 이미지 슬라이드/갤러리에서 공통으로 쓰는 확대보기 팝업.
    cfg = {
      items,             // 정규화된 아이템 배열 (이 팝업 안에서 좌우로 넘겨볼 목록)
@@ -1145,9 +1228,9 @@ docRef('calendar').onSnapshot(doc=>{ calendarData = doc.exists ? doc.data() : {e
 /* 예전엔 items가 그냥 URL 문자열 배열이었어서, 새로 추가된 블러 옵션과 호환되도록
    문자열이면 {url, blur:false}로, 객체면 그대로 정규화해줌 */
 function normalizeGalleryItem(it){
-  if(typeof it === 'string') return { url: it, blur: false };
-  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur };
-  return { url: it.url, blur: !!it.blur };
+  if(typeof it === 'string') return { url: it, blur: false, opt: '' };
+  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opt: it.opt||'' };
+  return { url: it.url, blur: !!it.blur, opt: it.opt||'' };
 }
 
 /* 갤러리는 사진 여러 장이 문서 하나(gallery/gallery2)에 배열로 함께 저장되는데,
@@ -1183,13 +1266,20 @@ function deleteGalleryImageIfChunked(item){
 }
 
 let galleryData = { items: [] };
+let sharedGalleryOptionsData = { options: [] };
+let galleryFilterOpt = null;
 
 function renderGallery(){
   const box = document.getElementById('cardGallery');
   const items = (galleryData.items || []).map(normalizeGalleryItem);
+  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !galleryFilterOpt || it.opt === galleryFilterOpt);
   box.innerHTML = `
+    <div class="pin-toolbar">
+      <div class="tag-filter" id="galleryFilterChips" style="display:none;"></div>
+      ${editMode ? `<button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>` : ''}
+    </div>
     <div class="pin-grid" id="galleryGrid">
-      ${items.map((it,i)=>{
+      ${pairs.map(({it,i})=>{
         const resolved = resolveGalleryItemUrl(it, renderGallery);
         if(resolved === null){
           return `<div class="pin-item pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
@@ -1199,14 +1289,17 @@ function renderGallery(){
           <img src="${escapeHtml(resolved)}">
           ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
           ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+          ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
         </div>`;
       }).join('')}
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
+    ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
+  renderOptionFilterChips(box.querySelector('#galleryFilterChips'), sharedGalleryOptionsData.options, galleryFilterOpt, (opt)=>{ galleryFilterOpt = opt; renderGallery(); });
   box.querySelectorAll('.pin-item:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
-    if(e.target.closest('[data-blur], [data-del]')) return;
+    if(e.target.closest('[data-blur], [data-del], [data-opt-edit]')) return;
     openGalleryViewModal(Number(el.dataset.idx));
   }));
   box.querySelectorAll('.pin-item img').forEach(attachImgFallback);
@@ -1216,6 +1309,15 @@ function renderGallery(){
     const arr = items.slice();
     arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
     await docRef('gallery').set({ items: arr }, {merge:true});
+  }));
+  box.querySelectorAll('[data-opt-edit]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const idx = Number(btn.dataset.optEdit);
+    openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+      const arr = items.slice();
+      arr[idx] = { ...arr[idx], opt };
+      await docRef('gallery').set({ items: arr }, {merge:true});
+    });
   }));
   box.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
     e.stopPropagation();
@@ -1227,6 +1329,8 @@ function renderGallery(){
   }));
   const addBtn = box.querySelector('#galAddBtn');
   if(addBtn) addBtn.onclick = openGalleryAddModal;
+  const optsBtn = box.querySelector('#galOptsBtn');
+  if(optsBtn) optsBtn.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery(); });
   bindPinDragReorder(
     box.querySelector('#galleryGrid'), '.pin-item:not(.pin-loading)',
     ()=> items.slice(),
@@ -1257,6 +1361,12 @@ function openGalleryAddModal(){
     <p class="hint">화면에 맞게 자동으로 압축해서 갤러리 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="galUrl" placeholder="https://...">
+    <label>옵션 (분류, 선택)</label>
+    <select id="galOpt">
+      <option value="">없음</option>
+      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+    </select>
+    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="galBlur" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">썸네일 블러 처리 (눌러야만 원본이 보여요)</span>
@@ -1269,6 +1379,7 @@ function openGalleryAddModal(){
       const files = Array.from(m.querySelector('#galFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#galUrl').value.trim());
       const blur = m.querySelector('#galBlur').checked;
+      const opt = m.querySelector('#galOpt').value;
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -1277,11 +1388,11 @@ function openGalleryAddModal(){
           try{
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, blur });
+            newItems.push({ ...stored, blur, opt });
           }catch(err){ toast(`"${files[i].name}" 처리 실패`); }
         }
       } else if(url){
-        newItems.push({ url, blur });
+        newItems.push({ url, blur, opt });
       } else {
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
@@ -1299,6 +1410,25 @@ function openGalleryAddModal(){
   });
 }
 
+docRef('sharedGalleryOptions').onSnapshot(doc=>{
+  sharedGalleryOptionsData = doc.exists ? doc.data() : {options:[]};
+  renderGallery(); renderGallery2(); renderRefGallery();
+});
+
+/* 예전엔 갤러리마다 옵션 목록을 따로 저장했는데, 그때 만들어둔 옵션이 있으면
+   공유 목록이 아직 비어있을 때 한 번만 자동으로 합쳐줌 */
+(async function migrateGalleryOptionsToShared(){
+  try{
+    const sharedDoc = await docRef('sharedGalleryOptions').get();
+    if(sharedDoc.exists && (sharedDoc.data().options||[]).length) return;
+    const [g1, g2, g3] = await Promise.all([
+      docRef('galleryOptions').get(), docRef('gallery2Options').get(), docRef('refGalleryOptions').get()
+    ]);
+    const merged = [];
+    [g1,g2,g3].forEach(d=>{ if(d.exists) (d.data().options||[]).forEach(o=>{ if(o && !merged.includes(o)) merged.push(o); }); });
+    if(merged.length) await docRef('sharedGalleryOptions').set({ options: merged }, {merge:true});
+  }catch(err){ console.error('갤러리 옵션 이전 실패', err); }
+})();
 docRef('gallery').onSnapshot(doc=>{ galleryData = doc.exists ? doc.data() : {items:[]}; renderGallery(); });
 
 /* ---------------- 6-2. 갤러리 2번째 (기존 갤러리 바로 아래 — 완전히 독립된 두 번째 갤러리)
@@ -1306,18 +1436,25 @@ docRef('gallery').onSnapshot(doc=>{ galleryData = doc.exists ? doc.data() : {ite
 
 let gallery2Data = { items: [] };
 let gallery2Collapsed = true;
+let gallery2FilterOpt = null;
 
 function renderGallery2(){
   const box = document.getElementById('cardGallery2');
   if(!box) return;
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
+  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !gallery2FilterOpt || it.opt === gallery2FilterOpt);
   box.innerHTML = `
     <button class="gallery-toggle-btn" id="gallery2ToggleBtn">
       <span>${gallery2Collapsed ? '펼쳐보기' : '접기'}${items.length ? ` (${items.length})` : ''}</span>
       <span class="gallery-toggle-arrow ${gallery2Collapsed ? '' : 'open'}">⌄</span>
     </button>
+    ${!gallery2Collapsed ? `
+    <div class="pin-toolbar">
+      <div class="tag-filter" id="gallery2FilterChips" style="display:none;"></div>
+      ${editMode ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
+    </div>` : ''}
     <div class="pin-grid-dense" id="gallery2Grid" style="${gallery2Collapsed ? 'display:none;' : ''}">
-      ${items.map((it,i)=>{
+      ${pairs.map(({it,i})=>{
         const resolved = resolveGalleryItemUrl(it, renderGallery2);
         if(resolved === null){
           return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
@@ -1327,19 +1464,22 @@ function renderGallery2(){
           <img src="${escapeHtml(resolved)}">
           ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
           ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+          ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
         </div>`;
       }).join('')}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
+      ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
     ${editMode && !gallery2Collapsed ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
+  if(!gallery2Collapsed) renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   const toggleBtn = box.querySelector('#gallery2ToggleBtn');
   if(toggleBtn) toggleBtn.onclick = ()=>{
     gallery2Collapsed = !gallery2Collapsed;
     renderGallery2();
   };
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
-    if(e.target.closest('[data-blur], [data-del]')) return;
+    if(e.target.closest('[data-blur], [data-del], [data-opt-edit]')) return;
     openGallery2ViewModal(Number(el.dataset.idx));
   }));
   box.querySelectorAll('.pin-item-dense img').forEach(attachImgFallback);
@@ -1349,6 +1489,15 @@ function renderGallery2(){
     const arr = items.slice();
     arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
     await docRef('gallery2').set({ items: arr }, {merge:true});
+  }));
+  box.querySelectorAll('[data-opt-edit]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const idx = Number(btn.dataset.optEdit);
+    openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+      const arr = items.slice();
+      arr[idx] = { ...arr[idx], opt };
+      await docRef('gallery2').set({ items: arr }, {merge:true});
+    });
   }));
   box.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
     e.stopPropagation();
@@ -1360,6 +1509,8 @@ function renderGallery2(){
   }));
   const addBtn = box.querySelector('#galAddBtn2');
   if(addBtn) addBtn.onclick = openGallery2AddModal;
+  const optsBtn2 = box.querySelector('#gal2OptsBtn');
+  if(optsBtn2) optsBtn2.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery2(); });
   if(!gallery2Collapsed){
     bindPinDragReorder(
       box.querySelector('#gallery2Grid'), '.pin-item-dense:not(.pin-loading)',
@@ -1392,6 +1543,12 @@ function openGallery2AddModal(){
     <p class="hint">화면에 맞게 자동으로 압축해서 갤러리 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="gal2Url" placeholder="https://...">
+    <label>옵션 (분류, 선택)</label>
+    <select id="gal2Opt">
+      <option value="">없음</option>
+      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+    </select>
+    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="gal2Blur" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">썸네일 블러 처리 (눌러야만 원본이 보여요)</span>
@@ -1404,6 +1561,7 @@ function openGallery2AddModal(){
       const files = Array.from(m.querySelector('#gal2Files').files || []);
       const url = normalizeImageUrl(m.querySelector('#gal2Url').value.trim());
       const blur = m.querySelector('#gal2Blur').checked;
+      const opt = m.querySelector('#gal2Opt').value;
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -1412,11 +1570,11 @@ function openGallery2AddModal(){
           try{
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, blur });
+            newItems.push({ ...stored, blur, opt });
           }catch(err){ toast(`"${files[i].name}" 처리 실패`); }
         }
       } else if(url){
-        newItems.push({ url, blur });
+        newItems.push({ url, blur, opt });
       } else {
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
@@ -1438,23 +1596,29 @@ docRef('gallery2').onSnapshot(doc=>{ gallery2Data = doc.exists ? doc.data() : {i
 
 /* ---------------- 6-3. 레퍼런스 갤러리 (캘린더 옆, 완전히 독립된 세 번째 갤러리)
    블러 옵션 없이 작고 촘촘한 정사각형 썸네일로만 구성 — 자료 수집/레퍼런스 모음용.
-   ---------------- */
+   문서 정리 위젯처럼 사진마다 제목/설명을 붙일 수 있음(옵션) ---------------- */
 
 function normalizeRefGalleryItem(it){
-  if(typeof it === 'string') return { url: it };
-  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal };
-  return { url: it.url };
+  if(typeof it === 'string') return { url: it, title:'', desc:'', opt:'' };
+  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, title: it.title||'', desc: it.desc||'', opt: it.opt||'' };
+  return { url: it.url, title: it.title||'', desc: it.desc||'', opt: it.opt||'' };
 }
 
 let refGalleryData = { items: [] };
+let refGalleryFilterOpt = null;
 
 function renderRefGallery(){
   const box = document.getElementById('cardRefGallery');
   if(!box) return;
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || it.opt === refGalleryFilterOpt);
   box.innerHTML = `
+    <div class="pin-toolbar">
+      <div class="tag-filter" id="refGalleryFilterChips" style="display:none;"></div>
+      ${editMode ? `<button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>` : ''}
+    </div>
     <div class="ref-gallery-grid" id="refGalleryGrid">
-      ${items.map((it,i)=>{
+      ${pairs.map(({it,i})=>{
         const resolved = resolveGalleryItemUrl(it, renderRefGallery);
         if(resolved === null){
           return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>...</span></div>`;
@@ -1462,15 +1626,19 @@ function renderRefGallery(){
         return `
         <div class="pin-item-dense" data-idx="${i}">
           <img src="${escapeHtml(resolved)}">
+          ${it.title ? `<div class="pin-item-dense-label">${escapeHtml(it.title)}</div>` : ''}
           ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+          ${editMode ? `<button class="pin-info-btn" data-info="${i}" title="제목/설명/옵션 편집">i</button>` : ''}
         </div>`;
       }).join('')}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
+      ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
     ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
+  renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
-    if(e.target.closest('[data-del]')) return;
+    if(e.target.closest('[data-del], [data-info]')) return;
     openRefGalleryViewModal(Number(el.dataset.idx));
   }));
   box.querySelectorAll('.pin-item-dense img').forEach(attachImgFallback);
@@ -1482,13 +1650,49 @@ function renderRefGallery(){
     await docRef('refgallery').set({items:arr}, {merge:true});
     deleteGalleryImageIfChunked(removed);
   }));
+  box.querySelectorAll('[data-info]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openRefGalleryMetaModal(Number(btn.dataset.info));
+  }));
   const addBtn = box.querySelector('#refGalAddBtn');
   if(addBtn) addBtn.onclick = openRefGalleryAddModal;
+  const optsBtn = box.querySelector('#refGalOptsBtn');
+  if(optsBtn) optsBtn.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderRefGallery(); });
   bindPinDragReorder(
     box.querySelector('#refGalleryGrid'), '.pin-item-dense:not(.pin-loading)',
     ()=> items.slice(),
     async (arr)=> docRef('refgallery').set({items:arr}, {merge:true})
   );
+}
+
+/* 문서 정리 위젯처럼, 사진 하나하나에 제목/설명/옵션을 달 수 있게 하는 편집창.
+   그리드 위 i 버튼과, 라이트박스 안 "정보 수정" 버튼 양쪽에서 모두 열 수 있음 */
+function openRefGalleryMetaModal(idx){
+  const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  const cur = items[idx];
+  if(!cur) return;
+  openModal(`
+    <h3>사진 정보</h3>
+    <label>제목</label>
+    <input type="text" id="rgTitle" value="${escapeHtml(cur.title||'')}" placeholder="예: 하람 겨울 코디">
+    <label>설명</label>
+    <textarea id="rgDesc" placeholder="메모, 출처 등">${escapeHtml(cur.desc||'')}</textarea>
+    <label>옵션 (분류)</label>
+    <select id="rgOpt">
+      <option value="">없음</option>
+      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}" ${o===cur.opt?'selected':''}>${escapeHtml(o)}</option>`).join('')}
+    </select>
+    <p class="hint">옵션 목록 자체를 늘리거나 고치려면 위젯의 "⚙ 옵션 관리"를 이용해주세요.</p>
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const arr = items.slice();
+      arr[idx] = { ...arr[idx], title: m.querySelector('#rgTitle').value.trim(), desc: m.querySelector('#rgDesc').value.trim(), opt: m.querySelector('#rgOpt').value };
+      await docRef('refgallery').set({items:arr}, {merge:true});
+      closeModal();
+    };
+  });
 }
 
 function openRefGalleryViewModal(idx){
@@ -1497,6 +1701,8 @@ function openRefGalleryViewModal(idx){
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
+    meta: (item)=> ({ title: item.title, desc: item.desc }),
+    onEditMeta: (i)=>{ closeModal(); openRefGalleryMetaModal(i); },
     onDelete: editMode ? async (i)=>{
       const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
       const [removed] = arr.splice(i,1);
@@ -1511,9 +1717,15 @@ function openRefGalleryAddModal(){
     <h3>레퍼런스 사진 추가</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
     <input type="file" id="refGalFiles" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
+    <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요. 제목/설명/옵션은 추가한 뒤 각 사진의 "i" 버튼으로 따로 붙일 수 있어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="refGalUrl" placeholder="https://...">
+    <label>옵션 (분류, 선택)</label>
+    <select id="refGalOpt">
+      <option value="">없음</option>
+      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+    </select>
+    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -1521,6 +1733,7 @@ function openRefGalleryAddModal(){
       const saveBtn = m.querySelector('#s');
       const files = Array.from(m.querySelector('#refGalFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#refGalUrl').value.trim());
+      const opt = m.querySelector('#refGalOpt').value;
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -1529,11 +1742,11 @@ function openRefGalleryAddModal(){
           try{
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
-            newItems.push(stored);
+            newItems.push({ ...stored, opt });
           }catch(err){ toast(`"${files[i].name}" 처리 실패`); }
         }
       } else if(url){
-        newItems.push({ url });
+        newItems.push({ url, opt });
       } else {
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
@@ -1557,13 +1770,16 @@ docRef('refgallery').onSnapshot(doc=>{ refGalleryData = doc.exists ? doc.data() 
 
 let docsData = { cards: [] };
 let docOptionsData = { options: [] };
+let docFilterOpt = null;
 const DOC_FILE_MAX_BYTES = 650000; // 이 크기까지는 카드 문서 안에 바로 저장(가장 빠름)
 const DOC_FILE_CHUNKED_MAX_BYTES = 8 * 1024 * 1024; // 이보다 크면 여러 문서로 나눠 저장(파이어스토리지 없이 8MB까지)
 
 function renderDocs(){
   const list = document.getElementById('docList');
-  const cards = docsData.cards || [];
-  list.innerHTML = cards.map((c,i)=> `
+  const allCards = docsData.cards || [];
+  renderOptionFilterChips(document.getElementById('docFilter'), docOptionsData.options, docFilterOpt, (opt)=>{ docFilterOpt = opt; renderDocs(); });
+  const pairs = allCards.map((c,i)=>({c,i})).filter(({c})=> !docFilterOpt || c.opt === docFilterOpt);
+  list.innerHTML = pairs.map(({c,i})=> `
     <div class="doc-row" data-idx="${i}">
       <span class="doc-icon">${escapeHtml(c.icon || '📄')}</span>
       <div class="doc-main">
@@ -1581,7 +1797,7 @@ function renderDocs(){
       ${editMode ? `<button class="doc-edit" data-edit="${i}">✎</button>` : ''}
       ${editMode ? `<button class="doc-del" data-del="${i}">✕</button>` : ''}
     </div>
-  `).join('') || `<div class="w-empty">정리된 문서가 없어요</div>`;
+  `).join('') || `<div class="w-empty">${docFilterOpt ? '이 옵션에 해당하는 문서가 없어요' : '정리된 문서가 없어요'}</div>`;
 
   list.querySelectorAll('[data-open]').forEach(a=> a.addEventListener('click', async (e)=>{
     e.preventDefault();
@@ -1701,58 +1917,12 @@ function openDocAddModal(){
 }
 
 docRef('documents').onSnapshot(doc=>{ docsData = doc.exists ? doc.data() : {cards:[]}; renderDocs(); });
-docRef('docOptions').onSnapshot(doc=>{ docOptionsData = doc.exists ? doc.data() : {options:[]}; });
+docRef('docOptions').onSnapshot(doc=>{ docOptionsData = doc.exists ? doc.data() : {options:[]}; renderDocs(); });
 
 function openDocOptionsModal(){
-  let workingOptions = [...(docOptionsData.options||[])];
-  openModal(`
-    <h3>문서 옵션(부제) 관리</h3>
-    <p class="hint">여기서 만든 옵션은 문서 추가/수정 시 부제처럼 고를 수 있어요.</p>
-    <div class="opt-list" id="optList"></div>
-    <div class="w-edit-row" style="display:flex;gap:6px;">
-      <input type="text" id="optNew" placeholder="새 옵션 (예: 설정집)">
-      <button class="btn small" id="optAddBtn">+ 추가</button>
-    </div>
-    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
-  `, m=>{
-    const listEl = m.querySelector('#optList');
-    const draw = ()=>{
-      listEl.innerHTML = workingOptions.map((opt,i)=> `
-        <div class="opt-row" data-idx="${i}">
-          <input type="text" class="opt-input" value="${escapeHtml(opt)}">
-          <button class="btn small danger" data-del="${i}">✕</button>
-        </div>
-      `).join('') || `<div class="w-empty">등록된 옵션이 없어요</div>`;
-      listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
-        workingOptions.splice(Number(btn.dataset.del), 1);
-        draw();
-      }));
-    };
-    draw();
-    m.querySelector('#optAddBtn').onclick = ()=>{
-      const input = m.querySelector('#optNew');
-      const val = input.value.trim();
-      if(!val) return;
-      workingOptions.push(val);
-      input.value = '';
-      draw();
-    };
-    m.querySelector('#c').onclick = closeModal;
-    m.querySelector('#s').onclick = async ()=>{
-      const saveBtn = m.querySelector('#s');
-      const options = Array.from(listEl.querySelectorAll('.opt-input')).map(inp=> inp.value.trim()).filter(Boolean);
-      saveBtn.disabled = true; saveBtn.textContent = '저장 중…';
-      try{
-        await docRef('docOptions').set({ options }, {merge:true});
-      }catch(err){
-        toast('저장하지 못했어요');
-        saveBtn.disabled = false; saveBtn.textContent = '저장';
-        return;
-      }
-      docOptionsData = { options };
-      renderDocs();
-      closeModal();
-    };
+  openOptionsManagerModal('docOptions', docOptionsData.options||[], (options)=>{
+    docOptionsData = { options };
+    renderDocs();
   });
 }
 
@@ -2091,6 +2261,8 @@ function renderChecklist(){
       <div class="check-item ${it.checked?'checked':''}" data-idx="${it._i}">
         <input type="checkbox" ${it.checked?'checked':''} ${editMode?'':'disabled'}>
         <span>${escapeHtml(it.text)}</span>
+        ${it.link ? `<a class="check-link" href="${escapeHtml(it.link)}" target="_blank" rel="noopener" title="${escapeHtml(it.link)}">🔗</a>` : ''}
+        ${editMode ? `<button class="check-link-edit" data-linkedit="${it._i}" title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
         ${editMode ? `<button class="del">✕</button>` : ''}
       </div>
     `;
@@ -2116,6 +2288,8 @@ function renderChecklist(){
       const arr = [...checklistData.items]; arr.splice(idx,1);
       await docRef('checklist').set({items:arr}, {merge:true});
     });
+    const linkEdit = el.querySelector('[data-linkedit]');
+    if(linkEdit) linkEdit.addEventListener('click', ()=> openChecklistLinkModal(idx));
   });
 
   const wrap = document.getElementById('checklistAddWrap');
@@ -2133,6 +2307,36 @@ function renderChecklist(){
 }
 
 docRef('checklist').onSnapshot(doc=>{ checklistData = doc.exists ? doc.data() : {items:[]}; renderChecklist(); });
+
+function openChecklistLinkModal(idx){
+  const cur = (checklistData.items||[])[idx];
+  if(!cur) return;
+  openModal(`
+    <h3>항목 링크</h3>
+    <label>연결할 링크 (구글드라이브 공유 링크 등)</label>
+    <input type="url" id="ckLink" placeholder="https://..." value="${escapeHtml(cur.link||'')}">
+    <div class="modal-actions">
+      ${cur.link ? `<button class="btn danger" id="rm">링크 삭제</button>` : ''}
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    if(m.querySelector('#rm')) m.querySelector('#rm').onclick = async ()=>{
+      const arr = [...checklistData.items];
+      arr[idx] = { ...arr[idx], link: '' };
+      await docRef('checklist').set({items:arr}, {merge:true});
+      closeModal();
+    };
+    m.querySelector('#s').onclick = async ()=>{
+      const link = m.querySelector('#ckLink').value.trim();
+      const arr = [...checklistData.items];
+      arr[idx] = { ...arr[idx], link };
+      await docRef('checklist').set({items:arr}, {merge:true});
+      closeModal();
+    };
+  });
+}
 
 /* ---------------- 초기화 ---------------- */
 

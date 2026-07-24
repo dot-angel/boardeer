@@ -463,6 +463,24 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .opt-row{ display:flex; gap:6px; align-items:center; }
 .opt-row input{ flex:1; }
 
+/* ---------- 옵션 필터 칩 (문서 위젯 + 모든 갤러리 공용) ---------- */
+.tag-filter{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.tag-chip{
+  padding:5px 12px; border-radius:999px; border:1px solid var(--card-border);
+  background: rgba(255,255,255,0.05); color:var(--ink-soft); font-size:.72rem; cursor:pointer;
+  white-space:nowrap;
+}
+.tag-chip:hover{ background: rgba(255,255,255,0.12); color:var(--ink); }
+.tag-chip.active{ background: var(--rose-solid); color:#fff; border-color:var(--rose-solid); }
+.pin-toolbar{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.pin-toolbar .tag-filter{ flex:1; margin-bottom:10px; }
+.pin-opt-btn{
+  position:absolute; z-index:2; width:20px; height:20px; border-radius:50%;
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: blur(6px);
+  color:#fff; font-size:.62rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
+
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
 .session-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:12px; max-height:420px; overflow-y:auto; padding-right:2px; }
 .session-grid::-webkit-scrollbar{ width:5px; }
@@ -502,6 +520,10 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .check-item.checked span{ text-decoration: line-through; }
 .check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
 .check-item .del:hover{ color:#ff8f9e; }
+.check-item .check-link{ font-size:.8rem; text-decoration:none; flex:0 0 auto; opacity:.85; }
+.check-item .check-link:hover{ opacity:1; }
+.check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
+.check-item .check-link-edit:hover{ color:var(--ink); }
 .check-divider{ border-top:1px dashed var(--card-border); margin:6px 2px; }
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
