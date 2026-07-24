@@ -384,8 +384,8 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .gallery-toggle-btn .gallery-toggle-arrow{ transition: transform .2s ease; color:var(--ink-soft); font-size:1rem; }
 .gallery-toggle-btn .gallery-toggle-arrow.open{ transform: rotate(180deg); }
 .pin-grid-dense{
-  display:grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap:4px; max-height:560px; overflow-y:auto; padding-right:4px;
+  display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap:8px; max-height:560px; overflow-y:auto; padding-right:4px;
 }
 .pin-grid-dense::-webkit-scrollbar{ width:5px; }
 .pin-grid-dense::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
@@ -403,7 +403,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
   background: rgba(0,0,0,0.12); pointer-events:none;
 }
 .pin-item-dense .pin-blur-btn{ width:20px; height:20px; font-size:.6rem; top:4px; right:4px; }
-@media (max-width: 600px){ .pin-grid-dense{ grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); } }
+@media (max-width: 600px){ .pin-grid-dense{ grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } }
 .gallery-add-fab{
   position:absolute; right:26px; bottom:26px; width:44px; height:44px; border-radius:50%;
   background: var(--rose-solid); color:#fff; border:none; font-size:1.2rem; box-shadow: var(--shadow); cursor:pointer;
