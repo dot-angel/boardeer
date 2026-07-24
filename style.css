@@ -418,6 +418,19 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.pin-item-dense-label{
+  position:absolute; left:0; right:0; bottom:0; z-index:1;
+  background: linear-gradient(0deg, rgba(0,0,0,0.72), rgba(0,0,0,0));
+  color:#fff; font-size:.62rem; padding:8px 5px 4px; line-height:1.2;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;
+}
+.pin-info-btn{
+  position:absolute; top:4px; left:4px; z-index:2; width:20px; height:20px; border-radius:50%;
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: blur(6px);
+  color:#fff; font-size:.65rem; font-style:italic; font-family:serif;
+}
+.pin-info-btn:hover{ background: rgba(196,66,95,0.7); }
+.w-refgallery .pin-item-dense .pin-del-btn{ left:auto; right:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
@@ -534,10 +547,31 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .modal.modal-lightbox{
   width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.5);
 }
+.lightbox-body{ position:relative; }
 .modal.modal-lightbox .lightbox-img{
   display:block; max-width:90vw; max-height:80vh; width:auto; height:auto;
   border-radius:16px; margin:0 auto; object-fit:contain;
 }
+.lightbox-loading{
+  min-width:240px; min-height:180px; display:flex; align-items:center; justify-content:center;
+  color: var(--ink-soft); font-size:.85rem;
+}
+.lightbox-nav{
+  position:absolute; top:50%; transform:translateY(-50%); z-index:3;
+  width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,0.25);
+  background: rgba(20,10,12,0.55); backdrop-filter: blur(10px);
+  color:#fff; font-size:1.3rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.lightbox-nav.prev{ left:8px; } .lightbox-nav.next{ right:8px; }
+.lightbox-nav:hover{ background: rgba(20,10,12,0.8); }
+.lightbox-count{
+  position:absolute; left:50%; bottom:10px; transform:translateX(-50%); z-index:3;
+  background: rgba(20,10,12,0.6); backdrop-filter: blur(8px); color:#fff;
+  font-size:.72rem; padding:3px 10px; border-radius:999px;
+}
+.lightbox-meta{ margin-top:12px; padding:0 4px; }
+.lightbox-meta-title{ font-family: var(--font-display); font-size:1rem; color: var(--ink); font-weight:600; }
+.lightbox-meta-desc{ font-size:.82rem; color: var(--ink-soft); margin-top:4px; white-space:pre-wrap; line-height:1.5; }
 
 .color-row{ display:flex; align-items:center; gap:8px; }
 .color-row span{ font-size:.78rem; color:var(--ink-soft); }

@@ -62,19 +62,75 @@ function escapeHtml(s){
 function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
 
 /* 이미지 슬라이드/갤러리에서 공통으로 쓰는 확대보기 팝업.
-   onDelete를 넘기면(편집모드일 때만) 팝업 안에 삭제 버튼도 같이 보여줌 */
-function openImageLightbox(url, onDelete){
-  openModal(`
-    <img src="${escapeHtml(url)}" class="lightbox-img">
-    <div class="modal-actions">
-      ${onDelete ? `<button class="btn danger" id="del">삭제</button>` : ''}
-      <button class="btn ghost" id="c">닫기</button>
-    </div>
-  `, m=>{
-    m.querySelector('#c').onclick = closeModal;
-    if(onDelete) m.querySelector('#del').onclick = async ()=>{ await onDelete(); closeModal(); };
-    attachImgFallback(m.querySelector('img'));
-  }, 'modal-lightbox');
+   cfg = {
+     items,             // 정규화된 아이템 배열 (이 팝업 안에서 좌우로 넘겨볼 목록)
+     index,             // 시작 인덱스
+     resolve(item, onReady), // item -> 표시할 url. 청크 저장이라 아직 없으면 null을 반환하고, 다 불러오면 onReady()로 다시 그림
+     onDelete(idx),     // 있으면 삭제 버튼 표시. idx의 사진을 지우는 함수
+     meta(item),        // 있으면 {title, desc} 반환 — 사진 아래 정보로 표시
+     onEditMeta(idx)     // 있으면 "정보 편집" 버튼 표시 — 눌렀을 때 호출
+   }
+   화살표 버튼/키보드 ←→로 같은 목록 안에서 트위터처럼 옆 사진으로 바로 넘어갈 수 있음 */
+function openImageLightbox(cfg){
+  const items = cfg.items.slice();
+  let index = cfg.index || 0;
+
+  function render(){
+    if(items.length === 0){ closeModal(); return; }
+    if(index >= items.length) index = items.length - 1;
+    if(index < 0) index = 0;
+    const item = items[index];
+    const url = cfg.resolve(item, render);
+    const metaInfo = cfg.meta ? cfg.meta(item) : null;
+    const showNav = items.length > 1;
+    openModal(`
+      <div class="lightbox-body">
+        ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
+        ${showNav ? `<button class="lightbox-nav prev" id="lbPrev" title="이전 사진">‹</button><button class="lightbox-nav next" id="lbNext" title="다음 사진">›</button>` : ''}
+        ${showNav ? `<div class="lightbox-count">${index+1} / ${items.length}</div>` : ''}
+      </div>
+      ${metaInfo && (metaInfo.title || metaInfo.desc) ? `
+        <div class="lightbox-meta">
+          ${metaInfo.title ? `<div class="lightbox-meta-title">${escapeHtml(metaInfo.title)}</div>` : ''}
+          ${metaInfo.desc ? `<div class="lightbox-meta-desc">${escapeHtml(metaInfo.desc)}</div>` : ''}
+        </div>` : ''}
+      <div class="modal-actions">
+        ${cfg.onEditMeta ? `<button class="btn ghost" id="editMeta">${metaInfo && (metaInfo.title || metaInfo.desc) ? '정보 수정' : '정보 추가'}</button>` : ''}
+        ${cfg.onDelete ? `<button class="btn danger" id="del">삭제</button>` : ''}
+        <button class="btn ghost" id="c">닫기</button>
+      </div>
+    `, m=>{
+      m.querySelector('#c').onclick = closeModal;
+      if(url) attachImgFallback(m.querySelector('img'));
+      if(cfg.onDelete) m.querySelector('#del').onclick = async ()=>{
+        await cfg.onDelete(index);
+        items.splice(index,1);
+        render();
+      };
+      if(cfg.onEditMeta) m.querySelector('#editMeta').onclick = ()=> cfg.onEditMeta(index);
+      const prevBtn = m.querySelector('#lbPrev');
+      const nextBtn = m.querySelector('#lbNext');
+      if(prevBtn) prevBtn.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
+      if(nextBtn) nextBtn.onclick = ()=>{ index = (index + 1) % items.length; render(); };
+    }, 'modal-lightbox');
+  }
+
+  const onKey = (e)=>{
+    if(!modalRoot.querySelector('.modal-lightbox')) return;
+    if(e.key === 'ArrowLeft' && items.length > 1){ index = (index - 1 + items.length) % items.length; render(); }
+    else if(e.key === 'ArrowRight' && items.length > 1){ index = (index + 1) % items.length; render(); }
+    else if(e.key === 'Escape'){ closeModal(); }
+  };
+  document.addEventListener('keydown', onKey);
+  const mo = new MutationObserver(()=>{
+    if(!modalRoot.querySelector('.modal-lightbox')){
+      document.removeEventListener('keydown', onKey);
+      mo.disconnect();
+    }
+  });
+  mo.observe(modalRoot, { childList:true });
+
+  render();
 }
 
 /* 갤러리 사진 타일을 드래그로 끌어서 순서 바꾸기 (편집모드에서만 동작) */
@@ -736,11 +792,15 @@ function bindImages(){
   if(img){
     attachImgFallback(img);
     img.onclick = ()=>{
-      const idx = imgSlideIndex;
-      openImageLightbox(items[idx].url, editMode ? async ()=>{
-        const arr = [...items]; arr.splice(idx,1);
-        await docRef('images').set({items:arr}, {merge:true});
-      } : null);
+      openImageLightbox({
+        items,
+        index: imgSlideIndex,
+        resolve: (item)=> item.url,
+        onDelete: editMode ? async (idx)=>{
+          const arr = [...items]; arr.splice(idx,1);
+          await docRef('images').set({items:arr}, {merge:true});
+        } : null
+      });
     };
   }
 }
@@ -1176,15 +1236,17 @@ function renderGallery(){
 
 function openGalleryViewModal(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
-  const item = items[idx];
-  const url = resolveGalleryItemUrl(item, ()=>{}); // 클릭 가능한 타일은 이미 렌더됐으므로 캐시에 항상 있음
-  if(!url){ toast('사진을 아직 불러오는 중이에요'); return; }
-  openImageLightbox(url, editMode ? async ()=>{
-    const arr = items.slice();
-    const [removed] = arr.splice(idx,1);
-    await docRef('gallery').set({items:arr}, {merge:true});
-    deleteGalleryImageIfChunked(removed);
-  } : null);
+  openImageLightbox({
+    items,
+    index: idx,
+    resolve: resolveGalleryItemUrl,
+    onDelete: editMode ? async (i)=>{
+      const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+      const [removed] = arr.splice(i,1);
+      await docRef('gallery').set({items:arr}, {merge:true});
+      deleteGalleryImageIfChunked(removed);
+    } : null
+  });
 }
 
 function openGalleryAddModal(){
@@ -1309,15 +1371,17 @@ function renderGallery2(){
 
 function openGallery2ViewModal(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
-  const item = items[idx];
-  const url = resolveGalleryItemUrl(item, ()=>{});
-  if(!url){ toast('사진을 아직 불러오는 중이에요'); return; }
-  openImageLightbox(url, editMode ? async ()=>{
-    const arr = items.slice();
-    const [removed] = arr.splice(idx,1);
-    await docRef('gallery2').set({items:arr}, {merge:true});
-    deleteGalleryImageIfChunked(removed);
-  } : null);
+  openImageLightbox({
+    items,
+    index: idx,
+    resolve: resolveGalleryItemUrl,
+    onDelete: editMode ? async (i)=>{
+      const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+      const [removed] = arr.splice(i,1);
+      await docRef('gallery2').set({items:arr}, {merge:true});
+      deleteGalleryImageIfChunked(removed);
+    } : null
+  });
 }
 
 function openGallery2AddModal(){
@@ -1373,12 +1437,13 @@ function openGallery2AddModal(){
 docRef('gallery2').onSnapshot(doc=>{ gallery2Data = doc.exists ? doc.data() : {items:[]}; renderGallery2(); });
 
 /* ---------------- 6-3. 레퍼런스 갤러리 (캘린더 옆, 완전히 독립된 세 번째 갤러리)
-   블러 옵션 없이 작고 촘촘한 정사각형 썸네일로만 구성 — 자료 수집/레퍼런스 모음용 ---------------- */
+   블러 옵션 없이 작고 촘촘한 정사각형 썸네일로만 구성 — 자료 수집/레퍼런스 모음용.
+   문서 정리 위젯처럼 사진마다 제목/설명을 붙일 수 있음(옵션) ---------------- */
 
 function normalizeRefGalleryItem(it){
-  if(typeof it === 'string') return { url: it };
-  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal };
-  return { url: it.url };
+  if(typeof it === 'string') return { url: it, title:'', desc:'' };
+  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, title: it.title||'', desc: it.desc||'' };
+  return { url: it.url, title: it.title||'', desc: it.desc||'' };
 }
 
 let refGalleryData = { items: [] };
@@ -1397,7 +1462,9 @@ function renderRefGallery(){
         return `
         <div class="pin-item-dense" data-idx="${i}">
           <img src="${escapeHtml(resolved)}">
+          ${it.title ? `<div class="pin-item-dense-label">${escapeHtml(it.title)}</div>` : ''}
           ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+          ${editMode ? `<button class="pin-info-btn" data-info="${i}" title="제목/설명 편집">i</button>` : ''}
         </div>`;
       }).join('')}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
@@ -1405,7 +1472,7 @@ function renderRefGallery(){
     ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
-    if(e.target.closest('[data-del]')) return;
+    if(e.target.closest('[data-del], [data-info]')) return;
     openRefGalleryViewModal(Number(el.dataset.idx));
   }));
   box.querySelectorAll('.pin-item-dense img').forEach(attachImgFallback);
@@ -1417,6 +1484,10 @@ function renderRefGallery(){
     await docRef('refgallery').set({items:arr}, {merge:true});
     deleteGalleryImageIfChunked(removed);
   }));
+  box.querySelectorAll('[data-info]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openRefGalleryMetaModal(Number(btn.dataset.info));
+  }));
   const addBtn = box.querySelector('#refGalAddBtn');
   if(addBtn) addBtn.onclick = openRefGalleryAddModal;
   bindPinDragReorder(
@@ -1426,17 +1497,45 @@ function renderRefGallery(){
   );
 }
 
+/* 문서 정리 위젯처럼, 사진 하나하나에 제목/설명을 달 수 있게 하는 편집창.
+   그리드 위 i 버튼과, 라이트박스 안 "정보 수정" 버튼 양쪽에서 모두 열 수 있음 */
+function openRefGalleryMetaModal(idx){
+  const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  const cur = items[idx];
+  if(!cur) return;
+  openModal(`
+    <h3>사진 정보</h3>
+    <label>제목</label>
+    <input type="text" id="rgTitle" value="${escapeHtml(cur.title||'')}" placeholder="예: 하람 겨울 코디">
+    <label>설명</label>
+    <textarea id="rgDesc" placeholder="메모, 출처 등">${escapeHtml(cur.desc||'')}</textarea>
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const arr = items.slice();
+      arr[idx] = { ...arr[idx], title: m.querySelector('#rgTitle').value.trim(), desc: m.querySelector('#rgDesc').value.trim() };
+      await docRef('refgallery').set({items:arr}, {merge:true});
+      closeModal();
+    };
+  });
+}
+
 function openRefGalleryViewModal(idx){
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  const item = items[idx];
-  const url = resolveGalleryItemUrl(item, ()=>{});
-  if(!url){ toast('사진을 아직 불러오는 중이에요'); return; }
-  openImageLightbox(url, editMode ? async ()=>{
-    const arr = items.slice();
-    const [removed] = arr.splice(idx,1);
-    await docRef('refgallery').set({items:arr}, {merge:true});
-    deleteGalleryImageIfChunked(removed);
-  } : null);
+  openImageLightbox({
+    items,
+    index: idx,
+    resolve: resolveGalleryItemUrl,
+    meta: (item)=> ({ title: item.title, desc: item.desc }),
+    onEditMeta: (i)=>{ closeModal(); openRefGalleryMetaModal(i); },
+    onDelete: editMode ? async (i)=>{
+      const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+      const [removed] = arr.splice(i,1);
+      await docRef('refgallery').set({items:arr}, {merge:true});
+      deleteGalleryImageIfChunked(removed);
+    } : null
+  });
 }
 
 function openRefGalleryAddModal(){
@@ -1444,7 +1543,7 @@ function openRefGalleryAddModal(){
     <h3>레퍼런스 사진 추가</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
     <input type="file" id="refGalFiles" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
+    <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요. 제목/설명은 추가한 뒤 각 사진의 "i" 버튼으로 따로 붙일 수 있어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="refGalUrl" placeholder="https://...">
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
