@@ -172,13 +172,15 @@ function extractYouTubeId(url){
 
 /* 사진을 화면에서 바로 올릴 수 있도록 브라우저에서 리사이즈+압축 후 base64로 변환.
    Firestore 문서 1건당 최대 1MB라서, 별도 유료 스토리지 없이 쓰려면 이렇게 줄여서 저장해야 함. */
-function compressImageFile(file, maxDim=1600, maxBytes=700000){
+function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=700000){
   return new Promise((resolve, reject)=>{
     // GIF는 캔버스로 다시 그리면 첫 프레임만 남고 움직임이 사라져버려서,
     // 압축(리사이즈)을 건너뛰고 원본 그대로 base64로 저장해 애니메이션을 보존함.
+    // 사진용 압축 목표치(maxBytes)는 GIF에 쓰기엔 너무 작아서(예: 260KB) 대부분의
+    // 움직이는 GIF가 거절됐었음 — GIF는 별도의 더 넉넉한 한도(gifMaxBytes)를 씀.
     if(file.type === 'image/gif'){
-      if(file.size > maxBytes){
-        reject(new Error(`GIF 용량이 너무 커요(최대 약 ${Math.round(maxBytes/1024)}KB). 더 작은 GIF를 쓰거나, URL 방식(Giphy/Tenor/imgur 등)을 이용해주세요.`));
+      if(file.size > gifMaxBytes){
+        reject(new Error(`GIF 용량이 너무 커요(최대 약 ${Math.round(gifMaxBytes/1024)}KB). 더 작은 GIF를 쓰거나, URL 방식(Giphy/Tenor/imgur 등)을 이용해주세요.`));
         return;
       }
       const reader = new FileReader();
