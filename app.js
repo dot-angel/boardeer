@@ -376,6 +376,33 @@ db.collection('meta').doc('background').onSnapshot(doc=>{
 
 /* ---------------- 테마 편집 (전체 색/폰트 일괄 적용) ---------------- */
 
+/* <input type=color>는 알파(투명도)를 다룰 수 없어서, 카드 배경색은
+   "색상(hex) + 투명도(슬라이더)"를 따로 받아 rgba()로 합성함.
+   이렇게 해야 사용자가 테마를 바꿔도 유리카드 특유의 반투명함이 유지됨. */
+function hexToRgba(hex, alpha){
+  const h = (hex||'#20141d').replace('#','');
+  const full = h.length===3 ? h.split('').map(c=>c+c).join('') : h;
+  const bigint = parseInt(full, 16) || 0;
+  const r = (bigint >> 16) & 255, g = (bigint >> 8) & 255, b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+function parseColorToHexAlpha(str){
+  if(!str) return {hex:'#20141d', alpha:.38};
+  str = str.trim();
+  const rgbaMatch = str.match(/rgba?\(([^)]+)\)/);
+  if(rgbaMatch){
+    const parts = rgbaMatch[1].split(',').map(s=>s.trim());
+    const r = Math.max(0, Math.min(255, Math.round(parseFloat(parts[0])||0)));
+    const g = Math.max(0, Math.min(255, Math.round(parseFloat(parts[1])||0)));
+    const b = Math.max(0, Math.min(255, Math.round(parseFloat(parts[2])||0)));
+    const a = parts.length>3 ? parseFloat(parts[3]) : 1;
+    const hex = '#' + [r,g,b].map(x=> x.toString(16).padStart(2,'0')).join('');
+    return {hex, alpha: isNaN(a) ? 1 : a};
+  }
+  if(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(str)) return {hex:str, alpha:1};
+  return {hex:'#20141d', alpha:.38};
+}
+
 const THEME_VARS = ['--rose','--sage','--gold','--paper','--card-bg','--card-bg2','--ink'];
 const FONT_DISPLAY_OPTIONS = ['ZEN SERIF','Song Myung','Noto Serif KR','Nanum Myeongjo','Gowun Batang'];
 const FONT_BODY_OPTIONS = ['ZEN SERIF','Noto Sans KR','Gowun Dodum'];
@@ -425,6 +452,8 @@ globalStyleBtn.addEventListener('click', async ()=>{
   THEME_VARS.forEach(v=> cur[v.replace('--','')] = cs.getPropertyValue(v).trim());
   const themeDoc = await db.collection('meta').doc('theme').get();
   const saved = themeDoc.exists ? themeDoc.data() : {};
+  const cardBgParsed = parseColorToHexAlpha(cur['card-bg']);
+  const cardBgAlphaPct = Math.round(cardBgParsed.alpha*100);
   openModal(`
     <h3>테마 편집</h3>
     <p style="font-size:.78rem;color:var(--ink-soft)">여기서 바꾸면 사이트 전체에 한 번에 적용돼요.</p>
@@ -436,8 +465,13 @@ globalStyleBtn.addEventListener('click', async ()=>{
     <div class="color-row"><input type="color" id="tGold" value="${cur.gold}"></div>
     <label>배경색</label>
     <div class="color-row"><input type="color" id="tPaper" value="${cur.paper}"></div>
-    <label>카드 배경색</label>
-    <div class="color-row"><input type="color" id="tCardBg" value="${cur['card-bg']}"></div>
+    <label>카드 색상 · 투명도</label>
+    <div class="color-row">
+      <input type="color" id="tCardBgHex" value="${cardBgParsed.hex}">
+      <input type="range" id="tCardBgAlpha" min="10" max="90" value="${cardBgAlphaPct}" style="flex:1;">
+      <span id="tCardBgAlphaLabel" style="font-size:.78rem;color:var(--ink-soft);min-width:34px;">${cardBgAlphaPct}%</span>
+    </div>
+    <p class="hint">투명도를 낮출수록(왼쪽) 배경이 카드 뒤로 더 비쳐서 유리 느낌이 강해져요.</p>
     <label>글자색</label>
     <div class="color-row"><input type="color" id="tInk" value="${cur.ink}"></div>
     <label>제목 폰트</label>
@@ -455,22 +489,43 @@ globalStyleBtn.addEventListener('click', async ()=>{
       <button class="btn small ghost" id="tFontClear" type="button">커스텀 폰트 해제 (기본 ZEN SERIF로)</button>
     </div>
 
-    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">전체 적용</button></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="tReset" type="button" style="margin-right:auto;">테마 전체 초기화</button>
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">전체 적용</button>
+    </div>
   `, m=>{
+    m.querySelector('#tCardBgAlpha').addEventListener('input', (e)=>{
+      m.querySelector('#tCardBgAlphaLabel').textContent = `${e.target.value}%`;
+    });
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#tFontClear').onclick = async ()=>{
       await db.collection('meta').doc('theme').set({ customFontData:'', customFontFile:'' }, {merge:true});
       closeModal();
       toast('커스텀 폰트를 해제했어요');
     };
+    m.querySelector('#tReset').onclick = async ()=>{
+      try{
+        await db.collection('meta').doc('theme').delete();
+      }catch(err){ console.error(err); }
+      THEME_VARS.forEach(v=> document.documentElement.style.removeProperty(v));
+      document.documentElement.style.removeProperty('--font-display');
+      document.documentElement.style.removeProperty('--font-body');
+      injectCustomFontFace(null);
+      closeModal();
+      toast('테마를 기본값으로 초기화했어요');
+    };
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
+      const cardHex = m.querySelector('#tCardBgHex').value;
+      const cardAlpha = Number(m.querySelector('#tCardBgAlpha').value)/100;
       const theme = {
         rose: m.querySelector('#tRose').value,
         sage: m.querySelector('#tSage').value,
         gold: m.querySelector('#tGold').value,
         paper: m.querySelector('#tPaper').value,
-        'card-bg': m.querySelector('#tCardBg').value,
+        'card-bg': hexToRgba(cardHex, cardAlpha),
+        'card-bg2': hexToRgba(cardHex, Math.max(0.08, +(cardAlpha*0.6).toFixed(2))),
         ink: m.querySelector('#tInk').value,
         fontDisplay: m.querySelector('#tFontDisplay').value,
         fontBody: m.querySelector('#tFontBody').value
@@ -616,7 +671,7 @@ function openImagesAddModal(){
         saveBtn.disabled = true;
         for(let i=0;i<files.length;i++){
           saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
-          try{ newItems.push({ url: await compressImageFile(files[i], 1400, 230000), caption:'' }); }
+          try{ newItems.push({ url: await compressImageFile(files[i], 2000, 480000), caption:'' }); }
           catch(err){ toast(`"${files[i].name}" 처리 실패`); }
         }
       } else if(url){
