@@ -1453,6 +1453,11 @@ let galleryData = { items: [] };
 let sharedGalleryOptionsData = { options: [] };
 let galleryFilterOpt = null;
 let galleryObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
+/* 블러 토글/태그 변경처럼 "보이는 사진 구성/순서"는 그대로인 채 특정 사진의 속성만
+   바뀌는 편집은, 사진이 많아질수록 무거워지는 전체 그리드 재렌더링(캐시된 사진들을
+   전부 다시 그려서 브라우저가 다시 디코딩하게 됨) 없이 해당 타일만 즉시 바로 바꿔주고
+   이 플래그로 뒤이어 오는 스냅샷의 재렌더링을 건너뜀 */
+let skipNextGalleryRender = false;
 
 /* 이미 이번 세션에서 한 번 불러와 캐시된 사진(또는 애초에 다운로드가 필요 없는 외부 URL)은
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
@@ -1494,6 +1499,14 @@ function handleGalleryBlurToggle(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
   const arr = items.slice();
   arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
+  // 사진 구성 자체는 안 바뀌니 전체를 다시 그리지 않고 해당 타일만 바로 바꿔줌
+  const tile = document.querySelector(`#galleryGrid .pin-item[data-idx="${idx}"]`);
+  if(tile){
+    tile.classList.toggle('blurred', arr[idx].blur);
+    const blurBtn = tile.querySelector('[data-blur]');
+    if(blurBtn){ blurBtn.textContent = arr[idx].blur ? '🙈' : '👁'; blurBtn.title = arr[idx].blur ? '블러 해제' : '블러 처리'; }
+  }
+  skipNextGalleryRender = true;
   docRef('gallery').set({ items: arr }, {merge:true});
 }
 function handleGalleryOptEdit(idx){
@@ -1501,6 +1514,8 @@ function handleGalleryOptEdit(idx){
   openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
     const arr = items.slice();
     arr[idx] = { ...arr[idx], opts };
+    // 필터가 꺼져 있으면 태그만 바꿔선 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
+    if(!galleryFilterOpt) skipNextGalleryRender = true;
     await docRef('gallery').set({ items: arr }, {merge:true});
   });
 }
@@ -1569,6 +1584,7 @@ function openGalleryViewModal(idx){
       openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
         const arr = (galleryData.items||[]).map(normalizeGalleryItem);
         arr[i] = { ...arr[i], opts };
+        if(!galleryFilterOpt) skipNextGalleryRender = true;
         await docRef('gallery').set({items:arr}, {merge:true});
         setTimeout(()=> openGalleryViewModal(i), 0);
       });
@@ -1655,7 +1671,12 @@ docRef('sharedGalleryOptions').onSnapshot(doc=>{
     if(merged.length) await docRef('sharedGalleryOptions').set({ options: merged }, {merge:true});
   }catch(err){ console.error('갤러리 옵션 이전 실패', err); }
 })();
-docRef('gallery').onSnapshot(doc=>{ galleryData = doc.exists ? doc.data() : {items:[]}; renderGallery(); if(editMode) migrateInlineGalleryImages('gallery', ()=> galleryData.items || []); });
+docRef('gallery').onSnapshot(doc=>{
+  galleryData = doc.exists ? doc.data() : {items:[]};
+  if(skipNextGalleryRender){ skipNextGalleryRender = false; }
+  else { renderGallery(); }
+  if(editMode) migrateInlineGalleryImages('gallery', ()=> galleryData.items || []);
+});
 
 /* ---------------- 6-2. 갤러리 2번째 (기존 갤러리 바로 아래 — 완전히 독립된 두 번째 갤러리)
    접었다 펼치기 가능(기본은 접힘), 펼치면 빽빽한 정사각형 그리드로 세로 스크롤 ---------------- */
@@ -1664,6 +1685,7 @@ let gallery2Data = { items: [] };
 let gallery2Collapsed = true;
 let gallery2FilterOpt = null;
 let gallery2ObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
+let skipNextGallery2Render = false;
 
 function gallery2TileHtml(it, i){
   if(it.chunked && chunkedImageCache.has(it.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
@@ -1702,6 +1724,13 @@ function handleGallery2BlurToggle(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
   const arr = items.slice();
   arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
+  const tile = document.querySelector(`#gallery2Grid .pin-item-dense[data-idx="${idx}"]`);
+  if(tile){
+    tile.classList.toggle('blurred', arr[idx].blur);
+    const blurBtn = tile.querySelector('[data-blur]');
+    if(blurBtn){ blurBtn.textContent = arr[idx].blur ? '🙈' : '👁'; blurBtn.title = arr[idx].blur ? '블러 해제' : '블러 처리'; }
+  }
+  skipNextGallery2Render = true;
   docRef('gallery2').set({ items: arr }, {merge:true});
 }
 function handleGallery2OptEdit(idx){
@@ -1709,6 +1738,7 @@ function handleGallery2OptEdit(idx){
   openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
     const arr = items.slice();
     arr[idx] = { ...arr[idx], opts };
+    if(!gallery2FilterOpt) skipNextGallery2Render = true;
     await docRef('gallery2').set({ items: arr }, {merge:true});
   });
 }
@@ -1787,6 +1817,7 @@ function openGallery2ViewModal(idx){
       openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
         const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
         arr[i] = { ...arr[i], opts };
+        if(!gallery2FilterOpt) skipNextGallery2Render = true;
         await docRef('gallery2').set({items:arr}, {merge:true});
         setTimeout(()=> openGallery2ViewModal(i), 0);
       });
@@ -1854,7 +1885,12 @@ function openGallery2AddModal(){
   });
 }
 
-docRef('gallery2').onSnapshot(doc=>{ gallery2Data = doc.exists ? doc.data() : {items:[]}; renderGallery2(); if(editMode) migrateInlineGalleryImages('gallery2', ()=> gallery2Data.items || []); });
+docRef('gallery2').onSnapshot(doc=>{
+  gallery2Data = doc.exists ? doc.data() : {items:[]};
+  if(skipNextGallery2Render){ skipNextGallery2Render = false; }
+  else { renderGallery2(); }
+  if(editMode) migrateInlineGalleryImages('gallery2', ()=> gallery2Data.items || []);
+});
 
 /* ---------------- 6-3. 레퍼런스 갤러리 (캘린더 옆, 완전히 독립된 세 번째 갤러리)
    작고 촘촘한 정사각형 썸네일. 다른 갤러리들과 똑같이 옵션(태그)만 붙일 수 있음 ---------------- */
