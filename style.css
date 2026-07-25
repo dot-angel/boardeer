@@ -414,8 +414,8 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .w-refgallery{ padding-bottom: 60px; }
 .ref-gallery-grid{
   flex: 0 0 420px; height:420px; overflow-y:auto; padding-right:4px;
-  display:grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-  gap:4px; align-content:start;
+  display:grid; grid-template-columns: repeat(2, 1fr);
+  gap:6px; align-content:start;
 }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
