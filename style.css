@@ -424,7 +424,8 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .doc-row .doc-icon{ font-size:1.1rem; flex:0 0 auto; }
 .doc-row .doc-main{ flex:1; min-width:0; }
 .doc-row .doc-title{ font-weight:600; font-size:.85rem; color: var(--ink); }
-.doc-row .doc-opt{ font-size:.68rem; font-weight:600; color: var(--rose); margin-top:1px; }
+.doc-row .doc-opt-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
+.doc-row .doc-opt{ font-size:.62rem; font-weight:600; color: var(--rose); background: rgba(196,66,95,0.14); border:1px solid rgba(196,66,95,0.3); padding:1px 7px; border-radius:999px; white-space:nowrap; }
 .doc-row .doc-desc{ font-size:.72rem; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .doc-row .doc-open{ font-size:.75rem; color: var(--rose); text-decoration:none; flex:0 0 auto; }
 .doc-row .doc-del{
@@ -441,6 +442,16 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .opt-list{ display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
 .opt-row{ display:flex; gap:6px; align-items:center; }
 .opt-row input{ flex:1; }
+
+/* 옵션 여러 개를 칩 형태 체크박스로 동시에 고르는 UI — 문서/갤러리 추가·수정 모달, 항목별 옵션 지정 모달에서 공용 */
+.opt-checkbox-group{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 10px; }
+.modal label.opt-checkbox{
+  display:flex; align-items:center; gap:6px; width:auto; margin:0; cursor:pointer;
+  padding:6px 12px; border-radius:999px; border:1px solid var(--card-border);
+  background: rgba(255,255,255,0.05); font-size:.8rem; color:var(--ink);
+}
+.opt-checkbox input[type=checkbox]{ width:auto; margin:0; accent-color: var(--rose-solid); }
+.opt-checkbox:has(input:checked){ background: var(--rose-soft); border-color: var(--rose); color:#fff; }
 
 /* ---------- 옵션 필터 칩 (문서 위젯 + 모든 갤러리 공용) ---------- */
 .tag-filter{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
