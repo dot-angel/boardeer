@@ -1511,12 +1511,12 @@ function handleGalleryBlurToggle(idx){
 }
 function handleGalleryOptEdit(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
-  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
+  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, (opts)=>{
     const arr = items.slice();
     arr[idx] = { ...arr[idx], opts };
     // 필터가 꺼져 있으면 태그만 바꿔선 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
     if(!galleryFilterOpt) skipNextGalleryRender = true;
-    await docRef('gallery').set({ items: arr }, {merge:true});
+    docRef('gallery').set({ items: arr }, {merge:true}); // 응답을 기다리지 않아야 모달이 바로 닫힘
   });
 }
 
@@ -1581,18 +1581,21 @@ function openGalleryViewModal(idx){
     tag: (item)=> item.opts,
     onEditTag: editMode ? (i)=>{
       closeModal();
-      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
+      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, (opts)=>{
         const arr = (galleryData.items||[]).map(normalizeGalleryItem);
         arr[i] = { ...arr[i], opts };
         if(!galleryFilterOpt) skipNextGalleryRender = true;
-        await docRef('gallery').set({items:arr}, {merge:true});
+        docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행(느려 보이는 원인이었음)
+        items[i] = arr[i]; // 라이트박스를 다시 열 때 바로 최신 태그가 보이도록 로컬에도 반영
+        // openItemOptEditModal이 저장 직후 자기 모달을 닫으므로, 그보다 한 틱 뒤에 다시 열어야
+        // 방금 연 라이트박스가 그 closeModal()에 같이 지워지지 않음(네트워크는 더 이상 안 기다림)
         setTimeout(()=> openGalleryViewModal(i), 0);
       });
     } : null,
-    onDelete: editMode ? async (i)=>{
+    onDelete: editMode ? (i)=>{
       const arr = (galleryData.items||[]).map(normalizeGalleryItem);
       const [removed] = arr.splice(i,1);
-      await docRef('gallery').set({items:arr}, {merge:true});
+      docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
       deleteGalleryImageIfChunked(removed);
     } : null
   });
@@ -1735,11 +1738,11 @@ function handleGallery2BlurToggle(idx){
 }
 function handleGallery2OptEdit(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
-  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
+  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, (opts)=>{
     const arr = items.slice();
     arr[idx] = { ...arr[idx], opts };
     if(!gallery2FilterOpt) skipNextGallery2Render = true;
-    await docRef('gallery2').set({ items: arr }, {merge:true});
+    docRef('gallery2').set({ items: arr }, {merge:true}); // 응답을 기다리지 않아야 모달이 바로 닫힘
   });
 }
 
@@ -1814,18 +1817,19 @@ function openGallery2ViewModal(idx){
     tag: (item)=> item.opts,
     onEditTag: editMode ? (i)=>{
       closeModal();
-      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
+      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, (opts)=>{
         const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
         arr[i] = { ...arr[i], opts };
         if(!gallery2FilterOpt) skipNextGallery2Render = true;
-        await docRef('gallery2').set({items:arr}, {merge:true});
+        docRef('gallery2').set({items:arr}, {merge:true});
+        items[i] = arr[i];
         setTimeout(()=> openGallery2ViewModal(i), 0);
       });
     } : null,
-    onDelete: editMode ? async (i)=>{
+    onDelete: editMode ? (i)=>{
       const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
       const [removed] = arr.splice(i,1);
-      await docRef('gallery2').set({items:arr}, {merge:true});
+      docRef('gallery2').set({items:arr}, {merge:true});
       deleteGalleryImageIfChunked(removed);
     } : null
   });
@@ -2035,12 +2039,12 @@ function handleRefGalleryDelete(idx){
 
 function handleRefGalleryOptEdit(idx){
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
+  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, (opts)=>{
     const arr = items.slice();
     arr[idx] = { ...arr[idx], opts };
     // 필터가 꺼져 있으면 태그만 바꿔선 화면에 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
     if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
-    await docRef('refgallery').set({ items: arr }, {merge:true});
+    docRef('refgallery').set({ items: arr }, {merge:true}); // 응답을 기다리지 않아야 모달이 바로 닫힘
   });
 }
 
@@ -2053,19 +2057,20 @@ function openRefGalleryViewModal(idx){
     tag: (item)=> item.opts,
     onEditTag: editMode ? (i)=>{
       closeModal();
-      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
+      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, (opts)=>{
         const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
         arr[i] = { ...arr[i], opts };
         // 필터가 꺼져 있으면 태그만 바꿔선 화면에 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
         if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
-        await docRef('refgallery').set({items:arr}, {merge:true});
+        docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
+        items[i] = arr[i];
         setTimeout(()=> openRefGalleryViewModal(i), 0);
       });
     } : null,
-    onDelete: editMode ? async (i)=>{
+    onDelete: editMode ? (i)=>{
       const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
       const [removed] = arr.splice(i,1);
-      await docRef('refgallery').set({items:arr}, {merge:true});
+      docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
       deleteGalleryImageIfChunked(removed);
     } : null
   });
