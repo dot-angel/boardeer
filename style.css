@@ -407,14 +407,9 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .ref-gallery-grid{
   flex: 1; min-height:0; overflow-y:auto; padding-right:4px;
   display:grid; grid-template-columns: repeat(2, 1fr);
-  column-gap:6px; row-gap:8px; align-content:start;
+  column-gap:6px; row-gap:0; align-content:start;
 }
-/* 기본은 8px 간격(row-gap)으로 사진끼리 여유 있게 떨어져 있고, 사진이 쌓일수록 그 간격을
-   먹어들어가며 겹침이 점점 커지다가, 4번째 줄부터는 항상 "간격 0 + 실제 겹침 18px"에서
-   더는 안 커짐(상한). transform 값 = row-gap(8px) + 그 줄에서 원하는 실제 겹침량. */
-.ref-gallery-grid .pin-item-dense:nth-child(n+3){
-  transform: translateY(-14px); /* 2번째 줄부터 끝까지 항상 동일하게, 실제 겹침 6px */
-}
+/* 겹치는 계산은 이제 app.js의 applyRefGalleryOverlap()이 담당함 (아래 참고) */
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
