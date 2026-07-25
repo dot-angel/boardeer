@@ -1692,10 +1692,9 @@ docRef('gallery').onSnapshot(doc=>{
 });
 
 /* ---------------- 6-2. 갤러리 2번째 (기존 갤러리 바로 아래 — 완전히 독립된 두 번째 갤러리)
-   접었다 펼치기 가능(기본은 접힘), 펼치면 빽빽한 정사각형 그리드로 세로 스크롤 ---------------- */
+   빽빽한 정사각형 그리드로 세로 스크롤 ---------------- */
 
 let gallery2Data = { items: [] };
-let gallery2Collapsed = true;
 let gallery2FilterOpt = null;
 let gallery2ObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
 let skipNextGallery2Render = false;
@@ -1764,30 +1763,20 @@ function renderGallery2(){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !gallery2FilterOpt || (it.opts||[]).includes(gallery2FilterOpt));
   box.innerHTML = `
-    <button class="gallery-toggle-btn" id="gallery2ToggleBtn">
-      <span>${gallery2Collapsed ? '펼쳐보기' : '접기'}${items.length ? ` (${items.length})` : ''}</span>
-      <span class="gallery-toggle-arrow ${gallery2Collapsed ? '' : 'open'}">⌄</span>
-    </button>
-    ${!gallery2Collapsed ? `
     <div class="pin-toolbar">
       <div class="tag-filter" id="gallery2FilterChips" style="display:none;"></div>
       ${editMode ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
-    </div>` : ''}
-    <div class="pin-grid-dense" id="gallery2Grid" style="${gallery2Collapsed ? 'display:none;' : ''}">
+    </div>
+    <div class="pin-grid-dense" id="gallery2Grid">
       ${pairs.map(({it,i})=> gallery2TileHtml(it, i)).join('')}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${editMode && !gallery2Collapsed ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
+    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#gallery2Grid');
   restoreScrollPos(gridEl, savedScroll);
-  if(!gallery2Collapsed) renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
-  const toggleBtn = box.querySelector('#gallery2ToggleBtn');
-  if(toggleBtn) toggleBtn.onclick = ()=>{
-    gallery2Collapsed = !gallery2Collapsed;
-    renderGallery2();
-  };
+  renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
 
   // 열기/삭제/블러/옵션 지정 클릭을 그리드 전체에 한 번만 위임(지연 로딩으로 타일이
@@ -1807,15 +1796,13 @@ function renderGallery2(){
   if(addBtn) addBtn.onclick = openGallery2AddModal;
   const optsBtn2 = box.querySelector('#gal2OptsBtn');
   if(optsBtn2) optsBtn2.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery2(); });
-  if(!gallery2Collapsed){
-    bindPinDragReorder(
-      gridEl, '.pin-item-dense',
-      ()=> items.slice(),
-      async (arr)=> docRef('gallery2').set({items:arr}, {merge:true})
-    );
-    setupPinGalleryLazyLoad(gridEl, pairs, gallery2ObserverHolder, '.pin-item-dense.pin-loading',
-      (tile, idx, url, it)=> fillGallery2Tile(tile, idx, url, it));
-  }
+  bindPinDragReorder(
+    gridEl, '.pin-item-dense',
+    ()=> items.slice(),
+    async (arr)=> docRef('gallery2').set({items:arr}, {merge:true})
+  );
+  setupPinGalleryLazyLoad(gridEl, pairs, gallery2ObserverHolder, '.pin-item-dense.pin-loading',
+    (tile, idx, url, it)=> fillGallery2Tile(tile, idx, url, it));
 }
 
 function openGallery2ViewModal(idx){
