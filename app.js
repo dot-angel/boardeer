@@ -1235,6 +1235,7 @@ function renderCalendar(){
   box.querySelector('#calPrev').onclick = ()=>{ calState.m--; if(calState.m<0){calState.m=11; calState.y--;} renderCalendar(); };
   box.querySelector('#calNext').onclick = ()=>{ calState.m++; if(calState.m>11){calState.m=0; calState.y++;} renderCalendar(); };
   box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
+  fitRefGalleryToCalendarHeight();
 }
 
 function openDayModal(dateStr){
@@ -1697,19 +1698,24 @@ let refGalleryFilterOpt = null;
 
 /* 썸네일 한 줄의 실제 렌더링 높이를 재서, 마지막 줄이 어중간하게 잘려 보이지 않도록
    "딱 완전한 N줄 높이"로만 스크롤 영역 높이를 고정함 (대략 440px 안쪽에서 꽉 채우는 줄 수를 고름) */
-function fitRefGalleryGridHeight(){
+/* 레퍼런스 갤러리 안쪽 그리드의 높이를 "캘린더 위젯의 실제 높이"에 딱 맞춰 고정함.
+   ref-gallery-grid에 overflow-y:auto가 걸려 있어서, 사진이 이 높이보다 많아지면
+   내부 스크롤로만 늘어나고 카드 자체(그리고 같은 행에 있는 캘린더)는 절대 커지지 않음.
+   반대로 캘린더 쪽 높이는 이 함수가 전혀 건드리지 않으므로, 캘린더가 레퍼런스 갤러리를
+   따라 늘어나는 일도 없음(캘린더가 기준, 레퍼런스 갤러리가 거기에 맞추는 일방향) */
+function fitRefGalleryToCalendarHeight(){
   const grid = document.getElementById('refGalleryGrid');
-  if(!grid) return;
-  const firstItem = grid.querySelector('.pin-item-dense');
-  if(!firstItem){ grid.style.height = ''; return; }
-  const itemH = firstItem.getBoundingClientRect().height;
-  if(!itemH) return;
-  const gapPx = 6;
-  const targetMax = 440;
-  const rows = Math.max(2, Math.floor((targetMax + gapPx) / (itemH + gapPx)));
-  grid.style.height = `${Math.round(rows * itemH + (rows - 1) * gapPx)}px`;
+  const calCard = document.getElementById('cardCalendar');
+  const refCard = document.getElementById('cardRefGallery');
+  if(!grid || !calCard || !refCard) return;
+  const calH = calCard.getBoundingClientRect().height;
+  if(!calH) return;
+  grid.style.height = ''; // 그리드 외 나머지(필터 칩·옵션 버튼 줄 등)가 차지하는 높이를 재기 위해 잠깐 해제
+  const otherH = Math.max(0, refCard.scrollHeight - grid.scrollHeight);
+  const gridH = Math.max(80, calH - otherH);
+  grid.style.height = `${Math.round(gridH)}px`;
 }
-window.addEventListener('resize', debounce(fitRefGalleryGridHeight, 150));
+window.addEventListener('resize', debounce(fitRefGalleryToCalendarHeight, 150));
 
 function renderRefGallery(){
   const box = document.getElementById('cardRefGallery');
@@ -1743,7 +1749,7 @@ function renderRefGallery(){
   `;
   const newScrollEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(newScrollEl, savedScroll);
-  fitRefGalleryGridHeight();
+  fitRefGalleryToCalendarHeight();
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-del], [data-opt-edit]')) return;
