@@ -412,14 +412,8 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 /* 기본은 8px 간격(row-gap)으로 사진끼리 여유 있게 떨어져 있고, 사진이 쌓일수록 그 간격을
    먹어들어가며 겹침이 점점 커지다가, 4번째 줄부터는 항상 "간격 0 + 실제 겹침 18px"에서
    더는 안 커짐(상한). transform 값 = row-gap(8px) + 그 줄에서 원하는 실제 겹침량. */
-.ref-gallery-grid .pin-item-dense:nth-child(n+3):nth-child(-n+4){
-  transform: translateY(-10px);  /* 2번째 줄: 실제 겹침 2px */
-}
-.ref-gallery-grid .pin-item-dense:nth-child(n+5):nth-child(-n+6){
-  transform: translateY(-13px);  /* 3번째 줄: 실제 겹침 5px */
-}
-.ref-gallery-grid .pin-item-dense:nth-child(n+7){
-  transform: translateY(-16px); /* 4번째 줄부터는 항상 실제 겹침 8px, 더는 안 커짐(상한) */
+.ref-gallery-grid .pin-item-dense:nth-child(n+3){
+  transform: translateY(-14px); /* 2번째 줄부터 끝까지 항상 동일하게, 실제 겹침 6px */
 }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
