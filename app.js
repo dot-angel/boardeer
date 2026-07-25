@@ -968,7 +968,7 @@ function openImagesAddModal(){
         for(let i=0;i<files.length;i++){
           saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
           try{ newItems.push({ url: await compressImageFile(files[i], 2000, 480000), caption:'' }); }
-          catch(err){ toast(`"${files[i].name}" 처리 실패`); }
+          catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
         newItems.push({ url, caption:'' });
@@ -979,7 +979,7 @@ function openImagesAddModal(){
       try{
         await docRef('images').set({ items: [...(imagesData.items||[]).map(normalizeImageItem), ...newItems] }, {merge:true});
       }catch(err){
-        toast('저장하지 못했어요. 용량이 크면 URL 방식을 이용해주세요.');
+        toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
         return;
       }
@@ -1433,7 +1433,7 @@ function openGalleryAddModal(){
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
             newItems.push({ ...stored, blur, opt });
-          }catch(err){ toast(`"${files[i].name}" 처리 실패`); }
+          }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
         newItems.push({ url, blur, opt });
@@ -1445,7 +1445,7 @@ function openGalleryAddModal(){
         const existing = (galleryData.items||[]).map(normalizeGalleryItem);
         await docRef('gallery').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
-        toast('저장하지 못했어요. 용량이 크면 URL 방식을 이용해주세요.');
+        toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
         return;
       }
@@ -1619,7 +1619,7 @@ function openGallery2AddModal(){
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
             newItems.push({ ...stored, blur, opt });
-          }catch(err){ toast(`"${files[i].name}" 처리 실패`); }
+          }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
         newItems.push({ url, blur, opt });
@@ -1631,7 +1631,7 @@ function openGallery2AddModal(){
         const existing = (gallery2Data.items||[]).map(normalizeGalleryItem);
         await docRef('gallery2').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
-        toast('저장하지 못했어요. 용량이 크면 URL 방식을 이용해주세요.');
+        toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
         return;
       }
@@ -1766,7 +1766,7 @@ function openRefGalleryAddModal(){
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
             newItems.push({ ...stored, opt });
-          }catch(err){ toast(`"${files[i].name}" 처리 실패`); }
+          }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
         newItems.push({ url, opt });
@@ -1778,7 +1778,7 @@ function openRefGalleryAddModal(){
         const existing = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
         await docRef('refgallery').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
-        toast('저장하지 못했어요. 용량이 크면 URL 방식을 이용해주세요.');
+        toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
         return;
       }
