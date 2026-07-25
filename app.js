@@ -1945,14 +1945,7 @@ function fitRefGalleryToCalendarHeight(){
   // 그리드 아이템인 카드 자체에 명시적 높이를 줌. 그리드 아이템은 명시적 높이가 있으면
   // align-items:stretch를 무시하고 그 값 그대로 확정되고, 안쪽 flex:1 그리드는 그 안에서만
   // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
-  // 캘린더 쪽이 아무리 커져도(6주짜리 달 등) 레퍼런스 갤러리가 같이 끝없이 커지지 않도록
-  // 상한선을 하나 더 둠 — 사진이 아무리 쌓여도 이 높이 이상으로는 절대 늘어나지 않음.
-  // 반대로 캘린더가 짧은 달(5주)이라 낮아지더라도 레퍼런스 갤러리가 너무 빡빡해지지 않도록
-  // 최소 높이도 함께 둠(캘린더보다 살짝 더 넉넉하게 보이는 걸 허용).
-  const REF_GALLERY_MAX_H = 480;
-  const REF_GALLERY_MIN_H = 440;
-  const targetH = Math.max(Math.min(calH, REF_GALLERY_MAX_H), REF_GALLERY_MIN_H);
-  refCard.style.height = `${Math.round(targetH)}px`;
+  refCard.style.height = `${Math.round(calH)}px`;
 }
 window.addEventListener('resize', debounce(fitRefGalleryToCalendarHeight, 150));
 
