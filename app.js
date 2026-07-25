@@ -1337,16 +1337,76 @@ async function migrateOversizedGalleries(){
   await migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []);
 }
 
+/* 화면을 열자마자 여러 위젯(메인 갤러리·갤러리2·레퍼런스 갤러리 등)의 사진이 동시에
+   "화면 근처"로 잡혀서 한꺼번에 불러와지면, 그 순간에 몰린 Firestore 요청과 이미지
+   디코딩 작업이 메인 스레드를 잠깐 막아서 렉으로 느껴질 수 있음. 그래서 실제로
+   동시에 진행되는 청크 로딩 개수를 CHUNK_LOAD_CONCURRENCY로 제한하고, 그 이상은
+   줄을 세워서 하나 끝나면 다음 게 시작되도록 함(모든 갤러리가 이 큐를 공유함) */
+const CHUNK_LOAD_CONCURRENCY = 4;
+let activeChunkLoads = 0;
+const chunkLoadQueue = [];
+function runChunkLoad(fileId, chunkTotal){
+  return new Promise((resolve)=>{
+    const task = ()=>{
+      activeChunkLoads++;
+      loadFileChunked(fileId, chunkTotal)
+        .then(url=>{ chunkedImageCache.set(fileId, url); })
+        .catch(()=>{ chunkedImageCache.set(fileId, ''); })
+        .finally(()=>{
+          activeChunkLoads--;
+          resolve();
+          if(chunkLoadQueue.length) chunkLoadQueue.shift()();
+        });
+    };
+    if(activeChunkLoads < CHUNK_LOAD_CONCURRENCY) task();
+    else chunkLoadQueue.push(task);
+  });
+}
+
 /* 청크로 저장된 사진은 비동기로 불러와야 해서, 아직 캐시에 없으면 null을 반환하고
-   (그동안 로딩 타일을 보여줌) 다 불러오면 onReady()로 다시 그리게 함 */
+   (그동안 로딩 타일을 보여줌) 다 불러오면 onReady()로 다시 그리게 함.
+   같은 사진(fileId)에 대해 여러 곳(지연 로딩 타일 + 크게 보기 모달 등)에서
+   동시에 요청이 들어와도 실제 Firestore 요청은 한 번만 나가도록
+   진행 중인 로딩을 pendingChunkedLoads에 캐시해뒀다가 재사용함 */
+const pendingChunkedLoads = new Map(); // fileId -> 로딩 중인 Promise
 function resolveGalleryItemUrl(item, onReady){
   if(!item.chunked) return item.url;
   if(chunkedImageCache.has(item.fileId)) return chunkedImageCache.get(item.fileId);
-  loadFileChunked(item.fileId, item.chunkTotal).then(url=>{
-    chunkedImageCache.set(item.fileId, url);
-    onReady();
-  }).catch(()=>{ chunkedImageCache.set(item.fileId, ''); onReady(); });
+  if(!pendingChunkedLoads.has(item.fileId)){
+    const p = runChunkLoad(item.fileId, item.chunkTotal)
+      .finally(()=> pendingChunkedLoads.delete(item.fileId));
+    pendingChunkedLoads.set(item.fileId, p);
+  }
+  pendingChunkedLoads.get(item.fileId).then(onReady);
   return null;
+}
+
+/* 사진이 아무리 많아도, 화면(스크롤 영역) 진짜 근처에 온 것만 그때그때 하나씩 불러와서
+   렉 없이 부드럽게 스크롤되게 하는 범용 지연 로딩 설정기. rootMargin은 살짝 미리
+   불러와두는 정도(200px)로만 잡아서, 페이지를 열자마자 카드 안의 사진 전체가 한꺼번에
+   요청되는 걸 막음(카드가 작을수록 여유분을 넉넉히 주면 사실상 전체가 한 번에 걸리는
+   문제가 있었음). 하나씩 불러올 때마다 그리드 전체가 아니라 그 타일 하나만
+   바꿔치기해서 다른 사진들(과 이미 진행 중인 드래그 정렬 등)은 건드리지 않음.
+   observerHolder는 { current: IntersectionObserver|null } 형태의 객체로, 그리드마다
+   하나씩 만들어서 넘겨주면 재렌더링 때마다 이전 관찰자를 정리하고 새로 등록함. */
+function setupPinGalleryLazyLoad(gridEl, pairs, observerHolder, loadingSelector, fillTile){
+  if(observerHolder.current) observerHolder.current.disconnect();
+  const targets = gridEl.querySelectorAll(loadingSelector);
+  if(!targets.length) return;
+  const byIdx = new Map(pairs.map(({it,i})=> [i, it]));
+  observerHolder.current = new IntersectionObserver((entries)=>{
+    entries.forEach(entry=>{
+      if(!entry.isIntersecting) return;
+      const tile = entry.target;
+      observerHolder.current.unobserve(tile);
+      const idx = Number(tile.dataset.idx);
+      const item = byIdx.get(idx);
+      if(!item) return;
+      const resolved = resolveGalleryItemUrl(item, ()=> fillTile(tile, idx, chunkedImageCache.get(item.fileId) || '', item));
+      if(resolved !== null) fillTile(tile, idx, resolved, item);
+    });
+  }, { root: gridEl, rootMargin: '200px 0px' });
+  targets.forEach(tile=> observerHolder.current.observe(tile));
 }
 
 function deleteGalleryImageIfChunked(item){
@@ -1356,6 +1416,58 @@ function deleteGalleryImageIfChunked(item){
 let galleryData = { items: [] };
 let sharedGalleryOptionsData = { options: [] };
 let galleryFilterOpt = null;
+let galleryObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
+
+/* 이미 이번 세션에서 한 번 불러와 캐시된 사진(또는 애초에 다운로드가 필요 없는 외부 URL)은
+   바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
+   setupPinGalleryLazyLoad가 화면 근처로 스크롤됐을 때 시작함 */
+function galleryTileHtml(it, i){
+  if(it.chunked && chunkedImageCache.has(it.fileId)) return galleryTileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
+  if(!it.chunked) return galleryTileMarkup(it, it.url, i);
+  return `<div class="pin-item pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
+}
+function galleryTileMarkup(it, url, i){
+  return `
+    <div class="pin-item ${it.blur ? 'blurred' : ''}" data-idx="${i}">
+      <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+      ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+    </div>`;
+}
+function fillGalleryTile(tile, idx, url, it){
+  if(!tile.isConnected) return; // 그사이 그리드가 다시 그려져서 이 타일이 이미 화면에서 빠졌으면 무시
+  tile.classList.remove('pin-loading');
+  tile.innerHTML = `
+    <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+    ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+  `;
+  if(it.blur) tile.classList.add('blurred');
+  attachImgFallback(tile.querySelector('img'));
+}
+function handleGalleryDelete(idx){
+  const items = (galleryData.items || []).map(normalizeGalleryItem);
+  const arr = items.slice();
+  const [removed] = arr.splice(idx,1);
+  docRef('gallery').set({items:arr}, {merge:true});
+  deleteGalleryImageIfChunked(removed);
+}
+function handleGalleryBlurToggle(idx){
+  const items = (galleryData.items || []).map(normalizeGalleryItem);
+  const arr = items.slice();
+  arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
+  docRef('gallery').set({ items: arr }, {merge:true});
+}
+function handleGalleryOptEdit(idx){
+  const items = (galleryData.items || []).map(normalizeGalleryItem);
+  openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+    const arr = items.slice();
+    arr[idx] = { ...arr[idx], opt };
+    await docRef('gallery').set({ items: arr }, {merge:true});
+  });
+}
 
 function renderGallery(){
   const box = document.getElementById('cardGallery');
@@ -1369,65 +1481,44 @@ function renderGallery(){
       ${editMode ? `<button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>` : ''}
     </div>
     <div class="pin-grid" id="galleryGrid">
-      ${pairs.map(({it,i})=>{
-        const resolved = resolveGalleryItemUrl(it, renderGallery);
-        if(resolved === null){
-          return `<div class="pin-item pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
-        }
-        return `
-        <div class="pin-item ${it.blur ? 'blurred' : ''}" data-idx="${i}">
-          <img src="${escapeHtml(resolved)}">
-          ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-          ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-          ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
-        </div>`;
-      }).join('')}
+      ${pairs.map(({it,i})=> galleryTileHtml(it, i)).join('')}
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
     ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
-  const newScrollEl = box.querySelector('#galleryGrid');
-  restoreScrollPos(newScrollEl, savedScroll);
+  const gridEl = box.querySelector('#galleryGrid');
+  restoreScrollPos(gridEl, savedScroll);
   renderOptionFilterChips(box.querySelector('#galleryFilterChips'), sharedGalleryOptionsData.options, galleryFilterOpt, (opt)=>{ galleryFilterOpt = opt; renderGallery(); });
-  box.querySelectorAll('.pin-item:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
-    if(e.target.closest('[data-blur], [data-del], [data-opt-edit]')) return;
-    openGalleryViewModal(Number(el.dataset.idx));
-  }));
-  box.querySelectorAll('.pin-item img').forEach(attachImgFallback);
-  box.querySelectorAll('[data-blur]').forEach(btn=> btn.addEventListener('click', async (e)=>{
-    e.stopPropagation();
-    const idx = Number(btn.dataset.blur);
-    const arr = items.slice();
-    arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
-    await docRef('gallery').set({ items: arr }, {merge:true});
-  }));
-  box.querySelectorAll('[data-opt-edit]').forEach(btn=> btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const idx = Number(btn.dataset.optEdit);
-    openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
-      const arr = items.slice();
-      arr[idx] = { ...arr[idx], opt };
-      await docRef('gallery').set({ items: arr }, {merge:true});
-    });
-  }));
-  box.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
-    e.stopPropagation();
-    const idx = Number(btn.dataset.del);
-    const arr = items.slice();
-    const [removed] = arr.splice(idx,1);
-    await docRef('gallery').set({items:arr}, {merge:true});
-    deleteGalleryImageIfChunked(removed);
-  }));
+  gridEl.querySelectorAll('.pin-item:not(.pin-loading) img').forEach(attachImgFallback);
+
+  // 열기/삭제/블러/옵션 지정 클릭을 그리드 전체에 한 번만 위임해서 걸어둠.
+  // 이렇게 하면 나중에 낱장 사진이 지연 로딩으로 채워져도(pin-loading → 실제 이미지)
+  // 다시 걸어줄 필요가 없음 (레퍼런스 갤러리와 동일한 방식)
+  gridEl.addEventListener('click', (e)=>{
+    const delBtn = e.target.closest('[data-del]');
+    if(delBtn){ e.stopPropagation(); handleGalleryDelete(Number(delBtn.dataset.del)); return; }
+    const blurBtn = e.target.closest('[data-blur]');
+    if(blurBtn){ e.stopPropagation(); handleGalleryBlurToggle(Number(blurBtn.dataset.blur)); return; }
+    const optBtn = e.target.closest('[data-opt-edit]');
+    if(optBtn){ e.stopPropagation(); handleGalleryOptEdit(Number(optBtn.dataset.optEdit)); return; }
+    const tile = e.target.closest('.pin-item:not(.pin-loading)');
+    if(tile) openGalleryViewModal(Number(tile.dataset.idx));
+  });
+
   const addBtn = box.querySelector('#galAddBtn');
   if(addBtn) addBtn.onclick = openGalleryAddModal;
   const optsBtn = box.querySelector('#galOptsBtn');
   if(optsBtn) optsBtn.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery(); });
+  // 드래그 순서 변경은 로딩 중인 타일까지 포함해서 한 번만 걸어둠. 타일 엘리먼트 자체는
+  // 사진이 나중에 채워져도 같은 노드를 그대로 재사용하기 때문에 다시 걸 필요가 없음
   bindPinDragReorder(
-    box.querySelector('#galleryGrid'), '.pin-item:not(.pin-loading)',
+    gridEl, '.pin-item',
     ()=> items.slice(),
     async (arr)=> docRef('gallery').set({items:arr}, {merge:true})
   );
+  setupPinGalleryLazyLoad(gridEl, pairs, galleryObserverHolder, '.pin-item.pin-loading',
+    (tile, idx, url, it)=> fillGalleryTile(tile, idx, url, it));
 }
 
 function openGalleryViewModal(idx){
@@ -1539,6 +1630,55 @@ docRef('gallery').onSnapshot(doc=>{ galleryData = doc.exists ? doc.data() : {ite
 let gallery2Data = { items: [] };
 let gallery2Collapsed = true;
 let gallery2FilterOpt = null;
+let gallery2ObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
+
+function gallery2TileHtml(it, i){
+  if(it.chunked && chunkedImageCache.has(it.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
+  if(!it.chunked) return gallery2TileMarkup(it, it.url, i);
+  return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
+}
+function gallery2TileMarkup(it, url, i){
+  return `
+    <div class="pin-item-dense ${it.blur ? 'blurred' : ''}" data-idx="${i}">
+      <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+      ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+    </div>`;
+}
+function fillGallery2Tile(tile, idx, url, it){
+  if(!tile.isConnected) return;
+  tile.classList.remove('pin-loading');
+  tile.innerHTML = `
+    <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+    ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+  `;
+  if(it.blur) tile.classList.add('blurred');
+  attachImgFallback(tile.querySelector('img'));
+}
+function handleGallery2Delete(idx){
+  const items = (gallery2Data.items || []).map(normalizeGalleryItem);
+  const arr = items.slice();
+  const [removed] = arr.splice(idx,1);
+  docRef('gallery2').set({items:arr}, {merge:true});
+  deleteGalleryImageIfChunked(removed);
+}
+function handleGallery2BlurToggle(idx){
+  const items = (gallery2Data.items || []).map(normalizeGalleryItem);
+  const arr = items.slice();
+  arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
+  docRef('gallery2').set({ items: arr }, {merge:true});
+}
+function handleGallery2OptEdit(idx){
+  const items = (gallery2Data.items || []).map(normalizeGalleryItem);
+  openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+    const arr = items.slice();
+    arr[idx] = { ...arr[idx], opt };
+    await docRef('gallery2').set({ items: arr }, {merge:true});
+  });
+}
 
 function renderGallery2(){
   const box = document.getElementById('cardGallery2');
@@ -1558,71 +1698,47 @@ function renderGallery2(){
       ${editMode ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
     </div>` : ''}
     <div class="pin-grid-dense" id="gallery2Grid" style="${gallery2Collapsed ? 'display:none;' : ''}">
-      ${pairs.map(({it,i})=>{
-        const resolved = resolveGalleryItemUrl(it, renderGallery2);
-        if(resolved === null){
-          return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
-        }
-        return `
-        <div class="pin-item-dense ${it.blur ? 'blurred' : ''}" data-idx="${i}">
-          <img src="${escapeHtml(resolved)}">
-          ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-          ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-          ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
-        </div>`;
-      }).join('')}
+      ${pairs.map(({it,i})=> gallery2TileHtml(it, i)).join('')}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
     ${editMode && !gallery2Collapsed ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
-  const newScrollEl = box.querySelector('#gallery2Grid');
-  restoreScrollPos(newScrollEl, savedScroll);
+  const gridEl = box.querySelector('#gallery2Grid');
+  restoreScrollPos(gridEl, savedScroll);
   if(!gallery2Collapsed) renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   const toggleBtn = box.querySelector('#gallery2ToggleBtn');
   if(toggleBtn) toggleBtn.onclick = ()=>{
     gallery2Collapsed = !gallery2Collapsed;
     renderGallery2();
   };
-  box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
-    if(e.target.closest('[data-blur], [data-del], [data-opt-edit]')) return;
-    openGallery2ViewModal(Number(el.dataset.idx));
-  }));
-  box.querySelectorAll('.pin-item-dense img').forEach(attachImgFallback);
-  box.querySelectorAll('[data-blur]').forEach(btn=> btn.addEventListener('click', async (e)=>{
-    e.stopPropagation();
-    const idx = Number(btn.dataset.blur);
-    const arr = items.slice();
-    arr[idx] = { ...arr[idx], blur: !arr[idx].blur };
-    await docRef('gallery2').set({ items: arr }, {merge:true});
-  }));
-  box.querySelectorAll('[data-opt-edit]').forEach(btn=> btn.addEventListener('click', (e)=>{
-    e.stopPropagation();
-    const idx = Number(btn.dataset.optEdit);
-    openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
-      const arr = items.slice();
-      arr[idx] = { ...arr[idx], opt };
-      await docRef('gallery2').set({ items: arr }, {merge:true});
-    });
-  }));
-  box.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
-    e.stopPropagation();
-    const idx = Number(btn.dataset.del);
-    const arr = items.slice();
-    const [removed] = arr.splice(idx,1);
-    await docRef('gallery2').set({items:arr}, {merge:true});
-    deleteGalleryImageIfChunked(removed);
-  }));
+  gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
+
+  // 열기/삭제/블러/옵션 지정 클릭을 그리드 전체에 한 번만 위임(지연 로딩으로 타일이
+  // 나중에 채워져도 다시 걸어줄 필요 없음)
+  gridEl.addEventListener('click', (e)=>{
+    const delBtn = e.target.closest('[data-del]');
+    if(delBtn){ e.stopPropagation(); handleGallery2Delete(Number(delBtn.dataset.del)); return; }
+    const blurBtn = e.target.closest('[data-blur]');
+    if(blurBtn){ e.stopPropagation(); handleGallery2BlurToggle(Number(blurBtn.dataset.blur)); return; }
+    const optBtn = e.target.closest('[data-opt-edit]');
+    if(optBtn){ e.stopPropagation(); handleGallery2OptEdit(Number(optBtn.dataset.optEdit)); return; }
+    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
+    if(tile) openGallery2ViewModal(Number(tile.dataset.idx));
+  });
+
   const addBtn = box.querySelector('#galAddBtn2');
   if(addBtn) addBtn.onclick = openGallery2AddModal;
   const optsBtn2 = box.querySelector('#gal2OptsBtn');
   if(optsBtn2) optsBtn2.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery2(); });
   if(!gallery2Collapsed){
     bindPinDragReorder(
-      box.querySelector('#gallery2Grid'), '.pin-item-dense:not(.pin-loading)',
+      gridEl, '.pin-item-dense',
       ()=> items.slice(),
       async (arr)=> docRef('gallery2').set({items:arr}, {merge:true})
     );
+    setupPinGalleryLazyLoad(gridEl, pairs, gallery2ObserverHolder, '.pin-item-dense.pin-loading',
+      (tile, idx, url, it)=> fillGallery2Tile(tile, idx, url, it));
   }
 }
 
@@ -1820,29 +1936,11 @@ function refGalleryTileMarkup(url, i){
     </div>`;
 }
 
-/* 사진이 아무리 많아도, 화면(스크롤 영역) 근처에 온 것만 그때그때 하나씩 불러와서
-   렉 없이 부드럽게 스크롤되게 함. rootMargin을 넉넉히 줘서 실제로 보이기 살짝
-   전부터 미리 불러와두고(사진이 "팝인"하는 느낌 최소화), 하나씩 불러올 때마다
-   그리드 전체가 아니라 그 타일 하나만 바꿔치기해서 다른 사진들은 건드리지 않음 */
-let refGalleryObserver = null;
+/* 지연 로딩 자체는 setupPinGalleryLazyLoad(공용 함수, 갤러리/갤러리2와 공유)가 처리함 */
+let refGalleryObserverHolder = { current: null };
 function setupRefGalleryLazyLoad(gridEl, pairs){
-  if(refGalleryObserver) refGalleryObserver.disconnect();
-  const targets = gridEl.querySelectorAll('.pin-item-dense.pin-loading');
-  if(!targets.length) return;
-  const byIdx = new Map(pairs.map(({it,i})=> [i, it]));
-  refGalleryObserver = new IntersectionObserver((entries)=>{
-    entries.forEach(entry=>{
-      if(!entry.isIntersecting) return;
-      const tile = entry.target;
-      refGalleryObserver.unobserve(tile);
-      const idx = Number(tile.dataset.idx);
-      const item = byIdx.get(idx);
-      if(!item) return;
-      const resolved = resolveGalleryItemUrl(item, ()=> fillRefGalleryTile(tile, idx, chunkedImageCache.get(item.fileId) || ''));
-      if(resolved !== null) fillRefGalleryTile(tile, idx, resolved);
-    });
-  }, { root: gridEl, rootMargin: '600px 0px' });
-  targets.forEach(tile=> refGalleryObserver.observe(tile));
+  setupPinGalleryLazyLoad(gridEl, pairs, refGalleryObserverHolder, '.pin-item-dense.pin-loading',
+    (tile, idx, url)=> fillRefGalleryTile(tile, idx, url));
 }
 
 function fillRefGalleryTile(tile, idx, url){
