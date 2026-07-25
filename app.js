@@ -1867,6 +1867,11 @@ function normalizeRefGalleryItem(it){
 
 let refGalleryData = { items: [] };
 let refGalleryFilterOpt = null;
+/* 태그(옵션)만 바뀌었을 땐 화면에 보이는 사진 구성/순서가 그대로라 그리드를 통째로
+   다시 그릴 필요가 없음(태그는 타일에 표시되지 않고 필터링에만 쓰임). 사진이 많이
+   쌓이면 매번 전체를 다시 그리는 비용이 커져서 태그 지정이 느려지므로, 필터가 꺼져
+   있을 때 태그만 바꾸는 경우엔 이 플래그로 다음 스냅샷의 무거운 재렌더링을 건너뜀 */
+let skipNextRefGalleryRender = false;
 
 /* 썸네일 한 줄의 실제 렌더링 높이를 재서, 마지막 줄이 어중간하게 잘려 보이지 않도록
    "딱 완전한 N줄 높이"로만 스크롤 영역 높이를 고정함 (대략 440px 안쪽에서 꽉 채우는 줄 수를 고름) */
@@ -1997,6 +2002,8 @@ function handleRefGalleryOptEdit(idx){
   openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
     const arr = items.slice();
     arr[idx] = { ...arr[idx], opts };
+    // 필터가 꺼져 있으면 태그만 바꿔선 화면에 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
+    if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
     await docRef('refgallery').set({ items: arr }, {merge:true});
   });
 }
@@ -2013,6 +2020,8 @@ function openRefGalleryViewModal(idx){
       openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
         const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
         arr[i] = { ...arr[i], opts };
+        // 필터가 꺼져 있으면 태그만 바꿔선 화면에 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
+        if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
         await docRef('refgallery').set({items:arr}, {merge:true});
         setTimeout(()=> openRefGalleryViewModal(i), 0);
       });
@@ -2075,7 +2084,13 @@ function openRefGalleryAddModal(){
   });
 }
 
-docRef('refgallery').onSnapshot(doc=>{ refGalleryData = doc.exists ? doc.data() : {items:[]}; renderRefGallery(); if(editMode) migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []); });
+docRef('refgallery').onSnapshot(doc=>{
+  refGalleryData = doc.exists ? doc.data() : {items:[]};
+  // 데이터는 항상 최신으로 갱신하되, 태그만 바뀐 경우엔 무거운 전체 그리드 재렌더링을 건너뜀
+  if(skipNextRefGalleryRender){ skipNextRefGalleryRender = false; }
+  else { renderRefGallery(); }
+  if(editMode) migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []);
+});
 
 /* ---------------- 6-1. 문서 정리 (갤러리와 세션카드 사이) ---------------- */
 
