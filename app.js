@@ -1730,20 +1730,21 @@ let refGalleryFilterOpt = null;
    반대로 캘린더 쪽 높이는 이 함수가 전혀 건드리지 않으므로, 캘린더가 레퍼런스 갤러리를
    따라 늘어나는 일도 없음(캘린더가 기준, 레퍼런스 갤러리가 거기에 맞추는 일방향) */
 function fitRefGalleryToCalendarHeight(){
-  const grid = document.getElementById('refGalleryGrid');
   const calCard = document.getElementById('cardCalendar');
   const refCard = document.getElementById('cardRefGallery');
-  if(!grid || !calCard || !refCard) return;
-  // 캘린더의 "진짜" 높이를 재기 전에, 레퍼런스 갤러리 그리드를 먼저 낮춰둠.
-  // (매번 다시 그려질 때 그리드는 인라인 높이가 없는 새 엘리먼트라, 이 단계 없이 바로 캘린더
-  //  높이를 재면 같은 행에서 아직 안 줄어든 레퍼런스 갤러리에 의해 캘린더 쪽까지 부풀려진
-  //  값을 재게 되는 순환 버그가 있었음)
-  grid.style.height = '0px';
+  if(!calCard || !refCard) return;
+  // 캘린더의 "진짜" 높이(=레퍼런스 갤러리 없이 음악/디데이 칸과만 맞췄을 때의 높이)를 재려면
+  // 레퍼런스 갤러리 카드를 잠깐 행 계산에서 완전히 빼야 함(display:none).
+  const prevDisplay = refCard.style.display;
+  refCard.style.display = 'none';
   const calH = calCard.getBoundingClientRect().height;
+  refCard.style.display = prevDisplay;
   if(!calH) return;
-  const otherH = Math.max(0, refCard.scrollHeight - grid.scrollHeight);
-  const gridH = Math.max(80, calH - otherH);
-  grid.style.height = `${Math.round(gridH)}px`;
+  // 그리드(flex:1, flex-basis:0)에 직접 height를 줘도 flex-grow가 다시 채워버려 소용없으므로,
+  // 그리드 아이템인 카드 자체에 명시적 높이를 줌. 그리드 아이템은 명시적 height가 있으면
+  // align-items:stretch를 무시하고 그 값 그대로 확정되고, 안쪽 flex:1 그리드는 그 안에서만
+  // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
+  refCard.style.height = `${Math.round(calH)}px`;
 }
 window.addEventListener('resize', debounce(fitRefGalleryToCalendarHeight, 150));
 
