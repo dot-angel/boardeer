@@ -1988,6 +1988,22 @@ function renderRefGallery(){
   );
 
   setupRefGalleryLazyLoad(gridEl, pairs);
+  applyRefGalleryOverlap(gridEl);
+}
+
+/* 레퍼런스 갤러리는 2열 그리드라서, 몇 번째 줄(row)인지에 따라 항상 "바로 위 줄"과
+   정확히 OVERLAP_PX만큼만 겹치도록 여기서 직접 위치를 계산함.
+   (CSS만으로 nth-child에 고정값을 주면, 여러 줄에 같은 값을 주는 순간 그 줄들끼리는
+   서로 밀린 양이 똑같아서 오히려 안 겹쳐버리는 문제가 있어서 JS로 처리함)
+   OVERLAP_PX 숫자만 바꾸면 겹치는 정도가 바로 조절되고, 사진이 아무리 많아져도
+   이 값 이상으로는 절대 안 겹침(상한). */
+function applyRefGalleryOverlap(gridEl){
+  const OVERLAP_PX = 22;
+  const tiles = gridEl.querySelectorAll(':scope > .pin-item-dense');
+  tiles.forEach((el, i)=>{
+    const row = Math.floor(i / 2);
+    el.style.transform = row === 0 ? '' : `translateY(${-row * OVERLAP_PX}px)`;
+  });
 }
 
 /* 이미 이번 세션에서 한 번 불러와 캐시된 사진(또는 애초에 다운로드가 필요 없는 외부 URL)은
