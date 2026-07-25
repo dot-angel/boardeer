@@ -555,9 +555,14 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .modal .radio-row{ display:flex; gap:14px; font-size:.82rem; color:var(--ink); margin:8px 0; }
 .modal .radio-row label{ display:flex; align-items:center; gap:6px; }
 
-/* 이미지를 크게 보기 위한 라이트박스 — 일반 입력폼 모달보다 훨씬 넓게 */
+/* 이미지를 크게 보기 위한 라이트박스 — 일반 입력폼 모달보다 훨씬 넓게.
+   .modal의 backdrop-filter(blur(26px) saturate(180%))를 그대로 쓰면, 이 모달은
+   폭이 거의 화면 전체(94vw)라 그 무거운 블러+채도 효과를 화면 전체 영역에 매 프레임
+   계산하게 돼서 여는 순간 페이지 전체가 버벅임. 뒤에 이미 어두운 반투명 오버레이가
+   깔려 있어 사진을 보는 데는 큰 블러가 굳이 필요 없으므로 훨씬 가벼운 값으로 낮춤 */
 .modal.modal-lightbox{
   width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.5);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
 .lightbox-body{ position:relative; }
 .modal.modal-lightbox .lightbox-img{
