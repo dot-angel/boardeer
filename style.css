@@ -409,9 +409,19 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
   display:grid; grid-template-columns: repeat(2, 1fr);
   gap:6px; align-content:start;
 }
-/* 사진이 아무리 많이 쌓여도 한 행당 겹치는 양은 -12px로 고정 — 늘어날수록 더 겹쳐지지 않음 */
-.ref-gallery-grid .pin-item-dense:nth-child(n+3){
-  margin-top: -12px;
+/* 처음 몇 줄은 살짝만 겹치다가, 사진이 쌓일수록 겹침이 점점 커지고 -12px에서 더는 안 커짐(상한).
+   margin-top이 아니라 transform을 쓰는 이유: margin-top은 CSS Grid에서 그 줄의 자동 높이 계산에
+   그대로 포함돼서, 다음 줄이 또 그만큼 밀려 올라가고 거기에 또 겹침이 더해지는 식으로 한도 없이
+   계속 커져버림(누적 버그). transform은 레이아웃 계산에 전혀 영향을 안 주고 화면에 보이는 위치만
+   옮기기 때문에, 아래 숫자들을 "줄마다 이만큼씩 위로" 라고 지정한 그대로 항상 정확히 적용됨. */
+.ref-gallery-grid .pin-item-dense:nth-child(n+3):nth-child(-n+4){
+  transform: translateY(-4px);  /* 2번째 줄: 살짝만 */
+}
+.ref-gallery-grid .pin-item-dense:nth-child(n+5):nth-child(-n+6){
+  transform: translateY(-8px);  /* 3번째 줄: 조금 더 */
+}
+.ref-gallery-grid .pin-item-dense:nth-child(n+7){
+  transform: translateY(-12px); /* 4번째 줄부터는 항상 -12px, 더는 안 커짐(상한) */
 }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
