@@ -1666,7 +1666,7 @@ function renderRefGallery(){
       <div class="tag-filter" id="refGalleryFilterChips" style="display:none;"></div>
       ${editMode ? `<button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>` : ''}
     </div>
-    <div class="ref-gallery-grid" id="refGalleryGrid">
+    <div class="ref-gallery-grid" id="refGalleryGrid" style="max-height:480px;overflow-y:auto;">
       ${pairs.map(({it,i})=>{
         const resolved = resolveGalleryItemUrl(it, renderRefGallery);
         if(resolved === null){
