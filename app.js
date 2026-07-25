@@ -873,10 +873,20 @@ globalStyleBtn.addEventListener('click', async ()=>{
 let imagesData = { items: [] };
 let imgSlideIndex = 0;
 
-/* 예전 데이터(문자열 URL 배열)와 새 데이터({url, caption} 객체 배열)를 함께 지원 */
+/* 예전 데이터(문자열 URL 배열 / 단일 caption 필드)와 새 데이터(모서리 4개짜리 captions 객체)를
+   함께 지원. 예전에 쓰던 caption은 그대로 좌하단(bl)으로 이어짐 */
 function normalizeImageItem(it){
-  if(typeof it === 'string') return { url: it, caption: '' };
-  return { url: it.url || '', caption: it.caption || '' };
+  if(typeof it === 'string') return { url: it, captions: { tl:'', tr:'', bl:'', br:'' } };
+  const c = it.captions || {};
+  return {
+    url: it.url || '',
+    captions: {
+      tl: c.tl || '',
+      tr: c.tr || '',
+      bl: c.bl || it.caption || '',
+      br: c.br || ''
+    }
+  };
 }
 
 function renderImages(){
@@ -893,7 +903,7 @@ function renderImages(){
     box.innerHTML = `
       <div class="slide-viewport" id="slideViewport">
         <img src="${cur.url}" id="slideImg" title="눌러서 크게 보기">
-        ${cur.caption ? `<div class="slide-caption">${escapeHtml(cur.caption).replace(/\n/g,'<br>')}</div>` : ''}
+        ${['tl','tr','bl','br'].map(pos=> cur.captions[pos] ? `<div class="slide-caption cap-${pos}">${escapeHtml(cur.captions[pos]).replace(/\n/g,'<br>')}</div>` : '').join('')}
         ${editMode ? `<button class="icon-btn slide-caption-btn" id="imgCaptionBtn" title="문구 편집">Aa</button>` : ''}
         ${editMode ? `<button class="icon-btn slide-del" id="imgDelBtn" title="이 사진 삭제">✕</button>` : ''}
         ${items.length>1 ? `<button class="slide-nav prev" id="imgPrev">‹</button><button class="slide-nav next" id="imgNext">›</button>` : ''}
@@ -942,17 +952,29 @@ function bindImages(){
 
 function openImageCaptionModal(idx, items){
   const cur = items[idx];
+  const c = cur.captions || {};
   openModal(`
     <h3>사진 위 문구</h3>
-    <p class="hint">사진 위에 크게 겹쳐 보이는 문구예요. 비워두면 문구 없이 사진만 보여요.</p>
-    <label>문구 (줄바꿈 가능)</label>
-    <textarea id="capText" style="min-height:80px;">${escapeHtml(cur.caption||'')}</textarea>
+    <p class="hint">사진 네 모서리에 각각 문구를 넣을 수 있어요. 비워두면 그 자리엔 문구가 안 보여요.</p>
+    <label>좌상단</label>
+    <textarea id="capTL" style="min-height:50px;">${escapeHtml(c.tl||'')}</textarea>
+    <label>우상단</label>
+    <textarea id="capTR" style="min-height:50px;">${escapeHtml(c.tr||'')}</textarea>
+    <label>좌하단</label>
+    <textarea id="capBL" style="min-height:50px;">${escapeHtml(c.bl||'')}</textarea>
+    <label>우하단</label>
+    <textarea id="capBR" style="min-height:50px;">${escapeHtml(c.br||'')}</textarea>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const arr = [...items];
-      arr[idx] = { url: cur.url, caption: m.querySelector('#capText').value.trim() };
+      arr[idx] = { url: cur.url, captions: {
+        tl: m.querySelector('#capTL').value.trim(),
+        tr: m.querySelector('#capTR').value.trim(),
+        bl: m.querySelector('#capBL').value.trim(),
+        br: m.querySelector('#capBR').value.trim()
+      }};
       await docRef('images').set({items:arr}, {merge:true});
       closeModal();
     };
