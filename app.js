@@ -60,6 +60,10 @@ function escapeHtml(s){
 }
 
 function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function debounce(fn, wait){
+  let t;
+  return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
+}
 
 /* ---------------- 옵션(분류) 관리 + 필터 칩 — 문서 위젯과 모든 갤러리가 공용으로 씀 ----------------
    위젯마다 별도의 옵션 문서(storeName)를 두고, 그 안의 options 배열을 목록/필터에 함께 씀.
@@ -1691,6 +1695,22 @@ function normalizeRefGalleryItem(it){
 let refGalleryData = { items: [] };
 let refGalleryFilterOpt = null;
 
+/* 썸네일 한 줄의 실제 렌더링 높이를 재서, 마지막 줄이 어중간하게 잘려 보이지 않도록
+   "딱 완전한 N줄 높이"로만 스크롤 영역 높이를 고정함 (대략 440px 안쪽에서 꽉 채우는 줄 수를 고름) */
+function fitRefGalleryGridHeight(){
+  const grid = document.getElementById('refGalleryGrid');
+  if(!grid) return;
+  const firstItem = grid.querySelector('.pin-item-dense');
+  if(!firstItem){ grid.style.height = ''; return; }
+  const itemH = firstItem.getBoundingClientRect().height;
+  if(!itemH) return;
+  const gapPx = 6;
+  const targetMax = 440;
+  const rows = Math.max(2, Math.floor((targetMax + gapPx) / (itemH + gapPx)));
+  grid.style.height = `${Math.round(rows * itemH + (rows - 1) * gapPx)}px`;
+}
+window.addEventListener('resize', debounce(fitRefGalleryGridHeight, 150));
+
 function renderRefGallery(){
   const box = document.getElementById('cardRefGallery');
   if(!box) return;
@@ -1723,6 +1743,7 @@ function renderRefGallery(){
   `;
   const newScrollEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(newScrollEl, savedScroll);
+  fitRefGalleryGridHeight();
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-del], [data-opt-edit]')) return;
