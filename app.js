@@ -128,21 +128,35 @@ function renderOptionFilterChips(container, options, active, onSelect){
   container.querySelectorAll('[data-opt]').forEach(btn=> btn.onclick = ()=> onSelect(btn.dataset.opt || null));
 }
 
-/* 사진 한 장의 옵션(분류)만 바로 바꾸는 작은 모달 — 갤러리/갤러리2에서 씀 */
-function openItemOptEditModal(currentOpt, optionsList, onSave){
+/* 옵션 여러 개를 체크박스로 동시에 고를 수 있게 하는 공용 UI.
+   문서 위젯/모든 갤러리의 "추가" 모달과 항목별 옵션 지정 모달에서 공용으로 씀 */
+function renderOptionCheckboxes(options, selected){
+  if(!options || !options.length) return `<p class="hint">등록된 옵션이 없어요. 먼저 "⚙ 옵션 관리"에서 옵션을 추가해주세요.</p>`;
+  const sel = selected || [];
+  return `<div class="opt-checkbox-group">${options.map(o=> `
+    <label class="opt-checkbox">
+      <input type="checkbox" value="${escapeHtml(o)}" ${sel.includes(o) ? 'checked' : ''}>
+      <span>${escapeHtml(o)}</span>
+    </label>
+  `).join('')}</div>`;
+}
+function getCheckedOptionValues(container){
+  if(!container) return [];
+  return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb=> cb.value);
+}
+
+/* 사진 한 장의 옵션(태그)들을 바로 바꾸는 작은 모달 — 갤러리들에서 씀. 여러 개 동시 선택 가능 */
+function openItemOptEditModal(currentOpts, optionsList, onSave){
   openModal(`
     <h3>옵션 지정</h3>
-    <label>옵션</label>
-    <select id="itemOptSel">
-      <option value="">없음</option>
-      ${(optionsList||[]).map(o=> `<option value="${escapeHtml(o)}" ${o===currentOpt?'selected':''}>${escapeHtml(o)}</option>`).join('')}
-    </select>
+    <p class="hint">여러 개를 한꺼번에 고를 수 있어요.</p>
+    <div id="itemOptBox">${renderOptionCheckboxes(optionsList, currentOpts)}</div>
     <p class="hint">옵션 목록 자체를 늘리거나 고치려면 위젯의 "⚙ 옵션 관리"를 이용해주세요.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
-      await onSave(m.querySelector('#itemOptSel').value);
+      await onSave(getCheckedOptionValues(m.querySelector('#itemOptBox')));
       closeModal();
     };
   });
@@ -156,7 +170,7 @@ function openItemOptEditModal(currentOpt, optionsList, onSave){
      onDelete(idx),     // 있으면 삭제 버튼 표시. idx의 사진을 지우는 함수
      meta(item),        // 있으면 {title, desc} 반환 — 사진 아래 정보로 표시
      onEditMeta(idx),    // 있으면 "정보 편집" 버튼 표시 — 눌렀을 때 호출
-     tag(item),         // 있으면 현재 옵션(태그) 문자열 반환 — 사진 아래 태그로 표시
+     tag(item),         // 있으면 현재 옵션(태그) 배열을 반환 — 사진 아래 태그 칩들로 표시
      onEditTag(idx)      // 있으면 "태그 수정" 버튼 표시 — 눌렀을 때 호출
    }
    화살표 버튼/키보드 ←→로 같은 목록 안에서 트위터처럼 옆 사진으로 바로 넘어갈 수 있음 */
@@ -184,7 +198,7 @@ function openImageLightbox(cfg){
           ${metaInfo.title ? `<div class="lightbox-meta-title">${escapeHtml(metaInfo.title)}</div>` : ''}
           ${metaInfo.desc ? `<div class="lightbox-meta-desc">${escapeHtml(metaInfo.desc)}</div>` : ''}
         </div>` : ''}
-      ${cfg.tag ? `<div class="lightbox-tag">${tagInfo ? `<span class="lightbox-tag-chip">${escapeHtml(tagInfo)}</span>` : `<span class="lightbox-tag-chip empty">태그 없음</span>`}</div>` : ''}
+      ${cfg.tag ? `<div class="lightbox-tag">${tagInfo && tagInfo.length ? tagInfo.map(t=> `<span class="lightbox-tag-chip">${escapeHtml(t)}</span>`).join('') : `<span class="lightbox-tag-chip empty">태그 없음</span>`}</div>` : ''}
       <div class="modal-actions">
         ${cfg.onEditMeta ? `<button class="btn ghost" id="editMeta">${metaInfo && (metaInfo.title || metaInfo.desc) ? '정보 수정' : '정보 추가'}</button>` : ''}
         ${cfg.onEditTag ? `<button class="btn ghost" id="editTag">태그 수정</button>` : ''}
@@ -1303,9 +1317,9 @@ docRef('calendar').onSnapshot(doc=>{ calendarData = doc.exists ? doc.data() : {e
 /* 예전엔 items가 그냥 URL 문자열 배열이었어서, 새로 추가된 블러 옵션과 호환되도록
    문자열이면 {url, blur:false}로, 객체면 그대로 정규화해줌 */
 function normalizeGalleryItem(it){
-  if(typeof it === 'string') return { url: it, blur: false, opt: '' };
-  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opt: it.opt||'' };
-  return { url: it.url, blur: !!it.blur, opt: it.opt||'' };
+  if(typeof it === 'string') return { url: it, blur: false, opts: [] };
+  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
+  return { url: it.url, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
 }
 
 /* 갤러리는 사진 여러 장이 문서 하나(gallery/gallery2)에 배열로 함께 저장되는데,
@@ -1339,7 +1353,7 @@ async function migrateInlineGalleryImages(docName, getItems){
       try{
         const { fileId, total } = await saveFileChunked(raw.url);
         chunkedImageCache.set(fileId, raw.url);
-        newItems.push({ chunked:true, fileId, chunkTotal: total, opt: raw.opt || '' });
+        newItems.push({ chunked:true, fileId, chunkTotal: total, blur: !!raw.blur, opts: raw.opts || (raw.opt ? [raw.opt] : []) });
         changed = true;
       }catch(err){ newItems.push(raw); }
     } else {
@@ -1484,9 +1498,9 @@ function handleGalleryBlurToggle(idx){
 }
 function handleGalleryOptEdit(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
-  openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
     const arr = items.slice();
-    arr[idx] = { ...arr[idx], opt };
+    arr[idx] = { ...arr[idx], opts };
     await docRef('gallery').set({ items: arr }, {merge:true});
   });
 }
@@ -1496,7 +1510,7 @@ function renderGallery(){
   const prevScrollEl = document.getElementById('galleryGrid');
   const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (galleryData.items || []).map(normalizeGalleryItem);
-  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !galleryFilterOpt || it.opt === galleryFilterOpt);
+  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !galleryFilterOpt || (it.opts||[]).includes(galleryFilterOpt));
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="galleryFilterChips" style="display:none;"></div>
@@ -1549,12 +1563,12 @@ function openGalleryViewModal(idx){
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
-    tag: (item)=> item.opt,
+    tag: (item)=> item.opts,
     onEditTag: editMode ? (i)=>{
       closeModal();
-      openItemOptEditModal(items[i].opt, sharedGalleryOptionsData.options, async (opt)=>{
+      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
         const arr = (galleryData.items||[]).map(normalizeGalleryItem);
-        arr[i] = { ...arr[i], opt };
+        arr[i] = { ...arr[i], opts };
         await docRef('gallery').set({items:arr}, {merge:true});
         setTimeout(()=> openGalleryViewModal(i), 0);
       });
@@ -1576,11 +1590,8 @@ function openGalleryAddModal(){
     <p class="hint">화면에 맞게 자동으로 압축해서 갤러리 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="galUrl" placeholder="https://...">
-    <label>옵션 (분류, 선택)</label>
-    <select id="galOpt">
-      <option value="">없음</option>
-      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
-    </select>
+    <label>옵션 (분류, 여러 개 선택 가능)</label>
+    <div id="galOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
     <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="galBlur" style="width:auto;">
@@ -1594,7 +1605,7 @@ function openGalleryAddModal(){
       const files = Array.from(m.querySelector('#galFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#galUrl').value.trim());
       const blur = m.querySelector('#galBlur').checked;
-      const opt = m.querySelector('#galOpt').value;
+      const opts = getCheckedOptionValues(m.querySelector('#galOptBox'));
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -1603,11 +1614,11 @@ function openGalleryAddModal(){
           try{
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, blur, opt });
+            newItems.push({ ...stored, blur, opts });
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
-        newItems.push({ url, blur, opt });
+        newItems.push({ url, blur, opts });
       } else {
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
@@ -1695,9 +1706,9 @@ function handleGallery2BlurToggle(idx){
 }
 function handleGallery2OptEdit(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
-  openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
     const arr = items.slice();
-    arr[idx] = { ...arr[idx], opt };
+    arr[idx] = { ...arr[idx], opts };
     await docRef('gallery2').set({ items: arr }, {merge:true});
   });
 }
@@ -1708,7 +1719,7 @@ function renderGallery2(){
   const prevScrollEl = document.getElementById('gallery2Grid');
   const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
-  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !gallery2FilterOpt || it.opt === gallery2FilterOpt);
+  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !gallery2FilterOpt || (it.opts||[]).includes(gallery2FilterOpt));
   box.innerHTML = `
     <button class="gallery-toggle-btn" id="gallery2ToggleBtn">
       <span>${gallery2Collapsed ? '펼쳐보기' : '접기'}${items.length ? ` (${items.length})` : ''}</span>
@@ -1770,12 +1781,12 @@ function openGallery2ViewModal(idx){
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
-    tag: (item)=> item.opt,
+    tag: (item)=> item.opts,
     onEditTag: editMode ? (i)=>{
       closeModal();
-      openItemOptEditModal(items[i].opt, sharedGalleryOptionsData.options, async (opt)=>{
+      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
         const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        arr[i] = { ...arr[i], opt };
+        arr[i] = { ...arr[i], opts };
         await docRef('gallery2').set({items:arr}, {merge:true});
         setTimeout(()=> openGallery2ViewModal(i), 0);
       });
@@ -1797,11 +1808,8 @@ function openGallery2AddModal(){
     <p class="hint">화면에 맞게 자동으로 압축해서 갤러리 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="gal2Url" placeholder="https://...">
-    <label>옵션 (분류, 선택)</label>
-    <select id="gal2Opt">
-      <option value="">없음</option>
-      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
-    </select>
+    <label>옵션 (분류, 여러 개 선택 가능)</label>
+    <div id="gal2OptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
     <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="gal2Blur" style="width:auto;">
@@ -1815,7 +1823,7 @@ function openGallery2AddModal(){
       const files = Array.from(m.querySelector('#gal2Files').files || []);
       const url = normalizeImageUrl(m.querySelector('#gal2Url').value.trim());
       const blur = m.querySelector('#gal2Blur').checked;
-      const opt = m.querySelector('#gal2Opt').value;
+      const opts = getCheckedOptionValues(m.querySelector('#gal2OptBox'));
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -1824,11 +1832,11 @@ function openGallery2AddModal(){
           try{
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, blur, opt });
+            newItems.push({ ...stored, blur, opts });
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
-        newItems.push({ url, blur, opt });
+        newItems.push({ url, blur, opts });
       } else {
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
@@ -1852,9 +1860,9 @@ docRef('gallery2').onSnapshot(doc=>{ gallery2Data = doc.exists ? doc.data() : {i
    작고 촘촘한 정사각형 썸네일. 다른 갤러리들과 똑같이 옵션(태그)만 붙일 수 있음 ---------------- */
 
 function normalizeRefGalleryItem(it){
-  if(typeof it === 'string') return { url: it, opt:'' };
-  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, opt: it.opt||'' };
-  return { url: it.url, opt: it.opt||'' };
+  if(typeof it === 'string') return { url: it, opts: [] };
+  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, opts: it.opts || (it.opt ? [it.opt] : []) };
+  return { url: it.url, opts: it.opts || (it.opt ? [it.opt] : []) };
 }
 
 let refGalleryData = { items: [] };
@@ -1892,7 +1900,7 @@ function renderRefGallery(){
   const prevScrollEl = document.getElementById('refGalleryGrid');
   const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || it.opt === refGalleryFilterOpt);
+  const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || (it.opts||[]).includes(refGalleryFilterOpt));
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="refGalleryFilterChips" style="display:none;"></div>
@@ -1986,9 +1994,9 @@ function handleRefGalleryDelete(idx){
 
 function handleRefGalleryOptEdit(idx){
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+  openItemOptEditModal(items[idx].opts, sharedGalleryOptionsData.options, async (opts)=>{
     const arr = items.slice();
-    arr[idx] = { ...arr[idx], opt };
+    arr[idx] = { ...arr[idx], opts };
     await docRef('refgallery').set({ items: arr }, {merge:true});
   });
 }
@@ -1999,12 +2007,12 @@ function openRefGalleryViewModal(idx){
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
-    tag: (item)=> item.opt,
+    tag: (item)=> item.opts,
     onEditTag: editMode ? (i)=>{
       closeModal();
-      openItemOptEditModal(items[i].opt, sharedGalleryOptionsData.options, async (opt)=>{
+      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, async (opts)=>{
         const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        arr[i] = { ...arr[i], opt };
+        arr[i] = { ...arr[i], opts };
         await docRef('refgallery').set({items:arr}, {merge:true});
         setTimeout(()=> openRefGalleryViewModal(i), 0);
       });
@@ -2026,11 +2034,8 @@ function openRefGalleryAddModal(){
     <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="refGalUrl" placeholder="https://...">
-    <label>옵션 (분류, 선택)</label>
-    <select id="refGalOpt">
-      <option value="">없음</option>
-      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
-    </select>
+    <label>옵션 (분류, 여러 개 선택 가능)</label>
+    <div id="refGalOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
     <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
@@ -2039,7 +2044,7 @@ function openRefGalleryAddModal(){
       const saveBtn = m.querySelector('#s');
       const files = Array.from(m.querySelector('#refGalFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#refGalUrl').value.trim());
-      const opt = m.querySelector('#refGalOpt').value;
+      const opts = getCheckedOptionValues(m.querySelector('#refGalOptBox'));
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -2048,11 +2053,11 @@ function openRefGalleryAddModal(){
           try{
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, opt });
+            newItems.push({ ...stored, opts });
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
-        newItems.push({ url, opt });
+        newItems.push({ url, opts });
       } else {
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
@@ -2084,13 +2089,13 @@ function renderDocs(){
   const list = document.getElementById('docList');
   const allCards = docsData.cards || [];
   renderOptionFilterChips(document.getElementById('docFilter'), docOptionsData.options, docFilterOpt, (opt)=>{ docFilterOpt = opt; renderDocs(); });
-  const pairs = allCards.map((c,i)=>({c,i})).filter(({c})=> !docFilterOpt || c.opt === docFilterOpt);
+  const pairs = allCards.map((c,i)=>({c,i})).filter(({c})=> !docFilterOpt || (c.opts||(c.opt?[c.opt]:[])).includes(docFilterOpt));
   list.innerHTML = pairs.map(({c,i})=> `
     <div class="doc-row" data-idx="${i}">
       <span class="doc-icon">${escapeHtml(c.icon || '📄')}</span>
       <div class="doc-main">
         <div class="doc-title">${escapeHtml(c.title)}</div>
-        ${c.opt ? `<div class="doc-opt">${escapeHtml(c.opt)}</div>` : ''}
+        ${(c.opts||(c.opt?[c.opt]:[])).length ? `<div class="doc-opt-row">${(c.opts||(c.opt?[c.opt]:[])).map(o=> `<span class="doc-opt">${escapeHtml(o)}</span>`).join('')}</div>` : ''}
         ${c.desc ? `<div class="doc-desc">${escapeHtml(c.desc)}</div>` : ''}
       </div>
       ${c.chunked
@@ -2149,11 +2154,8 @@ function openDocAddModal(){
     <label>아이콘(이모지, 선택)</label><input type="text" id="dcIcon" placeholder="📄" maxlength="2">
     <label>제목</label><input type="text" id="dcTitle" placeholder="예: 설정집, 규칙 정리">
     <label>설명 (선택)</label><input type="text" id="dcDesc" placeholder="한 줄 설명">
-    <label>옵션 (부제, 선택)</label>
-    <select id="dcOpt">
-      <option value="">없음</option>
-      ${(docOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
-    </select>
+    <label>옵션 (부제, 여러 개 선택 가능)</label>
+    <div id="dcOptBox">${renderOptionCheckboxes(docOptionsData.options, [])}</div>
     <p class="hint">옵션 목록은 아래쪽 "⚙ 옵션 관리"에서 직접 추가/수정할 수 있어요.</p>
     <div class="radio-row">
       <label><input type="radio" name="doc-src" value="link" checked> 링크로 연결</label>
@@ -2181,7 +2183,7 @@ function openDocAddModal(){
       const icon = m.querySelector('#dcIcon').value.trim();
       if(!title){ toast('제목을 입력해주세요'); return; }
       const isLink = m.querySelector('input[name="doc-src"]:checked').value === 'link';
-      const opt = m.querySelector('#dcOpt').value;
+      const opts = getCheckedOptionValues(m.querySelector('#dcOptBox'));
       let link = '';
       let chunkInfo = null;
       if(isLink){
@@ -2205,7 +2207,7 @@ function openDocAddModal(){
           }
         }
       }
-      const newCard = { icon, title, desc, opt, link };
+      const newCard = { icon, title, desc, opts, link };
       if(chunkInfo){ newCard.chunked = true; newCard.fileId = chunkInfo.fileId; newCard.chunkTotal = chunkInfo.total; }
       const updatedCards = [...(docsData.cards||[]), newCard];
       try{
@@ -2240,11 +2242,8 @@ function openDocEditModal(idx){
     <label>아이콘(이모지, 선택)</label><input type="text" id="dcIcon" placeholder="📄" maxlength="2" value="${escapeHtml(c.icon||'')}">
     <label>제목</label><input type="text" id="dcTitle" value="${escapeHtml(c.title||'')}">
     <label>설명 (선택)</label><input type="text" id="dcDesc" value="${escapeHtml(c.desc||'')}">
-    <label>옵션 (부제, 선택)</label>
-    <select id="dcOptE">
-      <option value="" ${!c.opt?'selected':''}>없음</option>
-      ${(docOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}" ${o===c.opt?'selected':''}>${escapeHtml(o)}</option>`).join('')}
-    </select>
+    <label>옵션 (부제, 여러 개 선택 가능)</label>
+    <div id="dcOptEBox">${renderOptionCheckboxes(docOptionsData.options, c.opts || (c.opt ? [c.opt] : []))}</div>
     <p class="hint">현재 연결: ${currentDesc}. 그대로 두거나 아래에서 바꿀 수 있어요.</p>
     <div class="radio-row">
       <label><input type="radio" name="doc-src-e" value="keep" checked> 그대로 유지</label>
@@ -2271,10 +2270,10 @@ function openDocEditModal(idx){
       const title = m.querySelector('#dcTitle').value.trim();
       const desc = m.querySelector('#dcDesc').value.trim();
       const icon = m.querySelector('#dcIcon').value.trim();
-      const opt = m.querySelector('#dcOptE').value;
+      const opts = getCheckedOptionValues(m.querySelector('#dcOptEBox'));
       if(!title){ toast('제목을 입력해주세요'); return; }
       const mode = m.querySelector('input[name="doc-src-e"]:checked').value;
-      const updated = { icon, title, desc, opt, link: c.link || '' };
+      const updated = { icon, title, desc, opts, link: c.link || '' };
       if(c.chunked){ updated.chunked = true; updated.fileId = c.fileId; updated.chunkTotal = c.chunkTotal; }
       let oldChunkToDelete = null;
 
