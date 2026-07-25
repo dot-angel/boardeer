@@ -1734,9 +1734,13 @@ function fitRefGalleryToCalendarHeight(){
   const calCard = document.getElementById('cardCalendar');
   const refCard = document.getElementById('cardRefGallery');
   if(!grid || !calCard || !refCard) return;
+  // 캘린더의 "진짜" 높이를 재기 전에, 레퍼런스 갤러리 그리드를 먼저 낮춰둠.
+  // (매번 다시 그려질 때 그리드는 인라인 높이가 없는 새 엘리먼트라, 이 단계 없이 바로 캘린더
+  //  높이를 재면 같은 행에서 아직 안 줄어든 레퍼런스 갤러리에 의해 캘린더 쪽까지 부풀려진
+  //  값을 재게 되는 순환 버그가 있었음)
+  grid.style.height = '0px';
   const calH = calCard.getBoundingClientRect().height;
   if(!calH) return;
-  grid.style.height = ''; // 그리드 외 나머지(필터 칩·옵션 버튼 줄 등)가 차지하는 높이를 재기 위해 잠깐 해제
   const otherH = Math.max(0, refCard.scrollHeight - grid.scrollHeight);
   const gridH = Math.max(80, calH - otherH);
   grid.style.height = `${Math.round(gridH)}px`;
