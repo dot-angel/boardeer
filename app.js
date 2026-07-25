@@ -1271,6 +1271,8 @@ let galleryFilterOpt = null;
 
 function renderGallery(){
   const box = document.getElementById('cardGallery');
+  const prevScrollEl = document.getElementById('galleryGrid');
+  const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
   const items = (galleryData.items || []).map(normalizeGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !galleryFilterOpt || it.opt === galleryFilterOpt);
   box.innerHTML = `
@@ -1297,6 +1299,8 @@ function renderGallery(){
     ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
+  const newScrollEl = box.querySelector('#galleryGrid');
+  if(newScrollEl) newScrollEl.scrollTop = savedScrollTop;
   renderOptionFilterChips(box.querySelector('#galleryFilterChips'), sharedGalleryOptionsData.options, galleryFilterOpt, (opt)=>{ galleryFilterOpt = opt; renderGallery(); });
   box.querySelectorAll('.pin-item:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-blur], [data-del], [data-opt-edit]')) return;
@@ -1441,6 +1445,8 @@ let gallery2FilterOpt = null;
 function renderGallery2(){
   const box = document.getElementById('cardGallery2');
   if(!box) return;
+  const prevScrollEl = document.getElementById('gallery2Grid');
+  const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !gallery2FilterOpt || it.opt === gallery2FilterOpt);
   box.innerHTML = `
@@ -1472,6 +1478,8 @@ function renderGallery2(){
     </div>
     ${editMode && !gallery2Collapsed ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
+  const newScrollEl = box.querySelector('#gallery2Grid');
+  if(newScrollEl) newScrollEl.scrollTop = savedScrollTop;
   if(!gallery2Collapsed) renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   const toggleBtn = box.querySelector('#gallery2ToggleBtn');
   if(toggleBtn) toggleBtn.onclick = ()=>{
@@ -1610,6 +1618,8 @@ let refGalleryFilterOpt = null;
 function renderRefGallery(){
   const box = document.getElementById('cardRefGallery');
   if(!box) return;
+  const prevScrollEl = document.getElementById('refGalleryGrid');
+  const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || it.opt === refGalleryFilterOpt);
   box.innerHTML = `
@@ -1636,6 +1646,8 @@ function renderRefGallery(){
     </div>
     ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
+  const newScrollEl = box.querySelector('#refGalleryGrid');
+  if(newScrollEl) newScrollEl.scrollTop = savedScrollTop;
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-del], [data-info]')) return;
