@@ -519,6 +519,7 @@ lockBtn.addEventListener('click', async ()=>{
         sessionStorage.setItem('gh_edit','1');
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드가 시작됐어요');
+        migrateOversizedGalleries();
       };
     });
     return;
@@ -540,6 +541,7 @@ lockBtn.addEventListener('click', async ()=>{
         sessionStorage.setItem('gh_edit','1');
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드로 전환됐어요');
+        migrateOversizedGalleries();
       } else {
         toast('비밀번호가 일치하지 않아요');
       }
@@ -1279,7 +1281,10 @@ function normalizeGalleryItem(it){
    막혀버림. 일정 크기 이상인 파일은 이미 있는 청크 저장 방식(saveFileChunked)으로
    따로 보관하고, 갤러리 문서에는 작은 참조 정보만 남겨서 사진이 몇 장이든
    용량 걱정 없이 계속 추가할 수 있게 함. */
-const GALLERY_INLINE_MAX = 200000; // 이보다 크면 청크 저장으로 분리
+/* 예전엔 200KB보다 작은 사진은 문서 안에 그대로(inline) 저장했는데, 사진이 여러 장
+   쌓이면 "각각은 작아도 합치면 1MB 넘는" 문제가 생겨서(실제로 레퍼런스 갤러리에서 발생),
+   이제는 무조건 전부 청크로 분리 저장해서 갤러리 문서 자체는 항상 작게 유지되게 함. */
+const GALLERY_INLINE_MAX = 0; // 사실상 전부 청크 저장
 const chunkedImageCache = new Map(); // fileId -> 이미 불러온 data URL(캐시)
 
 async function storeGalleryImage(dataUrl){
@@ -1287,6 +1292,38 @@ async function storeGalleryImage(dataUrl){
   const { fileId, total } = await saveFileChunked(dataUrl);
   chunkedImageCache.set(fileId, dataUrl); // 방금 올린 사진은 바로 캐시해서 다시 안 불러와도 되게 함
   return { chunked: true, fileId, chunkTotal: total };
+}
+
+/* 예전 방식(inline)으로 이미 저장돼 있던 사진들을 청크 저장으로 옮겨서
+   갤러리 문서 용량을 다시 줄여주는 일회성 정리 작업.
+   data: URL로 저장된 항목만 대상으로 하고, 외부 링크(URL)는 그대로 둠. */
+async function migrateInlineGalleryImages(docName, getItems){
+  const items = getItems();
+  let changed = false;
+  const newItems = [];
+  for(const raw of items){
+    if(raw && typeof raw === 'object' && !raw.chunked && typeof raw.url === 'string' && raw.url.startsWith('data:')){
+      try{
+        const { fileId, total } = await saveFileChunked(raw.url);
+        chunkedImageCache.set(fileId, raw.url);
+        newItems.push({ chunked:true, fileId, chunkTotal: total, opt: raw.opt || '' });
+        changed = true;
+      }catch(err){ newItems.push(raw); }
+    } else {
+      newItems.push(raw);
+    }
+  }
+  if(changed){
+    try{
+      await docRef(docName).set({ items: newItems }, {merge:true});
+    }catch(err){ console.error('갤러리 정리 실패:', docName, err); }
+  }
+}
+
+async function migrateOversizedGalleries(){
+  await migrateInlineGalleryImages('gallery', ()=> galleryData.items || []);
+  await migrateInlineGalleryImages('gallery2', ()=> gallery2Data.items || []);
+  await migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []);
 }
 
 /* 청크로 저장된 사진은 비동기로 불러와야 해서, 아직 캐시에 없으면 null을 반환하고
@@ -1473,7 +1510,7 @@ docRef('sharedGalleryOptions').onSnapshot(doc=>{
     if(merged.length) await docRef('sharedGalleryOptions').set({ options: merged }, {merge:true});
   }catch(err){ console.error('갤러리 옵션 이전 실패', err); }
 })();
-docRef('gallery').onSnapshot(doc=>{ galleryData = doc.exists ? doc.data() : {items:[]}; renderGallery(); });
+docRef('gallery').onSnapshot(doc=>{ galleryData = doc.exists ? doc.data() : {items:[]}; renderGallery(); if(editMode) migrateInlineGalleryImages('gallery', ()=> galleryData.items || []); });
 
 /* ---------------- 6-2. 갤러리 2번째 (기존 갤러리 바로 아래 — 완전히 독립된 두 번째 갤러리)
    접었다 펼치기 가능(기본은 접힘), 펼치면 빽빽한 정사각형 그리드로 세로 스크롤 ---------------- */
@@ -1640,7 +1677,7 @@ function openGallery2AddModal(){
   });
 }
 
-docRef('gallery2').onSnapshot(doc=>{ gallery2Data = doc.exists ? doc.data() : {items:[]}; renderGallery2(); });
+docRef('gallery2').onSnapshot(doc=>{ gallery2Data = doc.exists ? doc.data() : {items:[]}; renderGallery2(); if(editMode) migrateInlineGalleryImages('gallery2', ()=> gallery2Data.items || []); });
 
 /* ---------------- 6-3. 레퍼런스 갤러리 (캘린더 옆, 완전히 독립된 세 번째 갤러리)
    작고 촘촘한 정사각형 썸네일. 다른 갤러리들과 똑같이 옵션(태그)만 붙일 수 있음 ---------------- */
@@ -1787,7 +1824,7 @@ function openRefGalleryAddModal(){
   });
 }
 
-docRef('refgallery').onSnapshot(doc=>{ refGalleryData = doc.exists ? doc.data() : {items:[]}; renderRefGallery(); });
+docRef('refgallery').onSnapshot(doc=>{ refGalleryData = doc.exists ? doc.data() : {items:[]}; renderRefGallery(); if(editMode) migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []); });
 
 /* ---------------- 6-1. 문서 정리 (갤러리와 세션카드 사이) ---------------- */
 
