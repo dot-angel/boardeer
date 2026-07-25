@@ -282,6 +282,27 @@ function restoreScrollTop(el, scrollTop){
       img.addEventListener('error', ()=>{ el.scrollTop = scrollTop; }, { once:true });
     }
   });
+  /* 사진이 여러 장(멀티컬럼 매스너리)일 땐 사진들이 로드되며 컬럼 균형이
+     다시 잡히느라 목록 높이가 여러 번 바뀔 수 있어서, 위 방법들만으로는
+     타이밍을 놓치는 경우가 있었음. 그래서 목록 높이 자체가 바뀔 때마다
+     감지해서(ResizeObserver) 그때마다 다시 스크롤을 맞춰주고, 두 번 연속
+     높이가 안 바뀌면(=레이아웃이 안정됐다고 보고) 감시를 멈춤 */
+  if(typeof ResizeObserver !== 'undefined'){
+    let lastHeight = el.scrollHeight;
+    let stableCount = 0;
+    const ro = new ResizeObserver(()=>{
+      el.scrollTop = scrollTop;
+      if(el.scrollHeight === lastHeight){
+        stableCount++;
+        if(stableCount >= 2) ro.disconnect();
+      } else {
+        lastHeight = el.scrollHeight;
+        stableCount = 0;
+      }
+    });
+    ro.observe(el);
+    setTimeout(()=> ro.disconnect(), 3000); // 안전장치: 3초 뒤엔 무조건 감시 종료
+  }
 }
 
 
