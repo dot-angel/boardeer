@@ -377,7 +377,8 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .gallery-toggle-btn .gallery-toggle-arrow.open{ transform: rotate(180deg); }
 .pin-grid-dense{
   display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap:8px; max-height:560px; overflow-y:auto; padding-right:4px;
+  gap:8px; max-height:480px; overflow-y:auto; padding-right:4px;
+  /* 사진이 아무리 많이 쌓여도 이 높이 이상으로는 절대 늘어나지 않고, 넘치는 만큼만 내부 스크롤로 처리함 */
 }
 .pin-grid-dense::-webkit-scrollbar{ width:5px; }
 .pin-grid-dense::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
