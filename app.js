@@ -177,13 +177,19 @@ function openItemOptEditModal(currentOpts, optionsList, onSave){
 function openImageLightbox(cfg){
   const items = cfg.items.slice();
   let index = cfg.index || 0;
+  let opened = false; // 첫 렌더는 항상 진행하고, 그 다음부터는 모달이 실제로 열려있을 때만 다시 그림
 
   function render(){
+    // 사진이 늦게 로딩 완료돼서 onReady가 불릴 때, 그 사이에 사용자가 이미 라이트박스를
+    // 닫아버렸다면 다시 열어버리지 않도록 함 (닫은 뒤 갑자기 다시 뜨는 현상 방지)
+    if(opened && !modalRoot.querySelector('.modal-lightbox')) return;
     if(items.length === 0){ closeModal(); return; }
     if(index >= items.length) index = items.length - 1;
     if(index < 0) index = 0;
     const item = items[index];
-    const url = cfg.resolve(item, render);
+    // 라이트박스는 사용자가 지금 바로 보려고 연 것이므로 priority=true로 불러와서
+    // 백그라운드로 미리 불러오던 썸네일들보다 먼저 처리되게 함
+    const url = cfg.resolve(item, render, true);
     const metaInfo = cfg.meta ? cfg.meta(item) : null;
     const tagInfo = cfg.tag ? cfg.tag(item) : null;
     const showNav = items.length > 1;
@@ -220,6 +226,7 @@ function openImageLightbox(cfg){
       if(prevBtn) prevBtn.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
       if(nextBtn) nextBtn.onclick = ()=>{ index = (index + 1) % items.length; render(); };
     }, 'modal-lightbox');
+    opened = true;
   }
 
   const onKey = (e)=>{
@@ -1381,7 +1388,7 @@ async function migrateOversizedGalleries(){
 const CHUNK_LOAD_CONCURRENCY = 4;
 let activeChunkLoads = 0;
 const chunkLoadQueue = [];
-function runChunkLoad(fileId, chunkTotal){
+function runChunkLoad(fileId, chunkTotal, priority){
   return new Promise((resolve)=>{
     const task = ()=>{
       activeChunkLoads++;
@@ -1395,6 +1402,9 @@ function runChunkLoad(fileId, chunkTotal){
         });
     };
     if(activeChunkLoads < CHUNK_LOAD_CONCURRENCY) task();
+    // 라이트박스처럼 사용자가 지금 당장 보려고 여는 경우(priority)는 대기줄 맨 앞으로
+    // 끼워넣어서, 백그라운드로 미리 불러오던 썸네일들보다 먼저 처리되게 함
+    else if(priority) chunkLoadQueue.unshift(task);
     else chunkLoadQueue.push(task);
   });
 }
@@ -1405,11 +1415,11 @@ function runChunkLoad(fileId, chunkTotal){
    동시에 요청이 들어와도 실제 Firestore 요청은 한 번만 나가도록
    진행 중인 로딩을 pendingChunkedLoads에 캐시해뒀다가 재사용함 */
 const pendingChunkedLoads = new Map(); // fileId -> 로딩 중인 Promise
-function resolveGalleryItemUrl(item, onReady){
+function resolveGalleryItemUrl(item, onReady, priority){
   if(!item.chunked) return item.url;
   if(chunkedImageCache.has(item.fileId)) return chunkedImageCache.get(item.fileId);
   if(!pendingChunkedLoads.has(item.fileId)){
-    const p = runChunkLoad(item.fileId, item.chunkTotal)
+    const p = runChunkLoad(item.fileId, item.chunkTotal, priority)
       .finally(()=> pendingChunkedLoads.delete(item.fileId));
     pendingChunkedLoads.set(item.fileId, p);
   }
@@ -2007,7 +2017,7 @@ function refGalleryTileMarkup(url, i){
     <div class="pin-item-dense" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
       ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
     </div>`;
 }
 
@@ -2024,7 +2034,7 @@ function fillRefGalleryTile(tile, idx, url){
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
     ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
   `;
   attachImgFallback(tile.querySelector('img'));
 }
