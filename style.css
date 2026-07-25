@@ -582,6 +582,12 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .lightbox-meta{ margin-top:12px; padding:0 4px; }
 .lightbox-meta-title{ font-family: var(--font-display); font-size:1rem; color: var(--ink); font-weight:600; }
 .lightbox-meta-desc{ font-size:.82rem; color: var(--ink-soft); margin-top:4px; white-space:pre-wrap; line-height:1.5; }
+.lightbox-tag{ margin-top:10px; padding:0 4px; }
+.lightbox-tag-chip{
+  display:inline-block; font-size:.74rem; padding:4px 12px; border-radius:999px;
+  background: var(--rose-soft); color: var(--rose); border:1px solid rgba(196,66,95,0.35);
+}
+.lightbox-tag-chip.empty{ background: rgba(255,255,255,0.06); color: var(--ink-soft); border-color: var(--card-border); }
 
 .color-row{ display:flex; align-items:center; gap:8px; }
 .color-row span{ font-size:.78rem; color:var(--ink-soft); }

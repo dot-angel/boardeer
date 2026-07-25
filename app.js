@@ -155,7 +155,9 @@ function openItemOptEditModal(currentOpt, optionsList, onSave){
      resolve(item, onReady), // item -> 표시할 url. 청크 저장이라 아직 없으면 null을 반환하고, 다 불러오면 onReady()로 다시 그림
      onDelete(idx),     // 있으면 삭제 버튼 표시. idx의 사진을 지우는 함수
      meta(item),        // 있으면 {title, desc} 반환 — 사진 아래 정보로 표시
-     onEditMeta(idx)     // 있으면 "정보 편집" 버튼 표시 — 눌렀을 때 호출
+     onEditMeta(idx),    // 있으면 "정보 편집" 버튼 표시 — 눌렀을 때 호출
+     tag(item),         // 있으면 현재 옵션(태그) 문자열 반환 — 사진 아래 태그로 표시
+     onEditTag(idx)      // 있으면 "태그 수정" 버튼 표시 — 눌렀을 때 호출
    }
    화살표 버튼/키보드 ←→로 같은 목록 안에서 트위터처럼 옆 사진으로 바로 넘어갈 수 있음 */
 function openImageLightbox(cfg){
@@ -169,6 +171,7 @@ function openImageLightbox(cfg){
     const item = items[index];
     const url = cfg.resolve(item, render);
     const metaInfo = cfg.meta ? cfg.meta(item) : null;
+    const tagInfo = cfg.tag ? cfg.tag(item) : null;
     const showNav = items.length > 1;
     openModal(`
       <div class="lightbox-body">
@@ -181,8 +184,10 @@ function openImageLightbox(cfg){
           ${metaInfo.title ? `<div class="lightbox-meta-title">${escapeHtml(metaInfo.title)}</div>` : ''}
           ${metaInfo.desc ? `<div class="lightbox-meta-desc">${escapeHtml(metaInfo.desc)}</div>` : ''}
         </div>` : ''}
+      ${cfg.tag ? `<div class="lightbox-tag">${tagInfo ? `<span class="lightbox-tag-chip">${escapeHtml(tagInfo)}</span>` : `<span class="lightbox-tag-chip empty">태그 없음</span>`}</div>` : ''}
       <div class="modal-actions">
         ${cfg.onEditMeta ? `<button class="btn ghost" id="editMeta">${metaInfo && (metaInfo.title || metaInfo.desc) ? '정보 수정' : '정보 추가'}</button>` : ''}
+        ${cfg.onEditTag ? `<button class="btn ghost" id="editTag">태그 수정</button>` : ''}
         ${cfg.onDelete ? `<button class="btn danger" id="del">삭제</button>` : ''}
         <button class="btn ghost" id="c">닫기</button>
       </div>
@@ -195,6 +200,7 @@ function openImageLightbox(cfg){
         render();
       };
       if(cfg.onEditMeta) m.querySelector('#editMeta').onclick = ()=> cfg.onEditMeta(index);
+      if(cfg.onEditTag) m.querySelector('#editTag').onclick = ()=> cfg.onEditTag(index);
       const prevBtn = m.querySelector('#lbPrev');
       const nextBtn = m.querySelector('#lbNext');
       if(prevBtn) prevBtn.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
@@ -1430,6 +1436,16 @@ function openGalleryViewModal(idx){
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
+    tag: (item)=> item.opt,
+    onEditTag: editMode ? (i)=>{
+      closeModal();
+      openItemOptEditModal(items[i].opt, sharedGalleryOptionsData.options, async (opt)=>{
+        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+        arr[i] = { ...arr[i], opt };
+        await docRef('gallery').set({items:arr}, {merge:true});
+        setTimeout(()=> openGalleryViewModal(i), 0);
+      });
+    } : null,
     onDelete: editMode ? async (i)=>{
       const arr = (galleryData.items||[]).map(normalizeGalleryItem);
       const [removed] = arr.splice(i,1);
@@ -1616,6 +1632,16 @@ function openGallery2ViewModal(idx){
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
+    tag: (item)=> item.opt,
+    onEditTag: editMode ? (i)=>{
+      closeModal();
+      openItemOptEditModal(items[i].opt, sharedGalleryOptionsData.options, async (opt)=>{
+        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+        arr[i] = { ...arr[i], opt };
+        await docRef('gallery2').set({items:arr}, {merge:true});
+        setTimeout(()=> openGallery2ViewModal(i), 0);
+      });
+    } : null,
     onDelete: editMode ? async (i)=>{
       const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
       const [removed] = arr.splice(i,1);
@@ -1790,6 +1816,16 @@ function openRefGalleryViewModal(idx){
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
+    tag: (item)=> item.opt,
+    onEditTag: editMode ? (i)=>{
+      closeModal();
+      openItemOptEditModal(items[i].opt, sharedGalleryOptionsData.options, async (opt)=>{
+        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+        arr[i] = { ...arr[i], opt };
+        await docRef('refgallery').set({items:arr}, {merge:true});
+        setTimeout(()=> openRefGalleryViewModal(i), 0);
+      });
+    } : null,
     onDelete: editMode ? async (i)=>{
       const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
       const [removed] = arr.splice(i,1);
