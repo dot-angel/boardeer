@@ -413,7 +413,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 /* ---------- 레퍼런스 갤러리 (캘린더 옆, 블러 옵션 없이 촘촘한 썸네일 전용) ---------- */
 .w-refgallery{ padding-bottom: 60px; }
 .ref-gallery-grid{
-  flex: 0 0 auto; overflow-y:auto; padding-right:4px;
+  flex: 1; min-height:0; overflow-y:auto; padding-right:4px;
   display:grid; grid-template-columns: repeat(2, 1fr);
   gap:6px; align-content:start;
 }
