@@ -409,6 +409,10 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
   display:grid; grid-template-columns: repeat(2, 1fr);
   gap:6px; align-content:start;
 }
+/* 사진이 아무리 많이 쌓여도 한 행당 겹치는 양은 -12px로 고정 — 늘어날수록 더 겹쳐지지 않음 */
+.ref-gallery-grid .pin-item-dense:nth-child(n+3){
+  margin-top: -12px;
+}
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
