@@ -267,6 +267,24 @@ function normalizeImageUrl(url){
   return url;
 }
 
+/* 갤러리류 위젯은 매번 innerHTML을 통째로 새로 그리는 방식이라, 그 직후 바로
+   scrollTop을 지정해도 사진(이미지)이 아직 로딩/레이아웃되기 전이라 컨테이너
+   높이가 작아서 값이 0으로 잘려버리는 경우가 있음. 그래서 (1) 즉시 한 번,
+   (2) 다음 프레임에 한 번, (3) 아직 안 불러와진 이미지들이 로드될 때마다 다시
+   여러 차례 재적용해서 최종 레이아웃이 잡힌 뒤에도 스크롤 위치가 유지되게 함 */
+function restoreScrollTop(el, scrollTop){
+  if(!el || !scrollTop) return;
+  el.scrollTop = scrollTop;
+  requestAnimationFrame(()=>{ el.scrollTop = scrollTop; });
+  el.querySelectorAll('img').forEach(img=>{
+    if(!img.complete){
+      img.addEventListener('load', ()=>{ el.scrollTop = scrollTop; }, { once:true });
+      img.addEventListener('error', ()=>{ el.scrollTop = scrollTop; }, { once:true });
+    }
+  });
+}
+
+
 /* 확장자를 정확히 몰라도(.jpg로 변환했는데 실제로는 png/gif인 경우 등) 로딩에 실패하면
    다른 확장자로 자동 재시도. i.imgur.com 주소에만 적용됨 */
 function attachImgFallback(imgEl){
@@ -1300,7 +1318,7 @@ function renderGallery(){
     ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const newScrollEl = box.querySelector('#galleryGrid');
-  if(newScrollEl) newScrollEl.scrollTop = savedScrollTop;
+  restoreScrollTop(newScrollEl, savedScrollTop);
   renderOptionFilterChips(box.querySelector('#galleryFilterChips'), sharedGalleryOptionsData.options, galleryFilterOpt, (opt)=>{ galleryFilterOpt = opt; renderGallery(); });
   box.querySelectorAll('.pin-item:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-blur], [data-del], [data-opt-edit]')) return;
@@ -1479,7 +1497,7 @@ function renderGallery2(){
     ${editMode && !gallery2Collapsed ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
   const newScrollEl = box.querySelector('#gallery2Grid');
-  if(newScrollEl) newScrollEl.scrollTop = savedScrollTop;
+  restoreScrollTop(newScrollEl, savedScrollTop);
   if(!gallery2Collapsed) renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   const toggleBtn = box.querySelector('#gallery2ToggleBtn');
   if(toggleBtn) toggleBtn.onclick = ()=>{
@@ -1647,7 +1665,7 @@ function renderRefGallery(){
     ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const newScrollEl = box.querySelector('#refGalleryGrid');
-  if(newScrollEl) newScrollEl.scrollTop = savedScrollTop;
+  restoreScrollTop(newScrollEl, savedScrollTop);
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-del], [data-info]')) return;
