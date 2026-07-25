@@ -272,31 +272,32 @@ function normalizeImageUrl(url){
    높이가 작아서 값이 0으로 잘려버리는 경우가 있음. 그래서 (1) 즉시 한 번,
    (2) 다음 프레임에 한 번, (3) 아직 안 불러와진 이미지들이 로드될 때마다 다시
    여러 차례 재적용해서 최종 레이아웃이 잡힌 뒤에도 스크롤 위치가 유지되게 함 */
-function restoreScrollTop(el, scrollTop){
-  if(!el || !scrollTop) return;
-  el.scrollTop = scrollTop;
-  requestAnimationFrame(()=>{ el.scrollTop = scrollTop; });
+function restoreScrollPos(el, pos){
+  if(!el || !pos || (!pos.top && !pos.left)) return;
+  const apply = ()=>{ el.scrollTop = pos.top; el.scrollLeft = pos.left; };
+  apply();
+  requestAnimationFrame(apply);
   el.querySelectorAll('img').forEach(img=>{
     if(!img.complete){
-      img.addEventListener('load', ()=>{ el.scrollTop = scrollTop; }, { once:true });
-      img.addEventListener('error', ()=>{ el.scrollTop = scrollTop; }, { once:true });
+      img.addEventListener('load', apply, { once:true });
+      img.addEventListener('error', apply, { once:true });
     }
   });
   /* 사진이 여러 장(멀티컬럼 매스너리)일 땐 사진들이 로드되며 컬럼 균형이
-     다시 잡히느라 목록 높이가 여러 번 바뀔 수 있어서, 위 방법들만으로는
-     타이밍을 놓치는 경우가 있었음. 그래서 목록 높이 자체가 바뀔 때마다
+     다시 잡히느라 목록 크기가 여러 번 바뀔 수 있어서, 위 방법들만으로는
+     타이밍을 놓치는 경우가 있었음. 그래서 목록 크기 자체가 바뀔 때마다
      감지해서(ResizeObserver) 그때마다 다시 스크롤을 맞춰주고, 두 번 연속
-     높이가 안 바뀌면(=레이아웃이 안정됐다고 보고) 감시를 멈춤 */
+     크기가 안 바뀌면(=레이아웃이 안정됐다고 보고) 감시를 멈춤 */
   if(typeof ResizeObserver !== 'undefined'){
-    let lastHeight = el.scrollHeight;
+    let lastW = el.scrollWidth, lastH = el.scrollHeight;
     let stableCount = 0;
     const ro = new ResizeObserver(()=>{
-      el.scrollTop = scrollTop;
-      if(el.scrollHeight === lastHeight){
+      apply();
+      if(el.scrollWidth === lastW && el.scrollHeight === lastH){
         stableCount++;
         if(stableCount >= 2) ro.disconnect();
       } else {
-        lastHeight = el.scrollHeight;
+        lastW = el.scrollWidth; lastH = el.scrollHeight;
         stableCount = 0;
       }
     });
@@ -1311,7 +1312,7 @@ let galleryFilterOpt = null;
 function renderGallery(){
   const box = document.getElementById('cardGallery');
   const prevScrollEl = document.getElementById('galleryGrid');
-  const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
+  const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (galleryData.items || []).map(normalizeGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !galleryFilterOpt || it.opt === galleryFilterOpt);
   box.innerHTML = `
@@ -1339,7 +1340,7 @@ function renderGallery(){
     ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const newScrollEl = box.querySelector('#galleryGrid');
-  restoreScrollTop(newScrollEl, savedScrollTop);
+  restoreScrollPos(newScrollEl, savedScroll);
   renderOptionFilterChips(box.querySelector('#galleryFilterChips'), sharedGalleryOptionsData.options, galleryFilterOpt, (opt)=>{ galleryFilterOpt = opt; renderGallery(); });
   box.querySelectorAll('.pin-item:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-blur], [data-del], [data-opt-edit]')) return;
@@ -1485,7 +1486,7 @@ function renderGallery2(){
   const box = document.getElementById('cardGallery2');
   if(!box) return;
   const prevScrollEl = document.getElementById('gallery2Grid');
-  const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
+  const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !gallery2FilterOpt || it.opt === gallery2FilterOpt);
   box.innerHTML = `
@@ -1518,7 +1519,7 @@ function renderGallery2(){
     ${editMode && !gallery2Collapsed ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
   const newScrollEl = box.querySelector('#gallery2Grid');
-  restoreScrollTop(newScrollEl, savedScrollTop);
+  restoreScrollPos(newScrollEl, savedScroll);
   if(!gallery2Collapsed) renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   const toggleBtn = box.querySelector('#gallery2ToggleBtn');
   if(toggleBtn) toggleBtn.onclick = ()=>{
@@ -1642,13 +1643,12 @@ function openGallery2AddModal(){
 docRef('gallery2').onSnapshot(doc=>{ gallery2Data = doc.exists ? doc.data() : {items:[]}; renderGallery2(); });
 
 /* ---------------- 6-3. 레퍼런스 갤러리 (캘린더 옆, 완전히 독립된 세 번째 갤러리)
-   블러 옵션 없이 작고 촘촘한 정사각형 썸네일로만 구성 — 자료 수집/레퍼런스 모음용.
-   문서 정리 위젯처럼 사진마다 제목/설명을 붙일 수 있음(옵션) ---------------- */
+   작고 촘촘한 정사각형 썸네일. 다른 갤러리들과 똑같이 옵션(태그)만 붙일 수 있음 ---------------- */
 
 function normalizeRefGalleryItem(it){
-  if(typeof it === 'string') return { url: it, title:'', desc:'', opt:'' };
-  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, title: it.title||'', desc: it.desc||'', opt: it.opt||'' };
-  return { url: it.url, title: it.title||'', desc: it.desc||'', opt: it.opt||'' };
+  if(typeof it === 'string') return { url: it, opt:'' };
+  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, opt: it.opt||'' };
+  return { url: it.url, opt: it.opt||'' };
 }
 
 let refGalleryData = { items: [] };
@@ -1658,7 +1658,7 @@ function renderRefGallery(){
   const box = document.getElementById('cardRefGallery');
   if(!box) return;
   const prevScrollEl = document.getElementById('refGalleryGrid');
-  const savedScrollTop = prevScrollEl ? prevScrollEl.scrollTop : 0;
+  const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || it.opt === refGalleryFilterOpt);
   box.innerHTML = `
@@ -1675,9 +1675,8 @@ function renderRefGallery(){
         return `
         <div class="pin-item-dense" data-idx="${i}">
           <img src="${escapeHtml(resolved)}">
-          ${it.title ? `<div class="pin-item-dense-label">${escapeHtml(it.title)}</div>` : ''}
           ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-          ${editMode ? `<button class="pin-info-btn" data-info="${i}" title="제목/설명/옵션 편집">i</button>` : ''}
+          ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
         </div>`;
       }).join('')}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
@@ -1686,10 +1685,10 @@ function renderRefGallery(){
     ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const newScrollEl = box.querySelector('#refGalleryGrid');
-  restoreScrollTop(newScrollEl, savedScrollTop);
+  restoreScrollPos(newScrollEl, savedScroll);
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
   box.querySelectorAll('.pin-item-dense:not(.pin-loading)').forEach(el=> el.addEventListener('click', (e)=>{
-    if(e.target.closest('[data-del], [data-info]')) return;
+    if(e.target.closest('[data-del], [data-opt-edit]')) return;
     openRefGalleryViewModal(Number(el.dataset.idx));
   }));
   box.querySelectorAll('.pin-item-dense img').forEach(attachImgFallback);
@@ -1701,9 +1700,14 @@ function renderRefGallery(){
     await docRef('refgallery').set({items:arr}, {merge:true});
     deleteGalleryImageIfChunked(removed);
   }));
-  box.querySelectorAll('[data-info]').forEach(btn=> btn.addEventListener('click', (e)=>{
+  box.querySelectorAll('[data-opt-edit]').forEach(btn=> btn.addEventListener('click', (e)=>{
     e.stopPropagation();
-    openRefGalleryMetaModal(Number(btn.dataset.info));
+    const idx = Number(btn.dataset.optEdit);
+    openItemOptEditModal(items[idx].opt, sharedGalleryOptionsData.options, async (opt)=>{
+      const arr = items.slice();
+      arr[idx] = { ...arr[idx], opt };
+      await docRef('refgallery').set({ items: arr }, {merge:true});
+    });
   }));
   const addBtn = box.querySelector('#refGalAddBtn');
   if(addBtn) addBtn.onclick = openRefGalleryAddModal;
@@ -1716,44 +1720,12 @@ function renderRefGallery(){
   );
 }
 
-/* 문서 정리 위젯처럼, 사진 하나하나에 제목/설명/옵션을 달 수 있게 하는 편집창.
-   그리드 위 i 버튼과, 라이트박스 안 "정보 수정" 버튼 양쪽에서 모두 열 수 있음 */
-function openRefGalleryMetaModal(idx){
-  const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  const cur = items[idx];
-  if(!cur) return;
-  openModal(`
-    <h3>사진 정보</h3>
-    <label>제목</label>
-    <input type="text" id="rgTitle" value="${escapeHtml(cur.title||'')}" placeholder="예: 하람 겨울 코디">
-    <label>설명</label>
-    <textarea id="rgDesc" placeholder="메모, 출처 등">${escapeHtml(cur.desc||'')}</textarea>
-    <label>옵션 (분류)</label>
-    <select id="rgOpt">
-      <option value="">없음</option>
-      ${(sharedGalleryOptionsData.options||[]).map(o=> `<option value="${escapeHtml(o)}" ${o===cur.opt?'selected':''}>${escapeHtml(o)}</option>`).join('')}
-    </select>
-    <p class="hint">옵션 목록 자체를 늘리거나 고치려면 위젯의 "⚙ 옵션 관리"를 이용해주세요.</p>
-    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
-  `, m=>{
-    m.querySelector('#c').onclick = closeModal;
-    m.querySelector('#s').onclick = async ()=>{
-      const arr = items.slice();
-      arr[idx] = { ...arr[idx], title: m.querySelector('#rgTitle').value.trim(), desc: m.querySelector('#rgDesc').value.trim(), opt: m.querySelector('#rgOpt').value };
-      await docRef('refgallery').set({items:arr}, {merge:true});
-      closeModal();
-    };
-  });
-}
-
 function openRefGalleryViewModal(idx){
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   openImageLightbox({
     items,
     index: idx,
     resolve: resolveGalleryItemUrl,
-    meta: (item)=> ({ title: item.title, desc: item.desc }),
-    onEditMeta: (i)=>{ closeModal(); openRefGalleryMetaModal(i); },
     onDelete: editMode ? async (i)=>{
       const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
       const [removed] = arr.splice(i,1);
@@ -1768,7 +1740,7 @@ function openRefGalleryAddModal(){
     <h3>레퍼런스 사진 추가</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
     <input type="file" id="refGalFiles" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요. 제목/설명/옵션은 추가한 뒤 각 사진의 "i" 버튼으로 따로 붙일 수 있어요.</p>
+    <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="refGalUrl" placeholder="https://...">
     <label>옵션 (분류, 선택)</label>
