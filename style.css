@@ -416,13 +416,13 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
    더해지는 식으로 한도 없이 계속 커져버림(누적 버그). transform은 레이아웃 계산에 전혀 영향을 안 주고
    화면에 보이는 위치만 옮기기 때문에, 지정한 숫자가 줄마다 항상 정확히 그대로 적용됨. */
 .ref-gallery-grid .pin-item-dense:nth-child(n+3):nth-child(-n+4){
-  transform: translateY(-15px);  /* 2번째 줄 */
+  transform: translateY(0px);  /* 진단용: 일단 완전히 0으로 */
 }
 .ref-gallery-grid .pin-item-dense:nth-child(n+5):nth-child(-n+6){
-  transform: translateY(-25px);  /* 3번째 줄 */
+  transform: translateY(0px);  /* 진단용: 일단 완전히 0으로 */
 }
 .ref-gallery-grid .pin-item-dense:nth-child(n+7){
-  transform: translateY(-35px); /* 4번째 줄부터는 항상 -35px, 더는 안 커짐(상한) */
+  transform: translateY(0px); /* 진단용: 일단 완전히 0으로 */
 }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
