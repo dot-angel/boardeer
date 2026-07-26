@@ -1304,10 +1304,13 @@ function updateSeekUI(current, duration){
   if(durEl) durEl.textContent = mpFormatTime(duration);
 }
 
+const MP_REPEAT_SVG = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>`;
+const MP_REPEAT_ONE_SVG = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><line x1="11" y1="10" x2="11" y2="16"/><line x1="9.3" y1="11.3" x2="11" y2="10"/></svg>`;
+
 function updateRepeatBtnUI(){
   const btn = document.getElementById('mpRepeatBtn');
   if(!btn) return;
-  btn.textContent = mpRepeatMode === 'one' ? '🔂' : '🔁';
+  btn.innerHTML = mpRepeatMode === 'one' ? MP_REPEAT_ONE_SVG : MP_REPEAT_SVG;
   btn.classList.toggle('active', mpRepeatMode !== 'off');
   btn.title = mpRepeatMode === 'off' ? '반복재생: 꺼짐 (누르면 전체 반복)'
     : mpRepeatMode === 'all' ? '반복재생: 전체 반복 중 (누르면 1곡 반복)'
