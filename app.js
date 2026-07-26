@@ -1239,8 +1239,10 @@ function renderDday(){
   body.innerHTML = items.map(it=> `
     <div class="dday-item">
       ${editMode ? `<button class="icon-btn" data-del="${it._i}">✕</button>` : ''}
-      <div class="dday-label">${escapeHtml(it.label)}</div>
-      <div class="dday-date">${ddayDateText(it.date)}</div>
+      <div class="dday-info">
+        <div class="dday-label">${escapeHtml(it.label)}</div>
+        <div class="dday-date">${ddayDateText(it.date)}</div>
+      </div>
       <div class="dday-count">${ddayDiffText(it.date)}</div>
     </div>
   `).join('') || `<div class="w-empty">등록된 디데이가 없어요</div>`;

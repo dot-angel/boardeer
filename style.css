@@ -267,23 +267,25 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .w-dday .w-body{ flex:1; min-height:0; container-type: inline-size; }
 .dday-item{
   position: relative;
+  display:flex; align-items:center; justify-content:space-between; gap:14px;
   padding: 10px 34px 10px 0;
   border-bottom: 1px solid var(--card-border);
 }
 .dday-item:first-child{ padding-top:0; }
 .dday-item:last-child{ border-bottom:none; }
+.dday-info{ min-width:0; }
 .dday-label{
   font-size:.72rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
   color: var(--ink-soft); margin-bottom:1px;
 }
 .dday-date{
   font-size:.7rem; font-weight:500; letter-spacing:.02em;
-  color: var(--ink-soft); margin-bottom:4px;
+  color: var(--ink-soft);
 }
 .dday-count{
   font-family: var(--font-display); font-weight:800; letter-spacing:-0.02em;
-  font-size: clamp(2.6rem, 24cqw, 6.5rem); line-height:0.95; color: var(--rose);
-  text-align: right;
+  font-size: clamp(2.8rem, 22cqw, 7.5rem); line-height:0.95; color: var(--rose);
+  text-align: right; flex: 0 0 auto;
 }
 .dday-item .icon-btn{
   position:absolute; top:9px; right:0; width:22px; height:22px; font-size:.6rem;
@@ -494,7 +496,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .opt-checkbox:has(input:checked)::after{
   content:"";
   position:absolute; z-index:-1;
-  top:50%; left:50%; width:3.2em; height:2.1em;
+  top:50%; left:50%; width:88%; height:140%;
   transform: translate(-50%,-50%);
   border-radius:50%;
   background: radial-gradient(ellipse, rgba(196,66,95,0.5) 0%, rgba(196,66,95,0.2) 45%, transparent 70%);
@@ -526,7 +528,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .tag-chip.active::after{
   content:"";
   position:absolute; z-index:-1;
-  top:50%; left:50%; width:4.2em; height:3.5em;
+  top:50%; left:50%; width:88%; height:140%;
   transform: translate(-50%,-50%);
   border-radius:50%;
   background: radial-gradient(ellipse, rgba(196,66,95,0.55) 0%, rgba(196,66,95,0.24) 45%, transparent 70%);
