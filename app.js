@@ -46,7 +46,10 @@ async function sha256(str){
 
 function openModal(innerHtml, onMount, extraClass){
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
+  // 라이트박스는 화면 전체(특히 큰 PC 모니터)를 매 프레임 블러 처리해야 해서 무거우므로,
+  // 뒤쪽 전체화면 오버레이의 블러만 빼고 어둡게 깔리는 효과만 남김.
+  // 라이트박스 박스 자체(사진 주변 유리 느낌)의 블러는 .modal.modal-lightbox에서 그대로 유지됨
+  overlay.className = 'modal-overlay' + (extraClass === 'modal-lightbox' ? ' modal-overlay-plain' : '');
   overlay.innerHTML = `<div class="modal${extraClass ? ' ' + extraClass : ''}">${innerHtml}</div>`;
   overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
   modalRoot.innerHTML = '';
@@ -174,6 +177,36 @@ function openItemOptEditModal(currentOpts, optionsList, onSave){
      onEditTag(idx)      // 있으면 "태그 수정" 버튼 표시 — 눌렀을 때 호출
    }
    화살표 버튼/키보드 ←→로 같은 목록 안에서 트위터처럼 옆 사진으로 바로 넘어갈 수 있음 */
+/* 라이트박스 뒤 전체화면 오버레이는 블러를 빼서 가볍게 하되(모달 자체 블러는 유지),
+   대신 사진(모달 박스)에 가려서 안 보이는 부분만 블러를 빼는 게 아니라 —
+   실제로 블러 연산 비용을 줄이려면 블러가 걸린 요소 자체의 실제 면적이 작아야 함(가려도 계산 비용은 그대로 듦).
+   그래서 모달 박스 "바깥" 여백 부분에만 실제 크기가 작은 블러 조각 4개(위/아래/좌/우)를 깔아,
+   화면 전체를 블러 처리했을 때와 비슷하게 보이면서도 실제 블러 면적은 훨씬 줄임 */
+function updateLightboxBlurFrame(modalEl){
+  const overlay = modalEl && modalEl.parentElement;
+  if(!overlay) return;
+  let frame = overlay.querySelector('.lightbox-blur-frame');
+  if(!frame){
+    frame = document.createElement('div');
+    frame.className = 'lightbox-blur-frame';
+    frame.innerHTML = `
+      <div class="lightbox-blur-strip lbf-top"></div>
+      <div class="lightbox-blur-strip lbf-bottom"></div>
+      <div class="lightbox-blur-strip lbf-left"></div>
+      <div class="lightbox-blur-strip lbf-right"></div>
+    `;
+    overlay.insertBefore(frame, modalEl);
+  }
+  const rect = modalEl.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const top = Math.max(0, rect.top), bottom = Math.max(0, vh - rect.bottom);
+  const left = Math.max(0, rect.left), right = Math.max(0, vw - rect.right);
+  frame.querySelector('.lbf-top').style.cssText = `top:0; left:0; width:100%; height:${top}px;`;
+  frame.querySelector('.lbf-bottom').style.cssText = `bottom:0; left:0; width:100%; height:${bottom}px;`;
+  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:0; width:${left}px; height:${rect.height}px;`;
+  frame.querySelector('.lbf-right').style.cssText = `top:${rect.top}px; right:0; width:${right}px; height:${rect.height}px;`;
+}
+
 function openImageLightbox(cfg){
   const items = cfg.items.slice();
   let index = cfg.index || 0;
@@ -195,8 +228,10 @@ function openImageLightbox(cfg){
     const showNav = items.length > 1;
     openModal(`
       <div class="lightbox-body">
-        ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
-        ${showNav ? `<button class="lightbox-nav prev" id="lbPrev" title="이전 사진">‹</button><button class="lightbox-nav next" id="lbNext" title="다음 사진">›</button>` : ''}
+        <div class="lightbox-imgwrap" id="lbImgWrap">
+          ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
+          ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
+        </div>
         ${showNav ? `<div class="lightbox-count">${index+1} / ${items.length}</div>` : ''}
       </div>
       ${metaInfo && (metaInfo.title || metaInfo.desc) ? `
@@ -221,10 +256,36 @@ function openImageLightbox(cfg){
       };
       if(cfg.onEditMeta) m.querySelector('#editMeta').onclick = ()=> cfg.onEditMeta(index);
       if(cfg.onEditTag) m.querySelector('#editTag').onclick = ()=> cfg.onEditTag(index);
-      const prevBtn = m.querySelector('#lbPrev');
-      const nextBtn = m.querySelector('#lbNext');
-      if(prevBtn) prevBtn.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
-      if(nextBtn) nextBtn.onclick = ()=>{ index = (index + 1) % items.length; render(); };
+      const prevZone = m.querySelector('#lbPrev');
+      const nextZone = m.querySelector('#lbNext');
+      if(prevZone) prevZone.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
+      if(nextZone) nextZone.onclick = ()=>{ index = (index + 1) % items.length; render(); };
+
+      // 모바일 스와이프: 이미지 영역을 좌우로 밀면 이전/다음 사진으로 이동
+      const imgWrap = m.querySelector('#lbImgWrap');
+      if(imgWrap && items.length > 1){
+        let touchStartX = 0, touchStartY = 0, touchTracking = false;
+        imgWrap.addEventListener('touchstart', e=>{
+          if(e.touches.length !== 1) return;
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          touchTracking = true;
+        }, { passive:true });
+        imgWrap.addEventListener('touchend', e=>{
+          if(!touchTracking) return;
+          touchTracking = false;
+          const touch = e.changedTouches[0];
+          const dx = touch.clientX - touchStartX;
+          const dy = touch.clientY - touchStartY;
+          // 가로로 충분히(40px 이상) 움직였고, 세로 움직임보다 뚜렷하게 가로 움직임이 클 때만 스와이프로 인식
+          if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
+            e.preventDefault(); // 스와이프 뒤에 이어지는 합성 클릭이 새로 그려진 화면을 또 눌러버리는 것 방지
+            index = dx > 0 ? (index - 1 + items.length) % items.length : (index + 1) % items.length;
+            render();
+          }
+        });
+      }
+      updateLightboxBlurFrame(m);
     }, 'modal-lightbox');
     opened = true;
   }
@@ -236,9 +297,16 @@ function openImageLightbox(cfg){
     else if(e.key === 'Escape'){ closeModal(); }
   };
   document.addEventListener('keydown', onKey);
+  // 창 크기가 바뀌면(가로/세로 회전 포함) 모달 박스 크기도 바뀌므로 블러 프레임도 다시 맞춰줌
+  const onResize = ()=>{
+    const modalEl = modalRoot.querySelector('.modal-lightbox');
+    if(modalEl) updateLightboxBlurFrame(modalEl);
+  };
+  window.addEventListener('resize', onResize);
   const mo = new MutationObserver(()=>{
     if(!modalRoot.querySelector('.modal-lightbox')){
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
       mo.disconnect();
     }
   });
@@ -944,6 +1012,28 @@ function bindImages(){
   if(prev) prev.onclick = ()=>{ imgSlideIndex = (imgSlideIndex - 1 + items.length) % items.length; renderImages(); };
   if(next) next.onclick = ()=>{ imgSlideIndex = (imgSlideIndex + 1) % items.length; renderImages(); };
   box.querySelectorAll('[data-dot]').forEach(d=> d.onclick = ()=>{ imgSlideIndex = Number(d.dataset.dot); renderImages(); });
+  const viewport = box.querySelector('#slideViewport');
+  if(viewport && items.length > 1){
+    let touchStartX = 0, touchStartY = 0, touchTracking = false;
+    viewport.addEventListener('touchstart', e=>{
+      if(e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchTracking = true;
+    }, { passive:true });
+    viewport.addEventListener('touchend', e=>{
+      if(!touchTracking) return;
+      touchTracking = false;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
+        e.preventDefault(); // 스와이프 뒤에 이어지는 합성 클릭이 사진을 열어버리는 것 방지
+        imgSlideIndex = dx > 0 ? (imgSlideIndex - 1 + items.length) % items.length : (imgSlideIndex + 1) % items.length;
+        renderImages();
+      }
+    });
+  }
   const del = box.querySelector('#imgDelBtn');
   if(del) del.onclick = async (e)=>{
     e.stopPropagation();
@@ -1137,6 +1227,11 @@ function ddayDiffText(dateStr){
   return diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
 }
 
+function ddayDateText(dateStr){
+  const [y,m,d] = dateStr.split('-');
+  return `${y}.${m}.${d}`;
+}
+
 function renderDday(){
   const items = (ddayData.items || []).map((it,i)=>({...it, _i:i})).sort((a,b)=> a.date.localeCompare(b.date));
   const body = document.getElementById('ddayBody');
@@ -1145,6 +1240,7 @@ function renderDday(){
       ${editMode ? `<button class="icon-btn" data-del="${it._i}">✕</button>` : ''}
       <div class="dday-label">${escapeHtml(it.label)}</div>
       <div class="dday-count">${ddayDiffText(it.date)}</div>
+      <div class="dday-date">${ddayDateText(it.date)}</div>
     </div>
   `).join('') || `<div class="w-empty">등록된 디데이가 없어요</div>`;
   body.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async ()=>{
@@ -1934,7 +2030,33 @@ function fitRefGalleryToCalendarHeight(){
   // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
   refCard.style.height = `${Math.round(calH)}px`;
 }
-window.addEventListener('resize', debounce(fitRefGalleryToCalendarHeight, 150));
+window.addEventListener('resize', debounce(()=>{
+  fitRefGalleryToCalendarHeight();
+  applyRefGalleryOverlap(document.getElementById('refGalleryGrid'), currentRefGalleryVisibleCount());
+}, 150));
+
+/* 사진이 많아질수록(행이 늘어날수록) 썸네일끼리 조금씩 더 겹치게 하되,
+   REF_GALLERY_OVERLAP_MAX(썸네일 한 변 길이 대비 겹치는 비율)를 넘어서는 절대 더 겹치지 않도록 상한선을 둠.
+   → 사진이 아무리 많아도 각 썸네일은 항상 최소 (1 - REF_GALLERY_OVERLAP_MAX)만큼은 보임.
+   실제 렌더링된 썸네일 크기를 직접 재서 계산하므로 화면 크기가 달라져도(반응형) 항상 같은 비율로 동작함. */
+const REF_GALLERY_OVERLAP_STEP = 0.08; // 행이 하나 늘어날 때마다 겹침 비율이 커지는 정도(취향껏 조절 가능)
+const REF_GALLERY_OVERLAP_MAX = 0.7;   // 겹침 비율 상한. 0.7 = 최대 70%까지 겹침 = 최소 30%는 항상 보임
+
+function currentRefGalleryVisibleCount(){
+  const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  return items.filter(it => !refGalleryFilterOpt || (it.opts||[]).includes(refGalleryFilterOpt)).length;
+}
+
+function applyRefGalleryOverlap(gridEl, itemCount){
+  if(!gridEl) return;
+  const firstTile = gridEl.querySelector('.pin-item-dense');
+  if(!firstTile){ gridEl.style.setProperty('--ref-overlap-px', '0px'); return; }
+  const tileSize = firstTile.getBoundingClientRect().height || firstTile.getBoundingClientRect().width;
+  if(!tileSize) return;
+  const rows = Math.ceil(itemCount / 2);
+  const overlapRatio = Math.min(REF_GALLERY_OVERLAP_MAX, Math.max(0, (rows - 1) * REF_GALLERY_OVERLAP_STEP));
+  gridEl.style.setProperty('--ref-overlap-px', `-${(tileSize * overlapRatio).toFixed(1)}px`);
+}
 
 function renderRefGallery(){
   const box = document.getElementById('cardRefGallery');
@@ -1943,13 +2065,20 @@ function renderRefGallery(){
   const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || (it.opts||[]).includes(refGalleryFilterOpt));
+  // 기존 grid의 2열 row-major 배치(0번은 왼쪽 1행, 1번은 오른쪽 1행, 2번은 왼쪽 2행 ...)와
+  // 동일한 순서가 되도록, pairs 안에서의 순서(order)를 짝/홀로 나눠 왼쪽/오른쪽 열에 담음
+  const cols = [[], []];
+  pairs.forEach(({it,i}, order)=> cols[order % 2].push(renderRefGalleryTileHtml(it, i)));
+  const colsHtml = pairs.length>0
+    ? `<div class="ref-gallery-col">${cols[0].join('')}</div><div class="ref-gallery-col">${cols[1].join('')}</div>`
+    : '';
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="refGalleryFilterChips" style="display:none;"></div>
       ${editMode ? `<button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>` : ''}
     </div>
     <div class="ref-gallery-grid" id="refGalleryGrid">
-      ${pairs.map(({it,i})=> renderRefGalleryTileHtml(it, i)).join('')}
+      ${colsHtml}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
@@ -1958,6 +2087,7 @@ function renderRefGallery(){
   const gridEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(gridEl, savedScroll);
   fitRefGalleryToCalendarHeight();
+  applyRefGalleryOverlap(gridEl, pairs.length);
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
 
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
