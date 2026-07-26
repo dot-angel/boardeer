@@ -491,6 +491,15 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 }
 .tag-chip:hover{ background: rgba(255,255,255,0.14); color:var(--ink); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
 .tag-chip.active{ background: var(--rose-solid); color:#fff; border-color:var(--rose-solid); box-shadow: 0 4px 16px rgba(122,33,48,0.5); }
+/* 레퍼런스 갤러리는 폭이 좁아서 칩이 여러 줄로 접히면 세로 공간을 많이 차지하므로,
+   줄바꿈 대신 한 줄로 두고 옆으로 스크롤하게 함 */
+#refGalleryFilterChips.tag-filter{
+  flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+  padding-bottom:4px; margin-bottom:8px;
+}
+#refGalleryFilterChips .tag-chip{ padding:4px 11px; font-size:.68rem; flex:0 0 auto; }
+#refGalleryFilterChips.tag-filter::-webkit-scrollbar{ height:4px; }
+#refGalleryFilterChips.tag-filter::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .pin-toolbar{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .pin-toolbar .tag-filter{ flex:1; margin-bottom:10px; }
 .pin-opt-btn{
