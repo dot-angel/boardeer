@@ -1154,8 +1154,6 @@ let mpPollTimer = null;
 let mpAutoCued = false;       // 처음 접속했을 때 첫 곡을 자동으로 띄웠는지 여부(한 번만 실행)
 let mpCurrentType = null;     // 현재 재생 중인 곡의 소스 타입: 'youtube' | 'mp3'
 const mpAudioCache = new Map(); // mp3 fileId -> 이미 불러온 data URL(캐시)
-const MUSIC_FILE_MAX_BYTES = 650000;               // 이 크기까지는 곡 정보 안에 바로 저장(가장 빠름)
-const MUSIC_FILE_CHUNKED_MAX_BYTES = 8 * 1024 * 1024; // 이보다 크면 여러 조각으로 나눠 저장(최대 8MB)
 
 function mpTracks(){
   return (musicData.tracks || []).map((t,i)=>({
@@ -1562,7 +1560,7 @@ async function mpDeleteTrack(id){
 function openMusicTrackModal(existing){
   const isEdit = !!existing;
   const currentSourceDesc = !isEdit ? '' : (existing.type === 'mp3'
-    ? (existing.chunked ? 'mp3 파일 (자동 분할 저장됨)' : 'mp3 파일 또는 링크 (저장됨)')
+    ? (existing.chunked ? 'mp3 파일 (예전에 올린 파일, 자동 분할 저장됨)' : 'mp3 파일 또는 링크 (저장됨)')
     : '유튜브 링크');
   openModal(`
     <h3>${isEdit ? '곡 수정' : '곡 추가'}</h3>
@@ -1572,26 +1570,21 @@ function openMusicTrackModal(existing){
     <div class="radio-row">
       ${isEdit ? `<label><input type="radio" name="music-src" value="keep" checked> 그대로 유지</label>` : ''}
       <label><input type="radio" name="music-src" value="youtube" ${!isEdit ? 'checked' : ''}> 유튜브 링크</label>
-      <label><input type="radio" name="music-src" value="mp3file"> mp3 파일 올리기</label>
       <label><input type="radio" name="music-src" value="mp3link"> mp3 링크(직링크)</label>
     </div>
     <div id="mYoutubeWrap" style="display:${isEdit ? 'none' : ''}">
       <label>유튜브 링크</label><input type="url" id="mUrl" value="${isEdit && existing.type!=='mp3' ? escapeHtml(existing.url||'') : ''}" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=...">
     </div>
-    <div id="mMp3FileWrap" style="display:none">
-      <label>mp3 파일 선택</label><input type="file" id="mMp3File" accept="audio/*,.mp3">
-      <p class="hint">약 ${Math.round(MUSIC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 파이어스토리지 없이 바로 올릴 수 있어요. 그보다 크면 "mp3 링크"를 이용해주세요. (용량이 크면 저장/재생에 몇 초 더 걸릴 수 있어요)</p>
-    </div>
     <div id="mMp3LinkWrap" style="display:none">
       <label>mp3 직링크</label><input type="url" id="mMp3Link" placeholder="https://.../song.mp3">
       <p class="hint">누르면 바로 재생되는 mp3 파일 주소를 넣어주세요. 구글드라이브 등 대부분의 공유 링크는 재생이 안 될 수 있어요.</p>
     </div>
-    <label style="margin-top:6px;">자켓 이미지 (선택 — 비워두면 기본 그라데이션 배경으로 보여요)</label>
+    <label style="margin-top:6px;">자켓 이미지 (선택 — 비워두면 투명하게 보여요)</label>
     <input type="file" id="mCoverFile" accept="image/*">
     <label style="margin-top:6px;">또는 이미지 URL</label>
     <input type="url" id="mCoverUrl" placeholder="https://...">
     ${isEdit && existing.cover ? `<div class="mp-modal-cover-preview" id="mCoverPreviewWrap"><img src="${existing.cover}" alt=""><button type="button" class="btn ghost small" id="mCoverClear">이미지 지우기</button></div>` : ''}
-    <p class="hint">유튜브 링크·mp3 파일·mp3 링크를 지원해요. 자켓 이미지는 비워둬도 괜찮아요.</p>
+    <p class="hint">유튜브 링크와 mp3 링크를 지원해요. 자켓 이미지는 비워둬도 괜찮아요.</p>
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">${isEdit ? '저장' : '추가'}</button>
@@ -1608,7 +1601,6 @@ function openMusicTrackModal(existing){
     m.querySelectorAll('input[name="music-src"]').forEach(r=> r.addEventListener('change', ()=>{
       const val = m.querySelector('input[name="music-src"]:checked').value;
       m.querySelector('#mYoutubeWrap').style.display = val === 'youtube' ? '' : 'none';
-      m.querySelector('#mMp3FileWrap').style.display = val === 'mp3file' ? '' : 'none';
       m.querySelector('#mMp3LinkWrap').style.display = val === 'mp3link' ? '' : 'none';
     }));
     m.querySelector('#c').onclick = closeModal;
@@ -1643,26 +1635,6 @@ function openMusicTrackModal(existing){
         if(!url || !extractYouTubeId(url)){ toast('유튜브 링크를 정확히 입력해주세요.'); resetBtn(); return; }
         if(isEdit && existing.chunked) oldChunkToDelete = { fileId: existing.fileId, total: existing.chunkTotal };
         patch = { type: 'youtube', url, audioUrl: '', chunked: false, fileId: '', chunkTotal: 0 };
-      } else if(mode === 'mp3file'){
-        const mfile = m.querySelector('#mMp3File').files[0];
-        if(!mfile){ toast('mp3 파일을 선택해주세요.'); return; }
-        if(mfile.size > MUSIC_FILE_CHUNKED_MAX_BYTES){
-          toast(`파일이 너무 커요 (최대 ${Math.round(MUSIC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB). "mp3 링크"를 이용해주세요.`);
-          return;
-        }
-        saveBtn.disabled = true; saveBtn.textContent = '음원 처리 중…';
-        let base64;
-        try{ base64 = await fileToBase64(mfile); }
-        catch(err){ toast('파일을 읽지 못했어요'); resetBtn(); return; }
-        if(isEdit && existing.chunked) oldChunkToDelete = { fileId: existing.fileId, total: existing.chunkTotal };
-        if(mfile.size > MUSIC_FILE_MAX_BYTES){
-          let chunkInfo;
-          try{ chunkInfo = await saveFileChunked(base64); }
-          catch(err){ toast('저장하지 못했어요. mp3 링크 방식을 이용해주세요.'); resetBtn(); return; }
-          patch = { type:'mp3', url:'', audioUrl:'', chunked:true, fileId: chunkInfo.fileId, chunkTotal: chunkInfo.total };
-        } else {
-          patch = { type:'mp3', url:'', audioUrl: base64, chunked:false, fileId:'', chunkTotal:0 };
-        }
       } else if(mode === 'mp3link'){
         const link = m.querySelector('#mMp3Link').value.trim();
         if(!link){ toast('mp3 링크를 입력해주세요.'); return; }
