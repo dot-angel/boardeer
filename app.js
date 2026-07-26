@@ -566,6 +566,7 @@ function refreshLockUI(){
   siteNameEl.setAttribute('contenteditable', editMode ? 'true' : 'false');
   bannerEditBtn.style.display = editMode ? 'inline-flex' : 'none';
   bgEditBtn.style.display = editMode ? 'inline-flex' : 'none';
+  globalStyleBtn.style.display = editMode ? 'inline-flex' : 'none';
   document.getElementById('checklistAddWrap').style.display = editMode ? 'flex' : 'none';
   lockBadge.textContent = editMode ? '🔓 편집 가능' : '🔒 보기 전용';
   lockBadge.classList.toggle('unlocked', editMode);
@@ -1239,8 +1240,8 @@ function renderDday(){
     <div class="dday-item">
       ${editMode ? `<button class="icon-btn" data-del="${it._i}">✕</button>` : ''}
       <div class="dday-label">${escapeHtml(it.label)}</div>
-      <div class="dday-count">${ddayDiffText(it.date)}</div>
       <div class="dday-date">${ddayDateText(it.date)}</div>
+      <div class="dday-count">${ddayDiffText(it.date)}</div>
     </div>
   `).join('') || `<div class="w-empty">등록된 디데이가 없어요</div>`;
   body.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async ()=>{
