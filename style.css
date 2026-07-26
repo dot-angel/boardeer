@@ -608,9 +608,9 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .lightbox-zone.prev{ left:0; justify-content:flex-start; }
 .lightbox-zone.next{ right:0; justify-content:flex-end; }
 .lightbox-zone-arrow{
-  width:38px; height:38px; margin:0 8px; border-radius:50%; border:1px solid rgba(255,255,255,0.25);
-  background: rgba(20,10,12,0.55); backdrop-filter: blur(10px);
-  color:#fff; font-size:1.2rem; display:flex; align-items:center; justify-content:center;
+  width:auto; height:auto; margin:0 14px; background:none; border:none; border-radius:0;
+  color:#fff; font-size:2.2rem; font-weight:300; display:flex; align-items:center; justify-content:center;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.75), 0 1px 4px rgba(0,0,0,0.85);
   opacity:0; transition: opacity .15s;
 }
 .lightbox-zone:hover .lightbox-zone-arrow{ opacity:1; }
