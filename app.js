@@ -1152,14 +1152,23 @@ let mpSeeking = false;
 let mpYtPlayer = null;
 let mpPollTimer = null;
 let mpAutoCued = false;       // 처음 접속했을 때 첫 곡을 자동으로 띄웠는지 여부(한 번만 실행)
+let mpCurrentType = null;     // 현재 재생 중인 곡의 소스 타입: 'youtube' | 'mp3'
+const mpAudioCache = new Map(); // mp3 fileId -> 이미 불러온 data URL(캐시)
+const MUSIC_FILE_MAX_BYTES = 650000;               // 이 크기까지는 곡 정보 안에 바로 저장(가장 빠름)
+const MUSIC_FILE_CHUNKED_MAX_BYTES = 8 * 1024 * 1024; // 이보다 크면 여러 조각으로 나눠 저장(최대 8MB)
 
 function mpTracks(){
   return (musicData.tracks || []).map((t,i)=>({
     id: t.id || `legacy_${i}`,
     title: t.title || '(제목 없음)',
     artist: t.artist || '',
+    type: t.type === 'mp3' ? 'mp3' : 'youtube',
     url: t.url || '',
-    cover: t.cover || ''
+    cover: t.cover || '',
+    audioUrl: t.audioUrl || '',
+    chunked: !!t.chunked,
+    fileId: t.fileId || '',
+    chunkTotal: t.chunkTotal || 0
   }));
 }
 
@@ -1214,6 +1223,7 @@ function buildMusicSkeleton(box){
       <div class="player-tracks" id="mpTrackList"></div>
       ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
       <div id="mpYtHolder" style="display:none;"></div>
+      <audio id="mpAudioEl" preload="metadata" style="display:none;"></audio>
     </div>
   `;
   bindMusicSkeleton(box);
@@ -1237,6 +1247,18 @@ function bindMusicSkeleton(box){
     if(!current){ toast('먼저 재생목록에서 곡을 선택해주세요'); return; }
     openMusicTrackModal(current);
   };
+  const audioEl = box.querySelector('#mpAudioEl');
+  if(audioEl){
+    audioEl.addEventListener('timeupdate', ()=>{
+      if(mpCurrentType === 'mp3') updateSeekUI(audioEl.currentTime, audioEl.duration || 0);
+    });
+    audioEl.addEventListener('loadedmetadata', ()=>{
+      if(mpCurrentType === 'mp3') updateSeekUI(audioEl.currentTime, audioEl.duration || 0);
+    });
+    audioEl.addEventListener('play', ()=>{ if(mpCurrentType === 'mp3'){ mpPlaying = true; setPlayButtonUI(true); } });
+    audioEl.addEventListener('pause', ()=>{ if(mpCurrentType === 'mp3'){ mpPlaying = false; setPlayButtonUI(false); } });
+    audioEl.addEventListener('ended', ()=>{ if(mpCurrentType === 'mp3'){ mpPlaying = false; setPlayButtonUI(false); handleTrackEnded(); } });
+  }
 }
 
 function renderMusicList(){
@@ -1356,19 +1378,64 @@ function ensureYtApi(cb){
 }
 
 function onYtStateChange(e){
-  if(!window.YT) return;
+  if(!window.YT || mpCurrentType !== 'youtube') return;
   if(e.data === YT.PlayerState.PLAYING){ mpPlaying = true; setPlayButtonUI(true); }
   else if(e.data === YT.PlayerState.PAUSED){ mpPlaying = false; setPlayButtonUI(false); }
   else if(e.data === YT.PlayerState.ENDED){ mpPlaying = false; setPlayButtonUI(false); handleTrackEnded(); }
+}
+
+function mpPauseAllMedia(){
+  if(mpYtPlayer){ try{ mpYtPlayer.pauseVideo(); }catch(e){} }
+  const audioEl = document.getElementById('mpAudioEl');
+  if(audioEl){ try{ audioEl.pause(); }catch(e){} }
+  destroyMpPollTimer();
+}
+
+async function mpResolveMp3Src(track){
+  if(track.chunked){
+    if(mpAudioCache.has(track.fileId)) return mpAudioCache.get(track.fileId);
+    const dataUrl = await loadFileChunked(track.fileId, track.chunkTotal);
+    mpAudioCache.set(track.fileId, dataUrl);
+    return dataUrl;
+  }
+  return track.audioUrl || '';
+}
+
+async function mpPlayMp3(track, autoplay){
+  const audioEl = document.getElementById('mpAudioEl');
+  if(!audioEl) return;
+  let src;
+  try{ src = await mpResolveMp3Src(track); }
+  catch(e){ toast('음원을 불러오지 못했어요'); return; }
+  if(mpCurrentId !== track.id) return; // 불러오는 동안 다른 곡으로 바뀌었으면 무시
+  if(!src){ toast('mp3 음원을 찾을 수 없어요. 곡 정보를 수정해주세요.'); return; }
+  audioEl.src = src;
+  audioEl.currentTime = 0;
+  if(autoplay){ audioEl.play().catch(()=>{}); }
+  else { mpPlaying = false; setPlayButtonUI(false); }
 }
 
 function mpPlayById(id, autoplay=true){
   const tracks = mpTracks();
   const track = tracks.find(t=>t.id===id);
   if(!track) return;
+  if(track.type === 'mp3'){
+    if(!track.chunked && !track.audioUrl){ toast('mp3 음원이 없어요. 곡 정보를 수정해주세요.'); return; }
+    mpPauseAllMedia();
+    mpCurrentId = id;
+    mpCurrentType = 'mp3';
+    mpPlaying = false;
+    setPlayButtonUI(false);
+    updateMpMetaDisplay(track);
+    renderMusicList();
+    mpPlayMp3(track, autoplay);
+    return;
+  }
   const ytId = extractYouTubeId(track.url);
   if(!ytId){ toast('유튜브 링크가 아니에요. 곡 정보를 수정해주세요.'); return; }
+  mpPauseAllMedia();
   mpCurrentId = id;
+  mpCurrentType = 'youtube';
   destroyMpPollTimer();
   const ytHolder = document.getElementById('mpYtHolder');
   ytHolder.style.display = 'block';
@@ -1401,8 +1468,11 @@ function mpPlayById(id, autoplay=true){
 
 function mpStopPlayback(){
   mpCurrentId = null;
+  mpCurrentType = null;
   mpPlaying = false;
   if(mpYtPlayer){ try{ mpYtPlayer.stopVideo(); }catch(e){} }
+  const audioEl = document.getElementById('mpAudioEl');
+  if(audioEl){ try{ audioEl.pause(); audioEl.removeAttribute('src'); audioEl.load(); }catch(e){} }
   destroyMpPollTimer();
   setPlayButtonUI(false);
 }
@@ -1411,6 +1481,12 @@ function mpTogglePlayPause(){
   const tracks = mpTracks();
   if(!mpCurrentId){
     if(tracks.length) mpPlayById(tracks[0].id, true);
+    return;
+  }
+  if(mpCurrentType === 'mp3'){
+    const audioEl = document.getElementById('mpAudioEl');
+    if(!audioEl) return;
+    if(mpPlaying){ audioEl.pause(); } else { audioEl.play().catch(()=>{}); }
     return;
   }
   if(!mpYtPlayer) return;
@@ -1434,8 +1510,15 @@ function mpNext(){
 function mpOnSeekChange(){
   mpSeeking = false;
   const seek = document.getElementById('mpSeek');
-  if(!mpCurrentId || !seek || !mpYtPlayer || !mpYtPlayer.getDuration) return;
+  if(!mpCurrentId || !seek) return;
   const frac = Number(seek.value) / 1000;
+  if(mpCurrentType === 'mp3'){
+    const audioEl = document.getElementById('mpAudioEl');
+    if(!audioEl || !isFinite(audioEl.duration)) return;
+    try{ audioEl.currentTime = audioEl.duration * frac; }catch(e){}
+    return;
+  }
+  if(!mpYtPlayer || !mpYtPlayer.getDuration) return;
   const dur = mpYtPlayer.getDuration() || 0;
   try{ mpYtPlayer.seekTo(dur * frac, true); }catch(e){}
 }
@@ -1467,24 +1550,48 @@ async function mpUpdateTrack(id, patch){
 }
 
 async function mpDeleteTrack(id){
+  const target = mpTracks().find(t=>t.id===id);
   const tracks = mpTracks().filter(t=>t.id!==id);
   await docRef('music').set({ tracks }, {merge:true});
   if(mpCurrentId === id) mpStopPlayback();
+  if(target && target.chunked && target.fileId){
+    deleteFileChunked(target.fileId, target.chunkTotal).catch(()=>{});
+  }
 }
 
 function openMusicTrackModal(existing){
   const isEdit = !!existing;
+  const currentSourceDesc = !isEdit ? '' : (existing.type === 'mp3'
+    ? (existing.chunked ? 'mp3 파일 (자동 분할 저장됨)' : 'mp3 파일 또는 링크 (저장됨)')
+    : '유튜브 링크');
   openModal(`
     <h3>${isEdit ? '곡 수정' : '곡 추가'}</h3>
     <label>곡 제목</label><input type="text" id="mTitle" value="${isEdit ? escapeHtml(existing.title) : ''}">
     <label>아티스트 (선택)</label><input type="text" id="mArtist" value="${isEdit ? escapeHtml(existing.artist||'') : ''}">
-    <label>유튜브 링크</label><input type="url" id="mUrl" value="${isEdit ? escapeHtml(existing.url||'') : ''}" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=...">
-    <label>자켓 이미지 (선택 — 비워두면 기본 음표 아이콘으로 보여요)</label>
+    ${isEdit ? `<p class="hint">현재 음원: ${currentSourceDesc}. 그대로 두거나 아래에서 바꿀 수 있어요.</p>` : ''}
+    <div class="radio-row">
+      ${isEdit ? `<label><input type="radio" name="music-src" value="keep" checked> 그대로 유지</label>` : ''}
+      <label><input type="radio" name="music-src" value="youtube" ${!isEdit ? 'checked' : ''}> 유튜브 링크</label>
+      <label><input type="radio" name="music-src" value="mp3file"> mp3 파일 올리기</label>
+      <label><input type="radio" name="music-src" value="mp3link"> mp3 링크(직링크)</label>
+    </div>
+    <div id="mYoutubeWrap" style="display:${isEdit ? 'none' : ''}">
+      <label>유튜브 링크</label><input type="url" id="mUrl" value="${isEdit && existing.type!=='mp3' ? escapeHtml(existing.url||'') : ''}" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=...">
+    </div>
+    <div id="mMp3FileWrap" style="display:none">
+      <label>mp3 파일 선택</label><input type="file" id="mMp3File" accept="audio/*,.mp3">
+      <p class="hint">약 ${Math.round(MUSIC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 파이어스토리지 없이 바로 올릴 수 있어요. 그보다 크면 "mp3 링크"를 이용해주세요. (용량이 크면 저장/재생에 몇 초 더 걸릴 수 있어요)</p>
+    </div>
+    <div id="mMp3LinkWrap" style="display:none">
+      <label>mp3 직링크</label><input type="url" id="mMp3Link" placeholder="https://.../song.mp3">
+      <p class="hint">누르면 바로 재생되는 mp3 파일 주소를 넣어주세요. 구글드라이브 등 대부분의 공유 링크는 재생이 안 될 수 있어요.</p>
+    </div>
+    <label style="margin-top:6px;">자켓 이미지 (선택 — 비워두면 기본 그라데이션 배경으로 보여요)</label>
     <input type="file" id="mCoverFile" accept="image/*">
     <label style="margin-top:6px;">또는 이미지 URL</label>
     <input type="url" id="mCoverUrl" placeholder="https://...">
     ${isEdit && existing.cover ? `<div class="mp-modal-cover-preview" id="mCoverPreviewWrap"><img src="${existing.cover}" alt=""><button type="button" class="btn ghost small" id="mCoverClear">이미지 지우기</button></div>` : ''}
-    <p class="hint">유튜브 링크만 지원해요. 자켓 이미지는 비워둬도 괜찮아요.</p>
+    <p class="hint">유튜브 링크·mp3 파일·mp3 링크를 지원해요. 자켓 이미지는 비워둬도 괜찮아요.</p>
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">${isEdit ? '저장' : '추가'}</button>
@@ -1498,42 +1605,85 @@ function openMusicTrackModal(existing){
       if(wrap) wrap.style.display = 'none';
       toast('저장하면 자켓 이미지가 지워져요');
     };
+    m.querySelectorAll('input[name="music-src"]').forEach(r=> r.addEventListener('change', ()=>{
+      const val = m.querySelector('input[name="music-src"]:checked').value;
+      m.querySelector('#mYoutubeWrap').style.display = val === 'youtube' ? '' : 'none';
+      m.querySelector('#mMp3FileWrap').style.display = val === 'mp3file' ? '' : 'none';
+      m.querySelector('#mMp3LinkWrap').style.display = val === 'mp3link' ? '' : 'none';
+    }));
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
+      const resetBtn = ()=>{ saveBtn.disabled = false; saveBtn.textContent = isEdit ? '저장' : '추가'; };
       const title = m.querySelector('#mTitle').value.trim();
       const artist = m.querySelector('#mArtist').value.trim();
-      const url = m.querySelector('#mUrl').value.trim();
-      if(!title || !url){ toast('제목과 유튜브 링크를 입력해주세요'); return; }
-      if(!extractYouTubeId(url)){ toast('유튜브 링크만 지원해요. 링크를 다시 확인해주세요.'); return; }
-      const file = m.querySelector('#mCoverFile').files[0];
+      if(!title){ toast('곡 제목을 입력해주세요'); return; }
+      const mode = m.querySelector('input[name="music-src"]:checked').value;
+
+      // 자켓 이미지 처리 (공통)
+      const coverFile = m.querySelector('#mCoverFile').files[0];
       const coverUrl = m.querySelector('#mCoverUrl').value.trim();
       let cover = isEdit ? (existing.cover || '') : '';
       if(coverCleared) cover = '';
       if(coverUrl) cover = coverUrl;
-      if(file){
-        saveBtn.disabled = true;
-        saveBtn.textContent = '이미지 처리 중…';
-        try{ cover = await compressImageFile(file, 800, 180000); }
-        catch(err){
-          toast(`이미지 처리 실패: ${err.message || err}`);
-          saveBtn.disabled = false; saveBtn.textContent = isEdit ? '저장' : '추가';
+      if(coverFile){
+        saveBtn.disabled = true; saveBtn.textContent = '이미지 처리 중…';
+        try{ cover = await compressImageFile(coverFile, 800, 180000); }
+        catch(err){ toast(`이미지 처리 실패: ${err.message || err}`); resetBtn(); return; }
+      }
+
+      // 음원 소스 처리
+      let patch = null;
+      let oldChunkToDelete = null;
+
+      if(mode === 'keep'){
+        patch = { type: existing.type || 'youtube', url: existing.url || '', audioUrl: existing.audioUrl || '', chunked: !!existing.chunked, fileId: existing.fileId || '', chunkTotal: existing.chunkTotal || 0 };
+      } else if(mode === 'youtube'){
+        const url = m.querySelector('#mUrl').value.trim();
+        if(!url || !extractYouTubeId(url)){ toast('유튜브 링크를 정확히 입력해주세요.'); resetBtn(); return; }
+        if(isEdit && existing.chunked) oldChunkToDelete = { fileId: existing.fileId, total: existing.chunkTotal };
+        patch = { type: 'youtube', url, audioUrl: '', chunked: false, fileId: '', chunkTotal: 0 };
+      } else if(mode === 'mp3file'){
+        const mfile = m.querySelector('#mMp3File').files[0];
+        if(!mfile){ toast('mp3 파일을 선택해주세요.'); return; }
+        if(mfile.size > MUSIC_FILE_CHUNKED_MAX_BYTES){
+          toast(`파일이 너무 커요 (최대 ${Math.round(MUSIC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB). "mp3 링크"를 이용해주세요.`);
           return;
         }
+        saveBtn.disabled = true; saveBtn.textContent = '음원 처리 중…';
+        let base64;
+        try{ base64 = await fileToBase64(mfile); }
+        catch(err){ toast('파일을 읽지 못했어요'); resetBtn(); return; }
+        if(isEdit && existing.chunked) oldChunkToDelete = { fileId: existing.fileId, total: existing.chunkTotal };
+        if(mfile.size > MUSIC_FILE_MAX_BYTES){
+          let chunkInfo;
+          try{ chunkInfo = await saveFileChunked(base64); }
+          catch(err){ toast('저장하지 못했어요. mp3 링크 방식을 이용해주세요.'); resetBtn(); return; }
+          patch = { type:'mp3', url:'', audioUrl:'', chunked:true, fileId: chunkInfo.fileId, chunkTotal: chunkInfo.total };
+        } else {
+          patch = { type:'mp3', url:'', audioUrl: base64, chunked:false, fileId:'', chunkTotal:0 };
+        }
+      } else if(mode === 'mp3link'){
+        const link = m.querySelector('#mMp3Link').value.trim();
+        if(!link){ toast('mp3 링크를 입력해주세요.'); return; }
+        if(isEdit && existing.chunked) oldChunkToDelete = { fileId: existing.fileId, total: existing.chunkTotal };
+        patch = { type:'mp3', url:'', audioUrl: link, chunked:false, fileId:'', chunkTotal:0 };
       }
+
       saveBtn.disabled = true;
       saveBtn.textContent = isEdit ? '저장 중…' : '추가 중…';
       try{
         if(isEdit){
-          await mpUpdateTrack(existing.id, { title, artist, url, cover });
+          await mpUpdateTrack(existing.id, { title, artist, cover, ...patch });
         } else {
-          await docRef('music').set({ tracks: [...mpTracks(), { id: uid(), title, artist, url, cover }] }, {merge:true});
+          await docRef('music').set({ tracks: [...mpTracks(), { id: uid(), title, artist, cover, ...patch }] }, {merge:true});
         }
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
-        saveBtn.disabled = false; saveBtn.textContent = isEdit ? '저장' : '추가';
+        resetBtn();
         return;
       }
+      if(oldChunkToDelete && oldChunkToDelete.fileId) deleteFileChunked(oldChunkToDelete.fileId, oldChunkToDelete.total).catch(()=>{});
       closeModal();
     };
   });
