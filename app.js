@@ -1988,40 +1988,7 @@ function renderRefGallery(){
   );
 
   setupRefGalleryLazyLoad(gridEl, pairs);
-  applyRefGalleryOverlap(gridEl);
 }
-
-/* 원래 의도(줄이 늘어날수록 점점 더 겹침)는 그대로 유지하되, 겹침이 끝없이 커지지 않고
-   "썸네일의 50%는 항상 보임"에서 멈추고 그 상태를 계속 유지함(더 안 커지지도, 줄어들지도 않음).
-   사진 개수가 적어서 줄 수가 적으면 애초에 상한까지 못 가니까 자연히 덜 겹침 — 필터링해서
-   개수가 바뀌면 이 계산이 다시 실행돼서 그에 맞게 조정됨. 스크롤 위치와는 무관하게, 렌더링
-   시점의 전체 줄 수로 한 번에 정해짐. */
-function applyRefGalleryOverlap(gridEl){
-  const tiles = gridEl.querySelectorAll(':scope > .pin-item-dense');
-  const COL_GAP = 6;
-  const tileSize = (gridEl.clientWidth - COL_GAP) / 2; // 정사각형이라 폭 = 높이
-  if(!tileSize) return;
-
-  const CAP = tileSize * 0.5;    // 상한: 썸네일의 50%까지만 겹침(=50%는 항상 보임)
-  const RAMP_ROWS = 5;           // 이만큼 줄이 쌓이면 상한에 도달
-  const STEP = CAP / RAMP_ROWS;  // 줄이 하나 늘 때마다 겹침이 이만큼씩 더 커짐(상한까지)
-
-  const rows = Math.ceil(tiles.length / 2);
-  const shifts = [0];
-  for(let r = 1; r < rows; r++){
-    const delta = Math.min(STEP * r, CAP); // 점점 커지다가 상한에 도달하면 계속 그 값 유지
-    shifts.push(shifts[r - 1] + delta);
-  }
-
-  tiles.forEach((el, i)=>{
-    const row = Math.floor(i / 2);
-    el.style.transform = shifts[row] === 0 ? '' : `translateY(-${shifts[row].toFixed(1)}px)`;
-  });
-}
-window.addEventListener('resize', debounce(()=>{
-  const gridEl = document.getElementById('refGalleryGrid');
-  if(gridEl) applyRefGalleryOverlap(gridEl);
-}, 150));
 
 /* 이미 이번 세션에서 한 번 불러와 캐시된 사진(또는 애초에 다운로드가 필요 없는 외부 URL)은
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
