@@ -582,23 +582,35 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
   width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.5);
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
-.lightbox-body{ position:relative; }
+.lightbox-body{ position:relative; text-align:center; }
+/* 이미지 실제 렌더링 크기에 딱 맞는 래퍼. 이 래퍼 안에 좌/우 클릭·스와이프 존을 깔아서
+   화살표 버튼이 아니라 사진 자체의 왼쪽/오른쪽을 눌러 이동하게 함 */
+.lightbox-imgwrap{ position:relative; display:inline-block; max-width:100%; touch-action: pan-y; }
 .modal.modal-lightbox .lightbox-img{
   display:block; max-width:90vw; max-height:80vh; width:auto; height:auto;
-  border-radius:16px; margin:0 auto; object-fit:contain;
+  border-radius:16px; object-fit:contain; -webkit-user-select:none; user-select:none;
 }
 .lightbox-loading{
   min-width:240px; min-height:180px; display:flex; align-items:center; justify-content:center;
   color: var(--ink-soft); font-size:.85rem;
 }
-.lightbox-nav{
-  position:absolute; top:50%; transform:translateY(-50%); z-index:3;
-  width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,0.25);
-  background: rgba(20,10,12,0.55); backdrop-filter: blur(10px);
-  color:#fff; font-size:1.3rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+.lightbox-zone{
+  position:absolute; top:0; bottom:0; width:42%; z-index:3; cursor:pointer;
+  display:flex; align-items:center;
 }
-.lightbox-nav.prev{ left:8px; } .lightbox-nav.next{ right:8px; }
-.lightbox-nav:hover{ background: rgba(20,10,12,0.8); }
+.lightbox-zone.prev{ left:0; justify-content:flex-start; }
+.lightbox-zone.next{ right:0; justify-content:flex-end; }
+.lightbox-zone-arrow{
+  width:38px; height:38px; margin:0 8px; border-radius:50%; border:1px solid rgba(255,255,255,0.25);
+  background: rgba(20,10,12,0.55); backdrop-filter: blur(10px);
+  color:#fff; font-size:1.2rem; display:flex; align-items:center; justify-content:center;
+  opacity:0; transition: opacity .15s;
+}
+.lightbox-zone:hover .lightbox-zone-arrow{ opacity:1; }
+/* 호버가 없는 터치 기기에서는 눌러야 할 위치를 알 수 있도록 화살표를 옅게 항상 보여줌 */
+@media (hover:none){
+  .lightbox-zone-arrow{ opacity:.5; }
+}
 .lightbox-count{
   position:absolute; left:50%; bottom:10px; transform:translateX(-50%); z-index:3;
   background: rgba(20,10,12,0.6); backdrop-filter: blur(8px); color:#fff;

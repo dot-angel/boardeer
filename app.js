@@ -195,8 +195,10 @@ function openImageLightbox(cfg){
     const showNav = items.length > 1;
     openModal(`
       <div class="lightbox-body">
-        ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
-        ${showNav ? `<button class="lightbox-nav prev" id="lbPrev" title="이전 사진">‹</button><button class="lightbox-nav next" id="lbNext" title="다음 사진">›</button>` : ''}
+        <div class="lightbox-imgwrap" id="lbImgWrap">
+          ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
+          ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
+        </div>
         ${showNav ? `<div class="lightbox-count">${index+1} / ${items.length}</div>` : ''}
       </div>
       ${metaInfo && (metaInfo.title || metaInfo.desc) ? `
@@ -221,10 +223,35 @@ function openImageLightbox(cfg){
       };
       if(cfg.onEditMeta) m.querySelector('#editMeta').onclick = ()=> cfg.onEditMeta(index);
       if(cfg.onEditTag) m.querySelector('#editTag').onclick = ()=> cfg.onEditTag(index);
-      const prevBtn = m.querySelector('#lbPrev');
-      const nextBtn = m.querySelector('#lbNext');
-      if(prevBtn) prevBtn.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
-      if(nextBtn) nextBtn.onclick = ()=>{ index = (index + 1) % items.length; render(); };
+      const prevZone = m.querySelector('#lbPrev');
+      const nextZone = m.querySelector('#lbNext');
+      if(prevZone) prevZone.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
+      if(nextZone) nextZone.onclick = ()=>{ index = (index + 1) % items.length; render(); };
+
+      // 모바일 스와이프: 이미지 영역을 좌우로 밀면 이전/다음 사진으로 이동
+      const imgWrap = m.querySelector('#lbImgWrap');
+      if(imgWrap && items.length > 1){
+        let touchStartX = 0, touchStartY = 0, touchTracking = false;
+        imgWrap.addEventListener('touchstart', e=>{
+          if(e.touches.length !== 1) return;
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          touchTracking = true;
+        }, { passive:true });
+        imgWrap.addEventListener('touchend', e=>{
+          if(!touchTracking) return;
+          touchTracking = false;
+          const touch = e.changedTouches[0];
+          const dx = touch.clientX - touchStartX;
+          const dy = touch.clientY - touchStartY;
+          // 가로로 충분히(40px 이상) 움직였고, 세로 움직임보다 뚜렷하게 가로 움직임이 클 때만 스와이프로 인식
+          if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
+            e.preventDefault(); // 스와이프 뒤에 이어지는 합성 클릭이 새로 그려진 화면을 또 눌러버리는 것 방지
+            index = dx > 0 ? (index - 1 + items.length) % items.length : (index + 1) % items.length;
+            render();
+          }
+        });
+      }
     }, 'modal-lightbox');
     opened = true;
   }
