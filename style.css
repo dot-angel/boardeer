@@ -481,14 +481,16 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .opt-checkbox:has(input:checked){ background: var(--rose-soft); border-color: var(--rose); color:#fff; }
 
 /* ---------- 옵션 필터 칩 (문서 위젯 + 모든 갤러리 공용) ---------- */
-.tag-filter{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.tag-filter{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
 .tag-chip{
-  padding:5px 12px; border-radius:999px; border:1px solid var(--card-border);
-  background: rgba(255,255,255,0.05); color:var(--ink-soft); font-size:.72rem; cursor:pointer;
-  white-space:nowrap;
+  padding:7px 16px; border-radius:999px; border:1px solid var(--card-border);
+  background: rgba(255,255,255,0.06); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  color:var(--ink-soft); font-size:.74rem; font-weight:600; cursor:pointer;
+  white-space:nowrap; transition: background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
 }
-.tag-chip:hover{ background: rgba(255,255,255,0.12); color:var(--ink); }
-.tag-chip.active{ background: var(--rose-solid); color:#fff; border-color:var(--rose-solid); }
+.tag-chip:hover{ background: rgba(255,255,255,0.14); color:var(--ink); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
+.tag-chip.active{ background: var(--rose-solid); color:#fff; border-color:var(--rose-solid); box-shadow: 0 4px 16px rgba(122,33,48,0.5); }
 .pin-toolbar{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .pin-toolbar .tag-filter{ flex:1; margin-bottom:10px; }
 .pin-opt-btn{
