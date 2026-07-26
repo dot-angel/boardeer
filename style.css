@@ -479,13 +479,12 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 }
 .opt-checkbox input[type=checkbox]{ width:auto; margin:0; accent-color: var(--rose-solid); }
 .opt-checkbox:has(input:checked){
-  background: var(--rose-soft); border: 1px solid rgba(255,255,255,0.5); color:#fff;
+  background: var(--rose-soft); border: 1px solid rgba(255,255,255,0.28); color:#fff;
   box-shadow:
-    0 0 0 1px rgba(196,66,95,0.4),
-    0 0 12px 2px rgba(196,66,95,0.6),
-    0 0 26px 5px rgba(196,66,95,0.3),
-    inset 0 1px 0 rgba(255,255,255,0.5),
-    inset 0 -8px 12px -7px rgba(0,0,0,0.3);
+    0 0 7px 1px rgba(196,66,95,0.25),
+    0 0 16px 3px rgba(196,66,95,0.12),
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -6px 10px -6px rgba(0,0,0,0.25);
 }
 
 /* ---------- 옵션 필터 칩 (문서 위젯 + 모든 갤러리 공용) ---------- */
@@ -501,14 +500,13 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .tag-chip:active{ transform: translateY(0); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
 .tag-chip.active{
   background: linear-gradient(135deg, #9c3247, var(--rose-solid));
-  color:#fff; border: 1px solid rgba(255,255,255,0.5);
+  color:#fff; border: 1px solid rgba(255,255,255,0.28);
   box-shadow:
-    0 0 0 1px rgba(196,66,95,0.4),
-    0 0 14px 2px rgba(196,66,95,0.65),
-    0 0 30px 6px rgba(196,66,95,0.35),
-    0 4px 16px rgba(122,33,48,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.55),
-    inset 0 -10px 14px -8px rgba(0,0,0,0.35);
+    0 0 8px 1px rgba(196,66,95,0.28),
+    0 0 18px 3px rgba(196,66,95,0.14),
+    0 4px 16px rgba(122,33,48,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    inset 0 -8px 12px -8px rgba(0,0,0,0.3);
 }
 /* 레퍼런스 갤러리는 폭이 좁아서 칩이 여러 줄로 접히면 세로 공간을 많이 차지하므로,
    줄바꿈 대신 한 줄로 두고 옆으로 스크롤하게 함 */
