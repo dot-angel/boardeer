@@ -43,8 +43,8 @@
   --sage: #A9727F;             /* Mauve Shadow를 밝힌 보조 포인트 */
   --gold: #95929C;             /* Rosy Granite — 중립 라인/보조 텍스트 */
   --gold-soft: rgba(149,146,156,0.35);
-  --card-bg: rgba(32,16,20,0.38);     /* 배경이 비치는 반투명 유리 카드 */
-  --card-bg2: rgba(32,16,20,0.24);
+  --card-bg: rgba(32,16,20,0.22);     /* 배경이 비치는 반투명 유리 카드 */
+  --card-bg2: rgba(32,16,20,0.13);
   --card-border: rgba(255,255,255,0.14);
   --card-hi: rgba(255,255,255,0.07);  /* 유리 상단 하이라이트 라인 */
   --shadow: 0 24px 60px rgba(0,0,0,0.55);
@@ -252,22 +252,27 @@ body::before{
 
 /* ---------- 음악 위젯 (자켓 이미지 + 진행바 + 반복/연속재생 + 재생목록) ---------- */
 .w-music{ gap:8px; padding:14px; }
-.mp-player{ display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; }
+.mp-player{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; }
 
-.mp-cover-wrap{ position:relative; width:min(100%,150px); aspect-ratio:1/1; margin:0 auto; flex:0 0 auto; }
-.mp-cover-inner{
-  width:100%; height:100%; border-radius:16px; overflow:hidden;
+.mp-cover-bg{
+  position:absolute; inset:0; z-index:0; border-radius: inherit;
   background: linear-gradient(160deg, var(--rose-soft), var(--card-bg2));
-  background-size: cover; background-position:center;
-  display:flex; align-items:center; justify-content:center;
-  font-size:2.2rem; color: var(--rose);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 1px 0 var(--card-hi);
+  background-size:cover; background-position:center;
+}
+.mp-cover-bg::before{
+  content:"♪"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:2.4rem; color: var(--rose); opacity:.35;
+}
+.mp-cover-bg.has-cover::before{ content:none; }
+.mp-cover-bg::after{
+  content:""; position:absolute; inset:0;
+  background: linear-gradient(180deg, rgba(15,4,6,0.2) 0%, rgba(15,4,6,0.45) 55%, rgba(15,4,6,0.7) 100%);
 }
 .mp-cover-btn{
-  position:absolute; bottom:-6px; right:-6px; background: rgba(20,10,12,0.7);
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
-  border-color: rgba(255,255,255,0.3);
+  position:absolute; top:0; right:0; z-index:2;
+  background:none; border:none; backdrop-filter:none; -webkit-backdrop-filter:none;
 }
+.mp-cover-btn:hover{ background:none; opacity:.7; }
 
 .mp-seek{
   -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:999px;
@@ -284,8 +289,14 @@ body::before{
 .mp-artist{ font-size:.74rem; color:var(--ink-soft); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 .mp-controls{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:2px; }
-.mp-controls .icon-btn{ width:26px; height:26px; font-size:.7rem; }
-.mp-controls .icon-btn.active{ background: var(--rose-soft); border-color: var(--rose); color: var(--rose); }
+.mp-controls .icon-btn{
+  width:26px; height:26px; font-size:.85rem;
+  background:none; border:none; box-shadow:none;
+}
+.mp-controls .icon-btn:hover{ background:none; opacity:.7; }
+.mp-controls .icon-btn.active{ background:none; border:none; color: var(--rose); }
+.player-track .icon-btn{ background:none; border:none; }
+.player-track .icon-btn:hover{ background:none; opacity:.7; }
 .mp-play-btn{
   width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
   background: var(--rose); color:#fff; font-size:.85rem;
@@ -293,8 +304,6 @@ body::before{
   box-shadow: 0 6px 16px rgba(196,66,95,0.4);
 }
 .mp-play-btn:hover{ filter:brightness(1.08); }
-
-.mp-list-toggle{ align-self:center; }
 
 .player-tracks{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
 .player-tracks::-webkit-scrollbar{ width:5px; }

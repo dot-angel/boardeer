@@ -1151,6 +1151,7 @@ let mpContinuous = true;       // 곡이 끝나면 다음 곡을 자동으로 �
 let mpSeeking = false;
 let mpYtPlayer = null;
 let mpPollTimer = null;
+let mpAutoCued = false;       // 처음 접속했을 때 첫 곡을 자동으로 띄웠는지 여부(한 번만 실행)
 
 function mpTracks(){
   return (musicData.tracks || []).map((t,i)=>({
@@ -1180,6 +1181,11 @@ function renderMusic(){
   if(mpCurrentId && !tracks.find(t=>t.id===mpCurrentId)){
     mpStopPlayback();
   }
+  // 접속 직후: 아직 아무 곡도 선택 안 됐다면 첫 곡을 일시정지 상태로 띄워줌 (한 번만)
+  if(!mpAutoCued && !mpCurrentId && tracks.length){
+    mpAutoCued = true;
+    mpPlayById(tracks[0].id, false);
+  }
   const current = tracks.find(t=>t.id===mpCurrentId) || null;
   updateMpMetaDisplay(current);
   renderMusicList();
@@ -1189,11 +1195,9 @@ function renderMusic(){
 
 function buildMusicSkeleton(box){
   box.innerHTML = `
+    <div class="mp-cover-bg" id="mpCoverBg"></div>
     <div class="mp-player">
-      <div class="mp-cover-wrap">
-        <div class="mp-cover-inner" id="mpCoverInner">♪</div>
-        ${editMode ? `<button class="icon-btn mp-cover-btn" id="mpCoverBtn" title="자켓 이미지 변경">🖼</button>` : ''}
-      </div>
+      ${editMode ? `<button class="icon-btn mp-cover-btn" id="mpCoverBtn" title="자켓 이미지 변경">🖼</button>` : ''}
       <input type="range" class="mp-seek" id="mpSeek" min="0" max="1000" value="0">
       <div class="mp-times"><span id="mpCurTime">0:00</span><span id="mpDurTime">0:00</span></div>
       <div class="mp-meta">
@@ -1207,8 +1211,7 @@ function buildMusicSkeleton(box){
         <button class="icon-btn mp-next-btn" id="mpNextBtn" title="다음 곡">⏭</button>
         <button class="icon-btn mp-continuous-btn" id="mpContinuousBtn" title="연속재생">➜</button>
       </div>
-      <button class="btn small mp-list-toggle" id="mpListToggle">🎵 재생목록</button>
-      <div class="player-tracks" id="mpTrackList" style="display:none;"></div>
+      <div class="player-tracks" id="mpTrackList"></div>
       ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
       <div id="mpYtHolder" style="display:none;"></div>
     </div>
@@ -1228,7 +1231,6 @@ function bindMusicSkeleton(box){
   box.querySelector('#mpNextBtn').onclick = mpNext;
   box.querySelector('#mpRepeatBtn').onclick = mpCycleRepeat;
   box.querySelector('#mpContinuousBtn').onclick = mpToggleContinuous;
-  box.querySelector('#mpListToggle').onclick = mpToggleList;
   const coverBtn = box.querySelector('#mpCoverBtn');
   if(coverBtn) coverBtn.onclick = ()=>{
     const current = mpTracks().find(t=>t.id===mpCurrentId);
@@ -1270,16 +1272,16 @@ function renderMusicList(){
 }
 
 function updateMpMetaDisplay(track){
-  const inner = document.getElementById('mpCoverInner');
+  const bg = document.getElementById('mpCoverBg');
   const titleEl = document.getElementById('mpTitle');
   const artistEl = document.getElementById('mpArtist');
-  if(!inner) return;
+  if(!bg) return;
   if(track && track.cover){
-    inner.style.backgroundImage = `url('${track.cover}')`;
-    inner.textContent = '';
+    bg.style.backgroundImage = `url('${track.cover}')`;
+    bg.classList.add('has-cover');
   } else {
-    inner.style.backgroundImage = '';
-    inner.textContent = '♪';
+    bg.style.backgroundImage = '';
+    bg.classList.remove('has-cover');
   }
   if(titleEl) titleEl.textContent = track ? track.title : '재생할 곡을 선택해주세요';
   if(artistEl) artistEl.textContent = track ? (track.artist || '') : '';
@@ -1328,15 +1330,6 @@ function mpCycleRepeat(){
 function mpToggleContinuous(){
   mpContinuous = !mpContinuous;
   updateContinuousBtnUI();
-}
-
-function mpToggleList(){
-  const list = document.getElementById('mpTrackList');
-  const btn = document.getElementById('mpListToggle');
-  if(!list) return;
-  const show = list.style.display === 'none';
-  list.style.display = show ? 'flex' : 'none';
-  if(btn) btn.textContent = show ? '재생목록 닫기' : '🎵 재생목록';
 }
 
 function destroyMpPollTimer(){
