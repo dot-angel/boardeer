@@ -49,7 +49,9 @@
   --card-hi: rgba(255,255,255,0.07);  /* 유리 상단 하이라이트 라인 */
   --shadow: 0 24px 60px rgba(0,0,0,0.55);
   --shadow-press: 0 8px 20px rgba(0,0,0,0.5);
-  --glass-blur: blur(26px) saturate(180%);
+  --glass-blur: blur(26px) saturate(180%);       /* 큰 유리 표면(카드/모달/토스트) */
+  --glass-blur-med: blur(10px) saturate(160%);   /* 작은 버튼/배지류 */
+  --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) */
 
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   --font-body: 'ZEN SERIF', 'Noto Sans KR', sans-serif;
@@ -132,7 +134,7 @@ body::before{
   font-family: var(--font-body);
   border: 1px solid var(--card-border);
   background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color: var(--ink); padding: 8px 16px; border-radius: 999px; cursor: pointer; font-size: .85rem;
   transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
   box-shadow: var(--shadow);
@@ -237,7 +239,7 @@ body::before{
 }
 .slide-del, .slide-caption-btn{
   position:absolute; z-index:3; top:12px; width:28px; height:28px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.5); backdrop-filter: blur(10px);
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.5); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#fff; font-size:.7rem;
 }
 .slide-del{ right:12px; color:#ff9aa6; }
@@ -349,14 +351,14 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .pin-blur-btn{
   position:absolute; top:8px; right:8px; z-index:2;
   width:28px; height:28px; border-radius:50%; border:1px solid var(--card-border);
-  background: rgba(15,4,6,0.6); backdrop-filter: blur(6px); color:#fff; font-size:.8rem;
+  background: rgba(15,4,6,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#fff; font-size:.8rem;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
 .pin-blur-btn:hover{ background: rgba(15,4,6,0.85); }
 .pin-del-btn{
   position:absolute; top:8px; left:8px; z-index:2;
   width:28px; height:28px; border-radius:50%; border:1px solid var(--card-border);
-  background: rgba(15,4,6,0.6); backdrop-filter: blur(6px); color:#ff8f9e; font-size:.75rem;
+  background: rgba(15,4,6,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#ff8f9e; font-size:.75rem;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
 .pin-del-btn:hover{ background: rgba(196,66,95,0.55); color:#fff; }
@@ -491,7 +493,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .pin-toolbar .tag-filter{ flex:1; margin-bottom:10px; }
 .pin-opt-btn{
   position:absolute; z-index:2; width:20px; height:20px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: blur(6px);
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#fff; font-size:.62rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
 .pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
@@ -513,12 +515,12 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 }
 .session-card .del{
   position:absolute; top:8px; right:8px; z-index:2; width:24px; height:24px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: blur(8px);
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#ff9aa6; font-size:.65rem;
 }
 .session-card .edit{
   position:absolute; top:8px; left:8px; z-index:2; width:24px; height:24px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: blur(8px);
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#fff; font-size:.7rem;
 }
 .session-add{ margin-top:10px; align-self:flex-start; }
@@ -548,7 +550,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 
 /* ---------- 모달 ---------- */
 .modal-overlay{
-  position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: blur(4px);
+  position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
   display:flex; align-items:center; justify-content:center; z-index: 200; animation: fadeIn .15s ease;
 }
 /* 라이트박스 전용: 전체화면 블러 연산이 PC(특히 큰 화면)에서 매 프레임 무겁기 때문에
@@ -560,7 +562,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .modal-overlay.modal-overlay-plain{ backdrop-filter:none; -webkit-backdrop-filter:none; background: rgba(5,2,3,0.55); }
 .lightbox-blur-frame{ position:fixed; inset:0; z-index:1; pointer-events:none; }
 .lightbox-blur-strip{
-  position:fixed; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  position:fixed; backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
 }
 .modal.modal-lightbox{ position:relative; z-index:2; }
 @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
@@ -599,7 +601,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
    깔려 있어 사진을 보는 데는 큰 블러가 굳이 필요 없으므로 훨씬 가벼운 값으로 낮춤 */
 .modal.modal-lightbox{
   width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.5);
-  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
 }
 .lightbox-body{ position:relative; text-align:center; }
 /* 이미지 실제 렌더링 크기에 딱 맞는 래퍼. 이 래퍼 안에 좌/우 클릭·스와이프 존을 깔아서
@@ -632,7 +634,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 }
 .lightbox-count{
   position:absolute; left:50%; bottom:10px; transform:translateX(-50%); z-index:3;
-  background: rgba(20,10,12,0.6); backdrop-filter: blur(8px); color:#fff;
+  background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#fff;
   font-size:.72rem; padding:3px 10px; border-radius:999px;
 }
 .lightbox-meta{ margin-top:12px; padding:0 4px; }
