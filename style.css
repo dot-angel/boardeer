@@ -498,7 +498,7 @@ body::before{
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
-.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(2,1fr); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
+.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
 .doc-list::-webkit-scrollbar{ width:5px; }
 .doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .doc-row{
