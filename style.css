@@ -404,14 +404,27 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 
 /* ---------- 레퍼런스 갤러리 (캘린더 옆, 블러 옵션 없이 촘촘한 썸네일 전용) ---------- */
 .w-refgallery{ padding-bottom: 60px; }
+/* CSS Grid(display:grid)로 이 레이아웃을 짜면, 여러 행에 음수 margin-top을 동시에 걸었을 때
+   grid의 auto 행 높이 계산이 그 음수 margin까지 반영해 다시 계산되면서 행이 늘어날수록
+   겹침이 기하급수적으로 누적되는 버그가 있었음(썸네일 개수가 많을수록 의도한 상한을
+   훨씬 넘어서 거의 다 가려짐). 그래서 grid 대신, 각 열을 독립된 flex 세로열로 두는
+   방식으로 바꿈 — flex(block) 레이아웃에서는 margin-top이 "바로 앞 요소 기준" 단순 누적이라
+   행이 아무리 많아져도 절대 예상 밖으로 더 겹쳐지지 않음 */
 .ref-gallery-grid{
   flex: 1; min-height:0; overflow-y:auto; padding-right:4px;
-  display:grid; grid-template-columns: repeat(2, 1fr);
-  gap:6px; align-content:start;
+  display:flex; flex-direction:row; align-items:flex-start;
+  gap:6px;
 }
-/* 사진이 아무리 많이 쌓여도 한 행당 겹치는 양은 -12px로 고정 — 늘어날수록 더 겹쳐지지 않음 */
-.ref-gallery-grid .pin-item-dense:nth-child(n+3){
-  margin-top: -12px;
+.ref-gallery-col{
+  flex:1 1 0; min-width:0;
+  display:flex; flex-direction:column; gap:6px;
+}
+/* 겹치는 양(--ref-overlap-px)은 app.js의 applyRefGalleryOverlap()이 사진 개수(한 열의 행 수)에
+   비례해서 계산해 넣어줌 — 사진이 많아질수록 더 겹치되, 썸네일 높이의 70%(REF_GALLERY_OVERLAP_MAX)를
+   넘어서는 절대 겹치지 않도록 상한이 걸려 있어 각 썸네일은 항상 최소 30%는 보임.
+   JS가 아직 계산 전인 첫 순간을 위한 안전한 기본값으로 -12px를 fallback으로 둠 */
+.ref-gallery-col .pin-item-dense:not(:first-child){
+  margin-top: var(--ref-overlap-px, -12px);
 }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
