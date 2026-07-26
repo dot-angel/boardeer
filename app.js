@@ -1934,7 +1934,33 @@ function fitRefGalleryToCalendarHeight(){
   // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
   refCard.style.height = `${Math.round(calH)}px`;
 }
-window.addEventListener('resize', debounce(fitRefGalleryToCalendarHeight, 150));
+window.addEventListener('resize', debounce(()=>{
+  fitRefGalleryToCalendarHeight();
+  applyRefGalleryOverlap(document.getElementById('refGalleryGrid'), currentRefGalleryVisibleCount());
+}, 150));
+
+/* 사진이 많아질수록(행이 늘어날수록) 썸네일끼리 조금씩 더 겹치게 하되,
+   REF_GALLERY_OVERLAP_MAX(썸네일 한 변 길이 대비 겹치는 비율)를 넘어서는 절대 더 겹치지 않도록 상한선을 둠.
+   → 사진이 아무리 많아도 각 썸네일은 항상 최소 (1 - REF_GALLERY_OVERLAP_MAX)만큼은 보임.
+   실제 렌더링된 썸네일 크기를 직접 재서 계산하므로 화면 크기가 달라져도(반응형) 항상 같은 비율로 동작함. */
+const REF_GALLERY_OVERLAP_STEP = 0.08; // 행이 하나 늘어날 때마다 겹침 비율이 커지는 정도(취향껏 조절 가능)
+const REF_GALLERY_OVERLAP_MAX = 0.7;   // 겹침 비율 상한. 0.7 = 최대 70%까지 겹침 = 최소 30%는 항상 보임
+
+function currentRefGalleryVisibleCount(){
+  const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  return items.filter(it => !refGalleryFilterOpt || (it.opts||[]).includes(refGalleryFilterOpt)).length;
+}
+
+function applyRefGalleryOverlap(gridEl, itemCount){
+  if(!gridEl) return;
+  const firstTile = gridEl.querySelector('.pin-item-dense');
+  if(!firstTile){ gridEl.style.setProperty('--ref-overlap-px', '0px'); return; }
+  const tileSize = firstTile.getBoundingClientRect().height || firstTile.getBoundingClientRect().width;
+  if(!tileSize) return;
+  const rows = Math.ceil(itemCount / 2);
+  const overlapRatio = Math.min(REF_GALLERY_OVERLAP_MAX, Math.max(0, (rows - 1) * REF_GALLERY_OVERLAP_STEP));
+  gridEl.style.setProperty('--ref-overlap-px', `-${(tileSize * overlapRatio).toFixed(1)}px`);
+}
 
 function renderRefGallery(){
   const box = document.getElementById('cardRefGallery');
@@ -1958,6 +1984,7 @@ function renderRefGallery(){
   const gridEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(gridEl, savedScroll);
   fitRefGalleryToCalendarHeight();
+  applyRefGalleryOverlap(gridEl, pairs.length);
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
 
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
