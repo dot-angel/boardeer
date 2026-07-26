@@ -1155,6 +1155,14 @@ let mpAutoCued = false;       // 처음 접속했을 때 첫 곡을 자동으로
 let mpCurrentType = null;     // 현재 재생 중인 곡의 소스 타입: 'youtube' | 'mp3'
 const mpAudioCache = new Map(); // mp3 fileId -> 이미 불러온 data URL(캐시)
 
+// 자켓 이미지(특히 움직이는 GIF)는 압축을 안 거치고 원본 그대로 저장되는데,
+// 음악 문서 하나에 모든 곡 정보가 같이 들어있어서 큰 이미지를 그대로 넣으면
+// 곡이 몇 개만 더 있어도 금방 Firestore 문서 1MB 한도를 넘겨버림.
+// 그래서 일정 크기 이상이면 문서/PDF와 같은 방식으로 조각내어 fileChunks에
+// 따로 저장하고, 곡 정보에는 fileId/조각 수만 남겨둠.
+const COVER_INLINE_MAX_BYTES = 150000;               // 이 크기까지는 곡 정보 안에 바로 저장
+const COVER_CHUNKED_MAX_BYTES = 8 * 1024 * 1024;     // 이보다 크면 조각으로 나눠 저장(최대 8MB)
+
 function mpTracks(){
   return (musicData.tracks || []).map((t,i)=>({
     id: t.id || `legacy_${i}`,
@@ -1163,11 +1171,25 @@ function mpTracks(){
     type: t.type === 'mp3' ? 'mp3' : 'youtube',
     url: t.url || '',
     cover: t.cover || '',
+    coverChunked: !!t.coverChunked,
+    coverFileId: t.coverFileId || '',
+    coverChunkTotal: t.coverChunkTotal || 0,
     audioUrl: t.audioUrl || '',
     chunked: !!t.chunked,
     fileId: t.fileId || '',
     chunkTotal: t.chunkTotal || 0
   }));
+}
+
+/* 곡의 자켓 이미지 URL을 가져옴. 조각 저장된(큰 GIF 등) 자켓이면 갤러리와 같은
+   공용 청크 캐시/로더(chunkedImageCache, resolveGalleryItemUrl)를 그대로 재사용해서
+   아직 안 불러왔으면 로딩을 시작하고 null 대신 빈 문자열을 반환하며, 다 불러오면
+   onReady()로 다시 그리게 함 */
+function mpResolveCoverUrl(track, onReady){
+  if(!track) return '';
+  if(!track.coverChunked) return track.cover || '';
+  const resolved = resolveGalleryItemUrl({ chunked:true, fileId: track.coverFileId, chunkTotal: track.coverChunkTotal, url:'' }, onReady);
+  return resolved || '';
 }
 
 function mpFormatTime(sec){
@@ -1204,7 +1226,6 @@ function buildMusicSkeleton(box){
   box.innerHTML = `
     <div class="mp-cover-bg" id="mpCoverBg"></div>
     <div class="mp-player">
-      ${editMode ? `<button class="icon-btn mp-cover-btn" id="mpCoverBtn" title="자켓 이미지 변경">🖼</button>` : ''}
       <input type="range" class="mp-seek" id="mpSeek" min="0" max="1000" value="0">
       <div class="mp-times"><span id="mpCurTime">0:00</span><span id="mpDurTime">0:00</span></div>
       <div class="mp-meta">
@@ -1239,12 +1260,6 @@ function bindMusicSkeleton(box){
   box.querySelector('#mpNextBtn').onclick = mpNext;
   box.querySelector('#mpRepeatBtn').onclick = mpCycleRepeat;
   box.querySelector('#mpContinuousBtn').onclick = mpToggleContinuous;
-  const coverBtn = box.querySelector('#mpCoverBtn');
-  if(coverBtn) coverBtn.onclick = ()=>{
-    const current = mpTracks().find(t=>t.id===mpCurrentId);
-    if(!current){ toast('먼저 재생목록에서 곡을 선택해주세요'); return; }
-    openMusicTrackModal(current);
-  };
   const audioEl = box.querySelector('#mpAudioEl');
   if(audioEl){
     audioEl.addEventListener('timeupdate', ()=>{
@@ -1263,9 +1278,11 @@ function renderMusicList(){
   const listEl = document.getElementById('mpTrackList');
   if(!listEl) return;
   const tracks = mpTracks();
-  listEl.innerHTML = tracks.length ? tracks.map(t=>`
+  listEl.innerHTML = tracks.length ? tracks.map(t=>{
+    const thumbUrl = mpResolveCoverUrl(t, renderMusicList);
+    return `
     <div class="player-track mp-track-row ${t.id===mpCurrentId?'active':''}" data-id="${t.id}">
-      <div class="mp-track-thumb" ${t.cover ? `style="background-image:url('${t.cover}')"` : ''}>${t.cover ? '' : '♪'}</div>
+      <div class="mp-track-thumb" ${thumbUrl ? `style="background-image:url('${thumbUrl}')"` : ''}>${thumbUrl ? '' : '♪'}</div>
       <div class="mp-track-info">
         <div class="mp-track-title">${escapeHtml(t.title)}</div>
         ${t.artist ? `<div class="mp-track-artist">${escapeHtml(t.artist)}</div>` : ''}
@@ -1273,7 +1290,8 @@ function renderMusicList(){
       ${editMode ? `<button class="icon-btn" data-edit="${t.id}" title="수정" style="width:22px;height:22px;font-size:.6rem;">✎</button>` : ''}
       ${editMode ? `<button class="icon-btn" data-del="${t.id}" title="삭제" style="width:22px;height:22px;font-size:.6rem;">✕</button>` : ''}
     </div>
-  `).join('') : `<div class="w-empty">등록된 곡이 없어요</div>`;
+  `;
+  }).join('') : `<div class="w-empty">등록된 곡이 없어요</div>`;
   listEl.querySelectorAll('[data-id]').forEach(row=>{
     row.addEventListener('click', (e)=>{
       if(e.target.closest('[data-edit]') || e.target.closest('[data-del]')) return;
@@ -1296,8 +1314,9 @@ function updateMpMetaDisplay(track){
   const titleEl = document.getElementById('mpTitle');
   const artistEl = document.getElementById('mpArtist');
   if(!bg) return;
-  if(track && track.cover){
-    bg.style.backgroundImage = `url('${track.cover}')`;
+  const coverUrl = track ? mpResolveCoverUrl(track, ()=> updateMpMetaDisplay(track)) : '';
+  if(coverUrl){
+    bg.style.backgroundImage = `url('${coverUrl}')`;
     bg.classList.add('has-cover');
   } else {
     bg.style.backgroundImage = '';
@@ -1555,6 +1574,9 @@ async function mpDeleteTrack(id){
   if(target && target.chunked && target.fileId){
     deleteFileChunked(target.fileId, target.chunkTotal).catch(()=>{});
   }
+  if(target && target.coverChunked && target.coverFileId){
+    deleteFileChunked(target.coverFileId, target.coverChunkTotal).catch(()=>{});
+  }
 }
 
 function openMusicTrackModal(existing){
@@ -1579,11 +1601,12 @@ function openMusicTrackModal(existing){
       <label>mp3 직링크</label><input type="url" id="mMp3Link" placeholder="https://.../song.mp3">
       <p class="hint">누르면 바로 재생되는 mp3 파일 주소를 넣어주세요. 구글드라이브 등 대부분의 공유 링크는 재생이 안 될 수 있어요.</p>
     </div>
-    <label style="margin-top:6px;">자켓 이미지 (선택 — 비워두면 투명하게 보여요)</label>
+    <label style="margin-top:6px;">자켓 이미지 (선택 — 비워두면 투명하게 보여요, 움직이는 GIF도 가능)</label>
     <input type="file" id="mCoverFile" accept="image/*">
+    <p class="hint">움직이는 GIF는 최대 ${Math.round(COVER_CHUNKED_MAX_BYTES/1024/1024)}MB까지 올릴 수 있어요. (용량이 크면 자동으로 나눠 저장하고, 불러올 때 몇 초 더 걸릴 수 있어요)</p>
     <label style="margin-top:6px;">또는 이미지 URL</label>
     <input type="url" id="mCoverUrl" placeholder="https://...">
-    ${isEdit && existing.cover ? `<div class="mp-modal-cover-preview" id="mCoverPreviewWrap"><img src="${existing.cover}" alt=""><button type="button" class="btn ghost small" id="mCoverClear">이미지 지우기</button></div>` : ''}
+    ${isEdit && (existing.cover || existing.coverChunked) ? `<div class="mp-modal-cover-preview" id="mCoverPreviewWrap">${existing.cover ? `<img src="${existing.cover}" alt="">` : `<p class="hint">현재 자켓: 저장된 이미지 (용량이 커서 미리보기는 생략돼요)</p>`}<button type="button" class="btn ghost small" id="mCoverClear">이미지 지우기</button></div>` : ''}
     <p class="hint">유튜브 링크와 mp3 링크를 지원해요. 자켓 이미지는 비워둬도 괜찮아요.</p>
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
@@ -1612,16 +1635,40 @@ function openMusicTrackModal(existing){
       if(!title){ toast('곡 제목을 입력해주세요'); return; }
       const mode = m.querySelector('input[name="music-src"]:checked').value;
 
-      // 자켓 이미지 처리 (공통)
+      // 자켓 이미지 처리 (공통) — 용량이 크면(주로 움짤 GIF) 음악 문서 안에 바로 넣지 않고
+      // 문서/PDF와 같은 방식으로 조각내어 별도 저장함(음악 문서 하나에 모든 곡이 같이
+      // 들어있어서, 큰 이미지를 그대로 넣으면 곡이 몇 개만 있어도 1MB 한도를 넘기기 때문)
       const coverFile = m.querySelector('#mCoverFile').files[0];
       const coverUrl = m.querySelector('#mCoverUrl').value.trim();
       let cover = isEdit ? (existing.cover || '') : '';
-      if(coverCleared) cover = '';
-      if(coverUrl) cover = coverUrl;
+      let coverChunked = isEdit ? !!existing.coverChunked : false;
+      let coverFileId = isEdit ? (existing.coverFileId || '') : '';
+      let coverChunkTotal = isEdit ? (existing.coverChunkTotal || 0) : 0;
+      let oldCoverChunkToDelete = null;
+
+      if(coverCleared){
+        if(coverChunked) oldCoverChunkToDelete = { fileId: coverFileId, total: coverChunkTotal };
+        cover = ''; coverChunked = false; coverFileId = ''; coverChunkTotal = 0;
+      }
+      if(coverUrl){
+        if(coverChunked) oldCoverChunkToDelete = { fileId: coverFileId, total: coverChunkTotal };
+        cover = coverUrl; coverChunked = false; coverFileId = ''; coverChunkTotal = 0;
+      }
       if(coverFile){
         saveBtn.disabled = true; saveBtn.textContent = '이미지 처리 중…';
-        try{ cover = await compressImageFile(coverFile, 800, 180000); }
+        let dataUrl;
+        try{ dataUrl = await compressImageFile(coverFile, 800, 180000, COVER_CHUNKED_MAX_BYTES); }
         catch(err){ toast(`이미지 처리 실패: ${err.message || err}`); resetBtn(); return; }
+        if(coverChunked) oldCoverChunkToDelete = { fileId: coverFileId, total: coverChunkTotal };
+        if(dataUrl.length > COVER_INLINE_MAX_BYTES){
+          saveBtn.textContent = '이미지 저장 중…';
+          let chunkInfo;
+          try{ chunkInfo = await saveFileChunked(dataUrl); }
+          catch(err){ toast('이미지를 저장하지 못했어요.'); resetBtn(); return; }
+          cover = ''; coverChunked = true; coverFileId = chunkInfo.fileId; coverChunkTotal = chunkInfo.total;
+        } else {
+          cover = dataUrl; coverChunked = false; coverFileId = ''; coverChunkTotal = 0;
+        }
       }
 
       // 음원 소스 처리
@@ -1646,9 +1693,9 @@ function openMusicTrackModal(existing){
       saveBtn.textContent = isEdit ? '저장 중…' : '추가 중…';
       try{
         if(isEdit){
-          await mpUpdateTrack(existing.id, { title, artist, cover, ...patch });
+          await mpUpdateTrack(existing.id, { title, artist, cover, coverChunked, coverFileId, coverChunkTotal, ...patch });
         } else {
-          await docRef('music').set({ tracks: [...mpTracks(), { id: uid(), title, artist, cover, ...patch }] }, {merge:true});
+          await docRef('music').set({ tracks: [...mpTracks(), { id: uid(), title, artist, cover, coverChunked, coverFileId, coverChunkTotal, ...patch }] }, {merge:true});
         }
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
@@ -1656,6 +1703,7 @@ function openMusicTrackModal(existing){
         return;
       }
       if(oldChunkToDelete && oldChunkToDelete.fileId) deleteFileChunked(oldChunkToDelete.fileId, oldChunkToDelete.total).catch(()=>{});
+      if(oldCoverChunkToDelete && oldCoverChunkToDelete.fileId) deleteFileChunked(oldCoverChunkToDelete.fileId, oldCoverChunkToDelete.total).catch(()=>{});
       closeModal();
     };
   });
