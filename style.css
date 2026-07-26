@@ -490,11 +490,11 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .opt-checkbox:has(input:checked)::after{
   content:"";
   position:absolute; z-index:-1;
-  top:50%; left:50%; width:3.2em; height:3.2em;
+  top:50%; left:50%; width:2.1em; height:2.1em;
   transform: translate(-50%,-50%);
   border-radius:50%;
-  background: radial-gradient(circle, rgba(196,66,95,0.5) 0%, rgba(196,66,95,0.2) 45%, transparent 72%);
-  filter: blur(4px);
+  background: radial-gradient(circle, rgba(196,66,95,0.5) 0%, rgba(196,66,95,0.2) 45%, transparent 65%);
+  filter: blur(3px);
   pointer-events:none;
 }
 
@@ -522,11 +522,11 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .tag-chip.active::after{
   content:"";
   position:absolute; z-index:-1;
-  top:50%; left:50%; width:3.6em; height:3.6em;
+  top:50%; left:50%; width:2.3em; height:2.3em;
   transform: translate(-50%,-50%);
   border-radius:50%;
-  background: radial-gradient(circle, rgba(196,66,95,0.55) 0%, rgba(196,66,95,0.24) 45%, transparent 72%);
-  filter: blur(4px);
+  background: radial-gradient(circle, rgba(196,66,95,0.55) 0%, rgba(196,66,95,0.24) 45%, transparent 65%);
+  filter: blur(3px);
   pointer-events:none;
 }
 /* 레퍼런스 갤러리는 폭이 좁아서 칩이 여러 줄로 접히면 세로 공간을 많이 차지하므로,
