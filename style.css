@@ -551,6 +551,18 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
   position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: blur(4px);
   display:flex; align-items:center; justify-content:center; z-index: 200; animation: fadeIn .15s ease;
 }
+/* 라이트박스 전용: 전체화면 블러 연산이 PC(특히 큰 화면)에서 매 프레임 무겁기 때문에
+   어둡게 깔리는 효과만 남기고 블러는 뺌. 라이트박스 박스 자체의 글라스 블러는 그대로 유지 */
+/* 라이트박스 전용: 전체화면 블러 연산이 PC(특히 큰 화면)에서 매 프레임 무겁기 때문에
+   화면 전체엔 블러를 걸지 않고, 대신 모달 박스 "바깥" 여백에만 블러 조각을 깔아 붙임.
+   실제 블러가 걸리는 면적 자체가 작아지므로 사진에 가려서 안 보이는 부분까지 계산하던
+   비용이 사라지고, 화면 가장자리(사진 밖으로 보이는 부분)는 이전처럼 그대로 블러돼 보임 */
+.modal-overlay.modal-overlay-plain{ backdrop-filter:none; -webkit-backdrop-filter:none; background: rgba(5,2,3,0.55); }
+.lightbox-blur-frame{ position:fixed; inset:0; z-index:1; pointer-events:none; }
+.lightbox-blur-strip{
+  position:fixed; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+}
+.modal.modal-lightbox{ position:relative; z-index:2; }
 @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
 .modal{
   background: rgba(24,11,14,0.72);

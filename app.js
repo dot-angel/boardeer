@@ -46,7 +46,10 @@ async function sha256(str){
 
 function openModal(innerHtml, onMount, extraClass){
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
+  // 라이트박스는 화면 전체(특히 큰 PC 모니터)를 매 프레임 블러 처리해야 해서 무거우므로,
+  // 뒤쪽 전체화면 오버레이의 블러만 빼고 어둡게 깔리는 효과만 남김.
+  // 라이트박스 박스 자체(사진 주변 유리 느낌)의 블러는 .modal.modal-lightbox에서 그대로 유지됨
+  overlay.className = 'modal-overlay' + (extraClass === 'modal-lightbox' ? ' modal-overlay-plain' : '');
   overlay.innerHTML = `<div class="modal${extraClass ? ' ' + extraClass : ''}">${innerHtml}</div>`;
   overlay.addEventListener('click', (e)=>{ if(e.target === overlay) closeModal(); });
   modalRoot.innerHTML = '';
@@ -174,6 +177,36 @@ function openItemOptEditModal(currentOpts, optionsList, onSave){
      onEditTag(idx)      // 있으면 "태그 수정" 버튼 표시 — 눌렀을 때 호출
    }
    화살표 버튼/키보드 ←→로 같은 목록 안에서 트위터처럼 옆 사진으로 바로 넘어갈 수 있음 */
+/* 라이트박스 뒤 전체화면 오버레이는 블러를 빼서 가볍게 하되(모달 자체 블러는 유지),
+   대신 사진(모달 박스)에 가려서 안 보이는 부분만 블러를 빼는 게 아니라 —
+   실제로 블러 연산 비용을 줄이려면 블러가 걸린 요소 자체의 실제 면적이 작아야 함(가려도 계산 비용은 그대로 듦).
+   그래서 모달 박스 "바깥" 여백 부분에만 실제 크기가 작은 블러 조각 4개(위/아래/좌/우)를 깔아,
+   화면 전체를 블러 처리했을 때와 비슷하게 보이면서도 실제 블러 면적은 훨씬 줄임 */
+function updateLightboxBlurFrame(modalEl){
+  const overlay = modalEl && modalEl.parentElement;
+  if(!overlay) return;
+  let frame = overlay.querySelector('.lightbox-blur-frame');
+  if(!frame){
+    frame = document.createElement('div');
+    frame.className = 'lightbox-blur-frame';
+    frame.innerHTML = `
+      <div class="lightbox-blur-strip lbf-top"></div>
+      <div class="lightbox-blur-strip lbf-bottom"></div>
+      <div class="lightbox-blur-strip lbf-left"></div>
+      <div class="lightbox-blur-strip lbf-right"></div>
+    `;
+    overlay.insertBefore(frame, modalEl);
+  }
+  const rect = modalEl.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const top = Math.max(0, rect.top), bottom = Math.max(0, vh - rect.bottom);
+  const left = Math.max(0, rect.left), right = Math.max(0, vw - rect.right);
+  frame.querySelector('.lbf-top').style.cssText = `top:0; left:0; width:100%; height:${top}px;`;
+  frame.querySelector('.lbf-bottom').style.cssText = `bottom:0; left:0; width:100%; height:${bottom}px;`;
+  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:0; width:${left}px; height:${rect.height}px;`;
+  frame.querySelector('.lbf-right').style.cssText = `top:${rect.top}px; right:0; width:${right}px; height:${rect.height}px;`;
+}
+
 function openImageLightbox(cfg){
   const items = cfg.items.slice();
   let index = cfg.index || 0;
@@ -252,6 +285,7 @@ function openImageLightbox(cfg){
           }
         });
       }
+      updateLightboxBlurFrame(m);
     }, 'modal-lightbox');
     opened = true;
   }
@@ -263,9 +297,16 @@ function openImageLightbox(cfg){
     else if(e.key === 'Escape'){ closeModal(); }
   };
   document.addEventListener('keydown', onKey);
+  // 창 크기가 바뀌면(가로/세로 회전 포함) 모달 박스 크기도 바뀌므로 블러 프레임도 다시 맞춰줌
+  const onResize = ()=>{
+    const modalEl = modalRoot.querySelector('.modal-lightbox');
+    if(modalEl) updateLightboxBlurFrame(modalEl);
+  };
+  window.addEventListener('resize', onResize);
   const mo = new MutationObserver(()=>{
     if(!modalRoot.querySelector('.modal-lightbox')){
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
       mo.disconnect();
     }
   });
