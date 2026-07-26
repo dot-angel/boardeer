@@ -971,6 +971,28 @@ function bindImages(){
   if(prev) prev.onclick = ()=>{ imgSlideIndex = (imgSlideIndex - 1 + items.length) % items.length; renderImages(); };
   if(next) next.onclick = ()=>{ imgSlideIndex = (imgSlideIndex + 1) % items.length; renderImages(); };
   box.querySelectorAll('[data-dot]').forEach(d=> d.onclick = ()=>{ imgSlideIndex = Number(d.dataset.dot); renderImages(); });
+  const viewport = box.querySelector('#slideViewport');
+  if(viewport && items.length > 1){
+    let touchStartX = 0, touchStartY = 0, touchTracking = false;
+    viewport.addEventListener('touchstart', e=>{
+      if(e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchTracking = true;
+    }, { passive:true });
+    viewport.addEventListener('touchend', e=>{
+      if(!touchTracking) return;
+      touchTracking = false;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
+        e.preventDefault(); // 스와이프 뒤에 이어지는 합성 클릭이 사진을 열어버리는 것 방지
+        imgSlideIndex = dx > 0 ? (imgSlideIndex - 1 + items.length) % items.length : (imgSlideIndex + 1) % items.length;
+        renderImages();
+      }
+    });
+  }
   const del = box.querySelector('#imgDelBtn');
   if(del) del.onclick = async (e)=>{
     e.stopPropagation();

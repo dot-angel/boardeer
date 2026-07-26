@@ -221,13 +221,20 @@ body::before{
 .slide-caption.cap-br{ bottom:20px; right:20px; text-align:right; }
 .slide-nav{
   position:absolute; top:50%; transform:translateY(-50%); z-index:3;
-  width:36px; height:36px; border-radius:50%; border:1px solid rgba(255,255,255,0.25);
-  background: rgba(20,10,12,0.45); backdrop-filter: blur(10px);
-  color: #fff; font-size:1.1rem; cursor:pointer;
+  width:34px; height:34px; border-radius:50%; border:none;
+  background:transparent; box-shadow:none;
+  color: #fff; font-size:1.4rem; cursor:pointer; font-weight:300;
   display:flex; align-items:center; justify-content:center;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.8);
+  opacity:0; transition: opacity .2s;
 }
-.slide-nav.prev{ left:12px; } .slide-nav.next{ right:12px; }
-.slide-nav:hover{ background: rgba(20,10,12,0.7); }
+.slide-viewport:hover .slide-nav{ opacity:.85; }
+.slide-nav:hover{ opacity:1 !important; }
+.slide-nav.prev{ left:10px; } .slide-nav.next{ right:10px; }
+/* 호버가 없는 터치 기기에서는 살짝 항상 보이게 해서 눌러야 할 위치를 알 수 있게 함 */
+@media (hover:none){
+  .slide-nav{ opacity:.55; }
+}
 .slide-del, .slide-caption-btn{
   position:absolute; z-index:3; top:12px; width:28px; height:28px; border-radius:50%;
   border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.5); backdrop-filter: blur(10px);
