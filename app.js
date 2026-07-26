@@ -2779,41 +2779,37 @@ function renderDocs(){
         ${(c.opts||(c.opt?[c.opt]:[])).length ? `<div class="doc-opt-row">${(c.opts||(c.opt?[c.opt]:[])).map(o=> `<span class="doc-opt">${escapeHtml(o)}</span>`).join('')}</div>` : ''}
         ${c.desc ? `<div class="doc-desc">${escapeHtml(c.desc)}</div>` : ''}
       </div>
-      ${c.chunked
-        ? `<a class="doc-open" href="#" data-open="${i}">열기 ↗</a>`
-        : (c.link
-            ? (c.link.startsWith('data:')
-                ? `<a class="doc-open" href="#" data-open-direct="${i}">열기 ↗</a>`
-                : `<a class="doc-open" href="${escapeHtml(c.link)}" target="_blank" rel="noopener">열기 ↗</a>`)
-            : '')}
       ${editMode ? `<button class="doc-edit" data-edit="${i}">✎</button>` : ''}
       ${editMode ? `<button class="doc-del" data-del="${i}">✕</button>` : ''}
     </div>
   `).join('') || `<div class="w-empty">${docFilterOpt ? '이 옵션에 해당하는 문서가 없어요' : '정리된 문서가 없어요'}</div>`;
 
-  list.querySelectorAll('[data-open]').forEach(a=> a.addEventListener('click', async (e)=>{
-    e.preventDefault();
-    const idx = Number(a.dataset.open);
+  list.querySelectorAll('.doc-row').forEach(row=> row.addEventListener('click', async (e)=>{
+    if(e.target.closest('[data-edit]') || e.target.closest('[data-del]')) return;
+    const idx = Number(row.dataset.idx);
     const c = docsData.cards[idx];
-    const original = a.textContent;
-    a.textContent = '불러오는 중…';
-    try{
-      const base64 = await loadFileChunked(c.fileId, c.chunkTotal);
-      openDataUrlAsBlob(base64);
-    }catch(err){ toast('파일을 불러오지 못했어요'); }
-    a.textContent = original;
+    if(!c) return;
+    if(c.chunked){
+      toast('문서를 불러오는 중…');
+      try{
+        const base64 = await loadFileChunked(c.fileId, c.chunkTotal);
+        openDataUrlAsBlob(base64);
+      }catch(err){ toast('파일을 불러오지 못했어요'); }
+    } else if(c.link){
+      if(c.link.startsWith('data:')) openDataUrlAsBlob(c.link);
+      else window.open(c.link, '_blank', 'noopener');
+    } else {
+      toast('연결된 문서가 없어요');
+    }
   }));
 
-  list.querySelectorAll('[data-open-direct]').forEach(a=> a.addEventListener('click', (e)=>{
-    e.preventDefault();
-    const idx = Number(a.dataset.openDirect);
-    const c = docsData.cards[idx];
-    if(c && c.link) openDataUrlAsBlob(c.link);
+  list.querySelectorAll('[data-edit]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openDocEditModal(Number(btn.dataset.edit));
   }));
 
-  list.querySelectorAll('[data-edit]').forEach(btn=> btn.addEventListener('click', ()=> openDocEditModal(Number(btn.dataset.edit))));
-
-  list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async ()=>{
+  list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
+    e.stopPropagation();
     const idx = Number(btn.dataset.del);
     const removed = docsData.cards[idx];
     const arr = [...docsData.cards]; arr.splice(idx,1);
@@ -3246,8 +3242,7 @@ function renderChecklist(){
     return `
       <div class="check-item ${it.checked?'checked':''}" data-idx="${it._i}">
         <input type="checkbox" ${it.checked?'checked':''} ${editMode?'':'disabled'}>
-        <span>${escapeHtml(it.text)}</span>
-        ${it.link ? `<a class="check-link" href="${escapeHtml(it.link)}" target="_blank" rel="noopener" title="${escapeHtml(it.link)}">🔗</a>` : ''}
+        <span class="${it.link ? 'has-link' : ''}" ${it.link ? `data-linkopen="${it._i}" title="${escapeHtml(it.link)}"` : ''}>${escapeHtml(it.text)}</span>
         ${editMode ? `<button class="check-link-edit" data-linkedit="${it._i}" title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
         ${editMode ? `<button class="del">✕</button>` : ''}
       </div>
@@ -3268,6 +3263,11 @@ function renderChecklist(){
       const arr = [...checklistData.items];
       arr[idx] = { ...arr[idx], checked: cb.checked };
       await docRef('checklist').set({items:arr}, {merge:true});
+    });
+    const linkOpen = el.querySelector('[data-linkopen]');
+    if(linkOpen) linkOpen.addEventListener('click', ()=>{
+      const cur = checklistData.items[idx];
+      if(cur && cur.link) window.open(cur.link, '_blank', 'noopener');
     });
     const del = el.querySelector('.del');
     if(del) del.addEventListener('click', async ()=>{

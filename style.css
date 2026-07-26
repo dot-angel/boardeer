@@ -505,14 +505,16 @@ body::before{
   display:flex; align-items:center; gap:10px;
   border: 1px solid var(--card-border); border-radius: 16px; padding: 10px 13px;
   background: var(--card-bg2);
+  cursor:pointer;
 }
+.doc-row:hover{ background: rgba(255,255,255,0.07); }
+.doc-row:hover .doc-title{ color: var(--rose); }
 .doc-row .doc-icon{ font-size:1.1rem; flex:0 0 auto; }
 .doc-row .doc-main{ flex:1; min-width:0; }
 .doc-row .doc-title{ font-weight:600; font-size:.85rem; color: var(--ink); }
 .doc-row .doc-opt-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
 .doc-row .doc-opt{ font-size:.62rem; font-weight:600; color: var(--rose); background: rgba(196,66,95,0.14); border:1px solid rgba(196,66,95,0.3); padding:1px 7px; border-radius:999px; white-space:nowrap; }
 .doc-row .doc-desc{ font-size:.72rem; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.doc-row .doc-open{ font-size:.75rem; color: var(--rose); text-decoration:none; flex:0 0 auto; }
 .doc-row .doc-del{
   flex:0 0 auto; width:24px; height:24px; border-radius:50%;
   border:1px solid var(--card-border); background: rgba(255,255,255,0.06); color:#ff9aa6; font-size:.65rem;
@@ -640,12 +642,13 @@ body::before{
 .check-item:hover{ background: rgba(255,255,255,0.07); }
 .check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
 .check-item span{ flex:1; }
+.check-item span.has-link{ cursor:pointer; color: var(--rose); }
+.check-item span.has-link::after{ content:'↗'; font-size:.7em; opacity:.65; margin-left:3px; }
+.check-item span.has-link:hover{ text-decoration: underline; }
 .check-item.checked{ opacity:.5; }
 .check-item.checked span{ text-decoration: line-through; }
 .check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
 .check-item .del:hover{ color:#ff8f9e; }
-.check-item .check-link{ font-size:.8rem; text-decoration:none; flex:0 0 auto; opacity:.85; }
-.check-item .check-link:hover{ opacity:1; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
 .check-divider{ border-top:1px dashed var(--card-border); margin:6px 2px; }
