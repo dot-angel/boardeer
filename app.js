@@ -1136,79 +1136,408 @@ function openImagesAddModal(){
 
 docRef('images').onSnapshot(doc=>{ imagesData = doc.exists ? doc.data() : {items:[]}; renderImages(); });
 
-/* ---------------- 2. 음악 위젯 ---------------- */
+/* ---------------- 2. 음악 위젯 ----------------
+   플레이리스트 + 곡별 자켓 이미지(선택) + 반복재생(끄기/전체/1곡) + 연속재생(다음 곡 자동재생) 지원.
+   Firestore 스냅샷은 다른 방문자가 곡을 추가/삭제해도 실시간으로 오기 때문에,
+   재생 중인 오디오/유튜브 플레이어를 매번 통째로 밀어버리지 않도록 뼈대(mp-player)는
+   한 번만 만들고, 이후에는 재생목록 부분만 갱신하도록 구성함(현재 재생을 방해하지 않기 위함). */
 
 let musicData = { tracks: [] };
+let mpSkeletonEditMode = null; // 뼈대를 만들었을 당시의 editMode(바뀌면 뼈대를 다시 만듦)
+let mpCurrentId = null;        // 현재 선택/재생 중인 곡의 id
+let mpPlaying = false;
+let mpRepeatMode = 'off';      // 'off' | 'all' | 'one'
+let mpContinuous = true;       // 곡이 끝나면 다음 곡을 자동으로 이어서 재생할지
+let mpSeeking = false;
+let mpYtPlayer = null;
+let mpPollTimer = null;
+
+function mpTracks(){
+  return (musicData.tracks || []).map((t,i)=>({
+    id: t.id || `legacy_${i}`,
+    title: t.title || '(제목 없음)',
+    artist: t.artist || '',
+    url: t.url || '',
+    cover: t.cover || ''
+  }));
+}
+
+function mpFormatTime(sec){
+  if(!isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec/60), s = Math.floor(sec%60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
 
 function renderMusic(){
   const box = document.getElementById('cardMusic');
-  const tracks = musicData.tracks || [];
-  box.innerHTML = `
-    <div class="player-tracks">
-      ${tracks.map((t,i)=>`
-        <div class="player-track" data-idx="${i}">
-          ♪ <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(t.title)}</span>
-          ${editMode ? `<button class="icon-btn" data-del="${i}" style="width:18px;height:18px;font-size:.6rem;">✕</button>` : ''}
-        </div>
-      `).join('') || `<div class="w-empty">등록된 곡이 없어요</div>`}
-    </div>
-    <audio id="musicAudio" controls style="display:none;"></audio>
-    <div class="yt-frame" id="musicYt" style="display:none;"></div>
-    ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
-  `;
-  bindMusic();
+  const tracks = mpTracks();
+  const needsSkeleton = !box.querySelector('.mp-player') || mpSkeletonEditMode !== editMode;
+  if(needsSkeleton){
+    buildMusicSkeleton(box);
+    mpSkeletonEditMode = editMode;
+  }
+  // 재생 중이던 곡이 (다른 기기에서) 삭제됐으면 정지
+  if(mpCurrentId && !tracks.find(t=>t.id===mpCurrentId)){
+    mpStopPlayback();
+  }
+  const current = tracks.find(t=>t.id===mpCurrentId) || null;
+  updateMpMetaDisplay(current);
+  renderMusicList();
+  const addBtn = box.querySelector('#musicAddBtn');
+  if(addBtn) addBtn.onclick = ()=> openMusicTrackModal(null);
 }
 
-function bindMusic(){
-  const box = document.getElementById('cardMusic');
-  box.querySelectorAll('[data-idx]').forEach(row=>{
+function buildMusicSkeleton(box){
+  box.innerHTML = `
+    <div class="mp-player">
+      <div class="mp-cover-wrap">
+        <div class="mp-cover-inner" id="mpCoverInner">♪</div>
+        ${editMode ? `<button class="icon-btn mp-cover-btn" id="mpCoverBtn" title="자켓 이미지 변경">🖼</button>` : ''}
+      </div>
+      <input type="range" class="mp-seek" id="mpSeek" min="0" max="1000" value="0">
+      <div class="mp-times"><span id="mpCurTime">0:00</span><span id="mpDurTime">0:00</span></div>
+      <div class="mp-meta">
+        <div class="mp-title" id="mpTitle">재생할 곡을 선택해주세요</div>
+        <div class="mp-artist" id="mpArtist"></div>
+      </div>
+      <div class="mp-controls">
+        <button class="icon-btn mp-repeat-btn" id="mpRepeatBtn" title="반복재생"></button>
+        <button class="icon-btn mp-prev-btn" id="mpPrevBtn" title="이전 곡">⏮</button>
+        <button class="mp-play-btn" id="mpPlayBtn" title="재생/일시정지">▶</button>
+        <button class="icon-btn mp-next-btn" id="mpNextBtn" title="다음 곡">⏭</button>
+        <button class="icon-btn mp-continuous-btn" id="mpContinuousBtn" title="연속재생">➜</button>
+      </div>
+      <button class="btn small mp-list-toggle" id="mpListToggle">🎵 재생목록</button>
+      <div class="player-tracks" id="mpTrackList" style="display:none;"></div>
+      ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
+      <div id="mpYtHolder" style="display:none;"></div>
+    </div>
+  `;
+  bindMusicSkeleton(box);
+  updateRepeatBtnUI();
+  updateContinuousBtnUI();
+  setPlayButtonUI(false);
+}
+
+function bindMusicSkeleton(box){
+  const seek = box.querySelector('#mpSeek');
+  seek.addEventListener('input', ()=>{ mpSeeking = true; });
+  seek.addEventListener('change', mpOnSeekChange);
+  box.querySelector('#mpPlayBtn').onclick = mpTogglePlayPause;
+  box.querySelector('#mpPrevBtn').onclick = mpPrev;
+  box.querySelector('#mpNextBtn').onclick = mpNext;
+  box.querySelector('#mpRepeatBtn').onclick = mpCycleRepeat;
+  box.querySelector('#mpContinuousBtn').onclick = mpToggleContinuous;
+  box.querySelector('#mpListToggle').onclick = mpToggleList;
+  const coverBtn = box.querySelector('#mpCoverBtn');
+  if(coverBtn) coverBtn.onclick = ()=>{
+    const current = mpTracks().find(t=>t.id===mpCurrentId);
+    if(!current){ toast('먼저 재생목록에서 곡을 선택해주세요'); return; }
+    openMusicTrackModal(current);
+  };
+}
+
+function renderMusicList(){
+  const listEl = document.getElementById('mpTrackList');
+  if(!listEl) return;
+  const tracks = mpTracks();
+  listEl.innerHTML = tracks.length ? tracks.map(t=>`
+    <div class="player-track mp-track-row ${t.id===mpCurrentId?'active':''}" data-id="${t.id}">
+      <div class="mp-track-thumb" ${t.cover ? `style="background-image:url('${t.cover}')"` : ''}>${t.cover ? '' : '♪'}</div>
+      <div class="mp-track-info">
+        <div class="mp-track-title">${escapeHtml(t.title)}</div>
+        ${t.artist ? `<div class="mp-track-artist">${escapeHtml(t.artist)}</div>` : ''}
+      </div>
+      ${editMode ? `<button class="icon-btn" data-edit="${t.id}" title="수정" style="width:22px;height:22px;font-size:.6rem;">✎</button>` : ''}
+      ${editMode ? `<button class="icon-btn" data-del="${t.id}" title="삭제" style="width:22px;height:22px;font-size:.6rem;">✕</button>` : ''}
+    </div>
+  `).join('') : `<div class="w-empty">등록된 곡이 없어요</div>`;
+  listEl.querySelectorAll('[data-id]').forEach(row=>{
     row.addEventListener('click', (e)=>{
-      if(e.target.closest('[data-del]')) return;
-      const idx = Number(row.dataset.idx);
-      playTrack(idx);
-      box.querySelectorAll('.player-track').forEach(x=>x.classList.remove('active'));
-      row.classList.add('active');
+      if(e.target.closest('[data-edit]') || e.target.closest('[data-del]')) return;
+      mpPlayById(row.dataset.id, true);
     });
   });
-  box.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async e=>{
+  listEl.querySelectorAll('[data-edit]').forEach(btn=> btn.addEventListener('click', e=>{
     e.stopPropagation();
-    const idx = Number(btn.dataset.del);
-    const tracks = [...musicData.tracks]; tracks.splice(idx,1);
-    await docRef('music').set({tracks}, {merge:true});
+    const t = tracks.find(x=>x.id===btn.dataset.edit);
+    if(t) openMusicTrackModal(t);
   }));
-  const addBtn = box.querySelector('#musicAddBtn');
-  if(addBtn) addBtn.onclick = openMusicAddModal;
+  listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async e=>{
+    e.stopPropagation();
+    await mpDeleteTrack(btn.dataset.del);
+  }));
 }
 
-function playTrack(idx){
-  const t = musicData.tracks[idx]; if(!t) return;
-  const audioEl = document.getElementById('musicAudio');
-  const ytEl = document.getElementById('musicYt');
-  const ytId = extractYouTubeId(t.url);
-  if(ytId){
-    audioEl.pause(); audioEl.removeAttribute('src'); audioEl.style.display = 'none';
-    ytEl.style.display = 'block';
-    ytEl.innerHTML = `<iframe height="150" src="https://www.youtube.com/embed/${ytId}?autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen title="${escapeHtml(t.title)}"></iframe>`;
+function updateMpMetaDisplay(track){
+  const inner = document.getElementById('mpCoverInner');
+  const titleEl = document.getElementById('mpTitle');
+  const artistEl = document.getElementById('mpArtist');
+  if(!inner) return;
+  if(track && track.cover){
+    inner.style.backgroundImage = `url('${track.cover}')`;
+    inner.textContent = '';
   } else {
-    ytEl.style.display = 'none'; ytEl.innerHTML = '';
-    audioEl.style.display = 'block'; audioEl.src = t.url; audioEl.play().catch(()=>{});
+    inner.style.backgroundImage = '';
+    inner.textContent = '♪';
+  }
+  if(titleEl) titleEl.textContent = track ? track.title : '재생할 곡을 선택해주세요';
+  if(artistEl) artistEl.textContent = track ? (track.artist || '') : '';
+}
+
+function setPlayButtonUI(playing){
+  const btn = document.getElementById('mpPlayBtn');
+  if(btn) btn.textContent = playing ? '❚❚' : '▶';
+}
+
+function updateSeekUI(current, duration){
+  const seek = document.getElementById('mpSeek');
+  const curEl = document.getElementById('mpCurTime');
+  const durEl = document.getElementById('mpDurTime');
+  if(!seek) return;
+  if(!mpSeeking){
+    seek.value = duration > 0 ? Math.round((current/duration) * 1000) : 0;
+  }
+  if(curEl) curEl.textContent = mpFormatTime(current);
+  if(durEl) durEl.textContent = mpFormatTime(duration);
+}
+
+function updateRepeatBtnUI(){
+  const btn = document.getElementById('mpRepeatBtn');
+  if(!btn) return;
+  btn.textContent = mpRepeatMode === 'one' ? '🔂' : '🔁';
+  btn.classList.toggle('active', mpRepeatMode !== 'off');
+  btn.title = mpRepeatMode === 'off' ? '반복재생: 꺼짐 (누르면 전체 반복)'
+    : mpRepeatMode === 'all' ? '반복재생: 전체 반복 중 (누르면 1곡 반복)'
+    : '반복재생: 1곡 반복 중 (누르면 끄기)';
+}
+
+function updateContinuousBtnUI(){
+  const btn = document.getElementById('mpContinuousBtn');
+  if(!btn) return;
+  btn.classList.toggle('active', mpContinuous);
+  btn.title = mpContinuous ? '연속재생: 켜짐 (곡이 끝나면 다음 곡 자동 재생, 누르면 끄기)'
+    : '연속재생: 꺼짐 (곡이 끝나면 정지, 누르면 켜기)';
+}
+
+function mpCycleRepeat(){
+  mpRepeatMode = mpRepeatMode === 'off' ? 'all' : mpRepeatMode === 'all' ? 'one' : 'off';
+  updateRepeatBtnUI();
+}
+
+function mpToggleContinuous(){
+  mpContinuous = !mpContinuous;
+  updateContinuousBtnUI();
+}
+
+function mpToggleList(){
+  const list = document.getElementById('mpTrackList');
+  const btn = document.getElementById('mpListToggle');
+  if(!list) return;
+  const show = list.style.display === 'none';
+  list.style.display = show ? 'flex' : 'none';
+  if(btn) btn.textContent = show ? '재생목록 닫기' : '🎵 재생목록';
+}
+
+function destroyMpPollTimer(){
+  if(mpPollTimer){ clearInterval(mpPollTimer); mpPollTimer = null; }
+}
+
+function ensureYtApi(cb){
+  if(window.YT && window.YT.Player){ cb(); return; }
+  if(!window._mpYtCallbacks) window._mpYtCallbacks = [];
+  window._mpYtCallbacks.push(cb);
+  if(!document.getElementById('ytIframeApiScript')){
+    const tag = document.createElement('script');
+    tag.id = 'ytIframeApiScript';
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = function(){
+      (window._mpYtCallbacks || []).forEach(fn=>fn());
+      window._mpYtCallbacks = [];
+    };
   }
 }
 
-function openMusicAddModal(){
+function onYtStateChange(e){
+  if(!window.YT) return;
+  if(e.data === YT.PlayerState.PLAYING){ mpPlaying = true; setPlayButtonUI(true); }
+  else if(e.data === YT.PlayerState.PAUSED){ mpPlaying = false; setPlayButtonUI(false); }
+  else if(e.data === YT.PlayerState.ENDED){ mpPlaying = false; setPlayButtonUI(false); handleTrackEnded(); }
+}
+
+function mpPlayById(id, autoplay=true){
+  const tracks = mpTracks();
+  const track = tracks.find(t=>t.id===id);
+  if(!track) return;
+  const ytId = extractYouTubeId(track.url);
+  if(!ytId){ toast('유튜브 링크가 아니에요. 곡 정보를 수정해주세요.'); return; }
+  mpCurrentId = id;
+  destroyMpPollTimer();
+  const ytHolder = document.getElementById('mpYtHolder');
+  ytHolder.style.display = 'block';
+  ensureYtApi(()=>{
+    if(mpYtPlayer && mpYtPlayer.loadVideoById){
+      try{ if(autoplay) mpYtPlayer.loadVideoById(ytId); else mpYtPlayer.cueVideoById(ytId); }catch(e){}
+    } else {
+      ytHolder.innerHTML = '<div id="mpYtInner"></div>';
+      mpYtPlayer = new YT.Player('mpYtInner', {
+        height: '1', width: '1',
+        videoId: ytId,
+        playerVars: { autoplay: autoplay ? 1 : 0, playsinline: 1 },
+        events: {
+          onReady: ()=>{ if(autoplay){ try{ mpYtPlayer.playVideo(); }catch(e){} } },
+          onStateChange: onYtStateChange
+        }
+      });
+    }
+    destroyMpPollTimer();
+    mpPollTimer = setInterval(()=>{
+      if(!mpYtPlayer || !mpYtPlayer.getCurrentTime) return;
+      try{ updateSeekUI(mpYtPlayer.getCurrentTime(), mpYtPlayer.getDuration()); }catch(e){}
+    }, 500);
+  });
+  mpPlaying = autoplay;
+  setPlayButtonUI(mpPlaying);
+  updateMpMetaDisplay(track);
+  renderMusicList();
+}
+
+function mpStopPlayback(){
+  mpCurrentId = null;
+  mpPlaying = false;
+  if(mpYtPlayer){ try{ mpYtPlayer.stopVideo(); }catch(e){} }
+  destroyMpPollTimer();
+  setPlayButtonUI(false);
+}
+
+function mpTogglePlayPause(){
+  const tracks = mpTracks();
+  if(!mpCurrentId){
+    if(tracks.length) mpPlayById(tracks[0].id, true);
+    return;
+  }
+  if(!mpYtPlayer) return;
+  if(mpPlaying){ mpYtPlayer.pauseVideo(); } else { mpYtPlayer.playVideo(); }
+}
+
+function mpPrev(){
+  const tracks = mpTracks(); if(!tracks.length) return;
+  let idx = tracks.findIndex(t=>t.id===mpCurrentId);
+  idx = idx === -1 ? 0 : (idx - 1 + tracks.length) % tracks.length;
+  mpPlayById(tracks[idx].id, true);
+}
+
+function mpNext(){
+  const tracks = mpTracks(); if(!tracks.length) return;
+  let idx = tracks.findIndex(t=>t.id===mpCurrentId);
+  idx = idx === -1 ? 0 : (idx + 1) % tracks.length;
+  mpPlayById(tracks[idx].id, true);
+}
+
+function mpOnSeekChange(){
+  mpSeeking = false;
+  const seek = document.getElementById('mpSeek');
+  if(!mpCurrentId || !seek || !mpYtPlayer || !mpYtPlayer.getDuration) return;
+  const frac = Number(seek.value) / 1000;
+  const dur = mpYtPlayer.getDuration() || 0;
+  try{ mpYtPlayer.seekTo(dur * frac, true); }catch(e){}
+}
+
+function handleTrackEnded(){
+  const tracks = mpTracks();
+  if(!tracks.length) return;
+  if(mpRepeatMode === 'one'){ mpPlayById(mpCurrentId, true); return; }
+  if(mpContinuous){
+    const idx = tracks.findIndex(t=>t.id===mpCurrentId);
+    let nextIdx = idx + 1;
+    if(nextIdx >= tracks.length){
+      if(mpRepeatMode === 'all'){ nextIdx = 0; }
+      else { mpPlaying = false; setPlayButtonUI(false); return; }
+    }
+    mpPlayById(tracks[nextIdx].id, true);
+  } else {
+    mpPlaying = false; setPlayButtonUI(false);
+  }
+}
+
+async function mpUpdateTrack(id, patch){
+  const tracks = mpTracks();
+  const idx = tracks.findIndex(t=>t.id===id);
+  if(idx === -1) return;
+  const updated = [...tracks];
+  updated[idx] = { ...updated[idx], ...patch };
+  await docRef('music').set({ tracks: updated }, {merge:true});
+}
+
+async function mpDeleteTrack(id){
+  const tracks = mpTracks().filter(t=>t.id!==id);
+  await docRef('music').set({ tracks }, {merge:true});
+  if(mpCurrentId === id) mpStopPlayback();
+}
+
+function openMusicTrackModal(existing){
+  const isEdit = !!existing;
   openModal(`
-    <h3>곡 추가</h3>
-    <label>곡 제목</label><input type="text" id="mTitle">
-    <label>오디오 파일 URL 또는 유튜브 링크</label><input type="url" id="mUrl" placeholder="mp3 직링크 또는 https://youtu.be/...">
-    <p class="hint">유튜브 링크는 그대로 붙여넣으면 화면 안에서 바로 재생돼요. mp3는 구글드라이브 등의 직링크를 붙여넣어주세요.</p>
-    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
+    <h3>${isEdit ? '곡 수정' : '곡 추가'}</h3>
+    <label>곡 제목</label><input type="text" id="mTitle" value="${isEdit ? escapeHtml(existing.title) : ''}">
+    <label>아티스트 (선택)</label><input type="text" id="mArtist" value="${isEdit ? escapeHtml(existing.artist||'') : ''}">
+    <label>유튜브 링크</label><input type="url" id="mUrl" value="${isEdit ? escapeHtml(existing.url||'') : ''}" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=...">
+    <label>자켓 이미지 (선택 — 비워두면 기본 음표 아이콘으로 보여요)</label>
+    <input type="file" id="mCoverFile" accept="image/*">
+    <label style="margin-top:6px;">또는 이미지 URL</label>
+    <input type="url" id="mCoverUrl" placeholder="https://...">
+    ${isEdit && existing.cover ? `<div class="mp-modal-cover-preview" id="mCoverPreviewWrap"><img src="${existing.cover}" alt=""><button type="button" class="btn ghost small" id="mCoverClear">이미지 지우기</button></div>` : ''}
+    <p class="hint">유튜브 링크만 지원해요. 자켓 이미지는 비워둬도 괜찮아요.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">${isEdit ? '저장' : '추가'}</button>
+    </div>
   `, m=>{
+    let coverCleared = false;
+    const clearBtn = m.querySelector('#mCoverClear');
+    if(clearBtn) clearBtn.onclick = ()=>{
+      coverCleared = true;
+      const wrap = m.querySelector('#mCoverPreviewWrap');
+      if(wrap) wrap.style.display = 'none';
+      toast('저장하면 자켓 이미지가 지워져요');
+    };
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
       const title = m.querySelector('#mTitle').value.trim();
+      const artist = m.querySelector('#mArtist').value.trim();
       const url = m.querySelector('#mUrl').value.trim();
-      if(!title || !url){ toast('제목과 주소를 입력해주세요'); return; }
-      await docRef('music').set({ tracks: [...(musicData.tracks||[]), {title, url}] }, {merge:true});
+      if(!title || !url){ toast('제목과 유튜브 링크를 입력해주세요'); return; }
+      if(!extractYouTubeId(url)){ toast('유튜브 링크만 지원해요. 링크를 다시 확인해주세요.'); return; }
+      const file = m.querySelector('#mCoverFile').files[0];
+      const coverUrl = m.querySelector('#mCoverUrl').value.trim();
+      let cover = isEdit ? (existing.cover || '') : '';
+      if(coverCleared) cover = '';
+      if(coverUrl) cover = coverUrl;
+      if(file){
+        saveBtn.disabled = true;
+        saveBtn.textContent = '이미지 처리 중…';
+        try{ cover = await compressImageFile(file, 800, 180000); }
+        catch(err){
+          toast(`이미지 처리 실패: ${err.message || err}`);
+          saveBtn.disabled = false; saveBtn.textContent = isEdit ? '저장' : '추가';
+          return;
+        }
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = isEdit ? '저장 중…' : '추가 중…';
+      try{
+        if(isEdit){
+          await mpUpdateTrack(existing.id, { title, artist, url, cover });
+        } else {
+          await docRef('music').set({ tracks: [...mpTracks(), { id: uid(), title, artist, url, cover }] }, {merge:true});
+        }
+      }catch(err){
+        toast(`저장하지 못했어요: ${err.message || err}`);
+        saveBtn.disabled = false; saveBtn.textContent = isEdit ? '저장' : '추가';
+        return;
+      }
       closeModal();
     };
   });

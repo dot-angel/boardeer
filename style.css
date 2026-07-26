@@ -250,8 +250,52 @@ body::before{
 .slide-add{ margin: 0 18px 16px; align-self:flex-start; }
 .slide-empty{ flex:1; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:.85rem; min-height:220px; }
 
-/* ---------- 음악 위젯 ---------- */
-.w-music{ gap:6px; }
+/* ---------- 음악 위젯 (자켓 이미지 + 진행바 + 반복/연속재생 + 재생목록) ---------- */
+.w-music{ gap:8px; padding:14px; }
+.mp-player{ display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; }
+
+.mp-cover-wrap{ position:relative; width:min(100%,150px); aspect-ratio:1/1; margin:0 auto; flex:0 0 auto; }
+.mp-cover-inner{
+  width:100%; height:100%; border-radius:16px; overflow:hidden;
+  background: linear-gradient(160deg, var(--rose-soft), var(--card-bg2));
+  background-size: cover; background-position:center;
+  display:flex; align-items:center; justify-content:center;
+  font-size:2.2rem; color: var(--rose);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 1px 0 var(--card-hi);
+}
+.mp-cover-btn{
+  position:absolute; bottom:-6px; right:-6px; background: rgba(20,10,12,0.7);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  border-color: rgba(255,255,255,0.3);
+}
+
+.mp-seek{
+  -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:999px;
+  background: var(--card-bg2); accent-color: var(--rose); cursor:pointer; margin-top:2px;
+}
+.mp-seek::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; width:12px; height:12px; border-radius:50%;
+  background: var(--rose); cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.4);
+}
+.mp-times{ display:flex; justify-content:space-between; font-size:.66rem; color:var(--ink-soft); margin-top:-4px; }
+
+.mp-meta{ text-align:center; padding:2px 4px 0; }
+.mp-title{ font-weight:700; font-size:.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mp-artist{ font-size:.74rem; color:var(--ink-soft); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.mp-controls{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:2px; }
+.mp-controls .icon-btn{ width:26px; height:26px; font-size:.7rem; }
+.mp-controls .icon-btn.active{ background: var(--rose-soft); border-color: var(--rose); color: var(--rose); }
+.mp-play-btn{
+  width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
+  background: var(--rose); color:#fff; font-size:.85rem;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 6px 16px rgba(196,66,95,0.4);
+}
+.mp-play-btn:hover{ filter:brightness(1.08); }
+
+.mp-list-toggle{ align-self:center; }
+
 .player-tracks{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
 .player-tracks::-webkit-scrollbar{ width:5px; }
 .player-tracks::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
@@ -259,8 +303,17 @@ body::before{
   display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:10px; cursor:pointer; font-size:.8rem;
 }
 .player-track.active{ background: var(--rose-soft); font-weight:600; color: var(--rose); }
-audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-color: var(--rose); color-scheme: dark; height:32px; }
-.yt-frame iframe{ width:100%; border:0; border-radius:14px; display:block; }
+.mp-track-thumb{
+  flex:0 0 auto; width:30px; height:30px; border-radius:8px; background-size:cover; background-position:center;
+  background-color: var(--card-bg2); display:flex; align-items:center; justify-content:center; font-size:.8rem; color:var(--rose);
+}
+.mp-track-info{ flex:1; min-width:0; }
+.mp-track-title{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mp-track-artist{ font-size:.68rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.mp-modal-cover-preview{ display:flex; align-items:center; gap:10px; margin:4px 0; }
+.mp-modal-cover-preview img{ width:48px; height:48px; border-radius:10px; object-fit:cover; }
+
 .music-add{ align-self:flex-start; }
 
 /* ---------- 디데이 (여백 없이 크게 — 레퍼런스처럼 굵은 타이포그래피 위주) ---------- */
