@@ -479,13 +479,12 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 }
 .opt-checkbox input[type=checkbox]{ width:auto; margin:0; accent-color: var(--rose-solid); }
 .opt-checkbox:has(input:checked){
-  background:
-    linear-gradient(115deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 45%),
-    rgba(196,66,95,0.16);
+  background: rgba(196,66,95,0.16);
   color:#fff; text-shadow: 0 1px 2px rgba(0,0,0,0.35);
   border: 1px solid rgba(255,255,255,0.26);
   box-shadow:
-    0 0 5px rgba(196,66,95,0.14),
+    0 0 18px 3px rgba(196,66,95,0.35),
+    0 0 34px 8px rgba(196,66,95,0.18),
     inset 0 1px 0 rgba(255,255,255,0.26);
 }
 
@@ -501,13 +500,12 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .tag-chip:hover{ background: rgba(255,255,255,0.14); color:var(--ink); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.28); }
 .tag-chip:active{ transform: translateY(0); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
 .tag-chip.active{
-  background:
-    linear-gradient(115deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 45%),
-    linear-gradient(180deg, rgba(180,64,84,0.26), rgba(122,33,48,0.3));
+  background: rgba(150,55,72,0.28);
   color:#fff; text-shadow: 0 1px 2px rgba(0,0,0,0.4);
   border: 1px solid rgba(255,255,255,0.26);
   box-shadow:
-    0 0 6px rgba(196,66,95,0.15),
+    0 0 22px 4px rgba(196,66,95,0.4),
+    0 0 42px 10px rgba(196,66,95,0.2),
     0 2px 6px rgba(0,0,0,0.18),
     inset 0 1px 0 rgba(255,255,255,0.3);
 }
