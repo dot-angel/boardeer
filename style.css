@@ -264,7 +264,7 @@ audio{ width:100%; border-radius: 999px; background: var(--card-bg2); accent-col
 .music-add{ align-self:flex-start; }
 
 /* ---------- 디데이 (여백 없이 크게 — 레퍼런스처럼 굵은 타이포그래피 위주) ---------- */
-.w-dday .w-body{ flex:1; min-height:0; container-type: inline-size; }
+.w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; container-type: inline-size; }
 .dday-item{
   position: relative;
   display:flex; align-items:center; justify-content:space-between; gap:14px;
