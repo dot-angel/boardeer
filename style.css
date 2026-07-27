@@ -261,7 +261,19 @@ body::before{
 }
 .mp-cover-bg.has-cover::after{
   content:""; position:absolute; inset:0;
-  background: linear-gradient(180deg, rgba(15,4,6,0.2) 0%, rgba(15,4,6,0.45) 55%, rgba(15,4,6,0.7) 100%);
+  /* 위(제목·아티스트·재생시간)와 아래(재생목록)는 텍스트가 많아 진하게,
+     가운데(앨범아트·재생버튼)는 이미지가 좀 더 보이게 연하게 */
+  background: linear-gradient(180deg, rgba(10,3,5,0.6) 0%, rgba(10,3,5,0.32) 32%, rgba(10,3,5,0.5) 62%, rgba(10,3,5,0.82) 100%);
+}
+/* 자켓 이미지가 있을 때는 그 위에 놓이는 글자·아이콘에 그림자를 더해
+   어떤 사진이 배경이어도 가독성이 떨어지지 않게 함 */
+.w-music:has(.mp-cover-bg.has-cover) .mp-title,
+.w-music:has(.mp-cover-bg.has-cover) .mp-artist,
+.w-music:has(.mp-cover-bg.has-cover) .mp-times span,
+.w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn,
+.w-music:has(.mp-cover-bg.has-cover) .mp-track-title,
+.w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
+  text-shadow: 0 1px 3px rgba(0,0,0,0.85), 0 2px 10px rgba(0,0,0,0.55);
 }
 
 .mp-seek{
@@ -498,23 +510,21 @@ body::before{
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
-.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
+.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(2,1fr); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
 .doc-list::-webkit-scrollbar{ width:5px; }
 .doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .doc-row{
   display:flex; align-items:center; gap:10px;
   border: 1px solid var(--card-border); border-radius: 16px; padding: 10px 13px;
   background: var(--card-bg2);
-  cursor:pointer;
 }
-.doc-row:hover{ background: rgba(255,255,255,0.07); }
-.doc-row:hover .doc-title{ color: var(--rose); }
 .doc-row .doc-icon{ font-size:1.1rem; flex:0 0 auto; }
 .doc-row .doc-main{ flex:1; min-width:0; }
 .doc-row .doc-title{ font-weight:600; font-size:.85rem; color: var(--ink); }
 .doc-row .doc-opt-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
 .doc-row .doc-opt{ font-size:.62rem; font-weight:600; color: var(--rose); background: rgba(196,66,95,0.14); border:1px solid rgba(196,66,95,0.3); padding:1px 7px; border-radius:999px; white-space:nowrap; }
 .doc-row .doc-desc{ font-size:.72rem; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.doc-row .doc-open{ font-size:.75rem; color: var(--rose); text-decoration:none; flex:0 0 auto; }
 .doc-row .doc-del{
   flex:0 0 auto; width:24px; height:24px; border-radius:50%;
   border:1px solid var(--card-border); background: rgba(255,255,255,0.06); color:#ff9aa6; font-size:.65rem;
@@ -642,13 +652,12 @@ body::before{
 .check-item:hover{ background: rgba(255,255,255,0.07); }
 .check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
 .check-item span{ flex:1; }
-.check-item span.has-link{ cursor:pointer; color: var(--rose); }
-.check-item span.has-link::after{ content:'↗'; font-size:.7em; opacity:.65; margin-left:3px; }
-.check-item span.has-link:hover{ text-decoration: underline; }
 .check-item.checked{ opacity:.5; }
 .check-item.checked span{ text-decoration: line-through; }
 .check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
 .check-item .del:hover{ color:#ff8f9e; }
+.check-item .check-link{ font-size:.8rem; text-decoration:none; flex:0 0 auto; opacity:.85; }
+.check-item .check-link:hover{ opacity:1; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
 .check-divider{ border-top:1px dashed var(--card-border); margin:6px 2px; }
