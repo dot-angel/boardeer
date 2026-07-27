@@ -347,14 +347,16 @@ body::before{
 .mp-title{ font-weight:700; font-size:.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mp-artist{ font-size:.74rem; color:var(--ink-soft); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mp-controls{
-  display:flex; align-items:center; justify-content:center; gap:10px; margin-top:2px;
-  flex-wrap: nowrap; /* 모바일에서 줄바꿈으로 인해 버튼이 재배치/축소되는 것 방지 */
+  display:flex; align-items:center; justify-content:center; gap:8px; margin-top:2px;
+  flex-wrap: nowrap; /* 줄바꿈으로 인해 버튼이 재배치되는 것 방지 */
+  min-width:0;        /* 부모(mp-player)가 좁아질 때 이 줄도 같이 줄어들 수 있게 함 */
 }
 .mp-controls .icon-btn{
-  width:26px; height:26px; font-size:.85rem;
+  width:26px; height:auto; font-size:.85rem;
   background:none; border:none; box-shadow:none;
-  flex: 0 0 26px;       /* 좁은 화면에서 눌려 찌그러지지 않도록 크기 고정 */
-  aspect-ratio: 1 / 1;  /* 항상 정원 비율 유지 */
+  flex: 1 1 26px;       /* 공간이 부족하면 다 같이 비례해서 줄어듦(= 프레임 밖으로 밀려나지 않음) */
+  aspect-ratio: 1 / 1;  /* height:auto + aspect-ratio 조합으로 줄어들 때도 항상 정원 유지(찌그러지지 않음) */
+  min-width: 16px;      /* 너무 작아지진 않도록 최소 크기 */
 }
 .mp-controls .icon-btn:hover{ background:none; opacity:.7; }
 .mp-controls .icon-btn.active{ background:none; border:none; color: var(--rose); }
@@ -370,12 +372,13 @@ body::before{
 .player-track .icon-btn{ background:none; border:none; }
 .player-track .icon-btn:hover{ background:none; opacity:.7; }
 .mp-play-btn{
-  width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
+  width:42px; height:auto; border-radius:50%; border:none; cursor:pointer;
   background: var(--rose); color:#fff; font-size:.85rem;
   display:flex; align-items:center; justify-content:center;
   box-shadow: 0 6px 16px rgba(196,66,95,0.4);
-  flex: 0 0 42px;       /* 모바일 좁은 화면에서도 크기가 눌리지 않도록 고정 */
-  aspect-ratio: 1 / 1;  /* 항상 정원 비율 유지(세로로 납작해지는 현상 방지) */
+  flex: 1 1 42px;       /* 공간이 부족하면 다른 버튼들과 비례해서 줄어듦(넘치지 않음) */
+  aspect-ratio: 1 / 1;  /* height:auto + aspect-ratio 조합으로 줄어들 때도 항상 정원 유지 */
+  min-width: 28px;      /* 너무 작아지진 않도록 최소 크기 */
 }
 .mp-play-btn:hover{ filter:brightness(1.08); }
 .player-tracks{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
