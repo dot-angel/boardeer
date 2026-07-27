@@ -1162,17 +1162,24 @@ function normalizeProfileField(f){
   f = f || {};
   return { label: f.label || '', value: f.value || '' };
 }
+function normalizePersonFieldSet(pf){
+  // Firestore엔 배열 속 배열을 못 넣어서, 사람별 정보는 {fields:[...]} 형태의 객체로 감싸서 저장함.
+  // 예전에 배열을 바로 넣었던 데이터가 있을 수도 있어 그것도 호환해줌.
+  if(Array.isArray(pf)) return { fields: pf.map(normalizeProfileField) };
+  pf = pf || {};
+  return { fields: Array.isArray(pf.fields) ? pf.fields.map(normalizeProfileField) : [] };
+}
 function normalizeProfileSection(sec){
   sec = sec || {};
   let peopleFields;
   if(Array.isArray(sec.peopleFields)){
-    peopleFields = [0,1].map(i=> Array.isArray(sec.peopleFields[i]) ? sec.peopleFields[i].map(normalizeProfileField) : []);
+    peopleFields = [0,1].map(i=> normalizePersonFieldSet(sec.peopleFields[i]));
   } else if(Array.isArray(sec.fields)){
     // 이전 버전 호환: 두 프로필이 공유하던 정보를 그대로 양쪽에 복사해서 시작(이후 각자 따로 수정 가능)
     const legacy = sec.fields.map(normalizeProfileField);
-    peopleFields = [legacy.map(f=>({...f})), legacy.map(f=>({...f}))];
+    peopleFields = [{fields: legacy.map(f=>({...f}))}, {fields: legacy.map(f=>({...f}))}];
   } else {
-    peopleFields = [[], []];
+    peopleFields = [{fields:[]}, {fields:[]}];
   }
   return { name: sec.name || '', peopleFields };
 }
@@ -1184,7 +1191,7 @@ function normalizeProfileSlide(s){
     // 이전 버전(슬라이드당 항목 한 세트 / 자유 서술) 데이터 호환
     let legacyFields = Array.isArray(s.fields) ? s.fields.map(normalizeProfileField) : [];
     if(legacyFields.length === 0 && s.desc) legacyFields = [{ label:'설명', value: s.desc }];
-    sections = [{ name:'', peopleFields: [legacyFields.map(f=>({...f})), legacyFields.map(f=>({...f}))] }];
+    sections = [{ name:'', peopleFields: [{fields: legacyFields.map(f=>({...f}))}, {fields: legacyFields.map(f=>({...f}))}] }];
   }
   return { label: s.label || '', people: [ normalizeProfilePerson(people[0]), normalizeProfilePerson(people[1]) ], sections };
 }
@@ -1192,7 +1199,7 @@ function cloneSlides(slides){
   return slides.map(s=> ({
     label: s.label,
     people: s.people.map(p=>({...p})),
-    sections: s.sections.map(sec=> ({ name: sec.name, peopleFields: sec.peopleFields.map(list=> list.map(f=>({...f}))) }))
+    sections: s.sections.map(sec=> ({ name: sec.name, peopleFields: sec.peopleFields.map(pf=> ({fields: pf.fields.map(f=>({...f}))})) }))
   }));
 }
 
@@ -1251,7 +1258,7 @@ function renderProfile(){
         ${[0,1].map(slot=>{
           const p = slide.people[slot];
           const hasContent = p.name || p.avatar;
-          const fields = section.peopleFields[slot] || [];
+          const fields = (section.peopleFields[slot] && section.peopleFields[slot].fields) || [];
           return `
             <div class="profile-person ${editMode ? 'editable' : ''}" data-slot="${slot}">
               <div class="profile-avatar" ${p.avatar ? `style="background-image:url('${p.avatar}')"` : ''}>${p.avatar ? '' : '👤'}</div>
@@ -1297,7 +1304,7 @@ function bindProfile(slides){
   if(auAddBtn) auAddBtn.onclick = async (e)=>{
     e.stopPropagation();
     const arr = cloneSlides(slides);
-    arr.push({ label:'', sections:[{name:'', peopleFields:[freshTemplateFields(), freshTemplateFields()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] });
+    arr.push({ label:'', sections:[{name:'', peopleFields:[{fields:freshTemplateFields()}, {fields:freshTemplateFields()}]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] });
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = arr.length - 1;
     profileSectionIndex = 0;
@@ -1311,7 +1318,7 @@ function bindProfile(slides){
   };
   const addBtn = box.querySelector('#profAddBtn');
   if(addBtn) addBtn.onclick = async ()=>{
-    const arr = [...slides, { label:'', sections:[{name:'', peopleFields:[freshTemplateFields(), freshTemplateFields()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
+    const arr = [...slides, { label:'', sections:[{name:'', peopleFields:[{fields:freshTemplateFields()}, {fields:freshTemplateFields()}]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = arr.length - 1;
     profileSectionIndex = 0;
@@ -1354,7 +1361,7 @@ function bindProfile(slides){
   if(secAddBtn) secAddBtn.onclick = async (e)=>{
     e.stopPropagation();
     const arr = cloneSlides(slides);
-    arr[profileSlideIndex].sections.push({ name:'', peopleFields:[freshTemplateFields(), freshTemplateFields()] });
+    arr[profileSlideIndex].sections.push({ name:'', peopleFields:[{fields:freshTemplateFields()}, {fields:freshTemplateFields()}] });
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSectionIndex = arr[profileSlideIndex].sections.length - 1;
   };
@@ -1519,7 +1526,7 @@ function openProfileFieldsModal(slideIdx, secIdx, slot, slides){
   const slide = slides[slideIdx];
   const section = slide.sections[secIdx];
   const person = slide.people[slot];
-  let workingFields = (section.peopleFields[slot] || []).map(f=>({...f}));
+  let workingFields = ((section.peopleFields[slot] && section.peopleFields[slot].fields) || []).map(f=>({...f}));
   openModal(`
     <h3>${escapeHtml(person.name || (slot===0?'프로필 ①':'프로필 ②'))}의 정보${section.name ? ` · ${escapeHtml(section.name)}` : ''}</h3>
     <label>정보 (항목별로 나눠서 적을 수 있어요)</label>
@@ -1556,7 +1563,7 @@ function openProfileFieldsModal(slideIdx, secIdx, slot, slides){
         value: row.querySelector('.pf-edit-value').value.trim()
       })).filter(f=> f.label || f.value);
       const arr = cloneSlides(slides);
-      arr[slideIdx].sections[secIdx].peopleFields[slot] = fields;
+      arr[slideIdx].sections[secIdx].peopleFields[slot] = { fields };
       saveBtn.disabled = true;
       saveBtn.textContent = '저장 중…';
       try{
