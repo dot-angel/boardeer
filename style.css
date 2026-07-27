@@ -303,9 +303,12 @@ body::before{
 .dday-item{
   position: relative;
   display:flex; align-items:center; justify-content:space-between; gap:14px;
-  padding: 10px 34px 10px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--card-border);
 }
+/* 삭제 버튼(✕)은 편집모드에서만 나오므로, 그 자리를 위한 오른쪽 여백도
+   편집모드일 때만 잡음(보기 전용일 땐 D-숫자가 끝까지 꽉 차게) */
+body.edit-mode .dday-item{ padding-right: 34px; }
 .dday-item:first-child{ padding-top:0; }
 .dday-item:last-child{ border-bottom:none; }
 .dday-info{ min-width:0; }
