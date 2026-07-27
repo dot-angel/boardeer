@@ -146,7 +146,6 @@ body::before{
   position: sticky; top: 0; z-index: 15;
   display:flex; justify-content:center; align-items:center; gap:9px;
   padding: 18px 0 8px;
-  background: linear-gradient(180deg, var(--paper) 55%, transparent);
 }
 .board-tab-dot{
   width:8px; height:8px; padding:0; border-radius:50%;
@@ -159,8 +158,8 @@ body::before{
    둥근 배경 없이 흰 화살표 아이콘 + 그림자만. 평소엔 숨겨져 있다가
    탭 영역에 커서를 올리면 화면 양옆에 옅게 떠오름 */
 .board-tab-arrow{
-  position: fixed; top: 50%; transform: translateY(-50%); z-index: 16;
-  width:34px; height:34px; border-radius:50%; border:none;
+  position: fixed; top: 0; height: 100%; z-index: 16;
+  width:56px; border-radius:0; border:none;
   background: transparent; box-shadow:none;
   color:#fff; font-size:1.4rem; font-weight:300; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
@@ -197,18 +196,24 @@ body::before{
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
-/* 캘린더 / 문서(축소) / 체크리스트 / 세션(확대) 순서 */
-.row-2{ grid-template-columns: 1.15fr 0.7fr 200px 260px; }
-.row-2 > .w-card{ min-height:0; } /* 그리드 트랙 높이대로 실제로 줄어들어야 내부 스크롤이 생김 */
+/* 왼쪽: 캘린더 + 세션(나란히) / 오른쪽: 문서 + 체크리스트(문서 아래로 체크리스트, 세로로 쌓임) */
+.row-2{ grid-template-columns: 1.75fr 1fr; }
+.row-2 > .row-2-left, .row-2 > .row-2-right{ min-width:0; min-height:0; }
+.row-2-left{ display:grid; grid-template-columns: 1.15fr 260px; gap:20px; min-width:0; }
+.row-2-left > .w-card{ min-height:0; min-width:0; }
+.row-2-right{ display:grid; grid-template-rows: auto auto; gap:20px; min-width:0; }
+.row-2-right > .w-card{ min-height:0; }
 /* 두번째 갤러리 + 레퍼런스 갤러리: 한 행에 나란히. 레퍼런스 갤러리 폭을 살짝 늘림 */
 .row-refpair{ grid-template-columns: 1fr 270px; align-items: stretch; }
 .row-refpair > .w-card{ min-height:0; }
 @media (max-width: 1100px){
-  .row-2{ grid-template-columns: 1.05fr 0.6fr 170px 220px; }
+  .row-2{ grid-template-columns: 1.65fr 1fr; }
+  .row-2-left{ grid-template-columns: 1.05fr 220px; }
   .row-refpair{ grid-template-columns: 1fr 210px; }
 }
 @media (max-width: 900px){
   .row-2, .row-strip, .row-refpair{ grid-template-columns: 1fr; }
+  .row-2-left{ grid-template-columns: 1fr; }
 }
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
 .w-card{
@@ -474,6 +479,15 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .cal-nav{ display:flex; justify-content:center; }
 .cal-nav-prev{ margin-bottom:6px; }
 .cal-nav-next{ margin-top:6px; }
+/* 다른 화살표들(.slide-nav, .board-tab-arrow)과 동일하게 배경/테두리 없는 미니멀 디자인 */
+.cal-nav-btn{
+  width:34px; height:34px; border-radius:50%; border:none;
+  background:transparent; box-shadow:none;
+  color: var(--ink); font-size:1.1rem; font-weight:300; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  opacity:.85; transition: opacity .2s ease;
+}
+.cal-nav-btn:hover{ opacity:1; }
 .cal-grid{ display:grid; grid-template-columns: repeat(7,1fr); gap:3px; font-size:.72rem; }
 .cal-dow{ text-align:center; color:var(--ink-soft); padding-bottom:4px; }
 .cal-day{

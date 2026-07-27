@@ -1015,13 +1015,25 @@ function bindImages(){
   box.querySelectorAll('[data-dot]').forEach(d=> d.onclick = ()=>{ imgSlideIndex = Number(d.dataset.dot); renderImages(); });
   const viewport = box.querySelector('#slideViewport');
   if(viewport && items.length > 1){
-    let touchStartX = 0, touchStartY = 0, touchTracking = false;
+    let touchStartX = 0, touchStartY = 0, touchTracking = false, touchAxis = null;
     viewport.addEventListener('touchstart', e=>{
       if(e.touches.length !== 1) return;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
       touchTracking = true;
+      touchAxis = null;
     }, { passive:true });
+    viewport.addEventListener('touchmove', e=>{
+      if(!touchTracking) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if(touchAxis === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)){
+        touchAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+      // 가로 스와이프로 판단되면 상위 갠홈 탭(board-viewport)이 함께 좌우로 넘어가지 않도록 막음
+      if(touchAxis === 'x') e.preventDefault();
+    }, { passive:false });
     viewport.addEventListener('touchend', e=>{
       if(!touchTracking) return;
       touchTracking = false;
@@ -1334,13 +1346,24 @@ function bindProfile(slides){
 
   const viewport = box.querySelector('#profileViewport');
   if(viewport && slide.sections.length > 1){
-    let touchStartX = 0, touchStartY = 0, touchTracking = false;
+    let touchStartX = 0, touchStartY = 0, touchTracking = false, touchAxis = null;
     viewport.addEventListener('touchstart', e=>{
       if(e.touches.length !== 1) return;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
       touchTracking = true;
+      touchAxis = null;
     }, { passive:true });
+    viewport.addEventListener('touchmove', e=>{
+      if(!touchTracking) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if(touchAxis === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)){
+        touchAxis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+      }
+      if(touchAxis === 'x') e.preventDefault();
+    }, { passive:false });
     viewport.addEventListener('touchend', e=>{
       if(!touchTracking) return;
       touchTracking = false;
@@ -2338,13 +2361,13 @@ function renderCalendar(){
   // 캘린더 자체가 위(이전달)-가운데(이번달)-아래(다음달) 순으로 쌓여 있으므로
   // 버튼도 그 흐름과 같은 방향(위/아래)에 놓음.
   box.innerHTML = `
-    <div class="cal-nav cal-nav-prev"><span class="icon-btn" id="calPrev">▲</span></div>
+    <div class="cal-nav cal-nav-prev"><span class="cal-nav-btn" id="calPrev">▲</span></div>
     <div class="cal-months">
       ${buildCalMonthHTML(prevY, prevM, 'prev')}
       ${buildCalMonthHTML(calState.y, calState.m, 'current')}
       ${buildCalMonthHTML(nextY, nextM, 'next')}
     </div>
-    <div class="cal-nav cal-nav-next"><span class="icon-btn" id="calNext">▼</span></div>
+    <div class="cal-nav cal-nav-next"><span class="cal-nav-btn" id="calNext">▼</span></div>
   `;
   box.querySelector('#calPrev').onclick = ()=>{ calState.m--; if(calState.m<0){calState.m=11; calState.y--;} renderCalendar(); };
   box.querySelector('#calNext').onclick = ()=>{ calState.m++; if(calState.m>11){calState.m=0; calState.y++;} renderCalendar(); };
@@ -3811,13 +3834,15 @@ function openChecklistLinkModal(idx){
   });
 }
 
-/* ---------------- row-2(문서 / 캘린더 / 체크리스트 / 세션) 높이 맞추기 ----------------
+/* ---------------- row-2(캘린더+세션 / 문서+체크리스트) 높이 맞추기 ----------------
    캘린더는 이전달·이번달·다음달이 세로로 이어져서 표시되고, 요일 칸이
    정사각형(aspect-ratio)이라 폭에 따라 세로 높이가 자동으로 달라짐. 그래서
-   캘린더를 기준으로 삼아, 문서 위젯·체크리스트·세션 위젯의 높이를 캘린더의
-   실제 렌더링 높이에 맞춰줌(셋 다 이미 내부 스크롤 처리가 되어 있어서, 높이가
-   줄어들면 안에서 스크롤됨). 900px 이하(row-2가 1열로 쌓이는 모바일 레이아웃)
-   에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
+   캘린더를 기준으로 삼아 나머지 위젯들의 높이를 캘린더의 실제 렌더링 높이에
+   맞춰줌(모두 이미 내부 스크롤 처리가 되어 있어서, 높이가 줄어들면 안에서
+   스크롤됨). 세션 위젯은 캘린더 옆(나란히)이라 캘린더와 같은 높이를 그대로
+   가지고, 문서·체크리스트 위젯은 캘린더 아래로 쌓여 있으므로 둘을 합친 높이가
+   캘린더 높이와 같아지도록 나눠 가짐(문서 위젯이 더 크게). 900px 이하(row-2가
+   1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
   const docsCard = document.getElementById('cardDocs');
@@ -3832,9 +3857,12 @@ function syncRow2Height(){
   }
   const h = cal.getBoundingClientRect().height;
   if(h > 0){
-    docsCard.style.height = h + 'px';
-    checklistCard.style.height = h + 'px';
     sessionsCard.style.height = h + 'px';
+    const gap = 20;
+    const checklistH = Math.max(120, Math.round((h - gap) * 0.35));
+    const docsH = h - gap - checklistH;
+    docsCard.style.height = docsH + 'px';
+    checklistCard.style.height = checklistH + 'px';
   }
 }
 function initRow2HeightSync(){
