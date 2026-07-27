@@ -541,6 +541,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .icon-btn:hover{ background: rgba(255,255,255,0.14); }
 /* ---------- 갤러리 (핀터레스트형 매스너리) — 높이 고정, 넘치면 위젯 내부에서 스크롤 ---------- */
 .w-gallery{ padding-bottom:20px; }
+#cardGallery2.w-gallery{ padding-bottom:0; }
 /* 스크롤/높이 제한은 바깥 래퍼(.pin-grid-scroll)에만 걸고, 실제 위치 계산이 일어나는
    .pin-grid 자체에는 높이를 주지 않음(app.js의 layoutPinMasonry()가 매번 실제 콘텐츠
    높이를 재서 인라인으로 넣어줌). 래퍼를 한 겹 씌워서 완전히 분리하면 항상 세로로만

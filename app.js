@@ -3694,10 +3694,11 @@ function openSessionAddModal(){
     <p class="hint">화면에 맞게 자동으로 압축해서 저장돼요. 카드에는 이 사진만 보여요.</p>
     <label>제목 (선택 — 마우스를 올리면 보여요)</label><input type="text" id="sTitle" placeholder="예: 1화 - 첫 만남">
     <div class="radio-row">
-      <label><input type="radio" name="pdf-src" value="file" checked> PDF 파일 올리기</label>
+      <label><input type="radio" name="pdf-src" value="none" checked> 연결 안 함</label>
+      <label><input type="radio" name="pdf-src" value="file"> PDF 파일 올리기</label>
       <label><input type="radio" name="pdf-src" value="link"> 링크로 연결</label>
     </div>
-    <div id="pdfFileWrap">
+    <div id="pdfFileWrap" style="display:none">
       <label>PDF 파일</label><input type="file" id="sPdfFile" accept="application/pdf">
       <p class="hint">약 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB까지 파이어스토리지 없이 바로 올릴 수 있어요. 그보다 크면 오른쪽 "링크로 연결"을 골라서 구글드라이브 공유 링크를 붙여넣어주세요. (용량이 크면 저장/열기에 몇 초 더 걸릴 수 있어요)</p>
     </div>
@@ -3707,9 +3708,9 @@ function openSessionAddModal(){
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelectorAll('input[name="pdf-src"]').forEach(r=> r.addEventListener('change', ()=>{
-      const isFile = m.querySelector('input[name="pdf-src"]:checked').value === 'file';
-      m.querySelector('#pdfFileWrap').style.display = isFile ? '' : 'none';
-      m.querySelector('#pdfLinkWrap').style.display = isFile ? 'none' : '';
+      const val = m.querySelector('input[name="pdf-src"]:checked').value;
+      m.querySelector('#pdfFileWrap').style.display = val==='file' ? '' : 'none';
+      m.querySelector('#pdfLinkWrap').style.display = val==='link' ? '' : 'none';
     }));
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
@@ -3717,12 +3718,12 @@ function openSessionAddModal(){
       const title = m.querySelector('#sTitle').value.trim();
       const thumbFile = m.querySelector('#sThumbFile').files[0];
       if(!thumbFile){ toast('썸네일 이미지를 선택해주세요'); return; }
-      const isFile = m.querySelector('input[name="pdf-src"]:checked').value === 'file';
+      const mode = m.querySelector('input[name="pdf-src"]:checked').value;
       let pdf = '';
       let pdfChunkInfo = null;
-      if(isFile){
+      if(mode === 'file'){
         const file = m.querySelector('#sPdfFile').files[0];
-        if(!file){ toast('PDF 파일을 선택하거나 "링크로 연결"을 골라주세요'); return; }
+        if(!file){ toast('PDF 파일을 선택하거나 다른 방식을 골라주세요'); return; }
         if(file.size > SESSION_PDF_CHUNKED_MAX_BYTES){
           toast(`PDF 용량이 너무 커요 (최대 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB). "링크로 연결"을 이용해주세요.`);
           return;
@@ -3737,10 +3738,11 @@ function openSessionAddModal(){
         } else {
           pdf = base64;
         }
-      } else {
+      } else if(mode === 'link'){
         pdf = m.querySelector('#sPdfLink').value.trim();
         if(!pdf){ toast('링크를 입력해주세요'); return; }
       }
+      // mode === 'none'인 경우 자료 연결 없이 썸네일만으로 카드를 만듦
       saveBtn.disabled = true; saveBtn.textContent = '처리 중…';
       let thumb = '';
       try{
