@@ -9,9 +9,7 @@
      Rosy Granite → 중립 라인, Coffee Bean → 베이스 다크,
      Alabaster Grey → 글자색(라이트 톤)
    ========================================================= */
-
 @import url('https://fonts.googleapis.com/css2?family=Zhi+Mang+Xing&family=Song+Myung&family=Noto+Serif+KR:wght@400;500;700&family=Nanum+Myeongjo:wght@400;700;800&family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700;800&family=Gowun+Dodum&display=swap');
-
 /* 제니(JENNIE) · OA엔터테인먼트가 배포한 무료 한글 폰트 ZEN SERIF를 실제 사이트 자산으로 내장.
    fonts/ZenSerif.ttf 파일을 index.html 등과 함께 반드시 같이 업로드해야 적용돼요.
    (아래 src는 fonts 폴더/루트, 대소문자 두 경우를 모두 시도하도록 여러 경로를 순서대로 넣어뒀어요 —
@@ -28,10 +26,8 @@
   font-style: normal;
   font-display: swap;
 }
-
 :root{
   color-scheme: dark;
-
   /* ---- 체리 팔레트 (다크 & 글래스 버전) ---- */
   --paper: #0F0406;            /* Coffee Bean — 베이스 다크 배경색 */
   --paper-deep: #1A0B0F;       /* 약간 밝은 변형 — 배너 로딩 전 배경 등 */
@@ -52,16 +48,12 @@
   --glass-blur: blur(20px) saturate(170%);       /* 큰 유리 표면(카드/모달/토스트) — 블러를 낮춰 배경이 더 선명하게 비치는 얇은 유리 느낌 */
   --glass-blur-med: blur(10px) saturate(160%);   /* 작은 버튼/배지류 */
   --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) */
-
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   --font-body: 'ZEN SERIF', 'Noto Sans KR', sans-serif;
-
   --radius: 28px;
 }
-
 *{ box-sizing: border-box; }
 html,body{ margin:0; padding:0; min-height:100%; }
-
 body{
   font-family: var(--font-body);
   color: var(--ink);
@@ -71,7 +63,6 @@ body{
   position: relative;
   overflow-x: hidden;
 }
-
 /* 홈페이지 전체 배경 이미지 레이어 — 배너와 별개로 페이지 전체 뒤에 깔림.
    이미지가 없을 땐 투명해서 아래 컬러 글로우만 보임 */
 .bg-image-layer{
@@ -86,7 +77,6 @@ body{
     radial-gradient(ellipse at 25% 0%, rgba(101,25,38,0.22), transparent 60%),
     linear-gradient(165deg, rgba(15,4,6,0.35) 0%, rgba(15,4,6,0.78) 100%);
 }
-
 /* 배경 사진이 없을 때도(혹은 있어도 은은하게 더해져) 고급스러운 느낌을 주는 컬러 글로우 */
 body::before{
   content:"";
@@ -98,7 +88,6 @@ body::before{
   filter: blur(70px);
   pointer-events: none;
 }
-
 /* ---------- 배너 (제목 + 잠금/테마 버튼이 하단에 통합, 별도 상단바 없음) ---------- */
 .site-banner{
   position: relative; width: 100%; height: 560px;
@@ -129,7 +118,6 @@ body::before{
   text-shadow: 0 6px 30px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.45);
 }
 .site-name[contenteditable="true"]:hover{ background: rgba(255,255,255,0.1); cursor:text; border-radius:8px; }
-
 .btn{
   font-family: var(--font-body);
   border: 1px solid var(--card-border);
@@ -146,14 +134,12 @@ body::before{
 .btn.ghost{ background: transparent; box-shadow:none; }
 .btn.small{ padding: 6px 13px; font-size: .78rem; }
 .btn.danger{ background: rgba(196,66,95,0.14); color:#ff8f9e; border-color: rgba(196,66,95,0.4); }
-
 .lock-badge{
   font-size: .75rem; padding: 6px 12px; border-radius: 999px;
   display:flex; align-items:center; gap:6px;
   border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink-soft);
 }
 .lock-badge.unlocked{ border-color: var(--rose); color: var(--rose); }
-
 /* ---------- 고정 보드 레이아웃 ---------- */
 .board{
   max-width: 1280px; margin: 26px auto; padding: 0 22px;
@@ -168,14 +154,12 @@ body::before{
 .row-2{ grid-template-columns: 1fr 2fr 240px; }
 .row-2 > .w-card, .row-2 > .row-strip-right{ min-height:0; } /* 그리드 트랙 높이대로 실제로 줄어들어야 내부 스크롤이 생김 */
 .row-4{ grid-template-columns: 2fr 1fr; }
-
 @media (max-width: 1100px){
   .row-2{ grid-template-columns: 1fr 2fr 190px; }
 }
 @media (max-width: 900px){
   .row-2, .row-4, .row-strip{ grid-template-columns: 1fr; }
 }
-
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
 .w-card{
   position: relative;
@@ -192,16 +176,12 @@ body::before{
   .w-card, .modal, .btn{ background: #1c0e12; }
 }
 .w-card:hover{ box-shadow: 0 28px 70px rgba(0,0,0,0.6), inset 0 1px 0 var(--card-hi); border-color: rgba(196,66,95,0.4); }
-
 .w-body.scroll{ overflow-y:auto; }
 .w-body.scroll::-webkit-scrollbar{ width:5px; }
 .w-body.scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
-
 .w-empty{ font-size:.78rem; color:var(--ink-soft); text-align:center; padding: 18px 0; }
-
 /* 편집모드 전용 작은 버튼 배치용 */
 .w-edit-row{ margin-top:8px; flex:0 0 auto; }
-
 /* ---------- 이미지 위젯 (가로형 슬라이드 + 사진 위 타이포그래피) ---------- */
 .w-images{ min-height: 460px; padding:0; }
 .slide-viewport{ position:relative; width:100%; height:100%; flex:1; min-height:280px; background: rgba(0,0,0,0.2); }
@@ -249,11 +229,9 @@ body::before{
 .slide-dots .dot.active{ background: var(--rose); }
 .slide-add{ margin: 0 18px 16px; align-self:flex-start; }
 .slide-empty{ flex:1; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:.85rem; min-height:220px; }
-
 /* ---------- 음악 위젯 (자켓 이미지 + 진행바 + 반복/연속재생 + 재생목록) ---------- */
 .w-music{ gap:8px; padding:14px; }
 .mp-player{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; }
-
 .mp-cover-bg{
   position:absolute; inset:0; z-index:0; border-radius: inherit;
   background-size:cover; background-position:center;
@@ -275,7 +253,6 @@ body::before{
 .w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
   text-shadow: 0 1px 3px rgba(0,0,0,0.85), 0 2px 10px rgba(0,0,0,0.55);
 }
-
 .mp-seek{
   -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:999px;
   background: var(--card-bg2); accent-color: var(--rose); cursor:pointer; margin-top:2px;
@@ -285,11 +262,9 @@ body::before{
   background: var(--rose); cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.4);
 }
 .mp-times{ display:flex; justify-content:space-between; font-size:.66rem; color:var(--ink-soft); margin-top:-4px; }
-
 .mp-meta{ text-align:center; padding:2px 4px 0; }
 .mp-title{ font-weight:700; font-size:.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mp-artist{ font-size:.74rem; color:var(--ink-soft); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
 .mp-controls{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:2px; }
 .mp-controls .icon-btn{
   width:26px; height:26px; font-size:.85rem;
@@ -306,7 +281,6 @@ body::before{
   box-shadow: 0 6px 16px rgba(196,66,95,0.4);
 }
 .mp-play-btn:hover{ filter:brightness(1.08); }
-
 .player-tracks{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
 .player-tracks::-webkit-scrollbar{ width:5px; }
 .player-tracks::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
@@ -321,12 +295,9 @@ body::before{
 .mp-track-info{ flex:1; min-width:0; }
 .mp-track-title{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mp-track-artist{ font-size:.68rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-
 .mp-modal-cover-preview{ display:flex; align-items:center; gap:10px; margin:4px 0; }
 .mp-modal-cover-preview img{ width:48px; height:48px; border-radius:10px; object-fit:cover; }
-
 .music-add{ align-self:flex-start; }
-
 /* ---------- 디데이 (여백 없이 크게 — 레퍼런스처럼 굵은 타이포그래피 위주) ---------- */
 .w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; container-type: inline-size; }
 .dday-item{
@@ -354,7 +325,6 @@ body::before{
 .dday-item .icon-btn{
   position:absolute; top:9px; right:0; width:22px; height:22px; font-size:.6rem;
 }
-
 /* ---------- 방명록 ---------- */
 .w-guestbook .w-body{ max-height:220px; margin-bottom:10px; }
 .gb-entry{ border-bottom:1px solid var(--card-border); padding:9px 0; }
@@ -371,7 +341,6 @@ body::before{
 .gb-form input::placeholder, .gb-form textarea::placeholder{ color: var(--ink-soft); }
 .gb-form textarea{ min-height:48px; resize:vertical; }
 .gb-form .btn{ align-self:flex-end; }
-
 /* ---------- 캘린더 ---------- */
 .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
 .cal-grid{ display:grid; grid-template-columns: repeat(7,1fr); gap:3px; font-size:.72rem; }
@@ -395,7 +364,6 @@ body::before{
   cursor:pointer; font-size:.75rem; color: var(--ink);
 }
 .icon-btn:hover{ background: rgba(255,255,255,0.14); }
-
 /* ---------- 갤러리 (핀터레스트형 매스너리) — 높이 고정, 넘치면 위젯 내부에서 스크롤 ---------- */
 .w-gallery{ padding-bottom:20px; }
 .pin-grid{
@@ -444,7 +412,6 @@ body::before{
 @media (max-width: 900px){ .pin-grid{ column-count:2; } }
 @media (max-width: 600px){ .pin-grid{ column-count:1; } }
 @media (max-width: 600px){ .doc-list{ grid-template-columns: 1fr; } }
-
 /* ---------- 갤러리 2번째: 접기/펼치기 + 빽빽한 정사각형 그리드 ---------- */
 .gallery-toggle-btn{
   display:flex; align-items:center; justify-content:space-between; width:100%;
@@ -480,7 +447,6 @@ body::before{
   position:absolute; right:26px; bottom:26px; width:44px; height:44px; border-radius:50%;
   background: var(--rose-solid); color:#fff; border:none; font-size:1.2rem; box-shadow: var(--shadow); cursor:pointer;
 }
-
 /* ---------- 레퍼런스 갤러리 (캘린더 옆, 블러 옵션 없이 촘촘한 썸네일 전용) ---------- */
 .w-refgallery{ padding-bottom: 60px; }
 /* CSS Grid(display:grid)로 이 레이아웃을 짜면, 여러 행에 음수 margin-top을 동시에 걸었을 때
@@ -508,23 +474,24 @@ body::before{
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
-
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
-.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(2,1fr); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
+.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
 .doc-list::-webkit-scrollbar{ width:5px; }
 .doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .doc-row{
   display:flex; align-items:center; gap:10px;
   border: 1px solid var(--card-border); border-radius: 16px; padding: 10px 13px;
   background: var(--card-bg2);
+  cursor:pointer;
 }
+.doc-row:hover{ background: rgba(255,255,255,0.07); }
+.doc-row:hover .doc-title{ color: var(--rose); }
 .doc-row .doc-icon{ font-size:1.1rem; flex:0 0 auto; }
 .doc-row .doc-main{ flex:1; min-width:0; }
 .doc-row .doc-title{ font-weight:600; font-size:.85rem; color: var(--ink); }
 .doc-row .doc-opt-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
 .doc-row .doc-opt{ font-size:.62rem; font-weight:600; color: var(--rose); background: rgba(196,66,95,0.14); border:1px solid rgba(196,66,95,0.3); padding:1px 7px; border-radius:999px; white-space:nowrap; }
 .doc-row .doc-desc{ font-size:.72rem; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.doc-row .doc-open{ font-size:.75rem; color: var(--rose); text-decoration:none; flex:0 0 auto; }
 .doc-row .doc-del{
   flex:0 0 auto; width:24px; height:24px; border-radius:50%;
   border:1px solid var(--card-border); background: rgba(255,255,255,0.06); color:#ff9aa6; font-size:.65rem;
@@ -539,7 +506,6 @@ body::before{
 .opt-list{ display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
 .opt-row{ display:flex; gap:6px; align-items:center; }
 .opt-row input{ flex:1; }
-
 /* 옵션 여러 개를 칩 형태 체크박스로 동시에 고르는 UI — 문서/갤러리 추가·수정 모달, 항목별 옵션 지정 모달에서 공용 */
 .opt-checkbox-group{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 10px; }
 .modal label.opt-checkbox{
@@ -567,7 +533,6 @@ body::before{
   filter: blur(3px);
   pointer-events:none;
 }
-
 /* ---------- 옵션 필터 칩 (문서 위젯 + 모든 갤러리 공용) ---------- */
 .tag-filter{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
 .tag-chip{
@@ -616,7 +581,6 @@ body::before{
   color:#fff; font-size:.62rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
 .pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
-
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
 .session-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:12px; max-height:420px; overflow-y:auto; padding-right:2px; }
 .session-grid::-webkit-scrollbar{ width:5px; }
@@ -643,7 +607,6 @@ body::before{
   color:#fff; font-size:.7rem;
 }
 .session-add{ margin-top:10px; align-self:flex-start; }
-
 /* ---------- 체크보드 ---------- */
 .checklist{ max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
 .check-item{
@@ -652,12 +615,13 @@ body::before{
 .check-item:hover{ background: rgba(255,255,255,0.07); }
 .check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
 .check-item span{ flex:1; }
+.check-item span.has-link{ cursor:pointer; color: var(--rose); }
+.check-item span.has-link::after{ content:'↗'; font-size:.7em; opacity:.65; margin-left:3px; }
+.check-item span.has-link:hover{ text-decoration: underline; }
 .check-item.checked{ opacity:.5; }
 .check-item.checked span{ text-decoration: line-through; }
 .check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
 .check-item .del:hover{ color:#ff8f9e; }
-.check-item .check-link{ font-size:.8rem; text-decoration:none; flex:0 0 auto; opacity:.85; }
-.check-item .check-link:hover{ opacity:1; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
 .check-divider{ border-top:1px dashed var(--card-border); margin:6px 2px; }
@@ -666,7 +630,6 @@ body::before{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
   font-family: var(--font-body); font-size:.82rem; background: rgba(255,255,255,0.05); color: var(--ink);
 }
-
 /* ---------- 모달 ---------- */
 .modal-overlay{
   position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
@@ -712,7 +675,6 @@ body::before{
 .modal .hint{ font-size:.75rem; color:var(--ink-soft); margin: 4px 0 0; }
 .modal .radio-row{ display:flex; gap:14px; font-size:.82rem; color:var(--ink); margin:8px 0; }
 .modal .radio-row label{ display:flex; align-items:center; gap:6px; }
-
 /* 이미지를 크게 보기 위한 라이트박스 — 일반 입력폼 모달보다 훨씬 넓게.
    .modal의 backdrop-filter(blur(26px) saturate(180%))를 그대로 쓰면, 이 모달은
    폭이 거의 화면 전체(94vw)라 그 무거운 블러+채도 효과를 화면 전체 영역에 매 프레임
@@ -765,10 +727,8 @@ body::before{
   background: var(--rose-soft); color: var(--rose); border:1px solid rgba(196,66,95,0.35);
 }
 .lightbox-tag-chip.empty{ background: rgba(255,255,255,0.06); color: var(--ink-soft); border-color: var(--card-border); }
-
 .color-row{ display:flex; align-items:center; gap:8px; }
 .color-row span{ font-size:.78rem; color:var(--ink-soft); }
-
 .toast{
   position: fixed; bottom: 24px; left:50%; transform: translateX(-50%);
   background: rgba(24,11,14,0.75); color: var(--ink); border:1px solid var(--card-border);
