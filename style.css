@@ -142,41 +142,47 @@ body::before{
 .lock-badge.unlocked{ border-color: var(--rose); color: var(--rose); }
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
 .board-tabs{ position: relative; }
+/* .slide-dots(위젯 안 슬라이드 위치 표시 — 배경 없이 작은 점만 나열)와 헷갈리지 않도록,
+   여기는 페이지 전체를 넘기는 컨트롤이라는 걸 알 수 있게 유리 캡슐 안에 담고,
+   활성 점은 동그라미가 아니라 알약 모양으로 늘어나게 해서 형태 자체를 다르게 함 */
 .board-tab-dots{
-  position: sticky; top: 0; z-index: 15;
-  display:flex; justify-content:center; align-items:center; gap:9px;
-  padding: 18px 0 8px;
-}
-.board-tab-dot{
-  width:8px; height:8px; padding:0; border-radius:50%;
-  border: 1px solid var(--card-border); background: var(--gold-soft);
-  cursor: pointer; transition: background .15s ease, transform .15s ease, border-color .15s ease;
-}
-.board-tab-dot:hover{ background: rgba(255,255,255,0.35); }
-.board-tab-dot.active{ background: var(--rose); border-color: var(--rose); transform: scale(1.25); }
-/* 좌우 화살표: 위젯 안의 슬라이드 화살표(.slide-nav, 배경 없는 순수 흰 아이콘)와
-   똑같이 생겨서 "지금 넘기는 게 위젯 슬라이드인지 페이지 탭인지" 헷갈리던 걸 고침.
-   여기는 페이지 전체를 넘기는 컨트롤이라는 걸 알 수 있게, 앱의 다른 유리 버튼들과
-   같은 톤(둥근 배경 + 얇은 테두리 + 살짝 블러)의 원형 버튼으로 확실히 구분함 */
-.board-tab-arrow{
-  position: fixed; top: 50%; transform: translateY(-50%); z-index: 16;
-  width:44px; height:44px; border-radius:50%;
-  border:1px solid var(--card-border);
+  position: sticky; top: 10px; z-index: 15;
+  display:flex; justify-content:center; align-items:center; gap:7px;
+  width: fit-content; margin: 0 auto;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
   background: rgba(20,10,12,0.55);
   backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   box-shadow: var(--shadow);
-  color:#fff; font-size:1.3rem; font-weight:300; line-height:1; cursor:pointer;
-  display:flex; align-items:center; justify-content:center;
-  opacity:0; pointer-events:none; transition: opacity .2s ease, background .15s ease;
 }
-.board-tabs:hover .board-tab-arrow{ opacity:.9; pointer-events:auto; }
-.board-tab-arrow:hover{ opacity:1 !important; background: rgba(20,10,12,0.82); }
+.board-tab-dot{
+  width:7px; height:7px; padding:0; border-radius:999px;
+  border:none; background: rgba(255,255,255,0.3);
+  cursor: pointer; transition: background .15s ease, width .15s ease;
+}
+.board-tab-dot:hover{ background: rgba(255,255,255,0.5); }
+.board-tab-dot.active{ width:20px; background: var(--rose); }
+/* 좌우 화살표: 이미지 위젯의 슬라이드 화살표(.slide-nav)와 동일한 스타일 —
+   둥근 배경 없이 흰 화살표 아이콘 + 그림자만. 평소엔 숨겨져 있다가
+   탭 영역에 커서를 올리면 화면 양옆에 옅게 떠오름 */
+.board-tab-arrow{
+  position: fixed; top: 0; height: 100%; z-index: 16;
+  width:56px; border-radius:0; border:none;
+  background: transparent; box-shadow:none;
+  color:#fff; font-size:1.4rem; font-weight:300; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.8);
+  opacity:0; pointer-events:none; transition: opacity .2s ease;
+}
+.board-tabs:hover .board-tab-arrow{ opacity:.85; pointer-events:auto; }
+.board-tab-arrow:hover{ opacity:1 !important; }
 .board-tab-arrow.prev{ left:16px; }
 .board-tab-arrow.next{ right:16px; }
 .board-tab-arrow.disabled{ display:none; }
-/* 호버가 없는 터치 기기에서는 살짝 항상 보이게 해서 눌러야 할 위치를 알 수 있게 함 */
+/* 호버가 없는 터치 기기에서는 살짝 항상 보이게 해서 눌러야 할 위치를 알 수 있게 함(슬라이드 화살표와 동일) */
 @media (hover:none){
-  .board-tab-arrow{ opacity:.75; pointer-events:auto; }
+  .board-tab-arrow{ opacity:.55; pointer-events:auto; }
 }
 /* 실제 슬라이드 영역: 가로 스크롤 + 스냅으로 좌우 스와이프(트랙패드/터치 모두 자연스럽게 동작) */
 .board-viewport{

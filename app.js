@@ -85,8 +85,11 @@ function layoutPinMasonry(gridEl){
   if(!gridEl) return;
   const tiles = Array.from(gridEl.children);
   const width = gridEl.clientWidth;
-  if(!width) return;
   if(!tiles.length){ gridEl.style.height = '0px'; return; }
+  // 갤러리 탭이 아직 한 번도 화면에 보이지 않았을 때(content-visibility:auto로 옆 탭이
+  // 렌더링을 건너뛴 상태)는 폭이 0으로 읽혀서 사진들이 자리를 못 잡고 겹쳐 보일 수 있음.
+  // 이럴 땐 포기하지 않고 ResizeObserver로 실제 폭이 잡히는 순간(탭 전환 등) 다시 계산함
+  if(!width){ ensurePinMasonryResizeWatch(gridEl); return; }
   const cols = pinMasonryColumnCount(width);
   const colW = (width - PIN_MASONRY_GAP * (cols - 1)) / cols;
   const colHeights = new Array(cols).fill(0);
@@ -100,6 +103,13 @@ function layoutPinMasonry(gridEl){
     colHeights[target] = y + tile.getBoundingClientRect().height + PIN_MASONRY_GAP;
   });
   gridEl.style.height = Math.max(0, Math.max(...colHeights) - PIN_MASONRY_GAP) + 'px';
+}
+let pinMasonryResizeObserver = null;
+function ensurePinMasonryResizeWatch(gridEl){
+  if(typeof ResizeObserver === 'undefined') return;
+  if(pinMasonryResizeObserver) pinMasonryResizeObserver.disconnect();
+  pinMasonryResizeObserver = new ResizeObserver(()=> layoutPinMasonry(gridEl));
+  pinMasonryResizeObserver.observe(gridEl);
 }
 const relayoutPinMasonryDebounced = debounce((gridEl)=> layoutPinMasonry(gridEl), 80);
 window.addEventListener('resize', ()=>{
@@ -3995,6 +4005,12 @@ function initBoardTabs(){
     pages.forEach((p,i)=> p.classList.toggle('board-page-active', i===idx));
     if(prevBtn) prevBtn.classList.toggle('disabled', idx <= 0);
     if(nextBtn) nextBtn.classList.toggle('disabled', idx >= btns.length - 1);
+    // 갤러리 탭이 방금 화면에 보이게 됐다면(content-visibility로 그동안 렌더링을 건너뛰고
+    // 있었을 수 있음) 실제 폭을 다시 재서 사진 위치를 바로 잡아줌
+    requestAnimationFrame(()=>{
+      const g = document.getElementById('galleryGrid');
+      if(g) layoutPinMasonry(g);
+    });
   }
   function goTo(idx, smooth=true){
     idx = Math.max(0, Math.min(btns.length - 1, idx));
