@@ -3844,7 +3844,44 @@ function initRow2HeightSync(){
   syncRow2Height();
 }
 
+/* ---------------- 보드 탭(위젯 ↔ 갤러리) 좌우 스와이프 ---------------- */
+function initBoardTabs(){
+  const viewport = document.getElementById('boardViewport');
+  const nav = document.getElementById('boardTabNav');
+  if(!viewport || !nav) return;
+  const btns = [...nav.querySelectorAll('.board-tab-btn')];
+
+  function setActive(idx){
+    btns.forEach((b,i)=> b.classList.toggle('active', i===idx));
+  }
+  function goTo(idx, smooth=true){
+    viewport.scrollTo({ left: idx * viewport.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+    setActive(idx);
+  }
+
+  btns.forEach(btn=>{
+    btn.addEventListener('click', ()=> goTo(Number(btn.dataset.tab)));
+  });
+
+  // 스와이프/스크롤로 탭이 넘어갔을 때 활성 버튼도 같이 맞춰줌
+  let scrollTimer = null;
+  viewport.addEventListener('scroll', ()=>{
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(()=>{
+      const idx = Math.round(viewport.scrollLeft / viewport.clientWidth);
+      setActive(idx);
+    }, 80);
+  });
+
+  // 화면 크기가 바뀌어도(예: 회전) 현재 보고 있던 탭 위치를 그대로 유지
+  window.addEventListener('resize', ()=>{
+    const activeIdx = btns.findIndex(b=> b.classList.contains('active'));
+    if(activeIdx >= 0) goTo(activeIdx, false);
+  });
+}
+
 /* ---------------- 초기화 ---------------- */
 
 refreshLockUI();
 initRow2HeightSync();
+initBoardTabs();

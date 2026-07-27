@@ -28,61 +28,78 @@
     </div>
   </div>
 
-  <!-- 고정 레이아웃: 정해진 영역이 항상 이 구성대로 보여요. 위젯 제목은 전부 없앰(애플 위젯 스타일) -->
-  <div class="board">
-
-    <div class="row row-images">
-      <div class="w-card w-images" id="cardImages"></div>
+  <!-- 탭으로 나뉜 고정 레이아웃: 좌우로 슬라이드하면 탭이 넘어감. 위젯 제목은 전부 없앰(애플 위젯 스타일) -->
+  <div class="board-tabs">
+    <div class="board-tab-nav" id="boardTabNav">
+      <button class="board-tab-btn active" type="button" data-tab="0">위젯</button>
+      <button class="board-tab-btn" type="button" data-tab="1">갤러리</button>
     </div>
 
-    <div class="row row-strip">
-      <div class="row-strip-right">
-        <div class="w-card w-music" id="cardMusic"></div>
-        <div class="w-card w-dday" id="cardDday">
-          <div class="w-body scroll" id="ddayBody"></div>
-          <div class="w-edit-row" id="ddayAddWrap"></div>
+    <div class="board-viewport" id="boardViewport">
+
+      <!-- 탭 1: 갤러리를 제외한 나머지 위젯들 -->
+      <div class="board board-page" data-page="0">
+
+        <div class="row row-images">
+          <div class="w-card w-images" id="cardImages"></div>
         </div>
-      </div>
-      <div class="w-card w-profile" id="cardProfile"></div>
-      <div class="w-card w-guestbook" id="cardGuestbook">
-        <div class="w-body scroll" id="guestbookBody"></div>
-        <div class="gb-form" id="guestbookForm">
-          <input type="text" id="gbName" placeholder="이름">
-          <textarea id="gbMsg" placeholder="메시지를 남겨주세요"></textarea>
-          <button class="btn small primary" id="gbSubmit">남기기</button>
+
+        <div class="row row-strip">
+          <div class="row-strip-right">
+            <div class="w-card w-music" id="cardMusic"></div>
+            <div class="w-card w-dday" id="cardDday">
+              <div class="w-body scroll" id="ddayBody"></div>
+              <div class="w-edit-row" id="ddayAddWrap"></div>
+            </div>
+          </div>
+          <div class="w-card w-profile" id="cardProfile"></div>
+          <div class="w-card w-guestbook" id="cardGuestbook">
+            <div class="w-body scroll" id="guestbookBody"></div>
+            <div class="gb-form" id="guestbookForm">
+              <input type="text" id="gbName" placeholder="이름">
+              <textarea id="gbMsg" placeholder="메시지를 남겨주세요"></textarea>
+              <button class="btn small primary" id="gbSubmit">남기기</button>
+            </div>
+          </div>
         </div>
+
+        <div class="row row-2">
+          <div class="w-card w-docs" id="cardDocs">
+            <div class="tag-filter" id="docFilter" style="display:none;"></div>
+            <div class="doc-list" id="docList"></div>
+            <div class="w-edit-row" id="docAddWrap"></div>
+          </div>
+          <div class="w-card w-calendar" id="cardCalendar"></div>
+          <div class="w-card w-refgallery" id="cardRefGallery"></div>
+        </div>
+
+        <div class="row row-4">
+          <div class="w-card w-sessions" id="cardSessions">
+            <div class="session-grid" id="sessionGrid"></div>
+            <div class="w-edit-row" id="sessionAddWrap"></div>
+          </div>
+          <div class="w-card w-checklist" id="cardChecklist">
+            <div class="checklist" id="checklistBody"></div>
+            <div class="check-add-row" id="checklistAddWrap" style="display:none;"></div>
+          </div>
+        </div>
+
       </div>
-    </div>
 
-    <div class="row row-2">
-      <div class="w-card w-docs" id="cardDocs">
-        <div class="tag-filter" id="docFilter" style="display:none;"></div>
-        <div class="doc-list" id="docList"></div>
-        <div class="w-edit-row" id="docAddWrap"></div>
+      <!-- 탭 2: 갤러리 위젯들 -->
+      <div class="board board-page" data-page="1">
+
+        <div class="row row-3">
+          <div class="w-card w-gallery" id="cardGallery"></div>
+        </div>
+
+        <div class="row row-3">
+          <div class="w-card w-gallery" id="cardGallery2"></div>
+        </div>
+
       </div>
-      <div class="w-card w-calendar" id="cardCalendar"></div>
-      <div class="w-card w-refgallery" id="cardRefGallery"></div>
-    </div>
 
-    <div class="row row-3">
-      <div class="w-card w-gallery" id="cardGallery"></div>
     </div>
-
-    <div class="row row-3">
-      <div class="w-card w-gallery" id="cardGallery2"></div>
-    </div>
-
-    <div class="row row-4">
-      <div class="w-card w-sessions" id="cardSessions">
-        <div class="session-grid" id="sessionGrid"></div>
-        <div class="w-edit-row" id="sessionAddWrap"></div>
-      </div>
-      <div class="w-card w-checklist" id="cardChecklist">
-        <div class="checklist" id="checklistBody"></div>
-        <div class="check-add-row" id="checklistAddWrap" style="display:none;"></div>
-      </div>
-    </div>
-
   </div>
 
   <div id="modalRoot"></div>
