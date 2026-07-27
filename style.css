@@ -148,6 +148,7 @@ body::before{
 }
 .row{ display:grid; gap:20px; }
 .row-strip{ grid-template-columns: 0.8fr 1.9fr 1fr; align-items: stretch; }
+.row-strip > .w-card{ min-width:0; }
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
 .row-2{ grid-template-columns: 1fr 2fr 240px; }
@@ -339,7 +340,12 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .profile-slide-label.empty-hint{ font-family: var(--font-body); font-weight:400; font-size:.68rem; color: var(--ink-soft); cursor:pointer; opacity:.75; }
 .profile-slide-label.empty-hint:hover{ opacity:1; }
-#profLabelBtn{ cursor: pointer; }
+/* AU 탭 바 — 위젯 맨 위에 고정, 스크롤 영역(profile-viewport) 밖에 위치 */
+.profile-au-bar{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px;
+  flex:0 0 auto; width:100%; padding-bottom:10px; margin-bottom:8px;
+  border-bottom:1px solid var(--card-border);
+}
 .profile-section-tabs{ display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px; max-width:100%; }
 .profile-section-tab{
   display:inline-flex; align-items:center; gap:4px; font-size:.68rem; font-weight:600;
@@ -354,13 +360,14 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   color: var(--ink-soft); font-size:.75rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
 .profile-section-add:hover{ color: var(--rose); border-color: var(--rose); }
-.profile-fields-wrap{ width:100%; border-radius:14px; }
-.profile-fields-wrap.editable{ cursor:pointer; transition: background .15s ease; padding:4px; }
-.profile-fields-wrap.editable:hover{ background: rgba(255,255,255,0.06); }
-.profile-fields{ display:flex; flex-direction:column; gap:5px; width:100%; }
-.profile-field{ display:flex; gap:8px; font-size:.76rem; line-height:1.5; padding:0 6px; }
-.profile-field .pf-label{ flex:0 0 auto; font-weight:700; color: var(--rose); white-space:nowrap; }
-.profile-field .pf-value{ flex:1; min-width:0; color: var(--ink); white-space:pre-wrap; word-break:break-word; }
+/* 각 프로필(사람)에 딸린 정보 항목 — 공용이 아니라 프로필별로 따로 표시/편집됨 */
+.profile-person-fields{ width:100%; border-radius:12px; margin-top:4px; }
+.profile-person-fields.editable{ cursor:pointer; transition: background .15s ease; padding:4px; }
+.profile-person-fields.editable:hover{ background: rgba(255,255,255,0.06); }
+.profile-fields{ display:flex; flex-direction:column; gap:4px; width:100%; }
+.profile-field{ display:flex; flex-direction:column; gap:0; font-size:.72rem; line-height:1.45; padding:0 4px; text-align:left; }
+.profile-field .pf-label{ font-weight:700; color: var(--rose); }
+.profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:break-word; }
 .profile-slide-desc.empty-hint{ text-align:center; cursor:pointer; opacity:.65; font-size:.68rem; color: var(--ink-soft); }
 .profile-slide-desc.empty-hint:hover{ opacity:1; }
 .profile-slide-del{ position:absolute; top:0; right:0; }
@@ -534,7 +541,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
-.doc-list{ flex:1; min-height:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); align-content:start; gap:8px; overflow-y:auto; padding-right:2px; }
+.doc-list{ flex:1; min-height:0; min-width:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); align-content:start; gap:8px; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 .doc-list::-webkit-scrollbar{ width:5px; }
 .doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .doc-row{
