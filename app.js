@@ -68,6 +68,53 @@ function debounce(fn, wait){
   return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
 }
 
+/* ---------------- 메인 갤러리 매스너리(핀터레스트형) 실제 배치 ----------------
+   예전엔 CSS column-count로 다단을 흉내냈는데, 그 방식은 브라우저가 "전체 높이를
+   균형있게" 나눠서 채우기 때문에 배열 앞쪽(=최신, storeGalleryImage에서 항상 맨 앞에
+   추가함)에 있는 사진이 두 번째/세 번째 열 중간쯤에 놓일 수 있어서 "최신 사진일수록
+   위"가 보장되지 않았음. 그래서 진짜 핀터레스트처럼, 사진을 배열 순서대로 보면서
+   "그 시점에 가장 짧은 열"에 하나씩 쌓음 — 이렇게 하면 앞쪽(최신) 사진들이 자연스럽게
+   위쪽 여러 열에 먼저 채워지고, 뒤쪽(오래된) 사진일수록 아래로 내려가게 됨. */
+const PIN_MASONRY_GAP = 12;
+function pinMasonryColumnCount(width){
+  if(width < 420) return 1;
+  if(width < 700) return 2;
+  return 3;
+}
+function layoutPinMasonry(gridEl){
+  if(!gridEl) return;
+  const tiles = Array.from(gridEl.children);
+  const width = gridEl.clientWidth;
+  if(!width) return;
+  if(!tiles.length){ gridEl.style.height = '0px'; return; }
+  const cols = pinMasonryColumnCount(width);
+  const colW = (width - PIN_MASONRY_GAP * (cols - 1)) / cols;
+  const colHeights = new Array(cols).fill(0);
+  tiles.forEach(tile=>{
+    tile.style.width = colW + 'px';
+    let target = 0;
+    for(let c = 1; c < cols; c++){ if(colHeights[c] < colHeights[target]) target = c; }
+    const x = target * (colW + PIN_MASONRY_GAP);
+    const y = colHeights[target];
+    tile.style.transform = `translate(${x}px, ${y}px)`;
+    colHeights[target] = y + tile.getBoundingClientRect().height + PIN_MASONRY_GAP;
+  });
+  gridEl.style.height = Math.max(0, Math.max(...colHeights) - PIN_MASONRY_GAP) + 'px';
+}
+const relayoutPinMasonryDebounced = debounce((gridEl)=> layoutPinMasonry(gridEl), 80);
+window.addEventListener('resize', ()=>{
+  const g = document.getElementById('galleryGrid');
+  if(g) relayoutPinMasonryDebounced(g);
+});
+/* 그리드 안 이미지들이 로드될 때마다(썸네일 실제 크기를 알게 될 때마다) 다시 배치해서,
+   플레이스홀더 높이로 어림잡았던 자리가 실제 사진 비율에 맞게 자연스럽게 자리잡게 함 */
+function watchPinTileImagesForRelayout(gridEl){
+  gridEl.querySelectorAll('img').forEach(img=>{
+    if(img.complete) return;
+    img.addEventListener('load', ()=> layoutPinMasonry(gridEl), { once:true });
+  });
+}
+
 /* ---------------- 옵션(분류) 관리 + 필터 칩 — 문서 위젯과 모든 갤러리가 공용으로 씀 ----------------
    위젯마다 별도의 옵션 문서(storeName)를 두고, 그 안의 options 배열을 목록/필터에 함께 씀.
    각 항목(카드/사진)은 opt 필드에 옵션 문자열 하나를 들고 있고, "전체" 또는 옵션 하나를
@@ -86,23 +133,70 @@ function openOptionsManagerModal(storeName, currentOptions, onSaved){
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     const listEl = m.querySelector('#optList');
+    // 지우거나 순서를 바꾸기 전에, 화면에 남아있던(아직 저장 전인) 이름 수정 내용부터
+    // workingOptions에 반영해둬야 다른 옵션의 이름 변경이 날아가지 않음
+    const syncFromInputs = ()=>{
+      workingOptions = Array.from(listEl.querySelectorAll('.opt-input')).map(inp=> inp.value);
+    };
+    let dragIdx = null;
     const draw = ()=>{
       listEl.innerHTML = workingOptions.map((opt,i)=> `
         <div class="opt-row" data-idx="${i}">
+          <span class="opt-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>
           <input type="text" class="opt-input" value="${escapeHtml(opt)}">
           <button class="btn small danger" data-del="${i}">✕</button>
         </div>
       `).join('') || `<div class="w-empty">등록된 옵션이 없어요</div>`;
       listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
+        syncFromInputs();
         workingOptions.splice(Number(btn.dataset.del), 1);
         draw();
       }));
+      // 옵션칩(필터 칩)이 보여지는 순서는 이 목록 순서를 그대로 따르므로,
+      // 여기서 드래그로 줄을 옮기면 실제 칩 위치도 그대로 바뀜
+      listEl.querySelectorAll('.opt-row').forEach(row=>{
+        row.setAttribute('draggable', 'true');
+        row.addEventListener('dragstart', e=>{
+          // 손잡이(⠿)에서 시작한 드래그만 순서 변경으로 처리 — 입력창 텍스트 드래그(선택)와 안 겹치게
+          if(!e.target.closest('.opt-drag-handle')){ e.preventDefault(); return; }
+          dragIdx = Number(row.dataset.idx);
+          row.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          try{ e.dataTransfer.setData('text/plain', String(dragIdx)); }catch(_){}
+        });
+        row.addEventListener('dragend', ()=>{
+          row.classList.remove('dragging');
+          listEl.querySelectorAll('.drag-over').forEach(x=> x.classList.remove('drag-over'));
+          dragIdx = null;
+        });
+        row.addEventListener('dragover', e=>{
+          if(dragIdx === null) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          listEl.querySelectorAll('.drag-over').forEach(x=>{ if(x!==row) x.classList.remove('drag-over'); });
+          row.classList.add('drag-over');
+        });
+        row.addEventListener('dragleave', ()=> row.classList.remove('drag-over'));
+        row.addEventListener('drop', e=>{
+          e.preventDefault();
+          row.classList.remove('drag-over');
+          const targetIdx = Number(row.dataset.idx);
+          const srcIdx = dragIdx;
+          dragIdx = null;
+          if(srcIdx === null || srcIdx === targetIdx) return;
+          syncFromInputs();
+          const [moved] = workingOptions.splice(srcIdx, 1);
+          workingOptions.splice(targetIdx, 0, moved);
+          draw();
+        });
+      });
     };
     draw();
     m.querySelector('#optAddBtn').onclick = ()=>{
       const input = m.querySelector('#optNew');
       const val = input.value.trim();
       if(!val) return;
+      syncFromInputs();
       workingOptions.push(val);
       input.value = '';
       draw();
@@ -2600,7 +2694,13 @@ function fillGalleryTile(tile, idx, url, it){
     ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
   `;
   if(it.blur) tile.classList.add('blurred');
-  attachImgFallback(tile.querySelector('img'));
+  const img = tile.querySelector('img');
+  attachImgFallback(img);
+  const grid = tile.closest('#galleryGrid');
+  if(grid){
+    if(img && !img.complete) img.addEventListener('load', ()=> layoutPinMasonry(grid), { once:true });
+    else layoutPinMasonry(grid);
+  }
 }
 function handleGalleryDelete(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
@@ -2658,6 +2758,8 @@ function renderGallery(){
   restoreScrollPos(gridEl, savedScroll);
   renderOptionFilterChips(box.querySelector('#galleryFilterChips'), sharedGalleryOptionsData.options, galleryFilterOpt, (opt)=>{ galleryFilterOpt = opt; renderGallery(); });
   gridEl.querySelectorAll('.pin-item:not(.pin-loading) img').forEach(attachImgFallback);
+  requestAnimationFrame(()=> layoutPinMasonry(gridEl));
+  watchPinTileImagesForRelayout(gridEl);
 
   // 열기/삭제/블러/옵션 지정 클릭을 그리드 전체에 한 번만 위임해서 걸어둠.
   // 이렇게 하면 나중에 낱장 사진이 지연 로딩으로 채워져도(pin-loading → 실제 이미지)
@@ -3884,11 +3986,13 @@ function initBoardTabs(){
   const nav = document.getElementById('boardTabNav');
   if(!viewport || !nav) return;
   const btns = [...nav.querySelectorAll('.board-tab-dot')];
+  const pages = [...viewport.querySelectorAll('.board-page')];
   const prevBtn = document.getElementById('boardTabPrev');
   const nextBtn = document.getElementById('boardTabNext');
 
   function setActive(idx){
     btns.forEach((b,i)=> b.classList.toggle('active', i===idx));
+    pages.forEach((p,i)=> p.classList.toggle('board-page-active', i===idx));
     if(prevBtn) prevBtn.classList.toggle('disabled', idx <= 0);
     if(nextBtn) nextBtn.classList.toggle('disabled', idx >= btns.length - 1);
   }

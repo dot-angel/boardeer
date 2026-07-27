@@ -154,26 +154,29 @@ body::before{
 }
 .board-tab-dot:hover{ background: rgba(255,255,255,0.35); }
 .board-tab-dot.active{ background: var(--rose); border-color: var(--rose); transform: scale(1.25); }
-/* 좌우 화살표: 이미지 위젯의 슬라이드 화살표(.slide-nav)와 동일한 스타일 —
-   둥근 배경 없이 흰 화살표 아이콘 + 그림자만. 평소엔 숨겨져 있다가
-   탭 영역에 커서를 올리면 화면 양옆에 옅게 떠오름 */
+/* 좌우 화살표: 위젯 안의 슬라이드 화살표(.slide-nav, 배경 없는 순수 흰 아이콘)와
+   똑같이 생겨서 "지금 넘기는 게 위젯 슬라이드인지 페이지 탭인지" 헷갈리던 걸 고침.
+   여기는 페이지 전체를 넘기는 컨트롤이라는 걸 알 수 있게, 앱의 다른 유리 버튼들과
+   같은 톤(둥근 배경 + 얇은 테두리 + 살짝 블러)의 원형 버튼으로 확실히 구분함 */
 .board-tab-arrow{
-  position: fixed; top: 0; height: 100%; z-index: 16;
-  width:56px; border-radius:0; border:none;
-  background: transparent; box-shadow:none;
-  color:#fff; font-size:1.4rem; font-weight:300; line-height:1; cursor:pointer;
+  position: fixed; top: 50%; transform: translateY(-50%); z-index: 16;
+  width:44px; height:44px; border-radius:50%;
+  border:1px solid var(--card-border);
+  background: rgba(20,10,12,0.55);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  box-shadow: var(--shadow);
+  color:#fff; font-size:1.3rem; font-weight:300; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.8);
-  opacity:0; pointer-events:none; transition: opacity .2s ease;
+  opacity:0; pointer-events:none; transition: opacity .2s ease, background .15s ease;
 }
-.board-tabs:hover .board-tab-arrow{ opacity:.85; pointer-events:auto; }
-.board-tab-arrow:hover{ opacity:1 !important; }
+.board-tabs:hover .board-tab-arrow{ opacity:.9; pointer-events:auto; }
+.board-tab-arrow:hover{ opacity:1 !important; background: rgba(20,10,12,0.82); }
 .board-tab-arrow.prev{ left:16px; }
 .board-tab-arrow.next{ right:16px; }
 .board-tab-arrow.disabled{ display:none; }
-/* 호버가 없는 터치 기기에서는 살짝 항상 보이게 해서 눌러야 할 위치를 알 수 있게 함(슬라이드 화살표와 동일) */
+/* 호버가 없는 터치 기기에서는 살짝 항상 보이게 해서 눌러야 할 위치를 알 수 있게 함 */
 @media (hover:none){
-  .board-tab-arrow{ opacity:.55; pointer-events:auto; }
+  .board-tab-arrow{ opacity:.75; pointer-events:auto; }
 }
 /* 실제 슬라이드 영역: 가로 스크롤 + 스냅으로 좌우 스와이프(트랙패드/터치 모두 자연스럽게 동작) */
 .board-viewport{
@@ -184,6 +187,18 @@ body::before{
 }
 .board-viewport::-webkit-scrollbar{ display:none; }
 .board-page{ flex:0 0 100%; min-width:100%; scroll-snap-align:start; scroll-snap-stop:always; }
+/* 렉의 큰 원인 중 하나: 탭이 옆으로 스크롤돼서 안 보이는 페이지도(위젯 카드마다 걸린
+   backdrop-filter 블러 + 갤러리 사진 전부 포함) DOM에는 그대로 남아있어서 브라우저가
+   계속 레이아웃/페인트 비용을 들이고 있었음. content-visibility:auto를 걸어두면
+   브라우저가 "지금 화면에 안 보이는" 페이지는 실제로 화면에 들어오기 전까지
+   레이아웃·페인트를 건너뛰어서, 안 보이는 탭에 있는 무거운 글래스 카드/사진들이
+   렉을 만들지 않게 됨(내용은 그대로 유지되고, 스크롤해서 보이면 다시 정상 렌더링됨).
+   activateBoardPage()가 지금 보이는 탭에만 board-page-active를 붙여서 그 탭은
+   항상 완전히 렌더링되게 함. */
+.board-page:not(.board-page-active){
+  content-visibility: auto;
+  contain-intrinsic-size: 1000px 2200px;
+}
 /* ---------- 고정 보드 레이아웃 ---------- */
 .board{
   max-width: 1280px; margin: 26px auto; padding: 0 22px;
@@ -520,22 +535,27 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .icon-btn:hover{ background: rgba(255,255,255,0.14); }
 /* ---------- 갤러리 (핀터레스트형 매스너리) — 높이 고정, 넘치면 위젯 내부에서 스크롤 ---------- */
 .w-gallery{ padding-bottom:20px; }
-/* 스크롤/높이 제한은 바깥 래퍼(.pin-grid-scroll)에만 걸고, 실제 다단(column-count) 레이아웃인
-   .pin-grid 자체에는 높이를 주지 않음. column-count가 걸린 요소에 직접 max-height +
-   overflow-y:auto를 주면, 내용이 넘칠 때 세로로 스크롤되는 대신 브라우저가 옆으로 새 열을
-   추가해버려서(가로 스크롤이 생김) 의도한 세로 스크롤이 깨지는 문제가 있었음. 래퍼를 한 겹
-   씌워서 완전히 분리하면 항상 세로로만 스크롤됨(overflow-x:hidden으로 한번 더 확실히 막음). */
+/* 스크롤/높이 제한은 바깥 래퍼(.pin-grid-scroll)에만 걸고, 실제 위치 계산이 일어나는
+   .pin-grid 자체에는 높이를 주지 않음(app.js의 layoutPinMasonry()가 매번 실제 콘텐츠
+   높이를 재서 인라인으로 넣어줌). 래퍼를 한 겹 씌워서 완전히 분리하면 항상 세로로만
+   스크롤됨(overflow-x:hidden으로 한번 더 확실히 막음). */
 .pin-grid-scroll{
   max-height: 520px; overflow-y: auto; overflow-x: hidden; padding-right: 6px;
 }
 .pin-grid-scroll::-webkit-scrollbar{ width:5px; }
 .pin-grid-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+/* 예전엔 column-count(다단)로 매스너리를 흉내냈는데, 이 방식은 브라우저가 전체 높이를
+   "균형있게" 나눠서 다단을 채우기 때문에 배열 앞쪽(최신) 사진이 2번째/3번째 열 중간쯤에
+   놓일 수 있어서 "최신 사진일수록 위"가 보장되지 않았음. 그래서 실제 좌표는 app.js의
+   layoutPinMasonry()가 "그 시점에 가장 짧은 열"에 순서대로 채워 넣는 진짜 핀터레스트
+   방식으로 계산해서 절대 위치로 배치함(핀터레스트형 매스너리 느낌은 그대로 유지). */
 .pin-grid{
-  column-count: 3; column-gap: 12px;
+  position: relative;
 }
 .pin-item{
-  break-inside: avoid; margin-bottom:12px; border-radius:18px; overflow:hidden; cursor:pointer;
-  border:1px solid var(--card-border); position:relative;
+  position:absolute; top:0; left:0;
+  border-radius:18px; overflow:hidden; cursor:pointer;
+  border:1px solid var(--card-border);
 }
 .pin-item img{ width:100%; display:block; transition: transform .2s ease, filter .2s ease; }
 .pin-item:hover img{ transform: scale(1.03); }
@@ -570,8 +590,9 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   display:flex; align-items:center; justify-content:center;
   background: var(--card-bg2); color: var(--ink-soft); font-size:.72rem; text-align:center; padding:8px;
 }
-@media (max-width: 900px){ .pin-grid{ column-count:2; } }
-@media (max-width: 600px){ .pin-grid{ column-count:1; } }
+.pin-item.pin-loading{ min-height:150px; }
+/* 열 개수는 이제 app.js의 layoutPinMasonry()가 그리드 실제 폭을 보고 정하므로
+   여기서 별도 반응형 규칙이 필요 없음(창 폭이 아니라 그리드 자체 폭 기준이라 더 정확함) */
 @media (max-width: 600px){ .doc-list{ grid-template-columns: 1fr; } }
 /* ---------- 갤러리 2번째: 접기/펼치기 + 빽빽한 정사각형 그리드 ---------- */
 .gallery-toggle-btn{
@@ -667,6 +688,14 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .opt-list{ display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
 .opt-row{ display:flex; gap:6px; align-items:center; }
 .opt-row input{ flex:1; }
+/* 옵션 순서를 드래그로 바꿀 수 있게 하는 손잡이. 이 손잡이에서 시작한 드래그만
+   순서 변경으로 처리해서, 입력창 안 텍스트를 드래그(선택)하려는 동작과 안 겹치게 함 */
+.opt-drag-handle{
+  flex:0 0 auto; cursor:grab; color:var(--ink-soft); font-size:1rem;
+  padding:0 4px; touch-action:none; user-select:none;
+}
+.opt-row.dragging{ opacity:.4; cursor:grabbing; }
+.opt-row.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; border-radius:8px; }
 /* 옵션 여러 개를 칩 형태 체크박스로 동시에 고르는 UI — 문서/갤러리 추가·수정 모달, 항목별 옵션 지정 모달에서 공용 */
 .opt-checkbox-group{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 10px; }
 .modal label.opt-checkbox{
