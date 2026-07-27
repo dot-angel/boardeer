@@ -2287,17 +2287,20 @@ function ddayMilestonesForDate(dateStr){
   return marks;
 }
 
-function renderCalendar(){
-  const box = document.getElementById('cardCalendar');
+// 특정 연/월 한 달치 캘린더 블록의 HTML을 만들어줌.
+// showNav가 true인 달(=현재 선택된 달)에만 ‹ › 이동 버튼을 붙이고,
+// 그 외(이전/다음 달 미리보기)는 자리만 맞추고 흐리게 표시함.
+function buildCalMonthHTML(y, m, kind){
   const events = calendarData.events || {};
-  const first = new Date(calState.y, calState.m, 1);
+  const first = new Date(y, m, 1);
   const startDow = first.getDay();
-  const daysInMonth = new Date(calState.y, calState.m+1, 0).getDate();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
   const todayStr = new Date().toISOString().slice(0,10);
+  const showNav = kind === 'current';
   let cells = '';
   for(let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
-    const dateStr = `${calState.y}-${String(calState.m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const hasManual = events[dateStr] && events[dateStr].length;
     const ddayMarks = ddayMilestonesForDate(dateStr);
     const cls = [
@@ -2308,15 +2311,33 @@ function renderCalendar(){
     ].filter(Boolean).join(' ');
     cells += `<div class="${cls}" data-day="${dateStr}" title="${ddayMarks.length ? escapeHtml(ddayMarks.join(', ')) : ''}">${d}</div>`;
   }
-  box.innerHTML = `
-    <div class="cal-head">
-      <span class="icon-btn" id="calPrev">‹</span>
-      <strong>${calState.y}. ${calState.m+1}</strong>
-      <span class="icon-btn" id="calNext">›</span>
+  return `
+    <div class="cal-month ${showNav ? 'cal-month-current' : 'cal-month-side'}">
+      <div class="cal-head">
+        ${showNav ? `<span class="icon-btn" id="calPrev">‹</span>` : `<span class="icon-btn-spacer"></span>`}
+        <strong>${y}. ${m+1}</strong>
+        ${showNav ? `<span class="icon-btn" id="calNext">›</span>` : `<span class="icon-btn-spacer"></span>`}
+      </div>
+      <div class="cal-grid">
+        ${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+        ${cells}
+      </div>
     </div>
-    <div class="cal-grid">
-      ${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}
-      ${cells}
+  `;
+}
+
+function renderCalendar(){
+  const box = document.getElementById('cardCalendar');
+  let prevM = calState.m - 1, prevY = calState.y;
+  if(prevM < 0){ prevM = 11; prevY--; }
+  let nextM = calState.m + 1, nextY = calState.y;
+  if(nextM > 11){ nextM = 0; nextY++; }
+
+  box.innerHTML = `
+    <div class="cal-months">
+      ${buildCalMonthHTML(prevY, prevM, 'prev')}
+      ${buildCalMonthHTML(calState.y, calState.m, 'current')}
+      ${buildCalMonthHTML(nextY, nextM, 'next')}
     </div>
   `;
   box.querySelector('#calPrev').onclick = ()=>{ calState.m--; if(calState.m<0){calState.m=11; calState.y--;} renderCalendar(); };
@@ -3768,25 +3789,26 @@ function openChecklistLinkModal(idx){
   });
 }
 
-/* ---------------- row-2(뮤직·디데이 / 캘린더 / 레퍼런스갤러리) 높이 맞추기 ----------------
-   캘린더는 요일 칸이 정사각형(aspect-ratio)이라 폭에 따라 세로 높이가 자동으로
-   달라짐. 그래서 캘린더를 기준으로 삼아, 뮤직+디데이 단과 레퍼런스 갤러리의
-   높이를 캘린더의 실제 렌더링 높이에 맞춰줌(두 칸은 이미 내부 스크롤 처리가
-   되어 있어서, 높이가 줄어들면 안에서 스크롤됨). 900px 이하(row-2가 1열로
-   쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
+/* ---------------- row-2(문서 / 캘린더 / 레퍼런스갤러리) 높이 맞추기 ----------------
+   캘린더는 이제 이전달·이번달·다음달이 세로로 이어져서 표시되고, 요일 칸이
+   정사각형(aspect-ratio)이라 폭에 따라 세로 높이가 자동으로 달라짐. 그래서
+   캘린더를 기준으로 삼아, 문서 위젯과 레퍼런스 갤러리의 높이를 캘린더의 실제
+   렌더링 높이에 맞춰줌(두 칸은 이미 내부 스크롤 처리가 되어 있어서, 높이가
+   줄어들면 안에서 스크롤됨). 900px 이하(row-2가 1열로 쌓이는 모바일 레이아웃)
+   에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
-  const rightStack = document.querySelector('.row-2 > .row-strip-right');
+  const docsCard = document.getElementById('cardDocs');
   const refGallery = document.getElementById('cardRefGallery');
-  if(!cal || !rightStack || !refGallery) return;
+  if(!cal || !docsCard || !refGallery) return;
   if(window.innerWidth <= 900){
-    rightStack.style.height = '';
+    docsCard.style.height = '';
     refGallery.style.height = '';
     return;
   }
   const h = cal.getBoundingClientRect().height;
   if(h > 0){
-    rightStack.style.height = h + 'px';
+    docsCard.style.height = h + 'px';
     refGallery.style.height = h + 'px';
   }
 }

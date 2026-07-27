@@ -147,15 +147,16 @@ body::before{
   position: relative; z-index: 1;
 }
 .row{ display:grid; gap:20px; }
-.row-strip{ grid-template-columns: 0.8fr 1.9fr 1fr; align-items: stretch; }
+.row-strip{ grid-template-columns: 0.85fr 1.75fr 0.7fr; align-items: stretch; }
 .row-strip > .w-card{ min-width:0; }
+.row-strip > .row-strip-right{ min-width:0; min-height:0; }
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
-.row-2{ grid-template-columns: 1fr 2fr 240px; }
-.row-2 > .w-card, .row-2 > .row-strip-right{ min-height:0; } /* 그리드 트랙 높이대로 실제로 줄어들어야 내부 스크롤이 생김 */
+.row-2{ grid-template-columns: 1.05fr 1.35fr 240px; }
+.row-2 > .w-card{ min-height:0; } /* 그리드 트랙 높이대로 실제로 줄어들어야 내부 스크롤이 생김 */
 .row-4{ grid-template-columns: 2fr 1fr; }
 @media (max-width: 1100px){
-  .row-2{ grid-template-columns: 1fr 2fr 190px; }
+  .row-2{ grid-template-columns: 1.05fr 1.35fr 190px; }
 }
 @media (max-width: 900px){
   .row-2, .row-4, .row-strip{ grid-template-columns: 1fr; }
@@ -407,8 +408,14 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .gb-form input::placeholder, .gb-form textarea::placeholder{ color: var(--ink-soft); }
 .gb-form textarea{ min-height:48px; resize:vertical; }
 .gb-form .btn{ align-self:flex-end; }
-/* ---------- 캘린더 ---------- */
+/* ---------- 캘린더 (이전달·이번달·다음달을 세로로 이어서 표시) ---------- */
+.cal-months{ display:flex; flex-direction:column; gap:18px; }
+.cal-month{ display:flex; flex-direction:column; }
+.cal-month + .cal-month{ padding-top:18px; border-top:1px solid var(--card-border); }
+.cal-month.cal-month-side{ opacity:.6; }
+.cal-month.cal-month-current .cal-head strong{ color: var(--rose); }
 .cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.cal-head .icon-btn-spacer{ width:28px; height:28px; }
 .cal-grid{ display:grid; grid-template-columns: repeat(7,1fr); gap:3px; font-size:.72rem; }
 .cal-dow{ text-align:center; color:var(--ink-soft); padding-bottom:4px; }
 .cal-day{
