@@ -2645,8 +2645,10 @@ function renderGallery(){
       <div class="tag-filter" id="galleryFilterChips" style="display:none;"></div>
       ${editMode ? `<button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>` : ''}
     </div>
-    <div class="pin-grid" id="galleryGrid">
-      ${pairs.map(({it,i})=> galleryTileHtml(it, i)).join('')}
+    <div class="pin-grid-scroll" id="galleryGrid">
+      <div class="pin-grid">
+        ${pairs.map(({it,i})=> galleryTileHtml(it, i)).join('')}
+      </div>
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
     ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
@@ -3036,8 +3038,8 @@ function fitRefGalleryToCalendarHeight(){
   // 그리드 아이템인 카드 자체에 명시적 높이를 줌. 그리드 아이템은 명시적 높이가 있으면
   // align-items:stretch를 무시하고 그 값 그대로 확정되고, 안쪽 flex:1 그리드는 그 안에서만
   // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
-  // 캘린더보다 조금 더 크게(+160px) 잡아서 갤러리 탭 위젯들과 높이감을 맞춤.
-  refCard.style.height = `${Math.round(calH) + 160}px`;
+  // 캘린더보다 조금 더 작게(-120px) 잡음.
+  refCard.style.height = `${Math.max(200, Math.round(calH) - 120)}px`;
 }
 window.addEventListener('resize', debounce(()=>{
   fitRefGalleryToCalendarHeight();

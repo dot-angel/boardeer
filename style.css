@@ -327,6 +327,15 @@ body::before{
 }
 .mp-controls .icon-btn:hover{ background:none; opacity:.7; }
 .mp-controls .icon-btn.active{ background:none; border:none; color: var(--rose); }
+/* 유튜브 곡 재생 중 백그라운드로 붙는 1x1 유튜브 플레이어 컨테이너.
+   일반 흐름에 그대로 두면 재생목록 아래(위젯 좌하단)에 아주 작은 실제 요소로
+   자리를 차지해서, 드래그로 텍스트 선택을 하면 그 부분이 선택되는 것처럼
+   보이는 문제가 있었음. position:absolute로 흐름에서 완전히 빼고, 크기도
+   0으로 줄여서 화면에 어떤 흔적도 남기지 않게 함. */
+#mpYtHolder{
+  position:absolute; width:0; height:0; overflow:hidden;
+  opacity:0; pointer-events:none;
+}
 .player-track .icon-btn{ background:none; border:none; }
 .player-track .icon-btn:hover{ background:none; opacity:.7; }
 .mp-play-btn{
@@ -511,12 +520,19 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .icon-btn:hover{ background: rgba(255,255,255,0.14); }
 /* ---------- 갤러리 (핀터레스트형 매스너리) — 높이 고정, 넘치면 위젯 내부에서 스크롤 ---------- */
 .w-gallery{ padding-bottom:20px; }
+/* 스크롤/높이 제한은 바깥 래퍼(.pin-grid-scroll)에만 걸고, 실제 다단(column-count) 레이아웃인
+   .pin-grid 자체에는 높이를 주지 않음. column-count가 걸린 요소에 직접 max-height +
+   overflow-y:auto를 주면, 내용이 넘칠 때 세로로 스크롤되는 대신 브라우저가 옆으로 새 열을
+   추가해버려서(가로 스크롤이 생김) 의도한 세로 스크롤이 깨지는 문제가 있었음. 래퍼를 한 겹
+   씌워서 완전히 분리하면 항상 세로로만 스크롤됨(overflow-x:hidden으로 한번 더 확실히 막음). */
+.pin-grid-scroll{
+  max-height: 520px; overflow-y: auto; overflow-x: hidden; padding-right: 6px;
+}
+.pin-grid-scroll::-webkit-scrollbar{ width:5px; }
+.pin-grid-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .pin-grid{
   column-count: 3; column-gap: 12px;
-  max-height: 920px; overflow-y: auto; padding-right: 6px;
 }
-.pin-grid::-webkit-scrollbar{ width:5px; }
-.pin-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .pin-item{
   break-inside: avoid; margin-bottom:12px; border-radius:18px; overflow:hidden; cursor:pointer;
   border:1px solid var(--card-border); position:relative;
@@ -568,7 +584,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .gallery-toggle-btn .gallery-toggle-arrow.open{ transform: rotate(180deg); }
 .pin-grid-dense{
   display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap:8px; max-height:640px; overflow-y:auto; padding-right:4px;
+  gap:8px; max-height:360px; overflow-y:auto; padding-right:4px;
   /* 사진이 아무리 많이 쌓여도 이 높이 이상으로는 절대 늘어나지 않고, 넘치는 만큼만 내부 스크롤로 처리함 */
 }
 .pin-grid-dense::-webkit-scrollbar{ width:5px; }
