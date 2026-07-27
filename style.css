@@ -428,6 +428,16 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .dday-item .icon-btn{
   position:absolute; top:9px; right:0; width:22px; height:22px; font-size:.6rem;
 }
+/* 모바일에서는 라벨/날짜와 D-숫자를 한 줄에 나란히 두지 않고, D-숫자가 날짜 아래로
+   내려오도록 세로로 쌓음. 라벨/날짜는 그대로 왼쪽 정렬 유지, D-숫자만 오른쪽 정렬 */
+@media (max-width: 600px){
+  .dday-item{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .dday-count{ width:100%; text-align: right; }
+}
 /* ---------- 프로필 위젯 (두 사람 프로필, 슬라이드로 여러 장(예: 본편/AU) 전환, AU별 시점/IF 세분화) ---------- */
 .w-profile{ align-items:stretch; }
 .profile-viewport{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:6px 4px; min-height:0; overflow-y:auto; }
