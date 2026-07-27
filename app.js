@@ -574,7 +574,7 @@ function refreshLockUI(){
 }
 
 function renderAllModules(){
-  renderImages(); renderMusic(); renderDday(); renderGuestbook();
+  renderImages(); renderProfile(); renderMusic(); renderDday(); renderGuestbook();
   renderCalendar(); renderGallery(); renderGallery2(); renderRefGallery(); renderDocs(); renderSessions(); renderChecklist();
 }
 
@@ -1135,6 +1135,228 @@ function openImagesAddModal(){
 }
 
 docRef('images').onSnapshot(doc=>{ imagesData = doc.exists ? doc.data() : {items:[]}; renderImages(); });
+
+/* ---------------- 1-1. 프로필 위젯 (두 사람 프로필, 슬라이드로 여러 장 — 예: 본편/AU) ---------------- */
+
+let profileData = { slides: [] };
+let profileSlideIndex = 0;
+
+function normalizeProfilePerson(p){
+  p = p || {};
+  return { name: p.name || '', role: p.role || '', avatar: p.avatar || '' };
+}
+function normalizeProfileSlide(s){
+  s = s || {};
+  const people = Array.isArray(s.people) ? s.people : [];
+  return { label: s.label || '', people: [ normalizeProfilePerson(people[0]), normalizeProfilePerson(people[1]) ] };
+}
+
+function renderProfile(){
+  const box = document.getElementById('cardProfile');
+  const slides = (profileData.slides || []).map(normalizeProfileSlide);
+
+  if(slides.length === 0){
+    box.innerHTML = `
+      <div class="slide-empty">아직 등록된 프로필이 없어요</div>
+      ${editMode ? `<button class="btn small slide-add" id="profAddBtn">+ 슬라이드 추가</button>` : ''}
+    `;
+    bindProfile(slides);
+    return;
+  }
+
+  if(profileSlideIndex >= slides.length) profileSlideIndex = 0;
+  if(profileSlideIndex < 0) profileSlideIndex = slides.length - 1;
+  const slide = slides[profileSlideIndex];
+
+  box.innerHTML = `
+    <div class="profile-viewport" id="profileViewport">
+      ${editMode ? `<button class="icon-btn profile-slide-del" id="profSlideDelBtn" title="이 슬라이드 삭제">✕</button>` : ''}
+      ${slide.label
+        ? `<div class="profile-slide-label" id="profLabel" ${editMode ? 'title="눌러서 이름 수정"' : ''}>${escapeHtml(slide.label)}</div>`
+        : (editMode ? `<div class="profile-slide-label empty-hint" id="profLabel">+ 슬라이드 이름 추가 (예: 카페 AU)</div>` : '')}
+      <div class="profile-pair">
+        ${[0,1].map(slot=>{
+          const p = slide.people[slot];
+          const hasContent = p.name || p.avatar;
+          return `
+            <div class="profile-person ${editMode ? 'editable' : ''}" data-slot="${slot}">
+              <div class="profile-avatar" ${p.avatar ? `style="background-image:url('${p.avatar}')"` : ''}>${p.avatar ? '' : '👤'}</div>
+              <div class="profile-name">${hasContent ? escapeHtml(p.name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+              ${p.role ? `<div class="profile-role">${escapeHtml(p.role)}</div>` : ''}
+            </div>
+          `;
+        }).join('<div class="profile-divider"></div>')}
+      </div>
+    </div>
+    ${slides.length > 1 ? `
+      <div class="profile-slide-nav">
+        <button class="icon-btn" id="profPrev">‹</button>
+        <div class="slide-dots">${slides.map((_,i)=>`<span class="dot ${i===profileSlideIndex?'active':''}" data-dot="${i}"></span>`).join('')}</div>
+        <button class="icon-btn" id="profNext">›</button>
+      </div>
+    ` : ''}
+    ${editMode ? `<button class="btn small slide-add" id="profAddBtn">+ 슬라이드 추가</button>` : ''}
+  `;
+  bindProfile(slides);
+}
+
+function bindProfile(slides){
+  const box = document.getElementById('cardProfile');
+
+  const prev = box.querySelector('#profPrev');
+  const next = box.querySelector('#profNext');
+  if(prev) prev.onclick = ()=>{ profileSlideIndex = (profileSlideIndex - 1 + slides.length) % slides.length; renderProfile(); };
+  if(next) next.onclick = ()=>{ profileSlideIndex = (profileSlideIndex + 1) % slides.length; renderProfile(); };
+  box.querySelectorAll('[data-dot]').forEach(d=> d.onclick = ()=>{ profileSlideIndex = Number(d.dataset.dot); renderProfile(); });
+
+  const viewport = box.querySelector('#profileViewport');
+  if(viewport && slides.length > 1){
+    let touchStartX = 0, touchStartY = 0, touchTracking = false;
+    viewport.addEventListener('touchstart', e=>{
+      if(e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchTracking = true;
+    }, { passive:true });
+    viewport.addEventListener('touchend', e=>{
+      if(!touchTracking) return;
+      touchTracking = false;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartX;
+      const dy = touch.clientY - touchStartY;
+      if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
+        profileSlideIndex = dx > 0 ? (profileSlideIndex - 1 + slides.length) % slides.length : (profileSlideIndex + 1) % slides.length;
+        renderProfile();
+      }
+    });
+  }
+
+  const label = box.querySelector('#profLabel');
+  if(label && editMode) label.onclick = ()=> openProfileSlideModal(profileSlideIndex, slides);
+
+  const delBtn = box.querySelector('#profSlideDelBtn');
+  if(delBtn) delBtn.onclick = async (e)=>{
+    e.stopPropagation();
+    const arr = [...slides]; arr.splice(profileSlideIndex,1);
+    await docRef('profile').set({slides:arr}, {merge:true});
+  };
+
+  box.querySelectorAll('.profile-person').forEach(el=>{
+    if(!editMode) return;
+    el.addEventListener('click', ()=> openProfilePersonModal(profileSlideIndex, Number(el.dataset.slot), slides));
+  });
+
+  if(!editMode){
+    box.querySelectorAll('.profile-avatar').forEach(av=>{
+      const person = av.closest('.profile-person');
+      const slot = Number(person.dataset.slot);
+      const p = slides[profileSlideIndex].people[slot];
+      if(!p.avatar) return;
+      av.style.cursor = 'pointer';
+      av.addEventListener('click', ()=>{
+        openImageLightbox({ items:[{url:p.avatar}], index:0, resolve: item=>item.url, onDelete:null });
+      });
+    });
+  }
+
+  const addBtn = box.querySelector('#profAddBtn');
+  if(addBtn) addBtn.onclick = async ()=>{
+    const arr = [...slides, { label:'', people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
+    await docRef('profile').set({slides:arr}, {merge:true});
+    profileSlideIndex = arr.length - 1;
+  };
+}
+
+function openProfilePersonModal(slideIdx, slot, slides){
+  const p = slides[slideIdx].people[slot];
+  openModal(`
+    <h3>프로필 ${slot===0?'①':'②'} 수정</h3>
+    <label>이름</label><input type="text" id="pName" value="${escapeHtml(p.name)}">
+    <label>한줄 소개 (선택 — 나이·역할·한마디 등)</label><input type="text" id="pRole" value="${escapeHtml(p.role)}">
+    <label>프로필 사진 (선택)</label>
+    <input type="file" id="pAvatarFile" accept="image/*">
+    <label style="margin-top:6px;">또는 이미지 URL</label>
+    <input type="url" id="pAvatarUrl" placeholder="https://...">
+    ${p.avatar ? `<div class="mp-modal-cover-preview" id="pAvatarPreviewWrap"><img src="${p.avatar}" alt=""><button type="button" class="btn ghost small" id="pAvatarClear">사진 지우기</button></div>` : ''}
+    <p class="hint">이름만 적어도 되고, 사진은 비워둬도 괜찮아요.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    let avatarCleared = false;
+    const clearBtn = m.querySelector('#pAvatarClear');
+    if(clearBtn) clearBtn.onclick = ()=>{
+      avatarCleared = true;
+      const wrap = m.querySelector('#pAvatarPreviewWrap');
+      if(wrap) wrap.style.display = 'none';
+      toast('저장하면 사진이 지워져요');
+    };
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const name = m.querySelector('#pName').value.trim();
+      const role = m.querySelector('#pRole').value.trim();
+      const file = m.querySelector('#pAvatarFile').files[0];
+      const url = m.querySelector('#pAvatarUrl').value.trim();
+      let avatar = p.avatar || '';
+      if(avatarCleared) avatar = '';
+      if(url) avatar = url;
+      if(file){
+        saveBtn.disabled = true;
+        saveBtn.textContent = '사진 처리 중…';
+        try{ avatar = await compressImageFile(file, 700, 200000); }
+        catch(err){
+          toast(`사진 처리 실패: ${err.message || err}`);
+          saveBtn.disabled = false; saveBtn.textContent = '저장';
+          return;
+        }
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      const arr = slides.map(s=> ({ label: s.label, people: [...s.people] }));
+      arr[slideIdx].people[slot] = { name, role, avatar };
+      try{
+        await docRef('profile').set({slides:arr}, {merge:true});
+      }catch(err){
+        toast(`저장하지 못했어요: ${err.message || err}`);
+        saveBtn.disabled = false; saveBtn.textContent = '저장';
+        return;
+      }
+      closeModal();
+    };
+  });
+}
+
+function openProfileSlideModal(slideIdx, slides){
+  const slide = slides[slideIdx];
+  openModal(`
+    <h3>슬라이드 이름</h3>
+    <label>이름 (선택 — 예: 본편, 카페 AU, 학원 AU)</label>
+    <input type="text" id="slLabel" value="${escapeHtml(slide.label)}" placeholder="비워두면 이름 없이 보여요">
+    <div class="modal-actions">
+      <button class="btn danger" id="d" type="button">이 슬라이드 삭제</button>
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#d').onclick = async ()=>{
+      const arr = [...slides]; arr.splice(slideIdx,1);
+      await docRef('profile').set({slides:arr}, {merge:true});
+      closeModal();
+    };
+    m.querySelector('#s').onclick = async ()=>{
+      const label = m.querySelector('#slLabel').value.trim();
+      const arr = slides.map(s=> ({ label: s.label, people: [...s.people] }));
+      arr[slideIdx].label = label;
+      await docRef('profile').set({slides:arr}, {merge:true});
+      closeModal();
+    };
+  });
+}
+
+docRef('profile').onSnapshot(doc=>{ profileData = doc.exists ? doc.data() : {slides:[]}; renderProfile(); });
 
 /* ---------------- 2. 음악 위젯 ----------------
    플레이리스트 + 곡별 자켓 이미지(선택) + 반복재생(끄기/전체/1곡) + 연속재생(다음 곡 자동재생) 지원.
