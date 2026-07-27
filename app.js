@@ -3811,24 +3811,27 @@ function openChecklistLinkModal(idx){
   });
 }
 
-/* ---------------- row-2(문서 / 캘린더) 높이 맞추기 ----------------
+/* ---------------- row-2(문서 / 캘린더 / 체크리스트) 높이 맞추기 ----------------
    캘린더는 이전달·이번달·다음달이 세로로 이어져서 표시되고, 요일 칸이
    정사각형(aspect-ratio)이라 폭에 따라 세로 높이가 자동으로 달라짐. 그래서
-   캘린더를 기준으로 삼아, 문서 위젯의 높이를 캘린더의 실제 렌더링 높이에
-   맞춰줌(이미 내부 스크롤 처리가 되어 있어서, 높이가 줄어들면 안에서 스크롤됨).
-   900px 이하(row-2가 1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자
-   자연스러운 높이로 둠. */
+   캘린더를 기준으로 삼아, 문서 위젯과 체크리스트의 높이를 캘린더의 실제
+   렌더링 높이에 맞춰줌(둘 다 이미 내부 스크롤 처리가 되어 있어서, 높이가
+   줄어들면 안에서 스크롤됨). 900px 이하(row-2가 1열로 쌓이는 모바일 레이아웃)
+   에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
   const docsCard = document.getElementById('cardDocs');
-  if(!cal || !docsCard) return;
+  const checklistCard = document.getElementById('cardChecklist');
+  if(!cal || !docsCard || !checklistCard) return;
   if(window.innerWidth <= 900){
     docsCard.style.height = '';
+    checklistCard.style.height = '';
     return;
   }
   const h = cal.getBoundingClientRect().height;
   if(h > 0){
     docsCard.style.height = h + 'px';
+    checklistCard.style.height = h + 'px';
   }
 }
 function initRow2HeightSync(){
