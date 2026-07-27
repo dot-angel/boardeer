@@ -382,6 +382,9 @@ body::before{
 }
 .mp-play-btn:hover{ filter:brightness(1.08); }
 .player-tracks{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
+@media (max-width: 900px){
+  .player-tracks{ max-height: 220px; }
+}
 .player-tracks::-webkit-scrollbar{ width:5px; }
 .player-tracks::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .player-track{
@@ -707,6 +710,11 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
 .doc-list{ flex:1; min-height:0; min-width:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); align-content:start; gap:8px; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
+/* 모바일에서는 문서 위젯이 들어있는 그리드(.row-2-right 등)의 행 높이가 auto라서
+   카드 자체가 내용 길이만큼 계속 늘어나 버림 → 카드 안에서 스크롤되도록 높이 상한을 둠 */
+@media (max-width: 900px){
+  .doc-list{ max-height: 320px; }
+}
 .doc-list::-webkit-scrollbar{ width:5px; }
 .doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .doc-row{
@@ -822,6 +830,9 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
 .session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; overflow-y:auto; padding-right:2px; }
+@media (max-width: 900px){
+  .session-grid{ max-height: 320px; }
+}
 .session-grid::-webkit-scrollbar{ width:5px; }
 .session-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .session-card{
