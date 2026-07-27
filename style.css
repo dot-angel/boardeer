@@ -513,7 +513,10 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .pf-edit-row .pf-edit-value{ flex:1; }
 
 /* ---------- 방명록 ---------- */
-.w-guestbook .w-body{ flex:1; min-height:0; margin-bottom:10px; }
+.w-guestbook .w-body{ flex:1; min-height:0; margin-bottom:10px; overflow-y:auto; }
+@media (max-width: 900px){
+  .w-guestbook .w-body{ max-height: 260px; }
+}
 .gb-entry{ border-bottom:1px solid var(--card-border); padding:9px 0; }
 .gb-entry .gb-name{ font-weight:600; font-size:.85rem; color: var(--rose); }
 .gb-entry .gb-time{ font-size:.68rem; color:var(--ink-soft); margin-left:6px; }

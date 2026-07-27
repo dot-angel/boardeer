@@ -77,9 +77,8 @@ function debounce(fn, wait){
    위쪽 여러 열에 먼저 채워지고, 뒤쪽(오래된) 사진일수록 아래로 내려가게 됨. */
 const PIN_MASONRY_GAP = 12;
 function pinMasonryColumnCount(width){
-  if(width < 420) return 1;
-  if(width < 700) return 2;
-  return 3;
+  if(width < 700) return 2;   // 모바일: 2열
+  return 4;                   // PC: 4열
 }
 function layoutPinMasonry(gridEl){
   if(!gridEl) return;
