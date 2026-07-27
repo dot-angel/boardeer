@@ -346,10 +346,15 @@ body::before{
 .mp-meta{ text-align:center; padding:2px 4px 0; }
 .mp-title{ font-weight:700; font-size:.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mp-artist{ font-size:.74rem; color:var(--ink-soft); margin-top:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mp-controls{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:2px; }
+.mp-controls{
+  display:flex; align-items:center; justify-content:center; gap:10px; margin-top:2px;
+  flex-wrap: nowrap; /* 모바일에서 줄바꿈으로 인해 버튼이 재배치/축소되는 것 방지 */
+}
 .mp-controls .icon-btn{
   width:26px; height:26px; font-size:.85rem;
   background:none; border:none; box-shadow:none;
+  flex: 0 0 26px;       /* 좁은 화면에서 눌려 찌그러지지 않도록 크기 고정 */
+  aspect-ratio: 1 / 1;  /* 항상 정원 비율 유지 */
 }
 .mp-controls .icon-btn:hover{ background:none; opacity:.7; }
 .mp-controls .icon-btn.active{ background:none; border:none; color: var(--rose); }
@@ -369,6 +374,8 @@ body::before{
   background: var(--rose); color:#fff; font-size:.85rem;
   display:flex; align-items:center; justify-content:center;
   box-shadow: 0 6px 16px rgba(196,66,95,0.4);
+  flex: 0 0 42px;       /* 모바일 좁은 화면에서도 크기가 눌리지 않도록 고정 */
+  aspect-ratio: 1 / 1;  /* 항상 정원 비율 유지(세로로 납작해지는 현상 방지) */
 }
 .mp-play-btn:hover{ filter:brightness(1.08); }
 .player-tracks{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
