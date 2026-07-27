@@ -1140,15 +1140,31 @@ docRef('images').onSnapshot(doc=>{ imagesData = doc.exists ? doc.data() : {items
 
 let profileData = { slides: [] };
 let profileSlideIndex = 0;
+let profileSectionIndex = 0; // 현재 슬라이드(AU) 안에서 보고 있는 시점/IF 인덱스
 
 function normalizeProfilePerson(p){
   p = p || {};
   return { name: p.name || '', role: p.role || '', avatar: p.avatar || '' };
 }
+function normalizeProfileField(f){
+  f = f || {};
+  return { label: f.label || '', value: f.value || '' };
+}
+function normalizeProfileSection(sec){
+  sec = sec || {};
+  return { name: sec.name || '', fields: Array.isArray(sec.fields) ? sec.fields.map(normalizeProfileField) : [] };
+}
 function normalizeProfileSlide(s){
   s = s || {};
   const people = Array.isArray(s.people) ? s.people : [];
-  return { label: s.label || '', people: [ normalizeProfilePerson(people[0]), normalizeProfilePerson(people[1]) ] };
+  let sections = Array.isArray(s.sections) ? s.sections.map(normalizeProfileSection) : [];
+  if(sections.length === 0){
+    // 이전 버전(슬라이드당 항목 한 세트 / 자유 서술) 데이터 호환
+    let legacyFields = Array.isArray(s.fields) ? s.fields.map(normalizeProfileField) : [];
+    if(legacyFields.length === 0 && s.desc) legacyFields = [{ label:'설명', value: s.desc }];
+    sections = [{ name:'', fields: legacyFields }];
+  }
+  return { label: s.label || '', people: [ normalizeProfilePerson(people[0]), normalizeProfilePerson(people[1]) ], sections };
 }
 
 function renderProfile(){
@@ -1167,13 +1183,39 @@ function renderProfile(){
   if(profileSlideIndex >= slides.length) profileSlideIndex = 0;
   if(profileSlideIndex < 0) profileSlideIndex = slides.length - 1;
   const slide = slides[profileSlideIndex];
+  if(profileSectionIndex >= slide.sections.length) profileSectionIndex = 0;
+  if(profileSectionIndex < 0) profileSectionIndex = 0;
+  const section = slide.sections[profileSectionIndex];
 
   box.innerHTML = `
     <div class="profile-viewport" id="profileViewport">
       ${editMode ? `<button class="icon-btn profile-slide-del" id="profSlideDelBtn" title="이 슬라이드 삭제">✕</button>` : ''}
-      ${slide.label
-        ? `<div class="profile-slide-label" id="profLabel" ${editMode ? 'title="눌러서 이름 수정"' : ''}>${escapeHtml(slide.label)}</div>`
-        : (editMode ? `<div class="profile-slide-label empty-hint" id="profLabel">+ 슬라이드 이름 추가 (예: 카페 AU)</div>` : '')}
+      <div class="profile-slide-meta">
+        ${slide.label
+          ? `<div class="profile-slide-label" id="profLabelBtn" ${editMode ? 'title="눌러서 이름 수정"' : ''}>${escapeHtml(slide.label)}</div>`
+          : (editMode ? `<div class="profile-slide-label empty-hint" id="profLabelBtn">+ 슬라이드 이름 추가 (예: 카페 AU)</div>` : '')}
+        ${(slide.sections.length > 1 || editMode) ? `
+          <div class="profile-section-tabs" id="profSectionTabs">
+            ${slide.sections.map((sec,i)=> `
+              <span class="profile-section-tab ${i===profileSectionIndex?'active':''}" data-sec="${i}">
+                ${escapeHtml(sec.name || '기본')}
+                ${editMode ? `<button class="ps-edit" data-secedit="${i}" title="이름·정보 수정">✎</button>` : ''}
+              </span>
+            `).join('')}
+            ${editMode ? `<button class="profile-section-add" id="profSecAddBtn" title="시점/IF 추가">＋</button>` : ''}
+          </div>
+        ` : ''}
+        <div class="profile-fields-wrap ${editMode ? 'editable' : ''}" id="profFieldsWrap">
+          ${section.fields.length
+            ? `<div class="profile-fields">${section.fields.map(f=> `
+                <div class="profile-field">
+                  <span class="pf-label">${escapeHtml(f.label || '항목')}</span>
+                  <span class="pf-value">${escapeHtml(f.value)}</span>
+                </div>
+              `).join('')}</div>`
+            : (editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 항목 추가 (나이차·포지션 등)</div>` : '')}
+        </div>
+      </div>
       <div class="profile-pair">
         ${[0,1].map(slot=>{
           const p = slide.people[slot];
@@ -1205,9 +1247,9 @@ function bindProfile(slides){
 
   const prev = box.querySelector('#profPrev');
   const next = box.querySelector('#profNext');
-  if(prev) prev.onclick = ()=>{ profileSlideIndex = (profileSlideIndex - 1 + slides.length) % slides.length; renderProfile(); };
-  if(next) next.onclick = ()=>{ profileSlideIndex = (profileSlideIndex + 1) % slides.length; renderProfile(); };
-  box.querySelectorAll('[data-dot]').forEach(d=> d.onclick = ()=>{ profileSlideIndex = Number(d.dataset.dot); renderProfile(); });
+  if(prev) prev.onclick = ()=>{ profileSlideIndex = (profileSlideIndex - 1 + slides.length) % slides.length; profileSectionIndex = 0; renderProfile(); };
+  if(next) next.onclick = ()=>{ profileSlideIndex = (profileSlideIndex + 1) % slides.length; profileSectionIndex = 0; renderProfile(); };
+  box.querySelectorAll('[data-dot]').forEach(d=> d.onclick = ()=>{ profileSlideIndex = Number(d.dataset.dot); profileSectionIndex = 0; renderProfile(); });
 
   const viewport = box.querySelector('#profileViewport');
   if(viewport && slides.length > 1){
@@ -1226,13 +1268,36 @@ function bindProfile(slides){
       const dy = touch.clientY - touchStartY;
       if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
         profileSlideIndex = dx > 0 ? (profileSlideIndex - 1 + slides.length) % slides.length : (profileSlideIndex + 1) % slides.length;
+        profileSectionIndex = 0;
         renderProfile();
       }
     });
   }
 
-  const label = box.querySelector('#profLabel');
-  if(label && editMode) label.onclick = ()=> openProfileSlideModal(profileSlideIndex, slides);
+  const labelBtn = box.querySelector('#profLabelBtn');
+  if(labelBtn && editMode) labelBtn.onclick = ()=> openProfileSlideModal(profileSlideIndex, slides);
+
+  box.querySelectorAll('.profile-section-tab').forEach(tab=>{
+    tab.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-secedit]')) return;
+      profileSectionIndex = Number(tab.dataset.sec);
+      renderProfile();
+    });
+  });
+  box.querySelectorAll('[data-secedit]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    openProfileSectionModal(profileSlideIndex, Number(btn.dataset.secedit), slides);
+  }));
+  const secAddBtn = box.querySelector('#profSecAddBtn');
+  if(secAddBtn) secAddBtn.onclick = async (e)=>{
+    e.stopPropagation();
+    const arr = slides.map(s=> ({ label: s.label, people: [...s.people], sections: s.sections.map(sec=> ({ name: sec.name, fields: sec.fields.map(f=>({...f})) })) }));
+    arr[profileSlideIndex].sections.push({ name:'', fields:[] });
+    await docRef('profile').set({slides:arr}, {merge:true});
+    profileSectionIndex = arr[profileSlideIndex].sections.length - 1;
+  };
+  const fieldsWrap = box.querySelector('#profFieldsWrap');
+  if(fieldsWrap && editMode) fieldsWrap.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
 
   const delBtn = box.querySelector('#profSlideDelBtn');
   if(delBtn) delBtn.onclick = async (e)=>{
@@ -1261,9 +1326,10 @@ function bindProfile(slides){
 
   const addBtn = box.querySelector('#profAddBtn');
   if(addBtn) addBtn.onclick = async ()=>{
-    const arr = [...slides, { label:'', people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
+    const arr = [...slides, { label:'', sections:[{name:'',fields:[]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = arr.length - 1;
+    profileSectionIndex = 0;
   };
 }
 
@@ -1314,7 +1380,7 @@ function openProfilePersonModal(slideIdx, slot, slides){
       }
       saveBtn.disabled = true;
       saveBtn.textContent = '저장 중…';
-      const arr = slides.map(s=> ({ label: s.label, people: [...s.people] }));
+      const arr = slides.map(s=> ({ label: s.label, people: [...s.people], sections: s.sections.map(sec=> ({ name: sec.name, fields: sec.fields.map(f=>({...f})) })) }));
       arr[slideIdx].people[slot] = { name, role, avatar };
       try{
         await docRef('profile').set({slides:arr}, {merge:true});
@@ -1334,8 +1400,9 @@ function openProfileSlideModal(slideIdx, slides){
     <h3>슬라이드 이름</h3>
     <label>이름 (선택 — 예: 본편, 카페 AU, 학원 AU)</label>
     <input type="text" id="slLabel" value="${escapeHtml(slide.label)}" placeholder="비워두면 이름 없이 보여요">
+    <p class="hint">나이차·포지션 같은 세부 정보나, 시점/IF별 내용은 아래쪽 정보 영역을 눌러서 따로 편집할 수 있어요.</p>
     <div class="modal-actions">
-      <button class="btn danger" id="d" type="button">이 슬라이드 삭제</button>
+      <button class="btn danger" id="d" type="button">이 슬라이드 전체 삭제</button>
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">저장</button>
     </div>
@@ -1348,9 +1415,77 @@ function openProfileSlideModal(slideIdx, slides){
     };
     m.querySelector('#s').onclick = async ()=>{
       const label = m.querySelector('#slLabel').value.trim();
-      const arr = slides.map(s=> ({ label: s.label, people: [...s.people] }));
+      const arr = slides.map(s=> ({ label: s.label, people: [...s.people], sections: s.sections.map(sec=> ({ name: sec.name, fields: sec.fields.map(f=>({...f})) })) }));
       arr[slideIdx].label = label;
       await docRef('profile').set({slides:arr}, {merge:true});
+      closeModal();
+    };
+  });
+}
+
+function openProfileSectionModal(slideIdx, secIdx, slides){
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+  const canDelete = slide.sections.length > 1;
+  let workingFields = section.fields.map(f=>({...f}));
+  openModal(`
+    <h3>시점/IF 정보 편집</h3>
+    <label>이름 (선택 — 예: 첫 만남, 사귄 후, IF: 헤어졌다면)</label>
+    <input type="text" id="secName" value="${escapeHtml(section.name)}" placeholder="비워두면 '기본'으로 보여요">
+    <label>정보 (항목별로 나눠서 적을 수 있어요)</label>
+    <div class="pf-edit-list" id="pfEditList"></div>
+    <button type="button" class="btn small ghost" id="pfAddBtn">+ 항목 추가</button>
+    <p class="hint">예: 나이차, 포지션, 첫 만남, 매력 포인트 등 원하는 항목명을 자유롭게 만들어서 적을 수 있어요.</p>
+    <div class="modal-actions">
+      ${canDelete ? `<button class="btn danger" id="d" type="button">이 시점/IF 삭제</button>` : ''}
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    const listEl = m.querySelector('#pfEditList');
+    const draw = ()=>{
+      listEl.innerHTML = workingFields.map((f,i)=> `
+        <div class="pf-edit-row" data-idx="${i}">
+          <input type="text" class="pf-edit-label" placeholder="항목명 (예: 나이차)" value="${escapeHtml(f.label)}">
+          <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
+          <button type="button" class="btn small danger" data-del="${i}">✕</button>
+        </div>
+      `).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
+      listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
+        workingFields.splice(Number(btn.dataset.del), 1);
+        draw();
+      }));
+    };
+    draw();
+    m.querySelector('#pfAddBtn').onclick = ()=>{ workingFields.push({label:'', value:''}); draw(); };
+    m.querySelector('#c').onclick = closeModal;
+    const delBtn = m.querySelector('#d');
+    if(delBtn) delBtn.onclick = async ()=>{
+      const arr = slides.map(s=> ({ label: s.label, people: [...s.people], sections: s.sections.map(sec=> ({ name: sec.name, fields: sec.fields.map(f=>({...f})) })) }));
+      arr[slideIdx].sections.splice(secIdx, 1);
+      await docRef('profile').set({slides:arr}, {merge:true});
+      profileSectionIndex = 0;
+      closeModal();
+    };
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const name = m.querySelector('#secName').value.trim();
+      const rows = Array.from(listEl.querySelectorAll('.pf-edit-row'));
+      const fields = rows.map(row=>({
+        label: row.querySelector('.pf-edit-label').value.trim(),
+        value: row.querySelector('.pf-edit-value').value.trim()
+      })).filter(f=> f.label || f.value);
+      const arr = slides.map(s=> ({ label: s.label, people: [...s.people], sections: s.sections.map(sec=> ({ name: sec.name, fields: sec.fields.map(f=>({...f})) })) }));
+      arr[slideIdx].sections[secIdx] = { name, fields };
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      try{
+        await docRef('profile').set({slides:arr}, {merge:true});
+      }catch(err){
+        toast('저장하지 못했어요');
+        saveBtn.disabled = false; saveBtn.textContent = '저장';
+        return;
+      }
       closeModal();
     };
   });
