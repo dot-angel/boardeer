@@ -409,13 +409,22 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .gb-form textarea{ min-height:48px; resize:vertical; }
 .gb-form .btn{ align-self:flex-end; }
 /* ---------- 캘린더 (이전달·이번달·다음달을 세로로 이어서 표시) ---------- */
-.cal-months{ display:flex; flex-direction:column; gap:18px; }
+.cal-months{ display:flex; flex-direction:column; gap:10px; }
 .cal-month{ display:flex; flex-direction:column; }
-.cal-month + .cal-month{ padding-top:18px; border-top:1px solid var(--card-border); }
+.cal-month + .cal-month{ padding-top:10px; border-top:1px solid var(--card-border); }
 .cal-month.cal-month-side{ opacity:.6; }
 .cal-month.cal-month-current .cal-head strong{ color: var(--rose); }
-.cal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.cal-head .icon-btn-spacer{ width:28px; height:28px; }
+.cal-head{ display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
+/* 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이도록 JS(renderCalendar)에서
+   .cal-clip에 height를, .cal-grid에 marginTop을 직접 지정함. 여기서는 넘치는 부분을
+   잘라내고(overflow:hidden) 잘린 경계가 자연스럽게 흐려지도록 마스크만 지정. */
+.cal-clip{ overflow:hidden; }
+.cal-month-prev .cal-clip{ mask-image: linear-gradient(to bottom, transparent, black 45%); -webkit-mask-image: linear-gradient(to bottom, transparent, black 45%); }
+.cal-month-next .cal-clip{ mask-image: linear-gradient(to bottom, black 55%, transparent); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent); }
+/* 넘김 버튼: 좌우가 아니라 캘린더 전체 위/아래(상하)에 배치 */
+.cal-nav{ display:flex; justify-content:center; }
+.cal-nav-prev{ margin-bottom:6px; }
+.cal-nav-next{ margin-top:6px; }
 .cal-grid{ display:grid; grid-template-columns: repeat(7,1fr); gap:3px; font-size:.72rem; }
 .cal-dow{ text-align:center; color:var(--ink-soft); padding-bottom:4px; }
 .cal-day{
