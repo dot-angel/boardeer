@@ -147,7 +147,7 @@ body::before{
   position: relative; z-index: 1;
 }
 .row{ display:grid; gap:20px; }
-.row-strip{ grid-template-columns: 1fr 1.5fr 1fr; align-items: stretch; }
+.row-strip{ grid-template-columns: 0.8fr 1.9fr 1fr; align-items: stretch; }
 .row-strip > .w-card.w-docs{ min-height: 420px; }
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
@@ -375,8 +375,8 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   display:flex; align-items:center; justify-content:center; font-size:1.5rem; color: var(--rose);
   box-shadow: 0 6px 16px rgba(0,0,0,0.25);
 }
-.profile-name{ font-weight:700; font-size:.82rem; max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.profile-role{ font-size:.68rem; color: var(--ink-soft); max-width:110px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-name{ font-weight:700; font-size:.82rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-role{ font-size:.68rem; color: var(--ink-soft); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
