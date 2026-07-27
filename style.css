@@ -155,25 +155,26 @@ body::before{
 }
 .board-tab-dot:hover{ background: rgba(255,255,255,0.35); }
 .board-tab-dot.active{ background: var(--rose); border-color: var(--rose); transform: scale(1.25); }
-/* 좌우 화살표: 평소엔 숨겨져 있다가, 탭 영역에 커서를 올리면 화면 양옆에 살짝 떠오름 */
+/* 좌우 화살표: 이미지 위젯의 슬라이드 화살표(.slide-nav)와 동일한 스타일 —
+   둥근 배경 없이 흰 화살표 아이콘 + 그림자만. 평소엔 숨겨져 있다가
+   탭 영역에 커서를 올리면 화면 양옆에 옅게 떠오름 */
 .board-tab-arrow{
   position: fixed; top: 50%; transform: translateY(-50%); z-index: 16;
-  width:44px; height:44px; border-radius:50%; border:1px solid var(--card-border);
-  background: rgba(20,10,12,0.55);
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
-  color:#fff; font-size:1.6rem; font-weight:300; line-height:1; cursor:pointer;
+  width:34px; height:34px; border-radius:50%; border:none;
+  background: transparent; box-shadow:none;
+  color:#fff; font-size:1.4rem; font-weight:300; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.8);
   opacity:0; pointer-events:none; transition: opacity .2s ease;
-  box-shadow: var(--shadow);
 }
-.board-tabs:hover .board-tab-arrow{ opacity:.8; pointer-events:auto; }
+.board-tabs:hover .board-tab-arrow{ opacity:.85; pointer-events:auto; }
 .board-tab-arrow:hover{ opacity:1 !important; }
 .board-tab-arrow.prev{ left:16px; }
 .board-tab-arrow.next{ right:16px; }
 .board-tab-arrow.disabled{ display:none; }
-/* 호버가 없는 터치 기기에서는 화살표 대신 스와이프로 충분하므로 아예 숨김 */
+/* 호버가 없는 터치 기기에서는 살짝 항상 보이게 해서 눌러야 할 위치를 알 수 있게 함(슬라이드 화살표와 동일) */
 @media (hover:none){
-  .board-tab-arrow{ display:none; }
+  .board-tab-arrow{ opacity:.55; pointer-events:auto; }
 }
 /* 실제 슬라이드 영역: 가로 스크롤 + 스냅으로 좌우 스와이프(트랙패드/터치 모두 자연스럽게 동작) */
 .board-viewport{
@@ -196,14 +197,15 @@ body::before{
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
-.row-2{ grid-template-columns: 0.95fr 1.15fr 200px 200px; }
+/* 캘린더 / 문서(축소) / 체크리스트 / 세션(확대) 순서 */
+.row-2{ grid-template-columns: 1.15fr 0.7fr 200px 260px; }
 .row-2 > .w-card{ min-height:0; } /* 그리드 트랙 높이대로 실제로 줄어들어야 내부 스크롤이 생김 */
-/* 두번째 갤러리 + 레퍼런스 갤러리: 한 행에 나란히. 레퍼런스 갤러리는 기존 폭(240px 고정)을 유지 */
-.row-refpair{ grid-template-columns: 1fr 240px; align-items: stretch; }
+/* 두번째 갤러리 + 레퍼런스 갤러리: 한 행에 나란히. 레퍼런스 갤러리 폭을 살짝 늘림 */
+.row-refpair{ grid-template-columns: 1fr 270px; align-items: stretch; }
 .row-refpair > .w-card{ min-height:0; }
 @media (max-width: 1100px){
-  .row-2{ grid-template-columns: 0.9fr 1.05fr 170px 170px; }
-  .row-refpair{ grid-template-columns: 1fr 190px; }
+  .row-2{ grid-template-columns: 1.05fr 0.6fr 170px 220px; }
+  .row-refpair{ grid-template-columns: 1fr 210px; }
 }
 @media (max-width: 900px){
   .row-2, .row-strip, .row-refpair{ grid-template-columns: 1fr; }
