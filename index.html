@@ -38,7 +38,8 @@
     <div class="board-viewport" id="boardViewport">
 
       <!-- 탭 1: 갤러리를 제외한 나머지 위젯들 -->
-      <div class="board board-page" data-page="0">
+      <div class="board-page" data-page="0">
+       <div class="board">
 
         <div class="row row-images">
           <div class="w-card w-images" id="cardImages"></div>
@@ -70,7 +71,6 @@
             <div class="w-edit-row" id="docAddWrap"></div>
           </div>
           <div class="w-card w-calendar" id="cardCalendar"></div>
-          <div class="w-card w-refgallery" id="cardRefGallery"></div>
         </div>
 
         <div class="row row-4">
@@ -84,19 +84,23 @@
           </div>
         </div>
 
+       </div>
       </div>
 
       <!-- 탭 2: 갤러리 위젯들 -->
-      <div class="board board-page" data-page="1">
+      <div class="board-page" data-page="1">
+       <div class="board">
 
         <div class="row row-3">
           <div class="w-card w-gallery" id="cardGallery"></div>
         </div>
 
-        <div class="row row-3">
+        <div class="row row-refpair">
+          <div class="w-card w-refgallery" id="cardRefGallery"></div>
           <div class="w-card w-gallery" id="cardGallery2"></div>
         </div>
 
+       </div>
       </div>
 
     </div>

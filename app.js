@@ -3811,27 +3811,24 @@ function openChecklistLinkModal(idx){
   });
 }
 
-/* ---------------- row-2(문서 / 캘린더 / 레퍼런스갤러리) 높이 맞추기 ----------------
-   캘린더는 이제 이전달·이번달·다음달이 세로로 이어져서 표시되고, 요일 칸이
+/* ---------------- row-2(문서 / 캘린더) 높이 맞추기 ----------------
+   캘린더는 이전달·이번달·다음달이 세로로 이어져서 표시되고, 요일 칸이
    정사각형(aspect-ratio)이라 폭에 따라 세로 높이가 자동으로 달라짐. 그래서
-   캘린더를 기준으로 삼아, 문서 위젯과 레퍼런스 갤러리의 높이를 캘린더의 실제
-   렌더링 높이에 맞춰줌(두 칸은 이미 내부 스크롤 처리가 되어 있어서, 높이가
-   줄어들면 안에서 스크롤됨). 900px 이하(row-2가 1열로 쌓이는 모바일 레이아웃)
-   에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
+   캘린더를 기준으로 삼아, 문서 위젯의 높이를 캘린더의 실제 렌더링 높이에
+   맞춰줌(이미 내부 스크롤 처리가 되어 있어서, 높이가 줄어들면 안에서 스크롤됨).
+   900px 이하(row-2가 1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자
+   자연스러운 높이로 둠. */
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
   const docsCard = document.getElementById('cardDocs');
-  const refGallery = document.getElementById('cardRefGallery');
-  if(!cal || !docsCard || !refGallery) return;
+  if(!cal || !docsCard) return;
   if(window.innerWidth <= 900){
     docsCard.style.height = '';
-    refGallery.style.height = '';
     return;
   }
   const h = cal.getBoundingClientRect().height;
   if(h > 0){
     docsCard.style.height = h + 'px';
-    refGallery.style.height = h + 'px';
   }
 }
 function initRow2HeightSync(){

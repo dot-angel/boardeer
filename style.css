@@ -183,14 +183,17 @@ body::before{
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
-.row-2{ grid-template-columns: 1.05fr 1.35fr 240px; }
+.row-2{ grid-template-columns: 1.05fr 1.35fr; }
 .row-2 > .w-card{ min-height:0; } /* 그리드 트랙 높이대로 실제로 줄어들어야 내부 스크롤이 생김 */
 .row-4{ grid-template-columns: 2fr 1fr; }
+/* 레퍼런스 갤러리 + 두번째 갤러리: 한 행에 나란히, 같은 그리드 행이라 높이가 자동으로 맞춰짐 */
+.row-refpair{ grid-template-columns: 1fr 1fr; align-items: stretch; }
+.row-refpair > .w-card{ min-height:0; }
 @media (max-width: 1100px){
-  .row-2{ grid-template-columns: 1.05fr 1.35fr 190px; }
+  .row-2{ grid-template-columns: 1fr 1.2fr; }
 }
 @media (max-width: 900px){
-  .row-2, .row-4, .row-strip{ grid-template-columns: 1fr; }
+  .row-2, .row-4, .row-strip, .row-refpair{ grid-template-columns: 1fr; }
 }
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
 .w-card{
