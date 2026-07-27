@@ -83,9 +83,15 @@ function pinMasonryColumnCount(width){
 }
 function layoutPinMasonry(gridEl){
   if(!gridEl) return;
-  const tiles = Array.from(gridEl.children);
+  // gridEl로는 스크롤 래퍼(#galleryGrid, .pin-grid-scroll)가 넘어오는 경우가 많은데,
+  // 실제 사진 타일(.pin-item)은 그 안쪽의 .pin-grid의 직계 자식임. 예전엔 래퍼의
+  // 직계 자식(=.pin-grid 딱 하나)을 타일인 것처럼 잘못 순회해서, 실제 타일들은 위치/크기가
+  // 한 번도 계산되지 않아 높이가 0으로 접혀 사진이 전혀 보이지 않는 문제가 있었음.
+  // 그래서 항상 실제 타일을 담고 있는 .pin-grid를 찾아서 그 안에서 계산하도록 함.
+  const inner = gridEl.classList.contains('pin-grid') ? gridEl : (gridEl.querySelector(':scope > .pin-grid') || gridEl);
+  const tiles = Array.from(inner.children);
   const width = gridEl.clientWidth;
-  if(!tiles.length){ gridEl.style.height = '0px'; return; }
+  if(!tiles.length){ inner.style.height = '0px'; return; }
   // 갤러리 탭이 아직 한 번도 화면에 보이지 않았을 때(content-visibility:auto로 옆 탭이
   // 렌더링을 건너뛴 상태)는 폭이 0으로 읽혀서 사진들이 자리를 못 잡고 겹쳐 보일 수 있음.
   // 이럴 땐 포기하지 않고 ResizeObserver로 실제 폭이 잡히는 순간(탭 전환 등) 다시 계산함
@@ -102,7 +108,7 @@ function layoutPinMasonry(gridEl){
     tile.style.transform = `translate(${x}px, ${y}px)`;
     colHeights[target] = y + tile.getBoundingClientRect().height + PIN_MASONRY_GAP;
   });
-  gridEl.style.height = Math.max(0, Math.max(...colHeights) - PIN_MASONRY_GAP) + 'px';
+  inner.style.height = Math.max(0, Math.max(...colHeights) - PIN_MASONRY_GAP) + 'px';
 }
 let pinMasonryResizeObserver = null;
 function ensurePinMasonryResizeWatch(gridEl){

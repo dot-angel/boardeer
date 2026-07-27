@@ -152,8 +152,8 @@ body::before{
   padding: 9px 16px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  background: rgba(20,10,12,0.55);
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
   box-shadow: var(--shadow);
 }
 .board-tab-dot{
