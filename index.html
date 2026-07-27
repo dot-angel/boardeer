@@ -30,10 +30,12 @@
 
   <!-- 탭으로 나뉜 고정 레이아웃: 좌우로 슬라이드하면 탭이 넘어감. 위젯 제목은 전부 없앰(애플 위젯 스타일) -->
   <div class="board-tabs">
-    <div class="board-tab-nav" id="boardTabNav">
-      <button class="board-tab-btn active" type="button" data-tab="0">위젯</button>
-      <button class="board-tab-btn" type="button" data-tab="1">갤러리</button>
+    <div class="board-tab-dots" id="boardTabNav">
+      <button class="board-tab-dot active" type="button" data-tab="0" aria-label="위젯 탭"></button>
+      <button class="board-tab-dot" type="button" data-tab="1" aria-label="갤러리 탭"></button>
     </div>
+    <button class="board-tab-arrow prev disabled" type="button" id="boardTabPrev" aria-label="이전 탭">‹</button>
+    <button class="board-tab-arrow next" type="button" id="boardTabNext" aria-label="다음 탭">›</button>
 
     <div class="board-viewport" id="boardViewport">
 
@@ -75,9 +77,6 @@
             <div class="checklist" id="checklistBody"></div>
             <div class="check-add-row" id="checklistAddWrap" style="display:none;"></div>
           </div>
-        </div>
-
-        <div class="row row-4">
           <div class="w-card w-sessions" id="cardSessions">
             <div class="session-grid" id="sessionGrid"></div>
             <div class="w-edit-row" id="sessionAddWrap"></div>

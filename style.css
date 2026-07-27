@@ -142,26 +142,39 @@ body::before{
 .lock-badge.unlocked{ border-color: var(--rose); color: var(--rose); }
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
 .board-tabs{ position: relative; }
-.board-tab-nav{
+.board-tab-dots{
   position: sticky; top: 0; z-index: 15;
-  display:flex; justify-content:center; gap:10px;
-  padding: 16px 0 6px;
+  display:flex; justify-content:center; align-items:center; gap:9px;
+  padding: 18px 0 8px;
   background: linear-gradient(180deg, var(--paper) 55%, transparent);
 }
-.board-tab-btn{
-  font-family: var(--font-body);
-  border: 1px solid var(--card-border);
-  background: rgba(255,255,255,0.07);
+.board-tab-dot{
+  width:8px; height:8px; padding:0; border-radius:50%;
+  border: 1px solid var(--card-border); background: var(--gold-soft);
+  cursor: pointer; transition: background .15s ease, transform .15s ease, border-color .15s ease;
+}
+.board-tab-dot:hover{ background: rgba(255,255,255,0.35); }
+.board-tab-dot.active{ background: var(--rose); border-color: var(--rose); transform: scale(1.25); }
+/* 좌우 화살표: 평소엔 숨겨져 있다가, 탭 영역에 커서를 올리면 화면 양옆에 살짝 떠오름 */
+.board-tab-arrow{
+  position: fixed; top: 50%; transform: translateY(-50%); z-index: 16;
+  width:44px; height:44px; border-radius:50%; border:1px solid var(--card-border);
+  background: rgba(20,10,12,0.55);
   backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
-  color: var(--ink-soft);
-  padding: 8px 22px; border-radius: 999px; cursor: pointer; font-size: .85rem;
-  transition: background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+  color:#fff; font-size:1.6rem; font-weight:300; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition: opacity .2s ease;
   box-shadow: var(--shadow);
 }
-.board-tab-btn:hover{ background: rgba(255,255,255,0.14); }
-.board-tab-btn:active{ transform: translateY(1px); }
-.board-tab-btn.active{ background: var(--rose-solid); color:#fff; border-color: var(--rose-solid); }
-.board-tab-btn.active:hover{ background:#8f2839; }
+.board-tabs:hover .board-tab-arrow{ opacity:.8; pointer-events:auto; }
+.board-tab-arrow:hover{ opacity:1 !important; }
+.board-tab-arrow.prev{ left:16px; }
+.board-tab-arrow.next{ right:16px; }
+.board-tab-arrow.disabled{ display:none; }
+/* 호버가 없는 터치 기기에서는 화살표 대신 스와이프로 충분하므로 아예 숨김 */
+@media (hover:none){
+  .board-tab-arrow{ display:none; }
+}
 /* 실제 슬라이드 영역: 가로 스크롤 + 스냅으로 좌우 스와이프(트랙패드/터치 모두 자연스럽게 동작) */
 .board-viewport{
   display:flex; width:100%; overflow-x:auto; overflow-y:visible;
@@ -183,17 +196,17 @@ body::before{
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
-.row-2{ grid-template-columns: 1.05fr 1.35fr 240px; }
+.row-2{ grid-template-columns: 0.95fr 1.15fr 200px 200px; }
 .row-2 > .w-card{ min-height:0; } /* 그리드 트랙 높이대로 실제로 줄어들어야 내부 스크롤이 생김 */
-.row-4{ grid-template-columns: 1fr; }
-/* 레퍼런스 갤러리 + 두번째 갤러리: 한 행에 나란히, 같은 그리드 행이라 높이가 자동으로 맞춰짐 */
-.row-refpair{ grid-template-columns: 1fr 1fr; align-items: stretch; }
+/* 두번째 갤러리 + 레퍼런스 갤러리: 한 행에 나란히. 레퍼런스 갤러리는 기존 폭(240px 고정)을 유지 */
+.row-refpair{ grid-template-columns: 1fr 240px; align-items: stretch; }
 .row-refpair > .w-card{ min-height:0; }
 @media (max-width: 1100px){
-  .row-2{ grid-template-columns: 0.95fr 1.2fr 190px; }
+  .row-2{ grid-template-columns: 0.9fr 1.05fr 170px 170px; }
+  .row-refpair{ grid-template-columns: 1fr 190px; }
 }
 @media (max-width: 900px){
-  .row-2, .row-4, .row-strip, .row-refpair{ grid-template-columns: 1fr; }
+  .row-2, .row-strip, .row-refpair{ grid-template-columns: 1fr; }
 }
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
 .w-card{
@@ -698,7 +711,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
-.session-grid{ display:grid; grid-template-columns: repeat(2,1fr); gap:12px; max-height:420px; overflow-y:auto; padding-right:2px; }
+.session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; overflow-y:auto; padding-right:2px; }
 .session-grid::-webkit-scrollbar{ width:5px; }
 .session-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .session-card{

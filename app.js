@@ -3811,27 +3811,30 @@ function openChecklistLinkModal(idx){
   });
 }
 
-/* ---------------- row-2(문서 / 캘린더 / 체크리스트) 높이 맞추기 ----------------
+/* ---------------- row-2(문서 / 캘린더 / 체크리스트 / 세션) 높이 맞추기 ----------------
    캘린더는 이전달·이번달·다음달이 세로로 이어져서 표시되고, 요일 칸이
    정사각형(aspect-ratio)이라 폭에 따라 세로 높이가 자동으로 달라짐. 그래서
-   캘린더를 기준으로 삼아, 문서 위젯과 체크리스트의 높이를 캘린더의 실제
-   렌더링 높이에 맞춰줌(둘 다 이미 내부 스크롤 처리가 되어 있어서, 높이가
+   캘린더를 기준으로 삼아, 문서 위젯·체크리스트·세션 위젯의 높이를 캘린더의
+   실제 렌더링 높이에 맞춰줌(셋 다 이미 내부 스크롤 처리가 되어 있어서, 높이가
    줄어들면 안에서 스크롤됨). 900px 이하(row-2가 1열로 쌓이는 모바일 레이아웃)
    에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
   const docsCard = document.getElementById('cardDocs');
   const checklistCard = document.getElementById('cardChecklist');
-  if(!cal || !docsCard || !checklistCard) return;
+  const sessionsCard = document.getElementById('cardSessions');
+  if(!cal || !docsCard || !checklistCard || !sessionsCard) return;
   if(window.innerWidth <= 900){
     docsCard.style.height = '';
     checklistCard.style.height = '';
+    sessionsCard.style.height = '';
     return;
   }
   const h = cal.getBoundingClientRect().height;
   if(h > 0){
     docsCard.style.height = h + 'px';
     checklistCard.style.height = h + 'px';
+    sessionsCard.style.height = h + 'px';
   }
 }
 function initRow2HeightSync(){
@@ -3849,21 +3852,32 @@ function initBoardTabs(){
   const viewport = document.getElementById('boardViewport');
   const nav = document.getElementById('boardTabNav');
   if(!viewport || !nav) return;
-  const btns = [...nav.querySelectorAll('.board-tab-btn')];
+  const btns = [...nav.querySelectorAll('.board-tab-dot')];
+  const prevBtn = document.getElementById('boardTabPrev');
+  const nextBtn = document.getElementById('boardTabNext');
 
   function setActive(idx){
     btns.forEach((b,i)=> b.classList.toggle('active', i===idx));
+    if(prevBtn) prevBtn.classList.toggle('disabled', idx <= 0);
+    if(nextBtn) nextBtn.classList.toggle('disabled', idx >= btns.length - 1);
   }
   function goTo(idx, smooth=true){
+    idx = Math.max(0, Math.min(btns.length - 1, idx));
     viewport.scrollTo({ left: idx * viewport.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
     setActive(idx);
+  }
+  function currentIdx(){
+    const i = btns.findIndex(b=> b.classList.contains('active'));
+    return i >= 0 ? i : 0;
   }
 
   btns.forEach(btn=>{
     btn.addEventListener('click', ()=> goTo(Number(btn.dataset.tab)));
   });
+  if(prevBtn) prevBtn.addEventListener('click', ()=> goTo(currentIdx() - 1));
+  if(nextBtn) nextBtn.addEventListener('click', ()=> goTo(currentIdx() + 1));
 
-  // 스와이프/스크롤로 탭이 넘어갔을 때 활성 버튼도 같이 맞춰줌
+  // 스와이프/스크롤로 탭이 넘어갔을 때 활성 점/화살표 상태도 같이 맞춰줌
   let scrollTimer = null;
   viewport.addEventListener('scroll', ()=>{
     clearTimeout(scrollTimer);
@@ -3874,10 +3888,9 @@ function initBoardTabs(){
   });
 
   // 화면 크기가 바뀌어도(예: 회전) 현재 보고 있던 탭 위치를 그대로 유지
-  window.addEventListener('resize', ()=>{
-    const activeIdx = btns.findIndex(b=> b.classList.contains('active'));
-    if(activeIdx >= 0) goTo(activeIdx, false);
-  });
+  window.addEventListener('resize', ()=> goTo(currentIdx(), false));
+
+  setActive(0);
 }
 
 /* ---------------- 초기화 ---------------- */
