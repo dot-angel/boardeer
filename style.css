@@ -265,7 +265,15 @@ body::before{
 .w-edit-row{ margin-top:8px; flex:0 0 auto; }
 /* ---------- 이미지 위젯 (가로형 슬라이드 + 사진 위 타이포그래피) ---------- */
 .w-images{ min-height: 460px; padding:0; }
+/* 모바일에서는 카드 폭이 좁아지는데 높이는 그대로라 세로로 긴 비율이 되면서
+   가로(와이드) 사진일수록 object-fit:cover에 의해 양옆이 많이 잘림 → 높이를 낮춰서 완화 */
+@media (max-width: 900px){
+  .w-images{ min-height: 240px; }
+}
 .slide-viewport{ position:relative; width:100%; height:100%; flex:1; min-height:280px; background: rgba(0,0,0,0.2); }
+@media (max-width: 900px){
+  .slide-viewport{ min-height: 200px; }
+}
 .slide-viewport img{ width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
 .slide-viewport::after{
   content:""; position:absolute; inset:0; pointer-events:none;
