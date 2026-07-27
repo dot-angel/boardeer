@@ -197,9 +197,9 @@ body::before{
 .row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
 /* 왼쪽: 캘린더 + 세션(나란히) / 오른쪽: 문서 + 체크리스트(문서 아래로 체크리스트, 세로로 쌓임) */
-.row-2{ grid-template-columns: 1.75fr 1fr; }
+.row-2{ grid-template-columns: 1.6fr 1fr; }
 .row-2 > .row-2-left, .row-2 > .row-2-right{ min-width:0; min-height:0; }
-.row-2-left{ display:grid; grid-template-columns: 1.15fr 260px; gap:20px; min-width:0; }
+.row-2-left{ display:grid; grid-template-columns: 1fr 340px; gap:20px; min-width:0; }
 .row-2-left > .w-card{ min-height:0; min-width:0; }
 .row-2-right{ display:grid; grid-template-rows: auto auto; gap:20px; min-width:0; }
 .row-2-right > .w-card{ min-height:0; }
@@ -207,8 +207,8 @@ body::before{
 .row-refpair{ grid-template-columns: 1fr 270px; align-items: stretch; }
 .row-refpair > .w-card{ min-height:0; }
 @media (max-width: 1100px){
-  .row-2{ grid-template-columns: 1.65fr 1fr; }
-  .row-2-left{ grid-template-columns: 1.05fr 220px; }
+  .row-2{ grid-template-columns: 1.5fr 1fr; }
+  .row-2-left{ grid-template-columns: 1fr 280px; }
   .row-refpair{ grid-template-columns: 1fr 210px; }
 }
 @media (max-width: 900px){
@@ -513,7 +513,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .w-gallery{ padding-bottom:20px; }
 .pin-grid{
   column-count: 3; column-gap: 12px;
-  max-height: 700px; overflow-y: auto; padding-right: 6px;
+  max-height: 920px; overflow-y: auto; padding-right: 6px;
 }
 .pin-grid::-webkit-scrollbar{ width:5px; }
 .pin-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
@@ -568,7 +568,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .gallery-toggle-btn .gallery-toggle-arrow.open{ transform: rotate(180deg); }
 .pin-grid-dense{
   display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap:8px; max-height:480px; overflow-y:auto; padding-right:4px;
+  gap:8px; max-height:640px; overflow-y:auto; padding-right:4px;
   /* 사진이 아무리 많이 쌓여도 이 높이 이상으로는 절대 늘어나지 않고, 넘치는 만큼만 내부 스크롤로 처리함 */
 }
 .pin-grid-dense::-webkit-scrollbar{ width:5px; }

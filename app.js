@@ -3036,7 +3036,8 @@ function fitRefGalleryToCalendarHeight(){
   // 그리드 아이템인 카드 자체에 명시적 높이를 줌. 그리드 아이템은 명시적 높이가 있으면
   // align-items:stretch를 무시하고 그 값 그대로 확정되고, 안쪽 flex:1 그리드는 그 안에서만
   // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
-  refCard.style.height = `${Math.round(calH)}px`;
+  // 캘린더보다 조금 더 크게(+160px) 잡아서 갤러리 탭 위젯들과 높이감을 맞춤.
+  refCard.style.height = `${Math.round(calH) + 160}px`;
 }
 window.addEventListener('resize', debounce(()=>{
   fitRefGalleryToCalendarHeight();
