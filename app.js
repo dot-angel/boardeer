@@ -2922,6 +2922,45 @@ let gallery2Data = { items: [] };
 let gallery2FilterOpt = null;
 let gallery2ObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
 let skipNextGallery2Render = false;
+let gallery2LastColCount = null; // 마지막으로 렌더링한 열 개수(폭이 바뀌어 열 개수가 달라질 때만 다시 그리기 위함)
+
+const GALLERY2_MIN_COL_WIDTH = 110; // 이 폭 밑으로는 칼럼을 더 늘리지 않음(썸네일이 너무 작아지는 것 방지)
+const GALLERY2_COL_GAP = 6;
+// 레퍼런스 갤러리는 항상 2열 고정이지만, 갤러리2는 카드 폭에 맞춰 열 개수가 자동으로 늘고 줄어들게 함
+function gallery2ColumnCount(width){
+  if(!width) return 2;
+  return Math.max(1, Math.floor((width + GALLERY2_COL_GAP) / (GALLERY2_MIN_COL_WIDTH + GALLERY2_COL_GAP)));
+}
+// 겹치는 정도는 레퍼런스 갤러리보다 훨씬 약하게(최대 겹침도, 늘어나는 속도도 줄임)
+const GALLERY2_OVERLAP_STEP = 0.03;
+const GALLERY2_OVERLAP_MAX = 0.28;
+function applyGallery2Overlap(gridEl, itemCount, colCount){
+  if(!gridEl) return;
+  const firstTile = gridEl.querySelector('.pin-item-dense');
+  if(!firstTile){ gridEl.style.setProperty('--gallery2-overlap-px', '0px'); return; }
+  const tileSize = firstTile.getBoundingClientRect().height || firstTile.getBoundingClientRect().width;
+  if(!tileSize) return;
+  const rows = Math.ceil(itemCount / Math.max(1, colCount||2));
+  const overlapRatio = Math.min(GALLERY2_OVERLAP_MAX, Math.max(0, (rows - 1) * GALLERY2_OVERLAP_STEP));
+  gridEl.style.setProperty('--gallery2-overlap-px', `-${(tileSize * overlapRatio).toFixed(1)}px`);
+}
+// 카드 폭이 바뀌어서(창 크기 변경, 갤러리 탭이 처음 화면에 보이게 됨 등) 열 개수가 달라져야 할 때만
+// 다시 그림. 열 개수가 그대로면 겹침 비율만 다시 계산해서 불필요한 재렌더링을 피함
+function refreshGallery2Layout(){
+  const box = document.getElementById('cardGallery2');
+  const gridEl = document.getElementById('gallery2Grid');
+  if(!box || !gridEl) return;
+  const desired = gallery2ColumnCount(box.clientWidth);
+  if(desired !== gallery2LastColCount){ renderGallery2(); }
+  else {
+    const items = (gallery2Data.items || []).map(normalizeGalleryItem);
+    const pairs = items.filter(it=> !gallery2FilterOpt || (it.opts||[]).includes(gallery2FilterOpt));
+    applyGallery2Overlap(gridEl, pairs.length, gallery2LastColCount);
+  }
+}
+const refreshGallery2LayoutDebounced = debounce(refreshGallery2Layout, 80);
+window.addEventListener('resize', refreshGallery2LayoutDebounced);
+
 
 function gallery2TileHtml(it, i){
   if(it.chunked && chunkedImageCache.has(it.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
@@ -2986,13 +3025,22 @@ function renderGallery2(){
   const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !gallery2FilterOpt || (it.opts||[]).includes(gallery2FilterOpt));
+  // 카드 폭에 맞춰 열 개수를 정함(좁으면 1~2열, 넓으면 3열 이상). 레퍼런스 갤러리의 2열
+  // row-major 배치 아이디어를 그대로 N열로 일반화: order % colCount로 각 열에 순서대로 담음
+  const colCount = gallery2ColumnCount(box.clientWidth);
+  gallery2LastColCount = colCount;
+  const cols = Array.from({length: colCount}, ()=> []);
+  pairs.forEach(({it,i}, order)=> cols[order % colCount].push(gallery2TileHtml(it, i)));
+  const colsHtml = pairs.length>0
+    ? cols.map(colArr=> `<div class="gallery2-col">${colArr.join('')}</div>`).join('')
+    : '';
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="gallery2FilterChips" style="display:none;"></div>
       ${editMode ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
     </div>
-    <div class="pin-grid-dense" id="gallery2Grid">
-      ${pairs.map(({it,i})=> gallery2TileHtml(it, i)).join('')}
+    <div class="gallery2-grid" id="gallery2Grid">
+      ${colsHtml}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
@@ -3000,6 +3048,7 @@ function renderGallery2(){
   `;
   const gridEl = box.querySelector('#gallery2Grid');
   restoreScrollPos(gridEl, savedScroll);
+  applyGallery2Overlap(gridEl, pairs.length, colCount);
   renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
 
@@ -4018,6 +4067,7 @@ function initBoardTabs(){
     requestAnimationFrame(()=>{
       const g = document.getElementById('galleryGrid');
       if(g) layoutPinMasonry(g);
+      refreshGallery2Layout();
     });
   }
   function goTo(idx, smooth=true){
