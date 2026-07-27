@@ -2288,15 +2288,16 @@ function ddayMilestonesForDate(dateStr){
 }
 
 // 특정 연/월 한 달치 캘린더 블록의 HTML을 만들어줌.
-// showNav가 true인 달(=현재 선택된 달)에만 ‹ › 이동 버튼을 붙이고,
-// 그 외(이전/다음 달 미리보기)는 자리만 맞추고 흐리게 표시함.
+// kind: 'prev' | 'current' | 'next'. 이동 버튼은 더 이상 각 달의 head에 붙이지 않고
+// (아래 renderCalendar에서 전체 캘린더 위/아래에 상하 버튼으로 따로 배치함),
+// 이전/다음 달은 요일(dow) 줄 없이 흐리게 표시하고 절반만 보이도록 나중에 높이를 잘라냄.
 function buildCalMonthHTML(y, m, kind){
   const events = calendarData.events || {};
   const first = new Date(y, m, 1);
   const startDow = first.getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const todayStr = new Date().toISOString().slice(0,10);
-  const showNav = kind === 'current';
+  const isCurrent = kind === 'current';
   let cells = '';
   for(let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
@@ -2312,15 +2313,15 @@ function buildCalMonthHTML(y, m, kind){
     cells += `<div class="${cls}" data-day="${dateStr}" title="${ddayMarks.length ? escapeHtml(ddayMarks.join(', ')) : ''}">${d}</div>`;
   }
   return `
-    <div class="cal-month ${showNav ? 'cal-month-current' : 'cal-month-side'}">
+    <div class="cal-month cal-month-${kind} ${isCurrent ? 'cal-month-current' : 'cal-month-side'}">
       <div class="cal-head">
-        ${showNav ? `<span class="icon-btn" id="calPrev">‹</span>` : `<span class="icon-btn-spacer"></span>`}
         <strong>${y}. ${m+1}</strong>
-        ${showNav ? `<span class="icon-btn" id="calNext">›</span>` : `<span class="icon-btn-spacer"></span>`}
       </div>
-      <div class="cal-grid">
-        ${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}
-        ${cells}
+      <div class="cal-clip">
+        <div class="cal-grid">
+          ${isCurrent ? ['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('') : ''}
+          ${cells}
+        </div>
       </div>
     </div>
   `;
@@ -2333,16 +2334,37 @@ function renderCalendar(){
   let nextM = calState.m + 1, nextY = calState.y;
   if(nextM > 11){ nextM = 0; nextY++; }
 
+  // 넘김 버튼을 좌우가 아니라 상하(▲ 이전달 / ▼ 다음달)로 배치.
+  // 캘린더 자체가 위(이전달)-가운데(이번달)-아래(다음달) 순으로 쌓여 있으므로
+  // 버튼도 그 흐름과 같은 방향(위/아래)에 놓음.
   box.innerHTML = `
+    <div class="cal-nav cal-nav-prev"><span class="icon-btn" id="calPrev">▲</span></div>
     <div class="cal-months">
       ${buildCalMonthHTML(prevY, prevM, 'prev')}
       ${buildCalMonthHTML(calState.y, calState.m, 'current')}
       ${buildCalMonthHTML(nextY, nextM, 'next')}
     </div>
+    <div class="cal-nav cal-nav-next"><span class="icon-btn" id="calNext">▼</span></div>
   `;
   box.querySelector('#calPrev').onclick = ()=>{ calState.m--; if(calState.m<0){calState.m=11; calState.y--;} renderCalendar(); };
   box.querySelector('#calNext').onclick = ()=>{ calState.m++; if(calState.m>11){calState.m=0; calState.y++;} renderCalendar(); };
   box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
+
+  // 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이게 잘라냄.
+  // prev는 아래쪽 절반(이번 달과 맞닿는 쪽)이 보이도록 위로 밀어 올리고,
+  // next는 위쪽 절반(이번 달과 맞닿는 쪽)이 자연스럽게 보이도록 둠.
+  const curGrid = box.querySelector('.cal-month-current .cal-grid');
+  const prevClip = box.querySelector('.cal-month-prev .cal-clip');
+  const prevGrid = box.querySelector('.cal-month-prev .cal-grid');
+  const nextClip = box.querySelector('.cal-month-next .cal-clip');
+  if(curGrid && prevClip && prevGrid && nextClip){
+    const fullH = curGrid.getBoundingClientRect().height;
+    const halfH = fullH / 2;
+    prevClip.style.height = `${halfH}px`;
+    prevGrid.style.marginTop = `-${halfH}px`;
+    nextClip.style.height = `${halfH}px`;
+  }
+
   fitRefGalleryToCalendarHeight();
 }
 
