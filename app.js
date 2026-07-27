@@ -3176,6 +3176,12 @@ function normalizeRefGalleryItem(it){
 
 let refGalleryData = { items: [] };
 let refGalleryFilterOpt = null;
+// 레퍼런스 갤러리 열 개수: PC에서는 2열, 모바일(폭이 좁아지는 구간)에서는 3열로
+// 더 촘촘하게 보이도록 함. 다른 반응형 기준과 동일하게 900px을 모바일 경계로 씀
+function refGalleryColumnCount(){
+  return window.innerWidth <= 900 ? 3 : 2;
+}
+let refGalleryLastColCount = refGalleryColumnCount();
 /* 태그(옵션)만 바뀌었을 땐 화면에 보이는 사진 구성/순서가 그대로라 그리드를 통째로
    다시 그릴 필요가 없음(태그는 타일에 표시되지 않고 필터링에만 쓰임). 사진이 많이
    쌓이면 매번 전체를 다시 그리는 비용이 커져서 태그 지정이 느려지므로, 필터가 꺼져
@@ -3193,6 +3199,14 @@ function fitRefGalleryToCalendarHeight(){
   const calCard = document.getElementById('cardCalendar');
   const refCard = document.getElementById('cardRefGallery');
   if(!calCard || !refCard) return;
+  // 모바일(카드가 세로로 한 열로 쌓이는 폭)에서는 캘린더와 레퍼런스 갤러리가 서로
+  // 다른 줄(row)에 놓이므로 높이를 맞출 이유가 없고, 오히려 캘린더 높이를 그대로
+  // 강제하면 레퍼런스 갤러리 카드가 실제 사진 내용보다 커져서 하단에 빈 여백만
+  // 남게 됨. 이 폭 이하에서는 보정을 끄고 자연스러운(내용에 맞는) 높이로 둠.
+  if(window.innerWidth <= 900){
+    refCard.style.height = '';
+    return;
+  }
   // 캘린더의 "진짜" 높이(=레퍼런스 갤러리 없이 음악/디데이 칸과만 맞췄을 때의 높이)를 재려면
   // 레퍼런스 갤러리 카드를 잠깐 행 계산에서 완전히 빼야 함(display:none).
   const prevDisplay = refCard.style.display;
@@ -3208,6 +3222,11 @@ function fitRefGalleryToCalendarHeight(){
   refCard.style.height = `${Math.max(200, Math.round(calH) - 120)}px`;
 }
 window.addEventListener('resize', debounce(()=>{
+  // PC(2열) ↔ 모바일(3열) 경계를 넘어가면 열 구성 자체가 달라지므로 다시 그려야 함
+  if(refGalleryColumnCount() !== refGalleryLastColCount){
+    renderRefGallery();
+    return;
+  }
   fitRefGalleryToCalendarHeight();
   applyRefGalleryOverlap(document.getElementById('refGalleryGrid'), currentRefGalleryVisibleCount());
 }, 150));
@@ -3224,13 +3243,14 @@ function currentRefGalleryVisibleCount(){
   return items.filter(it => !refGalleryFilterOpt || (it.opts||[]).includes(refGalleryFilterOpt)).length;
 }
 
-function applyRefGalleryOverlap(gridEl, itemCount){
+function applyRefGalleryOverlap(gridEl, itemCount, colCount){
   if(!gridEl) return;
+  colCount = colCount || refGalleryColumnCount();
   const firstTile = gridEl.querySelector('.pin-item-dense');
   if(!firstTile){ gridEl.style.setProperty('--ref-overlap-px', '0px'); return; }
   const tileSize = firstTile.getBoundingClientRect().height || firstTile.getBoundingClientRect().width;
   if(!tileSize) return;
-  const rows = Math.ceil(itemCount / 2);
+  const rows = Math.ceil(itemCount / colCount);
   const overlapRatio = Math.min(REF_GALLERY_OVERLAP_MAX, Math.max(0, (rows - 1) * REF_GALLERY_OVERLAP_STEP));
   gridEl.style.setProperty('--ref-overlap-px', `-${(tileSize * overlapRatio).toFixed(1)}px`);
 }
@@ -3242,12 +3262,15 @@ function renderRefGallery(){
   const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || (it.opts||[]).includes(refGalleryFilterOpt));
-  // 기존 grid의 2열 row-major 배치(0번은 왼쪽 1행, 1번은 오른쪽 1행, 2번은 왼쪽 2행 ...)와
-  // 동일한 순서가 되도록, pairs 안에서의 순서(order)를 짝/홀로 나눠 왼쪽/오른쪽 열에 담음
-  const cols = [[], []];
-  pairs.forEach(({it,i}, order)=> cols[order % 2].push(renderRefGalleryTileHtml(it, i)));
+  // 기존 grid의 row-major 배치(0번은 1열 1행, 1번은 2열 1행, ... 마지막 열까지 채우면
+  // 다음 행으로)와 동일한 순서가 되도록, pairs 안에서의 순서(order)를 열 개수만큼
+  // 나눠 각 열에 담음. 열 개수는 PC 2열 / 모바일 3열로 화면 폭에 따라 달라짐
+  const colCount = refGalleryColumnCount();
+  refGalleryLastColCount = colCount;
+  const cols = Array.from({length: colCount}, ()=> []);
+  pairs.forEach(({it,i}, order)=> cols[order % colCount].push(renderRefGalleryTileHtml(it, i)));
   const colsHtml = pairs.length>0
-    ? `<div class="ref-gallery-col">${cols[0].join('')}</div><div class="ref-gallery-col">${cols[1].join('')}</div>`
+    ? cols.map(c=> `<div class="ref-gallery-col">${c.join('')}</div>`).join('')
     : '';
   box.innerHTML = `
     <div class="pin-toolbar">
@@ -3264,7 +3287,7 @@ function renderRefGallery(){
   const gridEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(gridEl, savedScroll);
   fitRefGalleryToCalendarHeight();
-  applyRefGalleryOverlap(gridEl, pairs.length);
+  applyRefGalleryOverlap(gridEl, pairs.length, colCount);
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
 
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);

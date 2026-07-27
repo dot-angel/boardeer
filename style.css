@@ -545,6 +545,12 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .cal-month-prev .cal-clip{ mask-image: linear-gradient(to bottom, transparent, black 45%); -webkit-mask-image: linear-gradient(to bottom, transparent, black 45%); }
 .cal-month-next .cal-clip{ mask-image: linear-gradient(to bottom, black 55%, transparent); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent); }
 /* 넘김 버튼: 좌우가 아니라 캘린더 전체 위/아래(상하)에 배치 */
+/* 모바일에서는 이전달/다음달 미리보기를 아예 숨기고 이번 달만 보여줌
+   (이동 버튼(▲▼)은 그대로 남겨서 월 이동 기능은 유지됨) */
+@media (max-width: 900px){
+  .cal-month-prev, .cal-month-next{ display:none; }
+  .cal-month-current{ padding-top:0; border-top:none; }
+}
 .cal-nav{ display:flex; justify-content:center; }
 .cal-nav-prev{ margin-bottom:6px; }
 .cal-nav-next{ margin-top:6px; }
@@ -591,12 +597,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 /* 모바일에서는 세 갤러리(갤러리1/갤러리2/레퍼런스 갤러리)가 세로로 쌓이게 되므로,
    각각 높이를 낮추고 서로 동일하게 맞춰서 스크롤이 통일된 느낌이 되게 함 */
 @media (max-width: 900px){
-  .pin-grid-scroll{ max-height: 220px; }
-  /* 갤러리2(빽빽한 정사각형 그리드/2열 겹침 뷰)와 레퍼런스 갤러리도 갤러리1과
-     동일한 높이로 맞춰서 세 갤러리가 통일된 스크롤 느낌을 갖게 함 */
-  .pin-grid-dense{ max-height: 220px; }
-  .gallery2-grid{ max-height: 220px; }
-  .ref-gallery-grid{ max-height: 220px; }
+  .pin-grid-scroll{ max-height: 260px; }
 }
 .pin-grid-scroll::-webkit-scrollbar{ width:5px; }
 .pin-grid-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
@@ -704,6 +705,12 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 /* ---------- 레퍼런스 갤러리 (캘린더 옆, 블러 옵션 없이 촘촘한 썸네일 전용) ---------- */
 .w-refgallery{ padding-bottom: 60px; }
+/* 모바일에서는 카드 높이를 캘린더에 맞춰 강제로 늘리지 않게 되므로(app.js
+   fitRefGalleryToCalendarHeight 참고), FAB 여유공간용 하단 padding도 함께 줄여서
+   사진 아래로 불필요한 빈 여백이 남지 않게 함 */
+@media (max-width: 900px){
+  .w-refgallery{ padding-bottom: 0; }
+}
 /* CSS Grid(display:grid)로 이 레이아웃을 짜면, 여러 행에 음수 margin-top을 동시에 걸었을 때
    grid의 auto 행 높이 계산이 그 음수 margin까지 반영해 다시 계산되면서 행이 늘어날수록
    겹침이 기하급수적으로 누적되는 버그가 있었음(썸네일 개수가 많을수록 의도한 상한을
@@ -841,16 +848,6 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 #refGalleryFilterChips .tag-chip{ padding:4px 11px; font-size:.68rem; flex:0 0 auto; }
 #refGalleryFilterChips.tag-filter::-webkit-scrollbar{ height:4px; }
 #refGalleryFilterChips.tag-filter::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
-/* 모바일에서는 세 갤러리가 모두 전체 폭으로 쌓여서 레퍼런스 갤러리도 더 이상
-   좁은 컬럼이 아니므로, 위의 한 줄 스크롤용 축소 칩 대신 다른 두 갤러리와
-   똑같은 기본 tag-chip 디자인(줄바꿈, 기본 크기)으로 되돌림 */
-@media (max-width: 900px){
-  #refGalleryFilterChips.tag-filter{
-    flex-wrap:wrap; overflow-x:visible; overflow-y:visible;
-    padding-bottom:0; margin-bottom:10px;
-  }
-  #refGalleryFilterChips .tag-chip{ padding:7px 16px; font-size:.74rem; flex:initial; }
-}
 .pin-toolbar{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .pin-toolbar .tag-filter{ flex:1; margin-bottom:10px; }
 .pin-opt-btn{
