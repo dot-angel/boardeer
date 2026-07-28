@@ -488,7 +488,28 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .profile-section-name.empty-hint{ font-family: var(--font-body); font-weight:400; font-size:.68rem; color: var(--ink-soft); cursor:pointer; opacity:.75; }
 .profile-section-name.empty-hint:hover{ opacity:1; }
-.profile-section-del{ position:absolute; top:50%; right:0; transform:translateY(-50%); }
+.profile-section-actions{ position:absolute; top:50%; right:0; transform:translateY(-50%); display:flex; align-items:center; gap:2px; }
+.profile-section-move{ font-size:.85rem; opacity:.85; }
+.profile-section-move:disabled{ opacity:.25; cursor:default; }
+.profile-section-move:disabled:hover{ background:none; }
+/* 시점/IF 편집창 안의 "시점/IF" 구분 라디오 두 개를 한 줄에 나란히 */
+.sec-kind-row{ display:flex; gap:14px; margin:4px 0 2px; font-size:.85rem; }
+.sec-kind-opt{ display:flex; align-items:center; gap:5px; cursor:pointer; }
+/* 시점(연대기)으로만 이뤄진 AU는 아래 슬라이드 표시를 점 나열 대신 타임라인 모양으로 —
+   가로선 위에 원(점)들이 놓이고 맨 끝에 화살표가 이어지는 형태로 "지금까지의 흐름"을 표현함 */
+.timeline-dots{ position:relative; display:flex; align-items:center; gap:14px; padding:12px 4px; }
+.timeline-dots::before{
+  content:''; position:absolute; left:4px; right:26px; top:50%;
+  height:2px; background: var(--gold-soft); transform:translateY(-50%); z-index:0;
+}
+.timeline-dots .dot{
+  width:9px; height:9px; border-radius:50%; background: var(--card-bg2, #fff);
+  border:2px solid var(--gold-soft); position:relative; z-index:1; cursor:pointer;
+}
+.timeline-dots .dot.active{ background: var(--rose); border-color: var(--rose); }
+.timeline-dots .timeline-arrow{
+  position:relative; z-index:1; margin-left:auto; color: var(--gold-soft); font-weight:700; font-size:.9rem;
+}
 /* 시점/IF 이름 아래에 붙는 한두 줄짜리 짧은 설명(어떤 상황인지) */
 .profile-section-desc{
   width:100%; margin-top:-4px; padding:0 8px; text-align:center;

@@ -1493,7 +1493,10 @@ function normalizeProfileSection(sec){
   } else {
     peopleFields = [{fields:[], avatar:'', oneLiner:''}, {fields:[], avatar:'', oneLiner:''}];
   }
-  return { name: sec.name || '', desc: sec.desc || '', peopleFields };
+  // 각 시점/IF는 "시점"(연대기상 실제 있었던 시점) 또는 "IF"(가정) 중 하나로 구분해서
+  // 저장함. 시점으로 표시된 것들만 모여 있을 때 아래 슬라이드 표시가 타임라인처럼 보임.
+  const kind = sec.kind === 'timeline' ? 'timeline' : 'if';
+  return { name: sec.name || '', desc: sec.desc || '', kind, peopleFields };
 }
 function normalizeProfileSlide(s){
   s = s || {};
@@ -1532,6 +1535,7 @@ function cloneSlides(slides){
     sections: s.sections.map(sec=> ({
       name: sec.name,
       desc: sec.desc || '',
+      kind: sec.kind === 'timeline' ? 'timeline' : 'if',
       peopleFields: sec.peopleFields.map(pf=> ({
         fields: pf.fields.map(f=>({...f})),
         avatar: pf.avatar || '',
@@ -1670,7 +1674,13 @@ function renderProfile(){
           <div class="profile-section-name ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
             ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
           </div>
-          ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
+          ${(editMode && slide.sections.length > 1) ? `
+            <div class="profile-section-actions">
+              <button class="icon-btn profile-section-move" data-dir="-1" title="순서를 앞으로" ${profileSectionIndex === 0 ? 'disabled' : ''}>⇦</button>
+              <button class="icon-btn profile-section-move" data-dir="1" title="순서를 뒤로" ${profileSectionIndex === slide.sections.length - 1 ? 'disabled' : ''}>⇨</button>
+              <button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>
+            </div>
+          ` : ''}
         </div>
         ${(section.desc || editMode) ? `
           <div class="profile-section-desc ${!section.desc ? 'empty-hint':''}" id="profSecDescBtn" ${editMode ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
@@ -1714,7 +1724,14 @@ function renderProfile(){
     ${slide.sections.length > 1 ? `
       <div class="profile-slide-nav">
         <button class="icon-btn" id="profSecPrev">‹</button>
-        <div class="slide-dots">${slide.sections.map((_,i)=>`<span class="dot ${i===profileSectionIndex?'active':''}" data-secdot="${i}"></span>`).join('')}</div>
+        ${slide.sections.every(s=> s.kind === 'timeline') ? `
+          <div class="slide-dots timeline-dots">
+            ${slide.sections.map((_,i)=>`<span class="dot ${i===profileSectionIndex?'active':''}" data-secdot="${i}"></span>`).join('')}
+            <span class="timeline-arrow">→</span>
+          </div>
+        ` : `
+          <div class="slide-dots">${slide.sections.map((_,i)=>`<span class="dot ${i===profileSectionIndex?'active':''}" data-secdot="${i}"></span>`).join('')}</div>
+        `}
         <button class="icon-btn" id="profSecNext">›</button>
       </div>
     ` : ''}
@@ -1743,7 +1760,7 @@ function bindProfile(slides){
   if(auAddBtn) auAddBtn.onclick = async (e)=>{
     e.stopPropagation();
     const arr = cloneSlides(slides);
-    arr.push({ label:'', sections:[{name:'', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] });
+    arr.push({ label:'', sections:[{name:'', kind:'if', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] });
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = arr.length - 1;
     profileSectionIndex = 0;
@@ -1759,7 +1776,7 @@ function bindProfile(slides){
   };
   const addBtn = box.querySelector('#profAddBtn');
   if(addBtn) addBtn.onclick = async ()=>{
-    const arr = [...slides, { label:'', sections:[{name:'', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
+    const arr = [...slides, { label:'', sections:[{name:'', kind:'if', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = arr.length - 1;
     profileSectionIndex = 0;
@@ -1840,10 +1857,26 @@ function bindProfile(slides){
       });
       return base;
     });
-    targetSlide.sections.push({ name:'', peopleFields:newPeopleFields });
+    targetSlide.sections.push({ name:'', kind:(srcSection && srcSection.kind) || 'if', peopleFields:newPeopleFields });
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSectionIndex = arr[profileSlideIndex].sections.length - 1;
   };
+
+  // 시점/IF 순서 바꾸기 — 지금 보고 있는 시점/IF를 바로 이웃과 자리를 맞바꿈
+  box.querySelectorAll('.profile-section-move').forEach(btn=>{
+    if(btn.disabled) return;
+    btn.onclick = async (e)=>{
+      e.stopPropagation();
+      const dir = Number(btn.dataset.dir);
+      const targetIdx = profileSectionIndex + dir;
+      const arr = cloneSlides(slides);
+      const secs = arr[profileSlideIndex].sections;
+      if(targetIdx < 0 || targetIdx >= secs.length) return;
+      [secs[profileSectionIndex], secs[targetIdx]] = [secs[targetIdx], secs[profileSectionIndex]];
+      await docRef('profile').set({slides:arr}, {merge:true});
+      profileSectionIndex = targetIdx;
+    };
+  });
 
   // 지금 보고 있는 시점/IF만 삭제(AU 전체 삭제인 profAuDelBtn과는 별개) — 시점/IF가
   // 하나뿐일 땐 렌더링 단계에서 아예 버튼을 안 그려서 여기까지 오지 않음
@@ -2237,6 +2270,12 @@ function openProfileSectionModal(slideIdx, secIdx, slides){
   const section = slide.sections[secIdx];
   openModal(`
     <h3>시점/IF 이름</h3>
+    <label>구분</label>
+    <div class="sec-kind-row">
+      <label class="sec-kind-opt"><input type="radio" name="secKind" value="timeline" ${section.kind === 'timeline' ? 'checked' : ''}> 시점 (실제 있었던 시점)</label>
+      <label class="sec-kind-opt"><input type="radio" name="secKind" value="if" ${section.kind !== 'timeline' ? 'checked' : ''}> IF (가정)</label>
+    </div>
+    <p class="hint">시점으로 표시한 것들끼리는 아래 슬라이드 표시가 타임라인 모양으로 보여요.</p>
     <label>이름 (선택 — 예: 첫 만남, 사귄 후, IF: 헤어졌다면)</label>
     <input type="text" id="secName" value="${escapeHtml(section.name)}" placeholder="비워두면 이름 없이 보여요">
     <label style="margin-top:10px;">짧은 설명 (선택 — 이 시점/IF가 어떤 상황인지 한두 줄로)</label>
@@ -2251,9 +2290,11 @@ function openProfileSectionModal(slideIdx, secIdx, slides){
     m.querySelector('#s').onclick = async ()=>{
       const name = m.querySelector('#secName').value.trim();
       const desc = m.querySelector('#secDesc').value.trim();
+      const kind = m.querySelector('input[name="secKind"]:checked').value === 'timeline' ? 'timeline' : 'if';
       const arr = cloneSlides(slides);
       arr[slideIdx].sections[secIdx].name = name;
       arr[slideIdx].sections[secIdx].desc = desc;
+      arr[slideIdx].sections[secIdx].kind = kind;
       await docRef('profile').set({slides:arr}, {merge:true});
       closeModal();
     };
