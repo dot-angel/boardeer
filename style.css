@@ -605,7 +605,7 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
-.pf-edit-list{ display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
+.pf-edit-list{ display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; }
 .pf-edit-row{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .pf-edit-row .pf-edit-label{ flex:0 0 96px; }
 .pf-edit-row .pf-edit-value{ flex:1; }
