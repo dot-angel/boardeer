@@ -1581,7 +1581,26 @@ function renderProfile(){
     if(!visibleText.length && !visibleLinks.length && !showDescBox){
       return editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '';
     }
-    const textHtml = visibleText.map(f=>{
+    // 나이·생년월일, 키/몸무게·BWH는 각각 세로 구분선 하나로 나눠서 같은 줄에 보여줌
+    // (둘 다 값이 있을 때만 한 줄로 묶고, 하나만 있으면 그 하나만 그대로 보여줌) —
+    // 위젯이 위아래로 너무 길어진다는 요청에 따라 높이를 줄이기 위함.
+    const pairFieldHtml = f=> `<span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>`;
+    const pairRowHtml = (a, b)=>{
+      if(a && b) return `<div class="profile-field profile-field-plain profile-field-pair">${pairFieldHtml(a)}<span class="pf-pair-divider"></span>${pairFieldHtml(b)}</div>`;
+      const only = a || b;
+      return only ? `<div class="profile-field profile-field-plain">${pairFieldHtml(only)}</div>` : '';
+    };
+    const remaining = visibleText.slice();
+    const takeByLabel = (lbl)=>{
+      const idx = remaining.findIndex(f=> (f.label||'').trim() === lbl);
+      return idx === -1 ? null : remaining.splice(idx, 1)[0];
+    };
+    const ageField = takeByLabel('나이');
+    const bdayField = takeByLabel('생년월일');
+    const bodyField = takeByLabel('키/몸무게');
+    const bwhField = takeByLabel('BWH');
+    const pairedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField);
+    const textHtml = pairedRowsHtml + remaining.map(f=>{
       const label = (f.label || '').trim();
       const noLabel = NO_LABEL_FIELDS.includes(label);
       if(label === '성격' && f.value){
@@ -1670,17 +1689,19 @@ function renderProfile(){
           const fields = pf.fields || [];
           return `
             <div class="profile-person" data-slot="${slot}">
-              <div class="profile-photo ${editMode ? 'editable' : ''}" data-slot="${slot}">
-                <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
-                  ${avatar ? '' : '👤'}
+              <div class="profile-basic ${editMode ? 'editable' : ''}" data-slot="${slot}">
+                <div class="profile-photo">
+                  <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
+                    ${avatar ? '' : '👤'}
+                  </div>
+                  ${oneLiner || editMode ? `
+                    <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
+                  ` : ''}
                 </div>
-                ${oneLiner || editMode ? `
-                  <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
-                ` : ''}
-              </div>
-              <div class="profile-info ${editMode ? 'editable' : ''}" data-slot="${slot}">
-                ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
-                <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                <div class="profile-info">
+                  ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
+                  <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                </div>
               </div>
               <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
                 ${fieldsHtml(fields)}
@@ -1841,7 +1862,7 @@ function bindProfile(slides){
   box.querySelectorAll('.pf-link-item').forEach(a=> a.addEventListener('click', (e)=> e.stopPropagation()));
 
   // 사진/한마디/소개/이름은 한 창에서, 정보 항목은 별도 창에서 — 각각 두 프로필을 한 창 안에서 같이 수정
-  box.querySelectorAll('.profile-photo.editable, .profile-info.editable').forEach(el=>{
+  box.querySelectorAll('.profile-basic.editable').forEach(el=>{
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
       openProfileBasicModal(profileSlideIndex, profileSectionIndex, slides);
@@ -1856,7 +1877,7 @@ function bindProfile(slides){
 
   if(!editMode){
     box.querySelectorAll('.profile-avatar.has-image').forEach(av=>{
-      const photoWrap = av.closest('.profile-photo');
+      const photoWrap = av.closest('.profile-basic');
       if(!photoWrap) return;
       const slot = Number(photoWrap.dataset.slot);
       const pf = slide.sections[profileSectionIndex].peopleFields[slot];
@@ -2052,7 +2073,9 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
     [0,1].forEach(slot=>{
       const col = m.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
       const listEl = col.querySelector('.pe-fields-list');
-      const rowHtml = (f, i)=> f.type === 'link' ? `
+      const rowHtml = (f, i)=>{
+        if(f.type === 'link'){
+          return `
           <div class="pf-edit-row pf-edit-row-link" data-idx="${i}" data-type="link">
             <input type="text" class="pf-edit-label" placeholder="링크 이름 (예: 플레이리스트)" value="${escapeHtml(f.label)}">
             <input type="url" class="pf-edit-link" placeholder="링크 URL" value="${escapeHtml(f.link||'')}">
@@ -2062,10 +2085,17 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
               <button type="button" class="btn small danger" data-del="${i}">✕</button>
             </div>` : `<button type="button" class="btn small danger" data-del="${i}">✕</button>`}
           </div>
-        ` : `
-          <div class="pf-edit-row" data-idx="${i}" data-type="text">
+        `;
+        }
+        // "기타 설명"은 자유롭게 길게 적는 항목이라, 한 줄짜리 입력칸 대신 여러 줄 쓸 수 있는
+        // 큰 textarea로 보여줘서 내용을 적을 공간을 넉넉하게 줌
+        const isDesc = (f.label||'').trim() === '기타 설명';
+        return `
+          <div class="pf-edit-row ${isDesc ? 'pf-edit-row-desc' : ''}" data-idx="${i}" data-type="text">
             <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
-            <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
+            ${isDesc
+              ? `<textarea class="pf-edit-value pf-edit-value-desc" placeholder="내용">${escapeHtml(f.value)}</textarea>`
+              : `<input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">`}
             ${bulkNote ? `
             <div class="pf-edit-row-actions">
               <label class="pe-bulk-row pf-bulk-row" title="이 항목을 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>
@@ -2073,6 +2103,7 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
             </div>` : `<button type="button" class="btn small danger" data-del="${i}">✕</button>`}
           </div>
         `;
+      };
       const drawFields = ()=>{
         listEl.innerHTML = slotState[slot].fields.map((f,i)=> rowHtml(f,i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
         listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{

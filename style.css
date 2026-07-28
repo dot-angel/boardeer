@@ -543,6 +543,10 @@ body.edit-mode .dday-item{ padding-right: 34px; }
    값만 가운데 정렬로 보여줌(리스트라기보다 짧은 요약 카드처럼 보이게) */
 .profile-field-plain{ text-align:center; }
 .profile-field-plain .pf-value{ font-weight:600; }
+/* 나이·생년월일 / 키몸무게·BWH처럼 짝을 지어 한 줄에 보여줄 때 — 값 두 개 사이에
+   세로 구분선만 넣어서 각각 구분되게 함 */
+.profile-field-pair{ flex-direction:row; align-items:center; justify-content:center; gap:8px; }
+.profile-field-pair .pf-pair-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; }
 /* 기타 설명은 다른 항목들과 같은 줄 목록이 아니라, 살짝 구분되는 박스 안에 따로 담아서
    "이건 정형화된 항목이 아니라 자유롭게 쓰는 설명"이라는 걸 한눈에 알 수 있게 함 */
 .profile-desc-box{
@@ -566,12 +570,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .profile-slide-desc.empty-hint:hover{ opacity:1; }
 .profile-pair{ display:flex; flex-direction:row; align-items:flex-start; justify-content:center; gap:14px; width:100%; }
 .profile-person{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; padding:6px; border-radius:16px; }
+.profile-basic{ display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:100%; }
+.profile-basic.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px 8px; }
+.profile-basic.editable:hover{ background: rgba(255,255,255,0.06); }
 .profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; width:100%; max-width:100%; }
-.profile-photo.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px; }
-.profile-photo.editable:hover{ background: rgba(255,255,255,0.06); }
 .profile-info{ display:flex; flex-direction:column; align-items:center; gap:2px; max-width:100%; }
-.profile-info.editable{ cursor:pointer; border-radius:10px; transition: background .15s ease; padding:2px 8px; }
-.profile-info.editable:hover{ background: rgba(255,255,255,0.06); }
 /* 사진이 위아래로 잘리지 않도록 background-size:contain을 씀(대신 비율이 안 맞으면
    위아래나 좌우로 여백이 생길 수 있음). 박스 비율을 정사각형(1/1)보다 세로로 긴
    3/4로 잡아서 세로형 캐릭터 사진일 때 생기는 여백을 최대한 줄임. 사진이 있을
@@ -611,6 +614,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .pf-edit-row .pf-edit-value{ flex:1; }
 /* 기타 설명·링크는 항목명/내용 아래 두 번째 줄에 나란히 놓음 */
 .pf-edit-row .pf-edit-link{ flex:1 1 40%; min-width:120px; }
+/* "기타 설명" 항목은 자유 서술이라 한 줄 입력칸 대신 라벨을 위로, 아래에 널찍한
+   textarea를 둬서 길게 적을 공간을 넉넉히 줌 */
+.pf-edit-row-desc{ align-items:stretch; }
+.pf-edit-row-desc .pf-edit-label{ flex:0 0 100%; }
+.pf-edit-row-desc .pf-edit-value-desc{ flex:1 1 100%; width:100%; min-height:130px; resize:vertical; }
 
 /* ---------- 방명록 ---------- */
 .w-guestbook .w-body{ flex:1; min-height:0; margin-bottom:10px; overflow-y:auto; }
@@ -1069,8 +1077,16 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .modal .row{ display:flex; gap:8px; }
 .modal .row > *{ flex:1; }
 .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap; }
-/* 프로필 통합 편집 모달: 다른 모달보다 넓게(두 프로필을 나란히 놓아야 해서) */
-.modal.modal-profile-edit{ width:min(680px, 94vw); }
+/* 프로필 통합 편집 모달: 다른 모달보다 넓게(두 프로필을 나란히 놓아야 해서) — 게다가
+   입력칸/textarea가 많고 목록도 길어서, 라이트박스 때와 똑같은 이유로 backdrop-filter
+   블러가 타이핑할 때마다(커서 깜빡임, textarea 크기 조절 등 이 레이어 안의 아주 작은
+   변화에도) 매번 다시 계산되어 렉을 일으킴. 이 모달만 블러를 빼고 불투명도를 높여서
+   비슷한 느낌은 유지하면서 타이핑 렉을 없앰. */
+.modal.modal-profile-edit{
+  width:min(680px, 94vw);
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+  background: rgba(20,9,11,0.94);
+}
 .profile-edit-cols{ display:flex; gap:18px; align-items:flex-start; }
 .profile-edit-col{ flex:1; min-width:0; }
 .profile-edit-col h4{ margin:0 0 2px; font-family: var(--font-display); color: var(--rose); font-size:.9rem; }
