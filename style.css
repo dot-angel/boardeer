@@ -997,6 +997,15 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .modal input[type=color]{ width:44px; height:32px; padding:0; border:1px solid var(--card-border); border-radius:8px; background:none; }
 .modal .hint{ font-size:.75rem; color:var(--ink-soft); margin: 4px 0 0; }
+
+/* 프로필 편집 창의 항목별 "다른 시점/IF에도 적용" 체크박스 — 조용히, 필드 바로 아래에 작게 */
+.modal label.pe-bulk-row{
+  display:flex; align-items:center; gap:6px; width:auto; margin:4px 0 0;
+  font-size:.72rem; color:var(--ink-soft); cursor:pointer;
+}
+.pe-bulk-row input[type=checkbox]{ width:auto; margin:0; accent-color: var(--rose-solid); }
+.pf-edit-row{ flex-wrap:wrap; }
+.pf-edit-row .pf-bulk-row{ flex:1 0 100%; margin:2px 0 0; }
 .modal .radio-row{ display:flex; gap:14px; font-size:.82rem; color:var(--ink); margin:8px 0; }
 .modal .radio-row label{ display:flex; align-items:center; gap:6px; }
 /* 이미지를 크게 보기 위한 라이트박스 — 일반 입력폼 모달보다 훨씬 넓게.

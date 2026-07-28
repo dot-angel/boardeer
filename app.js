@@ -1376,6 +1376,7 @@ const PROFILE_FIELD_TEMPLATE = [
   { label:'취향/취미', value:'' },
 ];
 function freshTemplateFields(){ return PROFILE_FIELD_TEMPLATE.map(f=>({...f})); }
+// 이름/한줄소개도 이제 시점/IF별로 따로 쓸 수 있음(비어 있으면 아래에서 legacy 공용값으로 자동 대체됨)
 // 프로필 사진 박스는 정사각형으로 고정돼 있는데, 캐릭터 사진은 대부분 세로로 긴 형태라
 // contain을 쓰면 박스와 이미지의 가로세로 비율이 달라서 여백을 트리밍해도 좌우에
 // 빈 공간이 남을 수밖에 없음. 박스를 항상 꽉 채우도록 cover로 통일(넘치는 가장자리만
@@ -1384,7 +1385,7 @@ function avatarBgSize(){
   return 'cover';
 }
 // 새 시점/IF의 사람별 정보 세트(항목 + 사진 + 한마디) 기본값
-function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', oneLiner:'' }; }
+function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', oneLiner:'', name:'', role:'' }; }
 
 function normalizeProfilePerson(p){
   p = p || {};
@@ -1400,12 +1401,14 @@ function normalizePersonFieldSet(pf){
   // Firestore엔 배열 속 배열을 못 넣어서, 사람별 정보는 {fields:[...]} 형태의 객체로 감싸서 저장함.
   // 예전에 배열을 바로 넣었던 데이터가 있을 수도 있어 그것도 호환해줌.
   // 사진(avatar)과 한마디(oneLiner)는 시점/IF마다 따로 설정할 수 있도록 이 사람별 정보 세트에 같이 저장함.
-  if(Array.isArray(pf)) return { fields: pf.map(normalizeProfileField), avatar:'', oneLiner:'' };
+  if(Array.isArray(pf)) return { fields: pf.map(normalizeProfileField), avatar:'', oneLiner:'', name:'', role:'' };
   pf = pf || {};
   return {
     fields: Array.isArray(pf.fields) ? pf.fields.map(normalizeProfileField) : [],
     avatar: pf.avatar || '',
-    oneLiner: pf.oneLiner || ''
+    oneLiner: pf.oneLiner || '',
+    name: pf.name || '',
+    role: pf.role || ''
   };
 }
 function normalizeProfileSection(sec){
@@ -1439,12 +1442,19 @@ function normalizeProfileSlide(s){
       { fields: legacyFields.map(f=>({...f})), avatar:'', oneLiner:'' }
     ] }];
   }
-  // 예전엔 사진이 AU 전체(사람별)에서 공용이었음. 시점/IF마다 따로 사진을 쓸 수 있게
-  // 구조를 바꾸면서, 아직 이 시점/IF에 사진이 따로 저장돼 있지 않다면(=예전 데이터라면)
-  // 예전 공용 사진을 기본값으로 채워 넣어서 사진이 갑자기 사라져 보이지 않게 함.
+  // 예전엔 사진·이름·한줄소개가 AU 전체(사람별)에서 공용이었음. 시점/IF마다 따로 쓸 수
+  // 있게 구조를 바꾸면서, 아직 이 시점/IF에 값이 따로 저장돼 있지 않다면(=예전 데이터거나,
+  // 방금 새로 만든 시점/IF라면) 예전 공용 값을 기본값으로 채워 넣어서 갑자기 비어 보이지
+  // 않게 함. 프로필 편집 창에서 "다른 시점/IF에도 적용"을 체크하면 이 공용 값 대신
+  // 각 시점/IF에 실제 값이 직접 채워짐.
   sections = sections.map(sec=> ({
     ...sec,
-    peopleFields: sec.peopleFields.map((pf,i)=> pf.avatar ? pf : { ...pf, avatar: people[i].avatar || '' })
+    peopleFields: sec.peopleFields.map((pf,i)=> ({
+      ...pf,
+      avatar: pf.avatar || people[i].avatar || '',
+      name: pf.name || people[i].name || '',
+      role: pf.role || people[i].role || ''
+    }))
   }));
   return { label: s.label || '', people, sections };
 }
@@ -1457,7 +1467,9 @@ function cloneSlides(slides){
       peopleFields: sec.peopleFields.map(pf=> ({
         fields: pf.fields.map(f=>({...f})),
         avatar: pf.avatar || '',
-        oneLiner: pf.oneLiner || ''
+        oneLiner: pf.oneLiner || '',
+        name: pf.name || '',
+        role: pf.role || ''
       }))
     }))
   }));
@@ -1516,11 +1528,12 @@ function renderProfile(){
       </div>
       <div class="profile-pair">
         ${[0,1].map(slot=>{
-          const p = slide.people[slot];
-          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
+          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
           const avatar = pf.avatar || '';
           const oneLiner = pf.oneLiner || '';
-          const hasContent = p.name || avatar;
+          const name = pf.name || '';
+          const role = pf.role || '';
+          const hasContent = name || avatar;
           const fields = pf.fields || [];
           return `
             <div class="profile-person" data-slot="${slot}">
@@ -1529,8 +1542,8 @@ function renderProfile(){
                 ${oneLiner || editMode ? `<div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? escapeHtml(oneLiner) : (editMode ? '+ 한마디 추가' : '')}</div>` : ''}
               </div>
               <div class="profile-info ${editMode ? 'editable' : ''}" data-slot="${slot}">
-                ${p.role ? `<div class="profile-role">${escapeHtml(p.role)}</div>` : ''}
-                <div class="profile-name">${hasContent ? escapeHtml(p.name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
+                <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
               </div>
               <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
                 ${fieldsHtml(fields)}
@@ -1679,9 +1692,13 @@ function openProfileEditModal(slideIdx, secIdx, slides){
   const section = slide.sections[secIdx];
   const secLabel = section.name || '이 시점/IF';
 
+  const bulkNote = slide.sections.length > 1;
+  const bulkToggle = (cls, label, checkedByDefault)=> bulkNote
+    ? `<label class="pe-bulk-row"><input type="checkbox" class="${cls}" ${checkedByDefault ? 'checked' : ''}> ${escapeHtml(label)}, 이 AU의 다른 시점/IF에도 똑같이 적용</label>`
+    : '';
+
   const colHtml = (slot)=>{
-    const p = slide.people[slot];
-    const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
+    const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
     return `
       <div class="profile-edit-col" data-slot="${slot}">
         <h4>프로필 ${slot===0?'①':'②'}</h4>
@@ -1693,12 +1710,20 @@ function openProfileEditModal(slideIdx, secIdx, slides){
           <img class="pe-avatar-preview-img" src="${pf.avatar || ''}" alt="">
           <button type="button" class="btn ghost small pe-avatar-clear">사진 지우기</button>
         </div>
+        ${bulkToggle('pe-bulk-avatar', '이 사진', false)}
+
         <label style="margin-top:10px;">사진 아래 한마디 (선택)</label>
         <input type="text" class="pe-oneliner" maxlength="60" value="${escapeHtml(pf.oneLiner)}" placeholder="예: 오늘도 좋은 하루 보내요">
+        ${bulkToggle('pe-bulk-oneliner', '이 한마디', false)}
+
+        <label style="margin-top:10px;">한줄 소개 (선택 — 나이·역할 등)</label>
+        <input type="text" class="pe-role" value="${escapeHtml(pf.role)}">
+        ${bulkToggle('pe-bulk-role', '이 한줄 소개', true)}
+
         <label style="margin-top:10px;">이름</label>
-        <input type="text" class="pe-name" value="${escapeHtml(p.name)}">
-        <label>한줄 소개 (선택 — 나이·역할 등)</label>
-        <input type="text" class="pe-role" value="${escapeHtml(p.role)}">
+        <input type="text" class="pe-name" value="${escapeHtml(pf.name)}">
+        ${bulkToggle('pe-bulk-name', '이 이름', true)}
+
         <label style="margin-top:10px;">정보 (키/몸무게·성격 등, 항목별로 나눠서 적을 수 있어요)</label>
         <div class="pf-edit-list pe-fields-list"></div>
         <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
@@ -1708,7 +1733,7 @@ function openProfileEditModal(slideIdx, secIdx, slides){
 
   openModal(`
     <h3>프로필 편집 · ${escapeHtml(secLabel)}</h3>
-    <p class="hint">이름·한줄 소개는 모든 시점/IF에서 공통으로 쓰이고, 사진·한마디·세부 정보는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 적용돼요.</p>
+    <p class="hint">기본적으로는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 저장돼요. 항목 아래 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 똑같이 적용할 수 있어요.</p>
     <div class="profile-edit-cols">
       ${colHtml(0)}
       <div class="profile-edit-divider"></div>
@@ -1720,8 +1745,8 @@ function openProfileEditModal(slideIdx, secIdx, slides){
     </div>
   `, m=>{
     const slotState = [0,1].map(slot=>{
-      const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
-      return { avatarCleared:false, fields:(pf.fields||[]).map(f=>({...f})) };
+      const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+      return { avatarCleared:false, fields:(pf.fields||[]).map(f=>({...f, bulk:false})) };
     });
 
     [0,1].forEach(slot=>{
@@ -1733,15 +1758,19 @@ function openProfileEditModal(slideIdx, secIdx, slides){
             <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
             <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
             <button type="button" class="btn small danger" data-del="${i}">✕</button>
+            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 이 항목, 다른 시점/IF에도 똑같이 적용</label>` : ''}
           </div>
         `).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
         listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
           slotState[slot].fields.splice(Number(btn.dataset.del), 1);
           drawFields();
         }));
+        listEl.querySelectorAll('.pf-edit-bulk').forEach((cb,i)=> cb.addEventListener('change', ()=>{
+          slotState[slot].fields[i].bulk = cb.checked;
+        }));
       };
       drawFields();
-      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({label:'', value:''}); drawFields(); };
+      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({label:'', value:'', bulk:false}); drawFields(); };
 
       col.querySelector('.pe-avatar-clear').onclick = ()=>{
         slotState[slot].avatarCleared = true;
@@ -1757,6 +1786,7 @@ function openProfileEditModal(slideIdx, secIdx, slides){
       saveBtn.textContent = '저장 중…';
       try{
         const arr = cloneSlides(slides);
+        const otherSecIdxs = arr[slideIdx].sections.map((_,i)=>i).filter(i=> i !== secIdx);
         for(const slot of [0,1]){
           const col = m.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
           const file = col.querySelector('.pe-avatar-file').files[0];
@@ -1766,10 +1796,16 @@ function openProfileEditModal(slideIdx, secIdx, slides){
           const role = col.querySelector('.pe-role').value.trim();
           const fields = Array.from(col.querySelectorAll('.pf-edit-row')).map(row=>({
             label: row.querySelector('.pf-edit-label').value.trim(),
-            value: row.querySelector('.pf-edit-value').value.trim()
+            value: row.querySelector('.pf-edit-value').value.trim(),
+            bulk: !!row.querySelector('.pf-edit-bulk') && row.querySelector('.pf-edit-bulk').checked
           })).filter(f=> f.label || f.value);
 
-          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
+          const bulkAvatar = !!col.querySelector('.pe-bulk-avatar') && col.querySelector('.pe-bulk-avatar').checked;
+          const bulkOneliner = !!col.querySelector('.pe-bulk-oneliner') && col.querySelector('.pe-bulk-oneliner').checked;
+          const bulkName = !!col.querySelector('.pe-bulk-name') && col.querySelector('.pe-bulk-name').checked;
+          const bulkRole = !!col.querySelector('.pe-bulk-role') && col.querySelector('.pe-bulk-role').checked;
+
+          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
           let avatar = pf.avatar || '';
           if(slotState[slot].avatarCleared) avatar = '';
           if(url) avatar = url;
@@ -1778,8 +1814,28 @@ function openProfileEditModal(slideIdx, secIdx, slides){
             avatar = await compressAvatarImageFile(file, 900, 320000);
           }
 
+          // 지금 보고 있는 시점/IF에는 항상 반영
+          arr[slideIdx].sections[secIdx].peopleFields[slot] = {
+            fields: fields.map(({bulk, ...f})=> f), avatar, oneLiner, name, role
+          };
+
+          // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용
+          otherSecIdxs.forEach(si=>{
+            const targetPf = arr[slideIdx].sections[si].peopleFields[slot];
+            if(bulkAvatar) targetPf.avatar = avatar;
+            if(bulkOneliner) targetPf.oneLiner = oneLiner;
+            if(bulkName) targetPf.name = name;
+            if(bulkRole) targetPf.role = role;
+            fields.forEach(f=>{
+              if(!f.bulk) return;
+              const existing = targetPf.fields.find(tf=> tf.label && tf.label.trim().toLowerCase() === f.label.trim().toLowerCase());
+              if(existing) existing.value = f.value;
+              else targetPf.fields.push({ label: f.label, value: f.value });
+            });
+          });
+
+          // 예전 버전 호환용 공용 값(새 시점/IF를 추가할 때 기본값으로 쓰임)도 최신 값으로 맞춰둠
           arr[slideIdx].people[slot] = { ...arr[slideIdx].people[slot], name, role, avatar: '' };
-          arr[slideIdx].sections[secIdx].peopleFields[slot] = { fields, avatar, oneLiner };
         }
         saveBtn.textContent = '저장 중…';
         await docRef('profile').set({slides:arr}, {merge:true});
