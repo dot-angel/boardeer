@@ -2020,7 +2020,6 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
     return `
       <div class="profile-edit-col" data-slot="${slot}">
         <h4>정보 ${slot===0?'①':'②'}</h4>
-        <label>정보 (나이·생년월일·키/몸무게·BWH 등은 숫자만 넣으면 자동으로 예쁘게 정리돼요, 성격은 쉼표로 구분하면 해시태그로 보여요)</label>
         <div class="pf-edit-list pe-fields-list"></div>
         <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
         <button type="button" class="btn small ghost pe-add-link">+ 링크 추가</button>
@@ -2030,7 +2029,7 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
 
   openModal(`
     <h3>정보 편집 · ${escapeHtml(secLabel)}</h3>
-    <p class="hint">기본적으로는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 저장돼요. 항목 아래 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 똑같이 적용할 수 있어요. 한 번 체크해두면 직접 해제하기 전까진 계속 체크된 채로 남고, 새 시점/IF를 추가할 때도 그대로 이어져요.</p>
+    <p class="hint">나이·생년월일·키/몸무게·BWH는 숫자만 넣으면 자동 정리, 성격은 쉼표로 구분하면 해시태그로 표시돼요. 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 함께 적용돼요.</p>
     <div class="profile-edit-cols">
       ${colHtml(0)}
       <div class="profile-edit-divider"></div>
