@@ -330,7 +330,7 @@ body::before{
 .slide-empty{ flex:1; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:.85rem; min-height:220px; }
 /* ---------- 음악 위젯 (자켓 이미지 + 진행바 + 반복/연속재생 + 재생목록) ---------- */
 .w-music{ gap:8px; padding:14px; }
-.mp-player{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; }
+.mp-player{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; justify-content:flex-end; }
 .mp-cover-bg{
   position:absolute; inset:0; z-index:0; border-radius: inherit;
   background-size:cover; background-position:center;
@@ -338,9 +338,9 @@ body::before{
 }
 .mp-cover-bg.has-cover::after{
   content:""; position:absolute; inset:0;
-  /* 위(제목·아티스트·재생시간)와 아래(재생목록)는 텍스트가 많아 진하게,
-     가운데(앨범아트·재생버튼)는 이미지가 좀 더 보이게 연하게 */
-  background: linear-gradient(180deg, rgba(10,3,5,0.6) 0%, rgba(10,3,5,0.32) 32%, rgba(10,3,5,0.5) 62%, rgba(10,3,5,0.82) 100%);
+  /* 내용물(제목·아티스트·재생시간·재생목록)이 전부 위젯 하단에 모여있으므로,
+     텍스트가 없는 위쪽은 자켓이 그대로 보이게 비워두고 아래쪽만 읽기 좋게 어둡게 함 */
+  background: linear-gradient(180deg, rgba(10,3,5,0) 0%, rgba(10,3,5,0) 38%, rgba(10,3,5,0.55) 68%, rgba(10,3,5,0.85) 100%);
 }
 /* 자켓 이미지가 있을 때는 그 위에 놓이는 글자·아이콘에 그림자를 더해
    어떤 사진이 배경이어도 가독성이 떨어지지 않게 함 */
@@ -399,10 +399,7 @@ body::before{
   min-width: 28px;      /* 너무 작아지진 않도록 최소 크기 */
 }
 .mp-play-btn:hover{ filter:brightness(1.08); }
-.player-tracks{ flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
-@media (max-width: 900px){
-  .player-tracks{ max-height: 220px; }
-}
+.player-tracks{ flex:0 1 auto; min-height:0; max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
 .player-tracks::-webkit-scrollbar{ width:5px; }
 .player-tracks::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .player-track{

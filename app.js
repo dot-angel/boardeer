@@ -3664,30 +3664,40 @@ function renderGallery(){
 }
 
 function openGalleryViewModal(idx){
-  const items = (galleryData.items || []).map(normalizeGalleryItem);
+  const allItems = (galleryData.items || []).map(normalizeGalleryItem);
+  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
+  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
+  const idxMap = allItems.map((it,i)=> i).filter(i=> !galleryFilterOpt || (allItems[i].opts||[]).includes(galleryFilterOpt));
+  const items = idxMap.map(i=> allItems[i]);
+  const startPos = Math.max(0, idxMap.indexOf(idx));
   openImageLightbox({
     items,
-    index: idx,
+    index: startPos,
     resolve: resolveGalleryItemUrl,
     tag: (item)=> item.opts,
-    onEditTag: editMode ? (i)=>{
+    onEditTag: editMode ? (pos)=>{
+      const i = idxMap[pos];
       closeModal();
-      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, (opts)=>{
+      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
         const arr = (galleryData.items||[]).map(normalizeGalleryItem);
         arr[i] = { ...arr[i], opts };
         if(!galleryFilterOpt) skipNextGalleryRender = true;
         docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행(느려 보이는 원인이었음)
-        items[i] = arr[i]; // 라이트박스를 다시 열 때 바로 최신 태그가 보이도록 로컬에도 반영
         // openItemOptEditModal이 저장 직후 자기 모달을 닫으므로, 그보다 한 틱 뒤에 다시 열어야
         // 방금 연 라이트박스가 그 closeModal()에 같이 지워지지 않음(네트워크는 더 이상 안 기다림)
         setTimeout(()=> openGalleryViewModal(i), 0);
       });
     } : null,
-    onDelete: editMode ? (i)=>{
+    onDelete: editMode ? (pos)=>{
+      const i = idxMap[pos];
       const arr = (galleryData.items||[]).map(normalizeGalleryItem);
       const [removed] = arr.splice(i,1);
       docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
       deleteGalleryImageIfChunked(removed);
+      // 같은 라이트박스 안에서 연달아 삭제해도 인덱스가 어긋나지 않게, 방금 지운 자리를
+      // 빼고 그 뒤 항목들의 원본 인덱스도 하나씩 당겨줌
+      idxMap.splice(pos,1);
+      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
     } : null
   });
 }
@@ -3936,28 +3946,36 @@ function renderGallery2(){
 }
 
 function openGallery2ViewModal(idx){
-  const items = (gallery2Data.items || []).map(normalizeGalleryItem);
+  const allItems = (gallery2Data.items || []).map(normalizeGalleryItem);
+  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
+  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
+  const idxMap = allItems.map((it,i)=> i).filter(i=> !gallery2FilterOpt || (allItems[i].opts||[]).includes(gallery2FilterOpt));
+  const items = idxMap.map(i=> allItems[i]);
+  const startPos = Math.max(0, idxMap.indexOf(idx));
   openImageLightbox({
     items,
-    index: idx,
+    index: startPos,
     resolve: resolveGalleryItemUrl,
     tag: (item)=> item.opts,
-    onEditTag: editMode ? (i)=>{
+    onEditTag: editMode ? (pos)=>{
+      const i = idxMap[pos];
       closeModal();
-      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, (opts)=>{
+      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
         const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
         arr[i] = { ...arr[i], opts };
         if(!gallery2FilterOpt) skipNextGallery2Render = true;
         docRef('gallery2').set({items:arr}, {merge:true});
-        items[i] = arr[i];
         setTimeout(()=> openGallery2ViewModal(i), 0);
       });
     } : null,
-    onDelete: editMode ? (i)=>{
+    onDelete: editMode ? (pos)=>{
+      const i = idxMap[pos];
       const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
       const [removed] = arr.splice(i,1);
       docRef('gallery2').set({items:arr}, {merge:true});
       deleteGalleryImageIfChunked(removed);
+      idxMap.splice(pos,1);
+      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
     } : null
   });
 }
@@ -4130,6 +4148,10 @@ function renderRefGallery(){
   if(!box) return;
   const prevScrollEl = document.getElementById('refGalleryGrid');
   const savedScroll = prevScrollEl ? { top: prevScrollEl.scrollTop, left: prevScrollEl.scrollLeft } : { top:0, left:0 };
+  // 옵션 칩 목록도 한 줄로 옆으로 스크롤되는 영역이라, 칩을 골라 다시 그릴 때마다
+  // 스크롤이 맨 앞으로 튕기지 않도록 그리기 전에 위치를 저장해둠
+  const prevChipsEl = document.getElementById('refGalleryFilterChips');
+  const savedChipsScroll = prevChipsEl ? prevChipsEl.scrollLeft : 0;
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !refGalleryFilterOpt || (it.opts||[]).includes(refGalleryFilterOpt));
   // 기존 grid의 row-major 배치(0번은 1열 1행, 1번은 2열 1행, ... 마지막 열까지 채우면
@@ -4159,6 +4181,8 @@ function renderRefGallery(){
   fitRefGalleryToCalendarHeight();
   applyRefGalleryOverlap(gridEl, pairs.length, colCount);
   renderOptionFilterChips(box.querySelector('#refGalleryFilterChips'), sharedGalleryOptionsData.options, refGalleryFilterOpt, (opt)=>{ refGalleryFilterOpt = opt; renderRefGallery(); });
+  const chipsEl = box.querySelector('#refGalleryFilterChips');
+  if(chipsEl) chipsEl.scrollLeft = savedChipsScroll;
 
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
 
@@ -4246,29 +4270,37 @@ function handleRefGalleryOptEdit(idx){
 }
 
 function openRefGalleryViewModal(idx){
-  const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  const allItems = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
+  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
+  const idxMap = allItems.map((it,i)=> i).filter(i=> !refGalleryFilterOpt || (allItems[i].opts||[]).includes(refGalleryFilterOpt));
+  const items = idxMap.map(i=> allItems[i]);
+  const startPos = Math.max(0, idxMap.indexOf(idx));
   openImageLightbox({
     items,
-    index: idx,
+    index: startPos,
     resolve: resolveGalleryItemUrl,
     tag: (item)=> item.opts,
-    onEditTag: editMode ? (i)=>{
+    onEditTag: editMode ? (pos)=>{
+      const i = idxMap[pos];
       closeModal();
-      openItemOptEditModal(items[i].opts, sharedGalleryOptionsData.options, (opts)=>{
+      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
         const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
         arr[i] = { ...arr[i], opts };
         // 필터가 꺼져 있으면 태그만 바꿔선 화면에 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
         if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
         docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
-        items[i] = arr[i];
         setTimeout(()=> openRefGalleryViewModal(i), 0);
       });
     } : null,
-    onDelete: editMode ? (i)=>{
+    onDelete: editMode ? (pos)=>{
+      const i = idxMap[pos];
       const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
       const [removed] = arr.splice(i,1);
       docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
       deleteGalleryImageIfChunked(removed);
+      idxMap.splice(pos,1);
+      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
     } : null
   });
 }
@@ -4342,7 +4374,8 @@ function renderDocs(){
   const list = document.getElementById('docList');
   const allCards = docsData.cards || [];
   renderOptionFilterChips(document.getElementById('docFilter'), docOptionsData.options, docFilterOpt, (opt)=>{ docFilterOpt = opt; renderDocs(); });
-  const pairs = allCards.map((c,i)=>({c,i})).filter(({c})=> !docFilterOpt || (c.opts||(c.opt?[c.opt]:[])).includes(docFilterOpt));
+  // 새로 추가한 문서가 배열 맨 뒤에 붙는 구조라, 화면에는 최신 문서가 위로 오도록 뒤집어서 보여줌
+  const pairs = allCards.map((c,i)=>({c,i})).filter(({c})=> !docFilterOpt || (c.opts||(c.opt?[c.opt]:[])).includes(docFilterOpt)).reverse();
   list.innerHTML = pairs.map(({c,i})=> `
     <div class="doc-row" data-idx="${i}">
       <span class="doc-icon">${escapeHtml(c.icon || '📄')}</span>
