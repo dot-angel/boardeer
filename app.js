@@ -31,26 +31,6 @@ if (typeof FIREBASE_NOT_CONFIGURED !== 'undefined' && FIREBASE_NOT_CONFIGURED) {
 
 function docRef(name){ return db.collection('content').doc(name); }
 
-/* ---------------- 동시 편집 보호(트랜잭션) ----------------
-   편집자가 2명이라, 예를 들어 두 사람이 거의 동시에 사진을 추가/삭제하면
-   "화면에 캐시된 배열 위에서 수정 후 통째로 저장"하는 방식은 나중에 저장하는
-   쪽이 먼저 저장된 상대방의 변경을 그대로 덮어써버릴 수 있음(lost update).
-   그래서 저장 직전 Firestore에서 최신 배열을 다시 읽어(트랜잭션), 그 위에서
-   수정하도록 감싸서 두 사람이 겹쳐 편집해도 서로의 변경이 사라지지 않게 함.
-   mutateFn(freshArray) => newArray 형태로 넘기면 됨. */
-async function updateArrayField(name, field, mutateFn, fallback){
-  const ref = docRef(name);
-  return db.runTransaction(async (tx)=>{
-    const snap = await tx.get(ref);
-    const data = snap.exists ? snap.data() : {};
-    const raw = Array.isArray(data[field]) ? data[field] : (fallback || []);
-    const current = raw.map(x=> (x && typeof x === 'object') ? {...x} : x);
-    const next = mutateFn(current);
-    tx.set(ref, { [field]: next }, { merge:true });
-    return next;
-  });
-}
-
 function toast(msg){
   const t = document.createElement('div');
   t.className = 'toast';
@@ -117,21 +97,15 @@ function layoutPinMasonry(gridEl){
   if(!width){ ensurePinMasonryResizeWatch(gridEl); return; }
   const cols = pinMasonryColumnCount(width);
   const colW = (width - PIN_MASONRY_GAP * (cols - 1)) / cols;
-  // 사진이 많아질수록(계속 늘어날 예정이라) 타일마다 "너비 쓰기 → 높이 읽기"를 번갈아 하면
-  // 강제 리플로우가 타일 개수만큼 반복돼서 렉이 생김. 그래서 1) 너비를 전부 먼저 써두고
-  // 2) 그 결과 높이를 한 번에 몰아서만 읽고(리플로우 1회) 3) 위치 계산은 순수 JS 값으로만
-  // 한 뒤 transform만 마지막에 쓰는 식으로, DOM 읽기/쓰기를 단계별로 묶어서 리플로우 횟수를
-  // 타일 수와 무관하게 항상 1회로 고정함.
-  tiles.forEach(tile=>{ tile.style.width = colW + 'px'; });
-  const heights = tiles.map(tile=> tile.getBoundingClientRect().height);
   const colHeights = new Array(cols).fill(0);
-  tiles.forEach((tile,i)=>{
+  tiles.forEach(tile=>{
+    tile.style.width = colW + 'px';
     let target = 0;
     for(let c = 1; c < cols; c++){ if(colHeights[c] < colHeights[target]) target = c; }
     const x = target * (colW + PIN_MASONRY_GAP);
     const y = colHeights[target];
     tile.style.transform = `translate(${x}px, ${y}px)`;
-    colHeights[target] = y + heights[i] + PIN_MASONRY_GAP;
+    colHeights[target] = y + tile.getBoundingClientRect().height + PIN_MASONRY_GAP;
   });
   inner.style.height = Math.max(0, Math.max(...colHeights) - PIN_MASONRY_GAP) + 'px';
 }
@@ -1618,11 +1592,29 @@ function bindProfile(slides){
     profileSectionIndex = arr[profileSlideIndex].sections.length - 1;
   };
 
-  // 사진·정보·이름 중 어디를 눌러도 두 프로필을 한 번에 고치는 통합 편집창을 염
-  const openCombinedEdit = (e)=>{ e.stopPropagation(); openProfileEditModal(profileSlideIndex, profileSectionIndex, slides); };
-  box.querySelectorAll('.profile-person-fields').forEach(el=>{ if(editMode) el.addEventListener('click', openCombinedEdit); });
-  box.querySelectorAll('.profile-photo.editable').forEach(el=> el.addEventListener('click', openCombinedEdit));
-  box.querySelectorAll('.profile-info.editable').forEach(el=> el.addEventListener('click', openCombinedEdit));
+  // 각 프로필의 정보 항목(체형·성격 등) 편집 — 프로필 이름/사진과는 별도 영역
+  box.querySelectorAll('.profile-person-fields').forEach(el=>{
+    if(!editMode) return;
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openProfileFieldsModal(profileSlideIndex, profileSectionIndex, Number(el.dataset.fieldslot), slides);
+    });
+  });
+
+  // 사진(+한마디)은 지금 보고 있는 시점/IF에만 적용되는 정보라 따로 편집창을 염
+  box.querySelectorAll('.profile-photo.editable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openProfilePhotoModal(profileSlideIndex, profileSectionIndex, Number(el.dataset.slot), slides);
+    });
+  });
+  // 이름/한줄소개는 AU 전체가 공유하는 정보라 별도 편집창을 염
+  box.querySelectorAll('.profile-info.editable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openProfilePersonModal(profileSlideIndex, Number(el.dataset.slot), slides);
+    });
+  });
 
   if(!editMode){
     box.querySelectorAll('.profile-avatar.has-image').forEach(av=>{
@@ -1641,142 +1633,29 @@ function bindProfile(slides){
   }
 }
 
-/* 프로필 ①·②를 따로따로 여는 창(이름/사진/정보 각각 별도) 대신, 두 프로필의
-   이름·한줄소개·사진·한마디·세부 정보를 한 창 안에서 한 번에 고칠 수 있게 통합함.
-   이름·한줄소개는 AU 전체가 공유하고, 사진·한마디·세부 정보는 지금 보고 있는
-   시점/IF에만 적용된다는 점은 기존과 동일 — 안내 문구로 구분해 둠. */
-function openProfileEditModal(slideIdx, secIdx, slides){
-  const slide = slides[slideIdx];
-  const section = slide.sections[secIdx];
-
-  function personBlockHtml(slot){
-    const p = slide.people[slot];
-    const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
-    const label = slot===0 ? '①' : '②';
-    return `
-      <div class="profile-edit-block" data-slot="${slot}">
-        <h4 class="profile-edit-heading">프로필 ${label}</h4>
-        <label>이름</label>
-        <input type="text" class="pe-name" value="${escapeHtml(p.name)}">
-        <label>한줄 소개 (선택 — 나이·역할 등)</label>
-        <input type="text" class="pe-role" value="${escapeHtml(p.role)}">
-        <p class="hint">이름·한줄 소개는 모든 시점/IF에서 공통으로 쓰여요.</p>
-
-        <label>프로필 사진 (선택 — 배경이 투명한 PNG도 그대로 지원돼요)</label>
-        <input type="file" class="pe-avatar-file" accept="image/*">
-        <label style="margin-top:6px;">또는 이미지 URL</label>
-        <input type="url" class="pe-avatar-url" placeholder="https://...">
-        <div class="mp-modal-cover-preview pe-avatar-preview" ${pf.avatar ? '' : 'style="display:none;"'}>
-          <img src="${pf.avatar||''}" alt="">
-          <button type="button" class="btn ghost small pe-avatar-clear">사진 지우기</button>
-        </div>
-        <label style="margin-top:10px;">사진 아래 한마디 (선택)</label>
-        <input type="text" class="pe-oneliner" maxlength="60" value="${escapeHtml(pf.oneLiner)}" placeholder="예: 오늘도 좋은 하루 보내요">
-        <p class="hint">사진·한마디·아래 정보는 지금 보고 있는 "${escapeHtml(section.name || '이 시점/IF')}"에만 적용돼요.</p>
-
-        <label>정보 (항목별로 나눠서 적을 수 있어요, 예: 체형·성격·취향)</label>
-        <div class="pf-edit-list" data-fieldslot="${slot}"></div>
-        <button type="button" class="btn small ghost pe-field-add" data-slot="${slot}">+ 항목 추가</button>
-      </div>
-    `;
-  }
-
+function openProfilePersonModal(slideIdx, slot, slides){
+  const p = slides[slideIdx].people[slot];
   openModal(`
-    <h3>프로필 편집</h3>
-    ${personBlockHtml(0)}
-    <div class="profile-edit-divider"></div>
-    ${personBlockHtml(1)}
+    <h3>프로필 ${slot===0?'①':'②'} 이름</h3>
+    <label>이름</label><input type="text" id="pName" value="${escapeHtml(p.name)}">
+    <label>한줄 소개 (선택 — 나이·역할 등)</label><input type="text" id="pRole" value="${escapeHtml(p.role)}">
+    <p class="hint">이름·한줄 소개는 모든 시점/IF에서 공통으로 쓰여요. 사진은 사진을 눌러서, 체형·성격 같은 세부 정보는 이름 아래쪽 정보 영역을 눌러서 따로 편집해요.</p>
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">저장</button>
     </div>
   `, m=>{
-    const workingFields = [0,1].map(slot=> ((section.peopleFields[slot] && section.peopleFields[slot].fields) || []).map(f=>({...f})));
-    const avatarCleared = [false,false];
-
-    function drawFields(slot){
-      const listEl = m.querySelector(`.pf-edit-list[data-fieldslot="${slot}"]`);
-      listEl.innerHTML = workingFields[slot].map((f,i)=> `
-        <div class="pf-edit-row" data-idx="${i}">
-          <input type="text" class="pf-edit-label" placeholder="항목명 (예: 체형)" value="${escapeHtml(f.label)}">
-          <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
-          <button type="button" class="btn small danger" data-del="${i}">✕</button>
-        </div>
-      `).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
-      listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
-        workingFields[slot].splice(Number(btn.dataset.del), 1);
-        drawFields(slot);
-      }));
-    }
-    [0,1].forEach(drawFields);
-
-    const blocks = m.querySelectorAll('.profile-edit-block');
-    [0,1].forEach(slot=>{
-      const block = blocks[slot];
-      block.querySelector('.pe-field-add').onclick = ()=>{ workingFields[slot].push({label:'', value:''}); drawFields(slot); };
-      const clearBtn = block.querySelector('.pe-avatar-clear');
-      if(clearBtn) clearBtn.onclick = ()=>{
-        avatarCleared[slot] = true;
-        const wrap = block.querySelector('.pe-avatar-preview');
-        if(wrap) wrap.style.display = 'none';
-        toast('저장하면 사진이 지워져요');
-      };
-    });
-
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
+      const name = m.querySelector('#pName').value.trim();
+      const role = m.querySelector('#pRole').value.trim();
       saveBtn.disabled = true;
       saveBtn.textContent = '저장 중…';
-
-      const names = [], roles = [], oneLiners = [], avatars = [];
-      for(let slot=0; slot<2; slot++){
-        const block = blocks[slot];
-        names[slot] = block.querySelector('.pe-name').value.trim();
-        roles[slot] = block.querySelector('.pe-role').value.trim();
-        oneLiners[slot] = block.querySelector('.pe-oneliner').value.trim();
-        const file = block.querySelector('.pe-avatar-file').files[0];
-        const url = block.querySelector('.pe-avatar-url').value.trim();
-        let avatar = (section.peopleFields[slot] && section.peopleFields[slot].avatar) || '';
-        if(avatarCleared[slot]) avatar = '';
-        if(url) avatar = url;
-        if(file){
-          saveBtn.textContent = `사진 처리 중… (${slot+1}/2)`;
-          try{ avatar = await compressAvatarImageFile(file, 900, 320000); }
-          catch(err){
-            toast(`사진 처리 실패: ${err.message || err}`);
-            saveBtn.disabled = false; saveBtn.textContent = '저장';
-            return;
-          }
-        }
-        avatars[slot] = avatar;
-      }
-      // 항목 추가/삭제 버튼을 누른 뒤 화면에 남은 입력값으로 다시 동기화
-      for(let slot=0; slot<2; slot++){
-        const rows = Array.from(m.querySelectorAll(`.pf-edit-list[data-fieldslot="${slot}"] .pf-edit-row`));
-        workingFields[slot] = rows.map(row=>({
-          label: row.querySelector('.pf-edit-label').value.trim(),
-          value: row.querySelector('.pf-edit-value').value.trim()
-        })).filter(f=> f.label || f.value);
-      }
-
-      saveBtn.textContent = '저장 중…';
+      const arr = cloneSlides(slides);
+      arr[slideIdx].people[slot] = { ...arr[slideIdx].people[slot], name, role };
       try{
-        // 편집자가 2명이라 저장 직전 최신 slides를 다시 읽어(트랜잭션), 그 사이 다른
-        // 편집자가 다른 AU/시점을 고쳤어도 서로의 변경이 사라지지 않게 함
-        await db.runTransaction(async (tx)=>{
-          const ref = docRef('profile');
-          const snap = await tx.get(ref);
-          const freshSlidesRaw = (snap.exists && Array.isArray(snap.data().slides)) ? snap.data().slides : slides;
-          const fresh = cloneSlides(freshSlidesRaw.map(normalizeProfileSlide));
-          if(fresh[slideIdx] && fresh[slideIdx].sections[secIdx]){
-            for(let slot=0; slot<2; slot++){
-              fresh[slideIdx].people[slot] = { ...fresh[slideIdx].people[slot], name: names[slot], role: roles[slot] };
-              fresh[slideIdx].sections[secIdx].peopleFields[slot] = { fields: workingFields[slot], avatar: avatars[slot], oneLiner: oneLiners[slot] };
-            }
-          }
-          tx.set(ref, { slides: fresh }, { merge:true });
-        });
+        await docRef('profile').set({slides:arr}, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '저장';
@@ -1784,10 +1663,73 @@ function openProfileEditModal(slideIdx, secIdx, slides){
       }
       closeModal();
     };
-  }, 'modal-wide');
+  });
 }
 
+function openProfilePhotoModal(slideIdx, secIdx, slot, slides){
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+  const person = slide.people[slot];
+  const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
+  openModal(`
+    <h3>${escapeHtml(person.name || (slot===0?'프로필 ①':'프로필 ②'))}의 사진${section.name ? ` · ${escapeHtml(section.name)}` : ''}</h3>
+    <label>프로필 사진 (선택 — 배경이 투명한 PNG도 그대로 지원돼요)</label>
+    <input type="file" id="pAvatarFile" accept="image/*">
+    <label style="margin-top:6px;">또는 이미지 URL</label>
+    <input type="url" id="pAvatarUrl" placeholder="https://...">
+    ${pf.avatar ? `<div class="mp-modal-cover-preview" id="pAvatarPreviewWrap"><img src="${pf.avatar}" alt=""><button type="button" class="btn ghost small" id="pAvatarClear">사진 지우기</button></div>` : ''}
+    <label style="margin-top:10px;">사진 아래 한마디 (선택)</label>
+    <input type="text" id="pOneLiner" maxlength="60" value="${escapeHtml(pf.oneLiner)}" placeholder="예: 오늘도 좋은 하루 보내요">
+    <p class="hint">사진과 한마디는 지금 보고 있는 "${escapeHtml(section.name || '이 시점/IF')}"에만 적용돼요. 다른 시점/IF는 각각 따로 사진을 설정할 수 있어요.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    let avatarCleared = false;
+    const clearBtn = m.querySelector('#pAvatarClear');
+    if(clearBtn) clearBtn.onclick = ()=>{
+      avatarCleared = true;
+      const wrap = m.querySelector('#pAvatarPreviewWrap');
+      if(wrap) wrap.style.display = 'none';
+      toast('저장하면 사진이 지워져요');
+    };
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const file = m.querySelector('#pAvatarFile').files[0];
+      const url = m.querySelector('#pAvatarUrl').value.trim();
+      const oneLiner = m.querySelector('#pOneLiner').value.trim();
+      let avatar = pf.avatar || '';
+      if(avatarCleared) avatar = '';
+      if(url) avatar = url;
+      if(file){
+        saveBtn.disabled = true;
+        saveBtn.textContent = '사진 처리 중…';
+        try{ avatar = await compressAvatarImageFile(file, 900, 320000); }
+        catch(err){
+          toast(`사진 처리 실패: ${err.message || err}`);
+          saveBtn.disabled = false; saveBtn.textContent = '저장';
+          return;
+        }
+      }
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      const arr = cloneSlides(slides);
+      arr[slideIdx].sections[secIdx].peopleFields[slot] = { fields: pf.fields, avatar, oneLiner };
+      try{
+        await docRef('profile').set({slides:arr}, {merge:true});
+      }catch(err){
+        toast(`저장하지 못했어요: ${err.message || err}`);
+        saveBtn.disabled = false; saveBtn.textContent = '저장';
+        return;
+      }
+      closeModal();
+    };
+  });
+}
 
+function openProfileSlideModal(slideIdx, slides){
   const slide = slides[slideIdx];
   const canDelete = slides.length > 1;
   openModal(`
@@ -2738,9 +2680,6 @@ docRef('calendar').onSnapshot(doc=>{ calendarData = doc.exists ? doc.data() : {e
 
 /* 예전엔 items가 그냥 URL 문자열 배열이었어서, 새로 추가된 블러 옵션과 호환되도록
    문자열이면 {url, blur:false}로, 객체면 그대로 정규화해줌 */
-// 사진 각각을 가리킬 수 있는 고유한 키(청크 저장이면 fileId, 아니면 url). 편집자가 2명이라
-// 저장 시점에 배열 순서가 바뀌어 있을 수 있어서, 삭제/추가는 idx가 아니라 이 키로 찾아서 처리함
-function galleryItemKey(it){ return it.chunked ? `c:${it.fileId}` : `u:${it.url}`; }
 function normalizeGalleryItem(it){
   if(typeof it === 'string') return { url: it, blur: false, opts: [] };
   if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
@@ -2922,18 +2861,11 @@ function fillGalleryTile(tile, idx, url, it){
     else layoutPinMasonry(grid);
   }
 }
-async function handleGalleryDelete(idx){
+function handleGalleryDelete(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
-  const removed = items[idx];
-  if(!removed) return;
-  const key = galleryItemKey(removed);
-  await updateArrayField('gallery', 'items', (fresh)=>{
-    const normFresh = fresh.map(normalizeGalleryItem);
-    const i = normFresh.findIndex(it=> galleryItemKey(it) === key);
-    if(i === -1) return normFresh; // 다른 편집자가 이미 지웠으면 그대로 둠
-    normFresh.splice(i,1);
-    return normFresh;
-  });
+  const arr = items.slice();
+  const [removed] = arr.splice(idx,1);
+  docRef('gallery').set({items:arr}, {merge:true});
   deleteGalleryImageIfChunked(removed);
 }
 function handleGalleryBlurToggle(idx){
@@ -3088,7 +3020,8 @@ function openGalleryAddModal(){
         return;
       }
       try{
-        await updateArrayField('gallery', 'items', (fresh)=> [...newItems, ...fresh.map(normalizeGalleryItem)]);
+        const existing = (galleryData.items||[]).map(normalizeGalleryItem);
+        await docRef('gallery').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -3198,18 +3131,11 @@ function fillGallery2Tile(tile, idx, url, it){
   if(it.blur) tile.classList.add('blurred');
   attachImgFallback(tile.querySelector('img'));
 }
-async function handleGallery2Delete(idx){
+function handleGallery2Delete(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
-  const removed = items[idx];
-  if(!removed) return;
-  const key = galleryItemKey(removed);
-  await updateArrayField('gallery2', 'items', (fresh)=>{
-    const normFresh = fresh.map(normalizeGalleryItem);
-    const i = normFresh.findIndex(it=> galleryItemKey(it) === key);
-    if(i === -1) return normFresh;
-    normFresh.splice(i,1);
-    return normFresh;
-  });
+  const arr = items.slice();
+  const [removed] = arr.splice(idx,1);
+  docRef('gallery2').set({items:arr}, {merge:true});
   deleteGalleryImageIfChunked(removed);
 }
 function handleGallery2BlurToggle(idx){
@@ -3364,7 +3290,8 @@ function openGallery2AddModal(){
         return;
       }
       try{
-        await updateArrayField('gallery2', 'items', (fresh)=> [...newItems, ...fresh.map(normalizeGalleryItem)]);
+        const existing = (gallery2Data.items||[]).map(normalizeGalleryItem);
+        await docRef('gallery2').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -3584,18 +3511,11 @@ function fillRefGalleryTile(tile, idx, url){
   attachImgFallback(tile.querySelector('img'));
 }
 
-async function handleRefGalleryDelete(idx){
+function handleRefGalleryDelete(idx){
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   const removed = items[idx];
-  if(!removed) return;
-  const key = galleryItemKey(removed);
-  await updateArrayField('refgallery', 'items', (fresh)=>{
-    const normFresh = fresh.map(normalizeRefGalleryItem);
-    const i = normFresh.findIndex(it=> galleryItemKey(it) === key);
-    if(i === -1) return normFresh;
-    normFresh.splice(i,1);
-    return normFresh;
-  });
+  const arr = items.slice(); arr.splice(idx,1);
+  docRef('refgallery').set({items:arr}, {merge:true});
   deleteGalleryImageIfChunked(removed);
 }
 
@@ -3675,7 +3595,8 @@ function openRefGalleryAddModal(){
         return;
       }
       try{
-        await updateArrayField('refgallery', 'items', (fresh)=> [...newItems, ...fresh.map(normalizeRefGalleryItem)]);
+        const existing = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+        await docRef('refgallery').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -4168,40 +4089,30 @@ function openSessionEditModal(idx){
 
 /* ---------------- 8. 체크보드 (체크된 항목은 아래로) ---------------- */
 
-let checklistData = { items: [] };
-
-// 위젯 전체 부제목은 없애고, 항목마다 각자 부제목을 가질 수 있게 함.
-// 편집자가 2명이라 인덱스 대신 id로 항목을 찾아야 동시 편집이 안전해서, id가 없는
-// 예전 항목은 화면에 보여줄 임시 id를 붙여두고(실제 저장 시 정식 id로 한 번 채워짐)
-function normalizeChecklistItem(it, i){
-  it = it || {};
-  return {
-    id: it.id || `legacy_${i}`,
-    text: it.text || '',
-    checked: !!it.checked,
-    subtitle: it.subtitle || '',
-    link: it.link || ''
-  };
-}
-async function updateChecklistItems(mutateFn){
-  return updateArrayField('checklist', 'items', (fresh)=> mutateFn(fresh.map(normalizeChecklistItem)));
-}
+let checklistData = { items: [], subtitle: '' };
 
 function renderChecklist(){
+  const subWrap = document.getElementById('checklistSubtitleWrap');
+  const subtitle = checklistData.subtitle || '';
+  if(subtitle || editMode){
+    subWrap.innerHTML = `<div class="checklist-subtitle ${editMode ? 'editable' : ''} ${!subtitle ? 'empty-hint' : ''}" id="checklistSubtitleBtn">${subtitle ? escapeHtml(subtitle) : (editMode ? '+ 부제목 추가' : '')}</div>`;
+    const subBtn = document.getElementById('checklistSubtitleBtn');
+    if(subBtn && editMode) subBtn.onclick = openChecklistSubtitleModal;
+  } else {
+    subWrap.innerHTML = '';
+  }
+
   const body = document.getElementById('checklistBody');
-  const all = (checklistData.items || []).map(normalizeChecklistItem);
+  const all = (checklistData.items || []).map((it,i)=>({...it, _i:i}));
   const unchecked = all.filter(it=> !it.checked);
   const checked = all.filter(it=> it.checked);
 
   function row(it){
     return `
-      <div class="check-item ${it.checked?'checked':''}" data-id="${escapeHtml(it.id)}">
+      <div class="check-item ${it.checked?'checked':''}" data-idx="${it._i}">
         <input type="checkbox" ${it.checked?'checked':''} ${editMode?'':'disabled'}>
-        <div class="check-item-main">
-          <span class="${it.link ? 'has-link' : ''}" ${it.link ? `data-linkopen title="${escapeHtml(it.link)}"` : ''}>${escapeHtml(it.text)}</span>
-          ${it.subtitle || editMode ? `<div class="check-item-sub ${!it.subtitle ? 'empty-hint' : ''}" ${editMode ? 'data-subedit' : ''}>${it.subtitle ? escapeHtml(it.subtitle) : (editMode ? '+ 부제목 추가' : '')}</div>` : ''}
-        </div>
-        ${editMode ? `<button class="check-link-edit" data-linkedit title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
+        <span class="${it.link ? 'has-link' : ''}" ${it.link ? `data-linkopen="${it._i}" title="${escapeHtml(it.link)}"` : ''}>${escapeHtml(it.text)}</span>
+        ${editMode ? `<button class="check-link-edit" data-linkedit="${it._i}" title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
         ${editMode ? `<button class="del">✕</button>` : ''}
       </div>
     `;
@@ -4214,26 +4125,26 @@ function renderChecklist(){
     `<div class="w-empty">등록된 항목이 없어요</div>`;
 
   body.querySelectorAll('.check-item').forEach(el=>{
-    const id = el.dataset.id;
+    const idx = Number(el.dataset.idx);
     const cb = el.querySelector('input[type=checkbox]');
     cb.addEventListener('change', async ()=>{
       if(!editMode) return;
-      const checkedVal = cb.checked;
-      await updateChecklistItems(items=> items.map(it=> it.id===id ? {...it, checked: checkedVal} : it));
+      const arr = [...checklistData.items];
+      arr[idx] = { ...arr[idx], checked: cb.checked };
+      await docRef('checklist').set({items:arr}, {merge:true});
     });
     const linkOpen = el.querySelector('[data-linkopen]');
     if(linkOpen) linkOpen.addEventListener('click', ()=>{
-      const cur = all.find(it=> it.id===id);
+      const cur = checklistData.items[idx];
       if(cur && cur.link) window.open(cur.link, '_blank', 'noopener');
     });
     const del = el.querySelector('.del');
     if(del) del.addEventListener('click', async ()=>{
-      await updateChecklistItems(items=> items.filter(it=> it.id!==id));
+      const arr = [...checklistData.items]; arr.splice(idx,1);
+      await docRef('checklist').set({items:arr}, {merge:true});
     });
     const linkEdit = el.querySelector('[data-linkedit]');
-    if(linkEdit) linkEdit.addEventListener('click', ()=> openChecklistItemModal(id));
-    const subEdit = el.querySelector('[data-subedit]');
-    if(subEdit) subEdit.addEventListener('click', ()=> openChecklistItemModal(id));
+    if(linkEdit) linkEdit.addEventListener('click', ()=> openChecklistLinkModal(idx));
   });
 
   const wrap = document.getElementById('checklistAddWrap');
@@ -4243,57 +4154,75 @@ function renderChecklist(){
   const submit = async ()=>{
     const text = input.value.trim();
     if(!text) return;
-    await updateChecklistItems(items=> [...items, { id: uid(), text, checked:false, subtitle:'', link:'' }]);
+    await docRef('checklist').set({ items: [...(checklistData.items||[]), {text, checked:false}] }, {merge:true});
     input.value = '';
   };
   addBtn.onclick = submit;
   input.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
 }
 
-// 예전에 저장된 항목 중 id가 없는 게 있으면, 한 번만 정식 id(uid())를 붙여서 저장해둠 —
-// 이후로는 항목이 배열 안에서 자리를 옮겨도 id로 정확히 찾아 수정/삭제할 수 있게 됨
-async function migrateChecklistItemIds(){
-  const items = checklistData.items || [];
-  if(items.length && items.every(it=> it && it.id)) return;
-  try{
-    await updateArrayField('checklist', 'items', (fresh)=> fresh.map((it,i)=> ({ ...normalizeChecklistItem(it,i), id: (it && it.id) || uid() })));
-  }catch(err){ console.error('체크리스트 id 이전 실패', err); }
-}
+docRef('checklist').onSnapshot(doc=>{ checklistData = doc.exists ? doc.data() : {items:[], subtitle:''}; renderChecklist(); });
 
-docRef('checklist').onSnapshot(doc=>{
-  checklistData = doc.exists ? doc.data() : {items:[]};
-  renderChecklist();
-  if(editMode) migrateChecklistItemIds();
-});
-
-function openChecklistItemModal(id){
-  const cur = (checklistData.items||[]).map(normalizeChecklistItem).find(it=> it.id===id);
-  if(!cur) return;
+function openChecklistSubtitleModal(){
+  const cur = checklistData.subtitle || '';
   openModal(`
-    <h3>항목 상세</h3>
-    <label>부제목 (선택 — 항목 아래에 작게 표시돼요)</label>
-    <input type="text" id="ckSub" value="${escapeHtml(cur.subtitle)}" placeholder="예: 3월 중 완료">
-    <label>연결할 링크 (선택 — 구글드라이브 공유 링크 등)</label>
-    <input type="url" id="ckLink" placeholder="https://..." value="${escapeHtml(cur.link)}">
+    <h3>체크리스트 부제목</h3>
+    <label>부제목 (선택 — 카드 오른쪽 위에 작게 표시돼요)</label>
+    <input type="text" id="checkSubInput" value="${escapeHtml(cur)}" placeholder="예: 결혼 준비 체크리스트">
     <div class="modal-actions">
+      ${cur ? `<button class="btn danger" id="d" type="button">지우기</button>` : ''}
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">저장</button>
     </div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
+    const delBtn = m.querySelector('#d');
+    if(delBtn) delBtn.onclick = async ()=>{
+      await docRef('checklist').set({ subtitle:'' }, {merge:true});
+      closeModal();
+    };
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
-      const subtitle = m.querySelector('#ckSub').value.trim();
-      const link = m.querySelector('#ckLink').value.trim();
+      const subtitle = m.querySelector('#checkSubInput').value.trim();
       saveBtn.disabled = true;
       saveBtn.textContent = '저장 중…';
       try{
-        await updateChecklistItems(items=> items.map(it=> it.id===id ? {...it, subtitle, link} : it));
+        await docRef('checklist').set({ subtitle }, {merge:true});
       }catch(err){
         toast('저장하지 못했어요');
         saveBtn.disabled = false; saveBtn.textContent = '저장';
         return;
       }
+      closeModal();
+    };
+  });
+}
+
+function openChecklistLinkModal(idx){
+  const cur = (checklistData.items||[])[idx];
+  if(!cur) return;
+  openModal(`
+    <h3>항목 링크</h3>
+    <label>연결할 링크 (구글드라이브 공유 링크 등)</label>
+    <input type="url" id="ckLink" placeholder="https://..." value="${escapeHtml(cur.link||'')}">
+    <div class="modal-actions">
+      ${cur.link ? `<button class="btn danger" id="rm">링크 삭제</button>` : ''}
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    if(m.querySelector('#rm')) m.querySelector('#rm').onclick = async ()=>{
+      const arr = [...checklistData.items];
+      arr[idx] = { ...arr[idx], link: '' };
+      await docRef('checklist').set({items:arr}, {merge:true});
+      closeModal();
+    };
+    m.querySelector('#s').onclick = async ()=>{
+      const link = m.querySelector('#ckLink').value.trim();
+      const arr = [...checklistData.items];
+      arr[idx] = { ...arr[idx], link };
+      await docRef('checklist').set({items:arr}, {merge:true});
       closeModal();
     };
   });

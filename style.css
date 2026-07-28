@@ -493,7 +493,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-slide-del{ position:absolute; top:0; right:0; }
 .profile-pair{ display:flex; flex-direction:row; align-items:flex-start; justify-content:center; gap:14px; width:100%; }
 .profile-person{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; padding:6px; border-radius:16px; }
-.profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; width:100%; max-width:100%; }
+.profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; max-width:100%; }
 .profile-photo.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px; }
 .profile-photo.editable:hover{ background: rgba(255,255,255,0.06); }
 .profile-info{ display:flex; flex-direction:column; align-items:center; gap:2px; max-width:100%; }
@@ -503,24 +503,24 @@ body.edit-mode .dday-item{ padding-right: 34px; }
    PNG(캐릭터 전신 컷 등)를 올려도 원본 형태 그대로 보임. 사진이 있을 때는 뒤에 깔린
    박스 배경/테두리를 없애서 투명 배경 PNG가 카드 위에 자연스럽게 떠 보이게 함. */
 .profile-avatar{
-  width:100%; max-width:230px; aspect-ratio:1/1; height:auto; border-radius:20px; background-size:contain; background-repeat:no-repeat;
+  width:100px; height:100px; border-radius:20px; background-size:contain; background-repeat:no-repeat;
   background-position:center; background-color: var(--card-bg2); border:2px solid var(--card-border);
-  display:flex; align-items:center; justify-content:center; font-size:2.6rem; color: var(--rose);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  display:flex; align-items:center; justify-content:center; font-size:1.8rem; color: var(--rose);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25); flex:0 0 auto;
 }
 .profile-avatar.has-image{ background-color:transparent; border-color:transparent; box-shadow:none; }
 @media (max-width: 900px){
   /* 모바일에서는 프로필 카드가 한 열 전체 폭을 쓰게 되어 여유가 많으므로 사진을 더 키움 */
-  .profile-avatar{ max-width:320px; border-radius:24px; font-size:3rem; }
+  .profile-avatar{ width:130px; height:130px; border-radius:24px; font-size:2.2rem; }
 }
 .profile-oneliner{
-  font-size:.72rem; color: var(--ink-soft); text-align:center; max-width:100%;
+  font-size:.72rem; color: var(--ink-soft); text-align:center; max-width:150px;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .profile-oneliner.empty-hint{ opacity:.65; cursor:pointer; }
 .profile-oneliner.empty-hint:hover{ opacity:1; }
-.profile-name{ font-weight:700; font-size:.82rem; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.profile-role{ font-size:.68rem; color: var(--ink-soft); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-name{ font-weight:700; font-size:.82rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-role{ font-size:.68rem; color: var(--ink-soft); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
@@ -915,25 +915,31 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .session-add{ margin-top:10px; align-self:flex-start; }
 /* ---------- 체크보드 ---------- */
+.checklist-subtitle-row{ display:flex; justify-content:flex-end; }
+.checklist-subtitle-row:not(:empty){ margin-bottom:8px; }
+.checklist-subtitle{
+  font-family: var(--font-display); font-size:.76rem; font-weight:700; color: var(--rose);
+  text-align:right; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.checklist-subtitle.editable{ cursor:pointer; border-radius:8px; padding:2px 6px; transition: background .15s ease; }
+.checklist-subtitle.editable:hover{ background: rgba(255,255,255,0.06); }
+.checklist-subtitle.empty-hint{ font-family: var(--font-body); font-weight:400; color: var(--ink-soft); opacity:.7; }
+.checklist-subtitle.empty-hint:hover{ opacity:1; }
 .checklist{ max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
 .check-item{
   display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem;
 }
 .check-item:hover{ background: rgba(255,255,255,0.07); }
-.check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; margin-top:2px; align-self:flex-start; }
-.check-item-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
+.check-item span{ flex:1; }
 .check-item span.has-link{ cursor:pointer; color: var(--rose); }
 .check-item span.has-link::after{ content:'↗'; font-size:.7em; opacity:.65; margin-left:3px; }
 .check-item span.has-link:hover{ text-decoration: underline; }
 .check-item.checked{ opacity:.5; }
-.check-item.checked .check-item-main > span{ text-decoration: line-through; }
-/* 항목 하나하나에 붙일 수 있는 부제목(작게, 흐리게) — 위젯 전체 부제목은 없앰 */
-.check-item-sub{ font-size:.7rem; color: var(--ink-soft); }
-.check-item-sub.empty-hint{ opacity:.6; cursor:pointer; }
-.check-item-sub.empty-hint:hover{ opacity:1; }
-.check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; align-self:flex-start; }
+.check-item.checked span{ text-decoration: line-through; }
+.check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
 .check-item .del:hover{ color:#ff8f9e; }
-.check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; align-self:flex-start; }
+.check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
 .check-divider{ border-top:1px dashed var(--card-border); margin:6px 2px; }
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
