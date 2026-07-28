@@ -754,6 +754,18 @@ async function deleteFileChunked(fileId, total){
   await batch.commit();
 }
 
+// 프로필의 시점/IF(들)를 통째로 삭제할 때, 그 안에 청크로 저장돼 있던 프로필 사진들도
+// 같이 정리해주는 헬퍼. sections는 삭제된(또는 삭제될) 시점/IF들의 배열.
+function deleteAvatarChunksInSections(sections){
+  (sections || []).forEach(sec=>{
+    (sec.peopleFields || []).forEach(pf=>{
+      if(pf && pf.avatarChunked && pf.avatarFileId){
+        deleteFileChunked(pf.avatarFileId, pf.avatarChunkTotal || 0).catch(()=>{});
+      }
+    });
+  });
+}
+
 /* base64 데이터 URL을 Blob으로 바꿔서 새 탭에 열어줌.
    큰 파일을 data: URL 그대로 window.open에 넘기면 브라우저별 주소 길이
    제한에 걸릴 수 있어서, 실제 파일처럼 동작하는 Blob 주소로 변환해서 씀. */
@@ -833,6 +845,7 @@ lockBtn.addEventListener('click', async ()=>{
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드가 시작됐어요');
         migrateOversizedGalleries();
+        migrateOversizedProfileAvatars();
       };
     });
     return;
@@ -855,6 +868,7 @@ lockBtn.addEventListener('click', async ()=>{
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드로 전환됐어요');
         migrateOversizedGalleries();
+        migrateOversizedProfileAvatars();
       } else {
         toast('비밀번호가 일치하지 않아요');
       }
@@ -1430,7 +1444,7 @@ function avatarBgSize(){
   return 'contain';
 }
 // 새 시점/IF의 사람별 정보 세트(항목 + 사진 + 한마디) 기본값
-function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', oneLiner:'', name:'', role:'' }; }
+function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' }; }
 
 function normalizeProfilePerson(p){
   p = p || {};
@@ -1469,11 +1483,18 @@ function normalizePersonFieldSet(pf){
   // Firestore엔 배열 속 배열을 못 넣어서, 사람별 정보는 {fields:[...]} 형태의 객체로 감싸서 저장함.
   // 예전에 배열을 바로 넣었던 데이터가 있을 수도 있어 그것도 호환해줌.
   // 사진(avatar)과 한마디(oneLiner)는 시점/IF마다 따로 설정할 수 있도록 이 사람별 정보 세트에 같이 저장함.
-  if(Array.isArray(pf)) return { fields: pf.map(normalizeProfileField), avatar:'', oneLiner:'', name:'', role:'' };
+  // 사진(avatar)이 크면 profile 문서 하나(모든 AU/시점 정보가 다 같이 들어있는 문서) 용량이
+  // 금방 1MB 한도를 넘어버려서("시점/IF 추가 안 됨" 오류의 원인이었음), 이제 프로필 사진도
+  // 갤러리/음악 자켓처럼 무조건 fileChunks 컬렉션에 따로 저장하고, 여기엔 참조(fileId)만 남김.
+  // avatar 문자열은 외부 이미지 URL을 쓴 경우에만 값이 채워짐(그땐 짧은 문자열이라 문제없음).
+  if(Array.isArray(pf)) return { fields: pf.map(normalizeProfileField), avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
   pf = pf || {};
   return {
     fields: Array.isArray(pf.fields) ? pf.fields.map(normalizeProfileField) : [],
     avatar: pf.avatar || '',
+    avatarChunked: !!pf.avatarChunked,
+    avatarFileId: pf.avatarFileId || '',
+    avatarChunkTotal: pf.avatarChunkTotal || 0,
     oneLiner: pf.oneLiner || '',
     name: pf.name || '',
     role: pf.role || ''
@@ -1488,11 +1509,11 @@ function normalizeProfileSection(sec){
     // 이전 버전 호환: 두 프로필이 공유하던 정보를 그대로 양쪽에 복사해서 시작(이후 각자 따로 수정 가능)
     const legacy = sec.fields.map(normalizeProfileField);
     peopleFields = [
-      { fields: legacy.map(f=>({...f})), avatar:'', oneLiner:'' },
-      { fields: legacy.map(f=>({...f})), avatar:'', oneLiner:'' }
+      { fields: legacy.map(f=>({...f})), avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'' },
+      { fields: legacy.map(f=>({...f})), avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'' }
     ];
   } else {
-    peopleFields = [{fields:[], avatar:'', oneLiner:''}, {fields:[], avatar:'', oneLiner:''}];
+    peopleFields = [{fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:''}, {fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:''}];
   }
   return { name: sec.name || '', desc: sec.desc || '', peopleFields };
 }
@@ -1506,8 +1527,8 @@ function normalizeProfileSlide(s){
     let legacyFields = Array.isArray(s.fields) ? s.fields.map(normalizeProfileField) : [];
     if(legacyFields.length === 0 && s.desc) legacyFields = [{ label:'설명', value: s.desc }];
     sections = [{ name:'', peopleFields: [
-      { fields: legacyFields.map(f=>({...f})), avatar:'', oneLiner:'' },
-      { fields: legacyFields.map(f=>({...f})), avatar:'', oneLiner:'' }
+      { fields: legacyFields.map(f=>({...f})), avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'' },
+      { fields: legacyFields.map(f=>({...f})), avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'' }
     ] }];
   }
   // 예전엔 사진·이름·한줄소개가 AU 전체(사람별)에서 공용이었음. 시점/IF마다 따로 쓸 수
@@ -1519,7 +1540,7 @@ function normalizeProfileSlide(s){
     ...sec,
     peopleFields: sec.peopleFields.map((pf,i)=> ({
       ...pf,
-      avatar: pf.avatar || people[i].avatar || '',
+      avatar: pf.avatarChunked ? (pf.avatar || '') : (pf.avatar || people[i].avatar || ''),
       name: pf.name || people[i].name || '',
       role: pf.role || people[i].role || ''
     }))
@@ -1545,6 +1566,9 @@ function cloneSlides(slides){
       peopleFields: sec.peopleFields.map(pf=> ({
         fields: pf.fields.map(f=>({...f})),
         avatar: pf.avatar || '',
+        avatarChunked: !!pf.avatarChunked,
+        avatarFileId: pf.avatarFileId || '',
+        avatarChunkTotal: pf.avatarChunkTotal || 0,
         oneLiner: pf.oneLiner || '',
         name: pf.name || '',
         role: pf.role || ''
@@ -1700,8 +1724,13 @@ function renderProfile(){
       ` : ''}
       <div class="profile-pair">
         ${[0,1].map(slot=>{
-          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
-          const avatar = pf.avatar || '';
+          const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
+          // 사진이 청크로 저장돼 있으면(대부분의 업로드 사진) 캐시에서 즉시 꺼내 쓰거나,
+          // 아직 안 불러왔으면 비동기로 불러온 뒤 다 불러오면 다시 그림(갤러리 사진과 같은 방식).
+          const avatar = resolveGalleryItemUrl(
+            { chunked: !!pf.avatarChunked, fileId: pf.avatarFileId || '', chunkTotal: pf.avatarChunkTotal || 0, url: pf.avatar || '' },
+            ()=> renderProfile()
+          ) || '';
           const oneLiner = pf.oneLiner || '';
           const name = pf.name || '';
           const role = pf.role || '';
@@ -1780,6 +1809,7 @@ function bindProfile(slides){
     if(!confirm(`"${auName || 'AU'}"를 정말 삭제하시겠어요? 이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`)) return;
     const arr = [...slides]; arr.splice(profileSlideIndex,1);
     await docRef('profile').set({slides:arr}, {merge:true});
+    deleteAvatarChunksInSections(slides[profileSlideIndex] && slides[profileSlideIndex].sections);
     profileSlideIndex = 0; profileSectionIndex = 0;
   };
   const addBtn = box.querySelector('#profAddBtn');
@@ -1858,13 +1888,14 @@ function bindProfile(slides){
     if(!confirm(`"${secName || '이 시점/IF'}"를 정말 삭제하시겠어요? 되돌릴 수 없어요.`)) return;
     const arr = cloneSlides(slides);
     const targetSlide = arr[profileSlideIndex];
-    targetSlide.sections.splice(profileSectionIndex, 1);
+    const removedSections = targetSlide.sections.splice(profileSectionIndex, 1);
     // 삭제된 시점/IF가 지정된 기본 시점/IF였거나 그보다 앞쪽이었다면, 나머지 항목들의
     // 인덱스가 한 칸씩 당겨진 것에 맞춰 기본 지정도 같이 보정함.
     const defIdx = targetSlide.defaultSectionIndex || 0;
     if(defIdx > profileSectionIndex) targetSlide.defaultSectionIndex = defIdx - 1;
     else if(defIdx >= targetSlide.sections.length) targetSlide.defaultSectionIndex = 0;
     await docRef('profile').set({slides:arr}, {merge:true});
+    deleteAvatarChunksInSections(removedSections);
     profileSectionIndex = 0;
   };
 
@@ -1891,7 +1922,7 @@ function bindProfile(slides){
       if(!photoWrap) return;
       const slot = Number(photoWrap.dataset.slot);
       const pf = slide.sections[profileSectionIndex].peopleFields[slot];
-      const avatar = pf && pf.avatar;
+      const avatar = pf && (pf.avatarChunked ? chunkedImageCache.get(pf.avatarFileId) : pf.avatar);
       if(!avatar) return;
       av.style.cursor = 'pointer';
       av.addEventListener('click', (e)=>{
@@ -1920,8 +1951,12 @@ function openProfileBasicModal(slideIdx, secIdx, slides){
     : '';
 
   const colHtml = (slot)=>{
-    const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+    const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
     const personBulk = (slide.people[slot] && slide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
+    // 청크로 저장된 사진은 편집창을 열 때마다 다시 안 불러오고, 카드에 이미 보여주면서
+    // 캐시된 값이 있으면 그걸 그대로 미리보기로 씀(없으면 자켓 모달과 같은 방식으로 안내만 표시)
+    const cachedAvatar = pf.avatarChunked ? (chunkedImageCache.get(pf.avatarFileId) || '') : (pf.avatar || '');
+    const hasAvatar = pf.avatarChunked || !!pf.avatar;
     return `
       <div class="profile-edit-col" data-slot="${slot}">
         <h4>프로필 ${slot===0?'①':'②'}</h4>
@@ -1929,8 +1964,8 @@ function openProfileBasicModal(slideIdx, secIdx, slides){
         <input type="file" class="pe-avatar-file" accept="image/*">
         <label style="margin-top:6px;">또는 이미지 URL</label>
         <input type="url" class="pe-avatar-url" placeholder="https://...">
-        <div class="mp-modal-cover-preview pe-avatar-preview" ${pf.avatar ? '' : 'style="display:none;"'}>
-          <img class="pe-avatar-preview-img" src="${pf.avatar || ''}" alt="">
+        <div class="mp-modal-cover-preview pe-avatar-preview" ${hasAvatar ? '' : 'style="display:none;"'}>
+          ${cachedAvatar ? `<img class="pe-avatar-preview-img" src="${cachedAvatar}" alt="">` : (hasAvatar ? `<p class="hint">현재 사진: 저장된 이미지 (용량이 커서 미리보기는 생략돼요)</p>` : '')}
           <button type="button" class="btn ghost small pe-avatar-clear">사진 지우기</button>
         </div>
         ${bulkToggle('pe-bulk-avatar', '이 사진', personBulk.avatar)}
@@ -1980,6 +2015,7 @@ function openProfileBasicModal(slideIdx, secIdx, slides){
       try{
         const arr = cloneSlides(slides);
         const otherSecIdxs = arr[slideIdx].sections.map((_,i)=>i).filter(i=> i !== secIdx);
+        const oldChunksToDelete = []; // [{fileId, total}] — 성공적으로 저장된 뒤에만 지움
         for(const slot of [0,1]){
           const col = m.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
           const file = col.querySelector('.pe-avatar-file').files[0];
@@ -1993,28 +2029,68 @@ function openProfileBasicModal(slideIdx, secIdx, slides){
           const bulkName = !!col.querySelector('.pe-bulk-name') && col.querySelector('.pe-bulk-name').checked;
           const bulkRole = !!col.querySelector('.pe-bulk-role') && col.querySelector('.pe-bulk-role').checked;
 
-          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+          const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
+          // 사진 관련 값들 — 기본은 그대로 유지, 아래 세 경우(지우기/URL/업로드) 중 하나라도
+          // 일어나면 새 값으로 바뀌고 예전에 청크로 저장돼 있던 사진은 정리 대상에 들어감
           let avatar = pf.avatar || '';
-          if(col.dataset.avatarCleared === '1') avatar = '';
-          if(url) avatar = url;
+          let avatarChunked = !!pf.avatarChunked;
+          let avatarFileId = pf.avatarFileId || '';
+          let avatarChunkTotal = pf.avatarChunkTotal || 0;
+          let avatarDataUrl = null; // 방금 새로 준비된 사진의 실제 데이터(다른 시점/IF에 복제할 때 씀)
+
+          if(col.dataset.avatarCleared === '1'){
+            if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
+            avatar = ''; avatarChunked = false; avatarFileId = ''; avatarChunkTotal = 0;
+          }
+          if(url){
+            if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
+            avatar = url; avatarChunked = false; avatarFileId = ''; avatarChunkTotal = 0;
+          }
           if(file){
             saveBtn.textContent = '사진 처리 중…';
-            avatar = await compressAvatarImageFile(file, 900, 320000);
+            let dataUrl;
+            try{ dataUrl = await compressAvatarImageFile(file, 900, 320000); }
+            catch(err){ toast(`이미지 처리 실패: ${err.message || err}`); saveBtn.disabled = false; saveBtn.textContent = '저장'; return; }
+            if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
+            // 프로필 문서 하나에 모든 AU/시점의 사진이 같이 들어있어서, 사진을 그대로(inline)
+            // 저장하면 시점/IF 몇 개만 추가돼도 금세 1MB 한도를 넘겨버림. 그래서 프로필 사진은
+            // 무조건 청크로 따로 저장하고 여기엔 참조(fileId)만 남김.
+            saveBtn.textContent = '사진 저장 중…';
+            let chunkInfo;
+            try{ chunkInfo = await saveFileChunked(dataUrl); }
+            catch(err){ toast('사진을 저장하지 못했어요.'); saveBtn.disabled = false; saveBtn.textContent = '저장'; return; }
+            chunkedImageCache.set(chunkInfo.fileId, dataUrl);
+            avatar = ''; avatarChunked = true; avatarFileId = chunkInfo.fileId; avatarChunkTotal = chunkInfo.total;
+            avatarDataUrl = dataUrl;
           }
 
           // 지금 보고 있는 시점/IF에는 항상 반영 (정보 항목은 별도 창에서 관리하므로 그대로 유지)
           arr[slideIdx].sections[secIdx].peopleFields[slot] = {
-            ...pf, avatar, oneLiner, name, role
+            ...pf, avatar, avatarChunked, avatarFileId, avatarChunkTotal, oneLiner, name, role
           };
 
-          // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용
-          otherSecIdxs.forEach(si=>{
+          // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용. 사진은 여러 시점/IF가 같은
+          // fileId를 그대로 나눠 쓰게 하면 나중에 한쪽만 지울 때 다른 쪽 사진까지 같이
+          // 사라질 수 있어서, 대신 시점/IF마다 사진을 따로(복제) 저장함.
+          for(const si of otherSecIdxs){
             const targetPf = arr[slideIdx].sections[si].peopleFields[slot];
-            if(bulkAvatar) targetPf.avatar = avatar;
             if(bulkOneliner) targetPf.oneLiner = oneLiner;
             if(bulkName) targetPf.name = name;
             if(bulkRole) targetPf.role = role;
-          });
+            if(!bulkAvatar) continue;
+            if(avatarDataUrl){
+              // 방금 새로 올린 사진 → 이 시점/IF에도 새로 청크 저장(참조 공유 안 함)
+              saveBtn.textContent = '사진 복제 저장 중…';
+              try{
+                const dup = await saveFileChunked(avatarDataUrl);
+                chunkedImageCache.set(dup.fileId, avatarDataUrl);
+                targetPf.avatar = ''; targetPf.avatarChunked = true; targetPf.avatarFileId = dup.fileId; targetPf.avatarChunkTotal = dup.total;
+              }catch(err){ /* 복제 저장 실패해도 본 저장은 계속 진행 */ }
+            } else {
+              // URL이거나(짧은 문자열이라 그냥 복사해도 안전) 사진을 지운 경우
+              targetPf.avatar = avatar; targetPf.avatarChunked = avatarChunked; targetPf.avatarFileId = avatarFileId; targetPf.avatarChunkTotal = avatarChunkTotal;
+            }
+          }
 
           // "적용" 체크 상태를 AU(사람 슬롯)에 그대로 영구 저장 — 정보 항목의 적용 상태(fields)는
           // 정보 편집 창에서 따로 관리하므로 여기서는 건드리지 않고 그대로 유지
@@ -2028,6 +2104,7 @@ function openProfileBasicModal(slideIdx, secIdx, slides){
         }
         saveBtn.textContent = '저장 중…';
         await docRef('profile').set({slides:arr}, {merge:true});
+        oldChunksToDelete.forEach(({fileId, total})=> deleteFileChunked(fileId, total).catch(()=>{}));
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '저장';
@@ -2075,7 +2152,7 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
     const personBulkOf = (slot)=> (slide.people[slot] && slide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
     const fieldKey = (label)=> (label||'').trim().toLowerCase();
     const slotState = [0,1].map(slot=>{
-      const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+      const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
       const pBulk = personBulkOf(slot);
       return { fields:(pf.fields||[]).map(f=>({ ...f, bulk: !!pBulk.fields[fieldKey(f.label)] })) };
     });
@@ -2159,7 +2236,7 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
             })).filter(f=> f.label || f.link)
           ];
 
-          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+          const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
 
           // 지금 보고 있는 시점/IF에는 항상 반영 (사진/한마디/소개/이름은 그대로 유지)
           arr[slideIdx].sections[secIdx].peopleFields[slot] = {
@@ -2233,6 +2310,7 @@ function openProfileSlideModal(slideIdx, slides){
       if(!confirm(`"${slide.label || 'AU'}"를 정말 삭제하시겠어요? 이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`)) return;
       const arr = [...slides]; arr.splice(slideIdx,1);
       await docRef('profile').set({slides:arr}, {merge:true});
+      deleteAvatarChunksInSections(slides[slideIdx] && slides[slideIdx].sections);
       profileSlideIndex = 0; profileSectionIndex = 0;
       closeModal();
     };
@@ -2355,16 +2433,32 @@ function openProfileSectionAddModal(slideIdx, slides){
     saveBtn.onclick = async ()=>{
       const name = m.querySelector('#secName').value.trim();
       const desc = m.querySelector('#secDesc').value.trim();
+      saveBtn.disabled = true; saveBtn.textContent = '추가 중…';
       const arr = cloneSlides(slides);
       const targetSlide = arr[slideIdx];
       const srcSection = targetSlide.sections[profileSectionIndex] || targetSlide.sections[0];
       // "다른 시점/IF에도 적용"으로 체크돼 있던 항목은 새 시점/IF를 만들 때도 그대로 이어받음
       // (다른 시점/IF들이 이미 서로 같은 값으로 맞춰져 있으므로, 그중 하나에서 값을 그대로 가져오면 됨)
-      const newPeopleFields = [0,1].map(slot=>{
+      // 사진(avatar)은 청크로 저장돼 있어서, 여러 시점/IF가 같은 fileId를 그대로 나눠 쓰게 하면
+      // 나중에 한쪽 사진만 바꾸거나 지울 때 다른 쪽 사진까지 같이 사라질 수 있음. 그래서
+      // 새 시점/IF에도 사진을 그대로 복제(재업로드)해서 서로 완전히 독립적으로 만듦.
+      const newPeopleFields = await Promise.all([0,1].map(async (slot)=>{
         const bulk = (targetSlide.people[slot] && targetSlide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
-        const src = (srcSection && srcSection.peopleFields[slot]) || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+        const src = (srcSection && srcSection.peopleFields[slot]) || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
         const base = freshPersonFieldSet();
-        if(bulk.avatar) base.avatar = src.avatar || '';
+        if(bulk.avatar){
+          if(src.avatarChunked && src.avatarFileId){
+            try{
+              const dataUrl = chunkedImageCache.get(src.avatarFileId) || await loadFileChunked(src.avatarFileId, src.avatarChunkTotal);
+              chunkedImageCache.set(src.avatarFileId, dataUrl);
+              const dup = await saveFileChunked(dataUrl);
+              chunkedImageCache.set(dup.fileId, dataUrl);
+              base.avatarChunked = true; base.avatarFileId = dup.fileId; base.avatarChunkTotal = dup.total; base.avatar = '';
+            }catch(err){ /* 복제 실패하면 이번 새 시점/IF는 사진 없이 시작(다른 시점/IF 사진은 안전) */ }
+          } else {
+            base.avatar = src.avatar || '';
+          }
+        }
         if(bulk.oneLiner) base.oneLiner = src.oneLiner || '';
         if(bulk.name) base.name = src.name || '';
         if(bulk.role) base.role = src.role || '';
@@ -2380,9 +2474,9 @@ function openProfileSectionAddModal(slideIdx, slides){
           }
         });
         return base;
-      });
+      }));
       targetSlide.sections.push({ name, desc, peopleFields:newPeopleFields });
-      saveBtn.disabled = true; saveBtn.textContent = '추가 중…';
+      saveBtn.textContent = '저장 중…';
       try{
         // 이전엔 여기서 저장 실패(권한/네트워크 오류 등)가 조용히 씹혀서, 사용자 입장에선
         // 버튼을 눌러도 "추가가 안 되는" 것처럼 보이는 게 문제였음. 이제 실패 시 토스트로
@@ -3311,6 +3405,36 @@ async function migrateOversizedGalleries(){
   await migrateInlineGalleryImages('gallery', ()=> galleryData.items || []);
   await migrateInlineGalleryImages('gallery2', ()=> gallery2Data.items || []);
   await migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []);
+}
+
+/* 프로필 문서 하나에 모든 AU/시점/IF 정보가 같이 들어있어서, 예전에 사진을 그대로(inline
+   base64)로 저장해뒀으면 시점/IF가 몇 개만 늘어나도 금세 1MB 한도를 넘겨버림
+   ("시점/IF를 추가하려는데 저장 안 됨" 오류의 원인). 새로 올리는 사진은 이제 항상 청크로
+   저장되지만, 예전에 이미 inline으로 저장돼 있던 사진들은 여기서 한 번에 청크로 옮겨서
+   문서 용량을 다시 줄여줌. */
+async function migrateOversizedProfileAvatars(){
+  const raw = profileData.slides || [];
+  if(!raw.length) return;
+  const slides = raw.map(normalizeProfileSlide);
+  let changed = false;
+  for(const slide of slides){
+    for(const sec of slide.sections){
+      for(const pf of sec.peopleFields){
+        if(!pf.avatarChunked && pf.avatar && pf.avatar.startsWith('data:')){
+          try{
+            const { fileId, total } = await saveFileChunked(pf.avatar);
+            chunkedImageCache.set(fileId, pf.avatar);
+            pf.avatarChunked = true; pf.avatarFileId = fileId; pf.avatarChunkTotal = total; pf.avatar = '';
+            changed = true;
+          }catch(err){ /* 실패하면 이번엔 건너뛰고 inline 상태 그대로 둠(다음에 다시 시도됨) */ }
+        }
+      }
+    }
+  }
+  if(changed){
+    try{ await docRef('profile').set({ slides }, {merge:true}); }
+    catch(err){ console.error('프로필 사진 정리 실패:', err); }
+  }
 }
 
 /* 화면을 열자마자 여러 위젯(메인 갤러리·갤러리2·레퍼런스 갤러리 등)의 사진이 동시에
