@@ -1921,7 +1921,7 @@ function openProfileBasicModal(slideIdx, secIdx, slides){
 
   openModal(`
     <h3>사진 · 한마디 · 소개 · 이름 · ${escapeHtml(secLabel)}</h3>
-    <p class="hint">기본적으로는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 저장돼요. 항목 아래 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 똑같이 적용할 수 있어요. 한 번 체크해두면 직접 해제하기 전까진 계속 체크된 채로 남고, 새 시점/IF를 추가할 때도 그대로 이어져요.</p>
+    <p class="hint">기본적으로는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 저장돼요.${bulkNote ? ' 항목 아래 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 똑같이 적용할 수 있어요. 한 번 체크해두면 직접 해제하기 전까진 계속 체크된 채로 남고, 새 시점/IF를 추가할 때도 그대로 이어져요.' : ''}</p>
     <div class="profile-edit-cols">
       ${colHtml(0)}
       <div class="profile-edit-divider"></div>
@@ -2029,7 +2029,7 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
 
   openModal(`
     <h3>정보 편집 · ${escapeHtml(secLabel)}</h3>
-    <p class="hint">나이·생년월일·키/몸무게·BWH는 숫자만 넣으면 자동 정리, 성격은 쉼표로 구분하면 해시태그로 표시돼요. 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 함께 적용돼요.</p>
+    <p class="hint">나이·생년월일·키/몸무게·BWH는 숫자만 넣으면 자동 정리, 성격은 쉼표로 구분하면 해시태그로 표시돼요.${bulkNote ? ' 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 함께 적용돼요.' : ''}</p>
     <div class="profile-edit-cols">
       ${colHtml(0)}
       <div class="profile-edit-divider"></div>
@@ -2056,19 +2056,21 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
           <div class="pf-edit-row pf-edit-row-link" data-idx="${i}" data-type="link">
             <input type="text" class="pf-edit-label" placeholder="링크 이름 (예: 플레이리스트)" value="${escapeHtml(f.label)}">
             <input type="url" class="pf-edit-link" placeholder="링크 URL" value="${escapeHtml(f.link||'')}">
+            ${bulkNote ? `
             <div class="pf-edit-row-actions">
-              ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 링크를 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>` : ''}
+              <label class="pe-bulk-row pf-bulk-row" title="이 링크를 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>
               <button type="button" class="btn small danger" data-del="${i}">✕</button>
-            </div>
+            </div>` : `<button type="button" class="btn small danger" data-del="${i}">✕</button>`}
           </div>
         ` : `
           <div class="pf-edit-row" data-idx="${i}" data-type="text">
             <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
             <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
+            ${bulkNote ? `
             <div class="pf-edit-row-actions">
-              ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 항목을 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>` : ''}
+              <label class="pe-bulk-row pf-bulk-row" title="이 항목을 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>
               <button type="button" class="btn small danger" data-del="${i}">✕</button>
-            </div>
+            </div>` : `<button type="button" class="btn small danger" data-del="${i}">✕</button>`}
           </div>
         `;
       const drawFields = ()=>{
