@@ -1366,6 +1366,7 @@ docRef('images').onSnapshot(doc=>{ imagesData = doc.exists ? doc.data() : {items
 let profileData = { slides: [] };
 let profileSlideIndex = 0; // 현재 선택된 AU 탭 인덱스
 let profileSectionIndex = 0; // 현재 AU 안에서 보고 있는 시점/IF 슬라이드 인덱스
+let profileInitializedDefault = false; // 페이지 로드 후 첫 렌더에서만 AU의 지정된 기본 시점/IF를 한 번 적용하기 위한 플래그
 
 // 새 시점/IF를 만들 때 각 프로필에 기본으로 깔아주는 항목들 — 체형·성격 등 세분화된 설명을 쓰기 쉽도록 미리 틀을 마련해둠.
 // "기타 설명"은 예전엔 항목마다 하나씩 붙는 부가 설명란이었는데, 이제는 그 자체로
@@ -1527,12 +1528,16 @@ function normalizeProfileSlide(s){
   // AU 전체 단위로 일괄 적용함 — 한 AU 안에서 섞어 쓰는 경우가 드물기도 하고, 섞으면
   // 아래 슬라이드 표시(타임라인 여부)가 애매해지기 때문.
   const kind = s.kind === 'timeline' ? 'timeline' : 'if';
-  return { label: s.label || '', kind, people, sections };
+  // 이 AU를 눌러 들어왔을 때 처음 보여줄 시점/IF를 지정할 수 있게 함(따로 지정 안 하면 0번째 = 첫 슬라이드).
+  const defaultSectionIndex = (Number.isInteger(s.defaultSectionIndex) && s.defaultSectionIndex >= 0 && s.defaultSectionIndex < sections.length)
+    ? s.defaultSectionIndex : 0;
+  return { label: s.label || '', kind, defaultSectionIndex, people, sections };
 }
 function cloneSlides(slides){
   return slides.map(s=> ({
     label: s.label,
     kind: s.kind === 'timeline' ? 'timeline' : 'if',
+    defaultSectionIndex: Number.isInteger(s.defaultSectionIndex) ? s.defaultSectionIndex : 0,
     people: s.people.map(p=>({...p, bulk: { ...(p.bulk||{}), fields: { ...((p.bulk && p.bulk.fields) || {}) } } })),
     sections: s.sections.map(sec=> ({
       name: sec.name,
@@ -1564,6 +1569,10 @@ function renderProfile(){
   if(profileSlideIndex >= slides.length) profileSlideIndex = 0;
   if(profileSlideIndex < 0) profileSlideIndex = slides.length - 1;
   const slide = slides[profileSlideIndex];
+  if(!profileInitializedDefault){
+    profileSectionIndex = slide.defaultSectionIndex || 0;
+    profileInitializedDefault = true;
+  }
   if(profileSectionIndex >= slide.sections.length) profileSectionIndex = 0;
   if(profileSectionIndex < 0) profileSectionIndex = 0;
   const section = slide.sections[profileSectionIndex];
@@ -1747,7 +1756,7 @@ function bindProfile(slides){
     tab.addEventListener('click', (e)=>{
       if(e.target.closest('[data-auedit]')) return;
       profileSlideIndex = Number(tab.dataset.au);
-      profileSectionIndex = 0;
+      profileSectionIndex = slides[profileSlideIndex].defaultSectionIndex || 0;
       renderProfile();
     });
   });
@@ -1876,7 +1885,13 @@ function bindProfile(slides){
     const secName = slide.sections[profileSectionIndex] && slide.sections[profileSectionIndex].name;
     if(!confirm(`"${secName || '이 시점/IF'}"를 정말 삭제하시겠어요? 되돌릴 수 없어요.`)) return;
     const arr = cloneSlides(slides);
-    arr[profileSlideIndex].sections.splice(profileSectionIndex, 1);
+    const targetSlide = arr[profileSlideIndex];
+    targetSlide.sections.splice(profileSectionIndex, 1);
+    // 삭제된 시점/IF가 지정된 기본 시점/IF였거나 그보다 앞쪽이었다면, 나머지 항목들의
+    // 인덱스가 한 칸씩 당겨진 것에 맞춰 기본 지정도 같이 보정함.
+    const defIdx = targetSlide.defaultSectionIndex || 0;
+    if(defIdx > profileSectionIndex) targetSlide.defaultSectionIndex = defIdx - 1;
+    else if(defIdx >= targetSlide.sections.length) targetSlide.defaultSectionIndex = 0;
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSectionIndex = 0;
   };
@@ -2271,11 +2286,13 @@ function openProfileSectionOrderModal(slideIdx, slides){
   const workingSlides = cloneSlides(slides);
   const renderRows = ()=>{
     const secs = workingSlides[slideIdx].sections;
+    const defIdx = workingSlides[slideIdx].defaultSectionIndex || 0;
     return secs.map((sec,i)=> `
       <div class="sec-order-row ${!editMode ? 'viewonly' : ''}" data-idx="${i}">
         <span class="sec-order-idx">${i+1}</span>
         <span class="sec-order-name ${!sec.name ? 'empty-hint' : ''}">${sec.name ? escapeHtml(sec.name) : '(이름 없음)'}</span>
         ${editMode ? `
+          <button class="icon-btn sec-order-default ${i===defIdx ? 'active' : ''}" data-idx="${i}" title="${i===defIdx ? '이 AU를 열면 처음 보여지는 시점/IF예요' : '이 AU를 열었을 때 처음 보여줄 시점/IF로 지정'}">${i===defIdx ? '★' : '☆'}</button>
           <div class="sec-order-btns">
             <button class="icon-btn sec-order-up" data-idx="${i}" title="위로" ${i===0?'disabled':''}>▲</button>
             <button class="icon-btn sec-order-down" data-idx="${i}" title="아래로" ${i===secs.length-1?'disabled':''}>▼</button>
@@ -2286,7 +2303,7 @@ function openProfileSectionOrderModal(slideIdx, slides){
   };
   openModal(`
     <h3>시점/IF ${editMode ? '순서 편집' : '목록'}</h3>
-    <p class="hint">${editMode ? '▲▼로 순서를 옮기면 바로 저장돼요.' : '눌러서 그 시점/IF로 바로 이동할 수 있어요.'}</p>
+    <p class="hint">${editMode ? '▲▼로 순서를 옮기면 바로 저장돼요. ☆를 누르면 이 AU를 열었을 때 처음 보여줄 시점/IF로 지정돼요(지정 안 하면 첫 번째가 보여요).' : '눌러서 그 시점/IF로 바로 이동할 수 있어요.'}</p>
     <div id="secOrderList" class="sec-order-list">${renderRows()}</div>
     <div class="modal-actions">
       <button class="btn primary" id="s">닫기</button>
@@ -2294,8 +2311,14 @@ function openProfileSectionOrderModal(slideIdx, slides){
   `, m=>{
     const listEl = m.querySelector('#secOrderList');
     const swap = async (i, j)=>{
-      const secs = workingSlides[slideIdx].sections;
+      const slideObj = workingSlides[slideIdx];
+      const secs = slideObj.sections;
       [secs[i], secs[j]] = [secs[j], secs[i]];
+      // 순서를 바꿔도 "기본으로 보여줄 시점/IF"는 내용 기준으로 그대로 따라가야 하므로,
+      // 지정된 기본 인덱스가 이번에 맞바뀐 자리 중 하나라면 같이 옮겨줌.
+      const defIdx = slideObj.defaultSectionIndex || 0;
+      if(defIdx === i) slideObj.defaultSectionIndex = j;
+      else if(defIdx === j) slideObj.defaultSectionIndex = i;
       await docRef('profile').set({slides:workingSlides}, {merge:true});
       if(profileSlideIndex === slideIdx){
         if(profileSectionIndex === i) profileSectionIndex = j;
@@ -2304,8 +2327,17 @@ function openProfileSectionOrderModal(slideIdx, slides){
       listEl.innerHTML = renderRows();
       bindRows();
     };
+    const setDefault = async (i)=>{
+      workingSlides[slideIdx].defaultSectionIndex = i;
+      await docRef('profile').set({slides:workingSlides}, {merge:true});
+      listEl.innerHTML = renderRows();
+      bindRows();
+    };
     const bindRows = ()=>{
       if(editMode){
+        listEl.querySelectorAll('.sec-order-default').forEach(btn=>{
+          btn.onclick = (e)=>{ e.stopPropagation(); setDefault(Number(btn.dataset.idx)); };
+        });
         listEl.querySelectorAll('.sec-order-up').forEach(btn=>{
           if(btn.disabled) return;
           btn.onclick = (e)=>{ e.stopPropagation(); swap(Number(btn.dataset.idx), Number(btn.dataset.idx) - 1); };
