@@ -722,6 +722,20 @@ function compressAvatarImageFile(file, maxDim=900, maxBytes=320000, gifMaxBytes=
    fileId/chunkTotal만 남겨둠(파이어 스토리지 없이 파이어스토어만으로 해결). */
 const CHUNK_SIZE = 700000; // 조각 하나당 글자 수 (문서 1MB 제한에 여유있게 안전한 크기)
 
+// Firestore 문서 하나의 실제 한도는 1,048,576바이트인데, 문서 위젯(content/documents)은
+// 작은 파일을 base64로 카드 안에 바로 저장하다 보니 카드가 하나씩 쌓일수록 문서 전체
+// 용량이 커짐. 새 파일 하나만 보고 "이 파일은 작으니 바로 저장" 이라고 판단하면,
+// 이미 쌓여있던 다른 카드들과 합쳐서 1MB를 넘겨 저장 자체가 실패할 수 있음.
+// 그래서 실제로 저장을 시도하기 전에 "이 카드까지 합쳤을 때 문서 전체가 몇 바이트가
+// 되는지"를 미리 계산해서, 안전 한도를 넘으면 (파일 자체는 작더라도) 청크 저장으로
+// 돌려 항상 저장이 성공하도록 함.
+const DOC_TOTAL_SAFE_BYTES = 900000; // 실제 한도(1,048,576B)보다 여유있게 잡은 안전선
+
+function estimateCardsBytes(cards){
+  try{ return new Blob([JSON.stringify({ cards })]).size; }
+  catch(e){ return JSON.stringify({ cards }).length; }
+}
+
 function splitIntoChunks(str, size){
   const out = [];
   for(let i=0; i<str.length; i+=size) out.push(str.slice(i, i+size));
@@ -4434,7 +4448,11 @@ function openDocAddModal(){
           let base64;
           try{ base64 = await fileToBase64(file); }
           catch(err){ toast('파일을 읽지 못했어요'); saveBtn.disabled=false; saveBtn.textContent='추가'; return; }
-          if(file.size > DOC_FILE_MAX_BYTES){
+          // 파일 자체는 작아도(<DOC_FILE_MAX_BYTES), 이미 쌓여있는 다른 카드들과 합쳐서
+          // 문서 전체가 안전 한도를 넘는지 먼저 확인 — 넘으면 청크 저장으로 전환
+          const wouldBeCards = [...(docsData.cards||[]), { icon, title, desc, opts, link: base64 }];
+          const tooBigForInline = file.size > DOC_FILE_MAX_BYTES || estimateCardsBytes(wouldBeCards) > DOC_TOTAL_SAFE_BYTES;
+          if(tooBigForInline){
             try{ chunkInfo = await saveFileChunked(base64); }
             catch(err){ toast('저장하지 못했어요. 링크 방식을 이용해주세요.'); saveBtn.disabled=false; saveBtn.textContent='추가'; return; }
           } else {
@@ -4530,7 +4548,12 @@ function openDocEditModal(idx){
         try{ base64 = await fileToBase64(file); }
         catch(err){ toast('파일을 읽지 못했어요'); saveBtn.disabled=false; saveBtn.textContent='저장'; return; }
         if(c.chunked) oldChunkToDelete = { fileId: c.fileId, total: c.chunkTotal };
-        if(file.size > DOC_FILE_MAX_BYTES){
+        // 파일 자체는 작아도, 이 카드를 교체한 상태로 문서 전체 용량이 안전 한도를
+        // 넘는지 먼저 확인 — 넘으면 청크 저장으로 전환 (openDocAddModal과 동일한 로직)
+        const wouldBeCards = [...docsData.cards];
+        wouldBeCards[idx] = { icon, title, desc, opts, link: base64 };
+        const tooBigForInline = file.size > DOC_FILE_MAX_BYTES || estimateCardsBytes(wouldBeCards) > DOC_TOTAL_SAFE_BYTES;
+        if(tooBigForInline){
           let chunkInfo;
           try{ chunkInfo = await saveFileChunked(base64); }
           catch(err){ toast('저장하지 못했어요.'); saveBtn.disabled=false; saveBtn.textContent='저장'; return; }
