@@ -43,8 +43,8 @@
   --card-bg2: rgba(32,16,20,0.045);
   --card-border: rgba(255,255,255,0.11);
   --card-hi: rgba(255,255,255,0.07);  /* 유리 상단 하이라이트 라인 */
-  --shadow: 0 24px 60px rgba(0,0,0,0.55);
-  --shadow-press: 0 8px 20px rgba(0,0,0,0.5);
+  --shadow: 0 12px 28px rgba(0,0,0,0.32);
+  --shadow-press: 0 6px 14px rgba(0,0,0,0.35);
   /* 블러 세기를 낮춤(20px→12px, 10px→7px) — backdrop-filter는 카드마다 매 프레임 다시
      계산되는 무거운 연산이라, 여러 장의 유리 카드가 한 화면에 겹치면 특히 저사양
      기기에서 스크롤/탭 전환이 버벅였음. 값을 낮추면 유리 느낌은 거의 그대로 유지하면서
@@ -266,7 +266,7 @@ body::before{
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .w-card, .modal, .btn{ background: #1c0e12; }
 }
-.w-card:hover{ box-shadow: 0 28px 70px rgba(0,0,0,0.6), inset 0 1px 0 var(--card-hi); border-color: rgba(196,66,95,0.4); }
+.w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 1px 0 var(--card-hi); border-color: rgba(196,66,95,0.4); }
 .w-body.scroll{ overflow-y:auto; }
 .w-body.scroll::-webkit-scrollbar{ width:5px; }
 .w-body.scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
