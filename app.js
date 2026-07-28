@@ -1441,7 +1441,7 @@ function normalizeProfileSection(sec){
   } else {
     peopleFields = [{fields:[], avatar:'', oneLiner:''}, {fields:[], avatar:'', oneLiner:''}];
   }
-  return { name: sec.name || '', peopleFields };
+  return { name: sec.name || '', desc: sec.desc || '', peopleFields };
 }
 function normalizeProfileSlide(s){
   s = s || {};
@@ -1479,6 +1479,7 @@ function cloneSlides(slides){
     people: s.people.map(p=>({...p, bulk: { ...(p.bulk||{}), fields: { ...((p.bulk && p.bulk.fields) || {}) } } })),
     sections: s.sections.map(sec=> ({
       name: sec.name,
+      desc: sec.desc || '',
       peopleFields: sec.peopleFields.map(pf=> ({
         fields: pf.fields.map(f=>({...f})),
         avatar: pf.avatar || '',
@@ -1510,8 +1511,13 @@ function renderProfile(){
   if(profileSectionIndex < 0) profileSectionIndex = 0;
   const section = slide.sections[profileSectionIndex];
 
-  const fieldsHtml = (fields)=> fields.length
-    ? `<div class="profile-fields">${fields.map(f=> `
+  // 보기 전용(방문자) 모드에선 아직 값을 안 채운 항목(템플릿만 깔려있고 내용이 빈 항목)이
+  // 그대로 보이면 빈 줄처럼 보여서 어색함 → 내용/기타설명/링크 중 하나도 없는 항목은 숨김.
+  // 편집 모드에선 어떤 항목을 채울 수 있는지 알 수 있게 그대로 다 보여줌.
+  const fieldsHtml = (fields)=>{
+    const visible = editMode ? fields : fields.filter(f=> f.value || f.desc || f.link);
+    return visible.length
+      ? `<div class="profile-fields">${visible.map(f=> `
         <div class="profile-field">
           <div class="pf-row">
             <span class="pf-label">${escapeHtml(f.label || '항목')}${f.label ? '：' : ''}</span>
@@ -1521,7 +1527,8 @@ function renderProfile(){
           ${f.desc ? `<div class="pf-desc">${escapeHtml(f.desc)}</div>` : ''}
         </div>
       `).join('')}</div>`
-    : (editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '');
+      : (editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '');
+  };
 
   box.innerHTML = `
     ${(slides.length > 1 || editMode) ? `
@@ -1540,13 +1547,18 @@ function renderProfile(){
       ${!(slides.length > 1 || editMode) && slide.label ? `
         <div class="profile-slide-meta"><div class="profile-slide-label">${escapeHtml(slide.label)}</div></div>
       ` : ''}
-      ${(slide.sections.length > 1 || section.name || editMode) ? `
+      ${(slide.sections.length > 1 || section.name || section.desc || editMode) ? `
         <div class="profile-section-header" id="profSecHeader">
           <div class="profile-slide-label ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
             ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
           </div>
           ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
         </div>
+        ${(section.desc || editMode) ? `
+          <div class="profile-section-desc ${!section.desc ? 'empty-hint':''}" id="profSecDescBtn" ${editMode ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
+            ${section.desc ? escapeHtml(section.desc) : (editMode ? '+ 짧은 설명 추가' : '')}
+          </div>
+        ` : ''}
       ` : ''}
       <div class="profile-pair">
         ${[0,1].map(slot=>{
@@ -1675,6 +1687,8 @@ function bindProfile(slides){
 
   const secLabelBtn = box.querySelector('#profSecLabelBtn');
   if(secLabelBtn && editMode) secLabelBtn.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
+  const secDescBtn = box.querySelector('#profSecDescBtn');
+  if(secDescBtn && editMode) secDescBtn.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
 
   const secAddBtn = box.querySelector('#profSecAddBtn');
   if(secAddBtn) secAddBtn.onclick = async (e)=>{
@@ -1976,6 +1990,8 @@ function openProfileSectionModal(slideIdx, secIdx, slides){
     <h3>시점/IF 이름</h3>
     <label>이름 (선택 — 예: 첫 만남, 사귄 후, IF: 헤어졌다면)</label>
     <input type="text" id="secName" value="${escapeHtml(section.name)}" placeholder="비워두면 이름 없이 보여요">
+    <label style="margin-top:10px;">짧은 설명 (선택 — 이 시점/IF가 어떤 상황인지 한두 줄로)</label>
+    <textarea id="secDesc" rows="3" placeholder="예: 두 사람이 아직 서로 어색하던 시절">${escapeHtml(section.desc || '')}</textarea>
     <p class="hint">키/몸무게·성격 같은 정보 항목은 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
     <div class="modal-actions">
       ${canDelete ? `<button class="btn danger" id="d" type="button">이 시점/IF 삭제</button>` : ''}
@@ -1994,8 +2010,10 @@ function openProfileSectionModal(slideIdx, secIdx, slides){
     };
     m.querySelector('#s').onclick = async ()=>{
       const name = m.querySelector('#secName').value.trim();
+      const desc = m.querySelector('#secDesc').value.trim();
       const arr = cloneSlides(slides);
       arr[slideIdx].sections[secIdx].name = name;
+      arr[slideIdx].sections[secIdx].desc = desc;
       await docRef('profile').set({slides:arr}, {merge:true});
       closeModal();
     };
