@@ -57,7 +57,7 @@
      이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
      sans-serif가 아니라 serif(명조체 계열)로 지정해서 다른 언어 글자도 명조 느낌으로 보이게 함. */
   --font-body: 'ZEN SERIF', 'Noto Sans KR', serif;
-  --radius: 28px;
+  --radius: 16px;
 }
 *{ box-sizing: border-box; }
 html,body{ margin:0; padding:0; min-height:100%; }
