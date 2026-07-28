@@ -478,7 +478,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
    자리에 있어서 헷갈렸음 → 이제 그 자리엔 지금 보고 있는 시점/IF의 삭제 버튼만 옴) */
 .profile-section-header{
   position:relative; display:flex; align-items:center; justify-content:center;
-  width:100%; min-height:26px; padding:0 34px;
+  width:100%; min-height:26px; padding:0 92px;
 }
 /* 시점/IF 이름은 AU 이름과 반대로, 크고 뚜렷한 세리프체 제목으로 둬서 서로
    한눈에 구분되게 함(AU=위쪽의 작은 라벨, 시점/IF=본문 안의 큰 타이틀) */

@@ -1684,10 +1684,11 @@ function renderProfile(){
           <div class="profile-section-name ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
             ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
           </div>
-          ${slide.sections.length > 1 ? `
+          ${(slide.sections.length > 1 || editMode) ? `
             <div class="profile-section-actions">
-              <button class="icon-btn profile-section-order" id="profSecOrderBtn" title="시점/IF 목록 보기">☰</button>
-              ${editMode ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
+              ${slide.sections.length > 1 ? `<button class="icon-btn profile-section-order" id="profSecOrderBtn" title="시점/IF 목록 보기">☰</button>` : ''}
+              ${editMode ? `<button class="icon-btn profile-section-add" id="profSecAddBtn" title="시점/IF 추가">＋</button>` : ''}
+              ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
             </div>
           ` : ''}
         </div>
@@ -1743,7 +1744,6 @@ function renderProfile(){
         <button class="icon-btn" id="profSecNext">›</button>
       </div>
     ` : ''}
-    ${editMode ? `<button class="btn small slide-add" id="profSecAddBtn">+ 시점/IF 추가</button>` : ''}
   `;
   bindProfile(slides);
 }
@@ -1837,37 +1837,9 @@ function bindProfile(slides){
   if(secDescBtn && editMode) secDescBtn.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
 
   const secAddBtn = box.querySelector('#profSecAddBtn');
-  if(secAddBtn) secAddBtn.onclick = async (e)=>{
+  if(secAddBtn) secAddBtn.onclick = (e)=>{
     e.stopPropagation();
-    const arr = cloneSlides(slides);
-    const targetSlide = arr[profileSlideIndex];
-    const srcSection = targetSlide.sections[profileSectionIndex] || targetSlide.sections[0];
-    // "다른 시점/IF에도 적용"으로 체크돼 있던 항목은 새 시점/IF를 만들 때도 그대로 이어받음
-    // (다른 시점/IF들이 이미 서로 같은 값으로 맞춰져 있으므로, 그중 하나에서 값을 그대로 가져오면 됨)
-    const newPeopleFields = [0,1].map(slot=>{
-      const bulk = (targetSlide.people[slot] && targetSlide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
-      const src = (srcSection && srcSection.peopleFields[slot]) || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
-      const base = freshPersonFieldSet();
-      if(bulk.avatar) base.avatar = src.avatar || '';
-      if(bulk.oneLiner) base.oneLiner = src.oneLiner || '';
-      if(bulk.name) base.name = src.name || '';
-      if(bulk.role) base.role = src.role || '';
-      const key = (label)=> (label||'').trim().toLowerCase();
-      base.fields = base.fields.map(f=>{
-        if(!bulk.fields[key(f.label)]) return f;
-        const found = (src.fields||[]).find(sf=> key(sf.label) === key(f.label));
-        return found ? { ...found } : f;
-      });
-      (src.fields||[]).forEach(sf=>{
-        if(bulk.fields[key(sf.label)] && !base.fields.find(f=> key(f.label) === key(sf.label))){
-          base.fields.push({ ...sf });
-        }
-      });
-      return base;
-    });
-    targetSlide.sections.push({ name:'', peopleFields:newPeopleFields });
-    await docRef('profile').set({slides:arr}, {merge:true});
-    profileSectionIndex = arr[profileSlideIndex].sections.length - 1;
+    openProfileSectionAddModal(profileSlideIndex, slides);
   };
 
   // 시점/IF 순서 편집 — 전체 목록을 따로 모아 보여주는 창에서 ▲▼로 옮김
@@ -2359,6 +2331,72 @@ function openProfileSectionOrderModal(slideIdx, slides){
     };
     bindRows();
     m.querySelector('#s').onclick = closeModal;
+  });
+}
+
+// 새 시점/IF를 추가할 때 띄우는 창 — 바로 빈 슬라이드를 만들지 않고, 이름과 짧은
+// 설명을 먼저 입력받은 뒤에 생성함. "다른 시점/IF에도 적용"으로 체크돼 있던 항목은
+// 지금 보고 있는 시점/IF에서 값을 그대로 이어받아 새 시점/IF에도 채워 넣음.
+function openProfileSectionAddModal(slideIdx, slides){
+  openModal(`
+    <h3>새 시점/IF 추가</h3>
+    <label>이름 (선택 — 예: 첫 만남, 사귄 후, IF: 헤어졌다면)</label>
+    <input type="text" id="secName" value="" placeholder="비워두면 이름 없이 보여요">
+    <label style="margin-top:10px;">짧은 설명 (선택 — 이 시점/IF가 어떤 상황인지 한두 줄로)</label>
+    <textarea id="secDesc" rows="3" placeholder="예: 두 사람이 아직 서로 어색하던 시절"></textarea>
+    <p class="hint">키/몸무게·성격 같은 정보 항목은 추가한 뒤 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">추가</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    const saveBtn = m.querySelector('#s');
+    saveBtn.onclick = async ()=>{
+      const name = m.querySelector('#secName').value.trim();
+      const desc = m.querySelector('#secDesc').value.trim();
+      const arr = cloneSlides(slides);
+      const targetSlide = arr[slideIdx];
+      const srcSection = targetSlide.sections[profileSectionIndex] || targetSlide.sections[0];
+      // "다른 시점/IF에도 적용"으로 체크돼 있던 항목은 새 시점/IF를 만들 때도 그대로 이어받음
+      // (다른 시점/IF들이 이미 서로 같은 값으로 맞춰져 있으므로, 그중 하나에서 값을 그대로 가져오면 됨)
+      const newPeopleFields = [0,1].map(slot=>{
+        const bulk = (targetSlide.people[slot] && targetSlide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
+        const src = (srcSection && srcSection.peopleFields[slot]) || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+        const base = freshPersonFieldSet();
+        if(bulk.avatar) base.avatar = src.avatar || '';
+        if(bulk.oneLiner) base.oneLiner = src.oneLiner || '';
+        if(bulk.name) base.name = src.name || '';
+        if(bulk.role) base.role = src.role || '';
+        const key = (label)=> (label||'').trim().toLowerCase();
+        base.fields = base.fields.map(f=>{
+          if(!bulk.fields[key(f.label)]) return f;
+          const found = (src.fields||[]).find(sf=> key(sf.label) === key(f.label));
+          return found ? { ...found } : f;
+        });
+        (src.fields||[]).forEach(sf=>{
+          if(bulk.fields[key(sf.label)] && !base.fields.find(f=> key(f.label) === key(sf.label))){
+            base.fields.push({ ...sf });
+          }
+        });
+        return base;
+      });
+      targetSlide.sections.push({ name, desc, peopleFields:newPeopleFields });
+      saveBtn.disabled = true; saveBtn.textContent = '추가 중…';
+      try{
+        // 이전엔 여기서 저장 실패(권한/네트워크 오류 등)가 조용히 씹혀서, 사용자 입장에선
+        // 버튼을 눌러도 "추가가 안 되는" 것처럼 보이는 게 문제였음. 이제 실패 시 토스트로
+        // 알리고 버튼을 다시 눌러볼 수 있게 원상복구함.
+        await docRef('profile').set({slides:arr}, {merge:true});
+      }catch(err){
+        toast(`추가하지 못했어요: ${err.message || err}`);
+        saveBtn.disabled = false; saveBtn.textContent = '추가';
+        return;
+      }
+      profileSlideIndex = slideIdx;
+      profileSectionIndex = arr[slideIdx].sections.length - 1;
+      closeModal();
+    };
   });
 }
 
