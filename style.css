@@ -610,7 +610,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .pf-edit-row .pf-edit-label{ flex:0 0 96px; }
 .pf-edit-row .pf-edit-value{ flex:1; }
 /* 기타 설명·링크는 항목명/내용 아래 두 번째 줄에 나란히 놓음 */
-.pf-edit-row .pf-edit-desc{ flex:1 1 55%; min-width:120px; }
 .pf-edit-row .pf-edit-link{ flex:1 1 40%; min-width:120px; }
 
 /* ---------- 방명록 ---------- */
@@ -1083,14 +1082,16 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .modal input[type=color]{ width:44px; height:32px; padding:0; border:1px solid var(--card-border); border-radius:8px; background:none; }
 .modal .hint{ font-size:.75rem; color:var(--ink-soft); margin: 4px 0 0; }
 
-/* 프로필 편집 창의 항목별 "다른 시점/IF에도 적용" 체크박스 — 조용히, 필드 바로 아래에 작게 */
+/* 프로필 편집 창의 항목별 "전체적용(다른 시점/IF에도 적용)" 체크박스 — 각 항목 줄
+   오른쪽에 짧게 붙여서, 아래로 줄바꿈되는 긴 문장 대신 눈에 거슬리지 않게 함 */
 .modal label.pe-bulk-row{
-  display:flex; align-items:center; gap:6px; width:auto; margin:4px 0 0;
-  font-size:.72rem; color:var(--ink-soft); cursor:pointer;
+  display:flex; align-items:center; gap:4px; width:auto; margin:0; flex:0 0 auto;
+  font-size:.7rem; color:var(--ink-soft); cursor:pointer; white-space:nowrap;
 }
 .pe-bulk-row input[type=checkbox]{ width:auto; margin:0; accent-color: var(--rose-solid); }
 .pf-edit-row{ flex-wrap:wrap; }
-.pf-edit-row .pf-bulk-row{ flex:1 0 100%; margin:2px 0 0; }
+.pf-edit-row .pf-bulk-row{ order:1; }
+.pf-edit-row [data-del]{ order:2; }
 .modal .radio-row{ display:flex; gap:14px; font-size:.82rem; color:var(--ink); margin:8px 0; }
 .modal .radio-row label{ display:flex; align-items:center; gap:6px; }
 /* 이미지를 크게 보기 위한 라이트박스 — 일반 입력폼 모달보다 훨씬 넓게.

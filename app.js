@@ -1946,15 +1946,15 @@ function openProfileEditModal(slideIdx, secIdx, slides){
           <div class="pf-edit-row pf-edit-row-link" data-idx="${i}" data-type="link">
             <input type="text" class="pf-edit-label" placeholder="링크 이름 (예: 플레이리스트)" value="${escapeHtml(f.label)}">
             <input type="url" class="pf-edit-link" placeholder="링크 URL" value="${escapeHtml(f.link||'')}">
+            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 링크를 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 전체적용</label>` : ''}
             <button type="button" class="btn small danger" data-del="${i}">✕</button>
-            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 이 링크, 다른 시점/IF에도 똑같이 적용</label>` : ''}
           </div>
         ` : `
           <div class="pf-edit-row" data-idx="${i}" data-type="text">
             <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
             <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
+            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 항목을 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 전체적용</label>` : ''}
             <button type="button" class="btn small danger" data-del="${i}">✕</button>
-            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 이 항목, 다른 시점/IF에도 똑같이 적용</label>` : ''}
           </div>
         `;
       const drawFields = ()=>{
