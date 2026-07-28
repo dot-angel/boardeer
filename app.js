@@ -1675,10 +1675,10 @@ function renderProfile(){
           <div class="profile-section-name ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
             ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
           </div>
-          ${(editMode && slide.sections.length > 1) ? `
+          ${slide.sections.length > 1 ? `
             <div class="profile-section-actions">
-              <button class="icon-btn profile-section-order" id="profSecOrderBtn" title="시점/IF 순서 편집">☰</button>
-              <button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>
+              <button class="icon-btn profile-section-order" id="profSecOrderBtn" title="시점/IF 목록 보기">☰</button>
+              ${editMode ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
             </div>
           ` : ''}
         </div>
@@ -2264,24 +2264,29 @@ function openProfileSlideModal(slideIdx, slides){
 // 시점/IF 순서 편집 — 카드 위 화살표로 하나씩 옮기는 것보다, 전체 목록을 한눈에 보면서
 // ▲▼로 옮기는 게 더 직관적이라는 의견에 따라 별도 창으로 분리함. 창을 닫지 않고도
 // 여러 번 옮길 수 있도록 저장할 때마다 목록을 다시 그림.
+// 보기 전용(방문자) 모드에서도 이 목록 아이콘 자체는 보이게 해서, 어떤 시점/IF들이
+// 있는지 한눈에 보고 원하는 항목으로 바로 이동할 수 있게 함(이땐 순서 편집은 안 되고
+// 목록에서 눌러 이동만 가능).
 function openProfileSectionOrderModal(slideIdx, slides){
   const workingSlides = cloneSlides(slides);
   const renderRows = ()=>{
     const secs = workingSlides[slideIdx].sections;
     return secs.map((sec,i)=> `
-      <div class="sec-order-row">
+      <div class="sec-order-row ${!editMode ? 'viewonly' : ''}" data-idx="${i}">
         <span class="sec-order-idx">${i+1}</span>
         <span class="sec-order-name ${!sec.name ? 'empty-hint' : ''}">${sec.name ? escapeHtml(sec.name) : '(이름 없음)'}</span>
-        <div class="sec-order-btns">
-          <button class="icon-btn sec-order-up" data-idx="${i}" title="위로" ${i===0?'disabled':''}>▲</button>
-          <button class="icon-btn sec-order-down" data-idx="${i}" title="아래로" ${i===secs.length-1?'disabled':''}>▼</button>
-        </div>
+        ${editMode ? `
+          <div class="sec-order-btns">
+            <button class="icon-btn sec-order-up" data-idx="${i}" title="위로" ${i===0?'disabled':''}>▲</button>
+            <button class="icon-btn sec-order-down" data-idx="${i}" title="아래로" ${i===secs.length-1?'disabled':''}>▼</button>
+          </div>
+        ` : ''}
       </div>
     `).join('');
   };
   openModal(`
-    <h3>시점/IF 순서 편집</h3>
-    <p class="hint">▲▼로 순서를 옮기면 바로 저장돼요.</p>
+    <h3>시점/IF ${editMode ? '순서 편집' : '목록'}</h3>
+    <p class="hint">${editMode ? '▲▼로 순서를 옮기면 바로 저장돼요.' : '눌러서 그 시점/IF로 바로 이동할 수 있어요.'}</p>
     <div id="secOrderList" class="sec-order-list">${renderRows()}</div>
     <div class="modal-actions">
       <button class="btn primary" id="s">닫기</button>
@@ -2300,14 +2305,25 @@ function openProfileSectionOrderModal(slideIdx, slides){
       bindRows();
     };
     const bindRows = ()=>{
-      listEl.querySelectorAll('.sec-order-up').forEach(btn=>{
-        if(btn.disabled) return;
-        btn.onclick = ()=> swap(Number(btn.dataset.idx), Number(btn.dataset.idx) - 1);
-      });
-      listEl.querySelectorAll('.sec-order-down').forEach(btn=>{
-        if(btn.disabled) return;
-        btn.onclick = ()=> swap(Number(btn.dataset.idx), Number(btn.dataset.idx) + 1);
-      });
+      if(editMode){
+        listEl.querySelectorAll('.sec-order-up').forEach(btn=>{
+          if(btn.disabled) return;
+          btn.onclick = (e)=>{ e.stopPropagation(); swap(Number(btn.dataset.idx), Number(btn.dataset.idx) - 1); };
+        });
+        listEl.querySelectorAll('.sec-order-down').forEach(btn=>{
+          if(btn.disabled) return;
+          btn.onclick = (e)=>{ e.stopPropagation(); swap(Number(btn.dataset.idx), Number(btn.dataset.idx) + 1); };
+        });
+      } else {
+        listEl.querySelectorAll('.sec-order-row.viewonly').forEach(row=>{
+          row.onclick = ()=>{
+            profileSlideIndex = slideIdx;
+            profileSectionIndex = Number(row.dataset.idx);
+            renderProfile();
+            closeModal();
+          };
+        });
+      }
     };
     bindRows();
     m.querySelector('#s').onclick = closeModal;

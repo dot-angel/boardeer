@@ -513,6 +513,8 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   background: rgba(255,255,255,0.05); border-radius:10px;
 }
 .sec-order-idx{ font-size:.72rem; color: var(--ink-soft); flex:0 0 auto; width:16px; text-align:center; }
+.sec-order-row.viewonly{ cursor:pointer; transition: background .15s ease; }
+.sec-order-row.viewonly:hover{ background: rgba(255,255,255,0.1); }
 .sec-order-name{ flex:1; min-width:0; font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sec-order-name.empty-hint{ color: var(--ink-soft); font-style:italic; }
 .sec-order-btns{ display:flex; gap:2px; flex:0 0 auto; }
