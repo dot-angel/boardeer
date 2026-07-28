@@ -1036,15 +1036,15 @@ function applyTheme(theme){
   if(theme.customFontData){
     injectCustomFontFace(`url(${theme.customFontData}) format('truetype')`);
     document.documentElement.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
-    document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', sans-serif`);
+    document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
   } else if(theme.customFontFile){
     injectCustomFontFace(`url('./fonts/${theme.customFontFile}') format('truetype')`);
     document.documentElement.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
-    document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', sans-serif`);
+    document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
   } else {
     injectCustomFontFace(null);
     if(theme.fontDisplay) document.documentElement.style.setProperty('--font-display', `'${theme.fontDisplay}', 'Noto Serif KR', serif`);
-    if(theme.fontBody) document.documentElement.style.setProperty('--font-body', `'${theme.fontBody}', sans-serif`);
+    if(theme.fontBody) document.documentElement.style.setProperty('--font-body', `'${theme.fontBody}', serif`);
   }
 }
 
@@ -1409,8 +1409,13 @@ function normalizeProfilePerson(p){
 }
 function normalizeProfileField(f){
   f = f || {};
-  // desc: 항목 내용만으론 부족할 때 덧붙이는 기타 설명. link: 관련 페이지(플레이리스트, 레퍼런스 등) 링크 첨부.
-  return { label: f.label || '', value: f.value || '', desc: f.desc || '', link: f.link || '' };
+  // 항목은 두 종류: 일반(text, 라벨+내용+기타설명)과 링크 전용(link, 라벨+URL만).
+  // 링크는 이제 항목마다 따로 붙이는 게 아니라, 링크 전용 항목으로만 만들 수 있고
+  // 화면에는 항상 일반 항목들 다음 맨 아래에 모아서 보여줌(렌더링 쪽에서 정렬).
+  if(f.type === 'link'){
+    return { type:'link', label: f.label || '', link: f.link || '' };
+  }
+  return { type:'text', label: f.label || '', value: f.value || '', desc: f.desc || '' };
 }
 function normalizePersonFieldSet(pf){
   // Firestore엔 배열 속 배열을 못 넣어서, 사람별 정보는 {fields:[...]} 형태의 객체로 감싸서 저장함.
@@ -1515,19 +1520,32 @@ function renderProfile(){
   // 그대로 보이면 빈 줄처럼 보여서 어색함 → 내용/기타설명/링크 중 하나도 없는 항목은 숨김.
   // 편집 모드에선 어떤 항목을 채울 수 있는지 알 수 있게 그대로 다 보여줌.
   const fieldsHtml = (fields)=>{
-    const visible = editMode ? fields : fields.filter(f=> f.value || f.desc || f.link);
-    return visible.length
-      ? `<div class="profile-fields">${visible.map(f=> `
+    const textFields = fields.filter(f=> f.type !== 'link');
+    const linkFields = fields.filter(f=> f.type === 'link');
+    const visibleText = editMode ? textFields : textFields.filter(f=> f.value || f.desc);
+    const visibleLinks = editMode ? linkFields : linkFields.filter(f=> f.link);
+    if(!visibleText.length && !visibleLinks.length){
+      return editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '';
+    }
+    const textHtml = visibleText.map(f=> `
         <div class="profile-field">
           <div class="pf-row">
             <span class="pf-label">${escapeHtml(f.label || '항목')}${f.label ? '：' : ''}</span>
             <span class="pf-value">${escapeHtml(f.value)}</span>
-            ${f.link ? `<a class="pf-link" href="${escapeHtml(f.link)}" target="_blank" rel="noopener" title="연결된 링크 열기">🔗</a>` : ''}
           </div>
           ${f.desc ? `<div class="pf-desc">${escapeHtml(f.desc)}</div>` : ''}
         </div>
-      `).join('')}</div>`
-      : (editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '');
+      `).join('');
+    // 링크 전용 항목은 항목 목록 맨 아래에 따로 모아서, 버튼처럼 눌러서 여는 형태로 보여줌
+    const linksHtml = visibleLinks.length ? `
+        <div class="profile-links">
+          ${visibleLinks.map(f=> f.link
+            ? `<a class="pf-link-item" href="${escapeHtml(f.link)}" target="_blank" rel="noopener">🔗 ${escapeHtml(f.label || '링크')}</a>`
+            : `<span class="pf-link-item empty-hint">🔗 ${escapeHtml(f.label || '링크')} (URL 없음)</span>`
+          ).join('')}
+        </div>
+      ` : '';
+    return `<div class="profile-fields">${textHtml}${linksHtml}</div>`;
   };
 
   box.innerHTML = `
@@ -1574,11 +1592,10 @@ function renderProfile(){
               <div class="profile-photo ${editMode ? 'editable' : ''}" data-slot="${slot}">
                 <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
                   ${avatar ? '' : '👤'}
-                  ${oneLiner || editMode ? `
-                    <div class="profile-oneliner-scrim"></div>
-                    <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
-                  ` : ''}
                 </div>
+                ${oneLiner || editMode ? `
+                  <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
+                ` : ''}
               </div>
               <div class="profile-info ${editMode ? 'editable' : ''}" data-slot="${slot}">
                 ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
@@ -1736,7 +1753,7 @@ function bindProfile(slides){
   };
 
   // 정보 항목에 링크가 달려 있으면 그 링크를 누를 땐 편집 모달 대신 링크가 바로 열리게 함
-  box.querySelectorAll('.pf-link').forEach(a=> a.addEventListener('click', (e)=> e.stopPropagation()));
+  box.querySelectorAll('.pf-link-item').forEach(a=> a.addEventListener('click', (e)=> e.stopPropagation()));
 
   // 사진·이름·한줄소개·정보 항목을 어디를 누르든 두 프로필을 한 창에서 같이 수정할 수 있게 함
   box.querySelectorAll('.profile-person-fields.editable, .profile-photo.editable, .profile-info.editable').forEach(el=>{
@@ -1807,9 +1824,10 @@ function openProfileEditModal(slideIdx, secIdx, slides){
         <input type="text" class="pe-name" value="${escapeHtml(pf.name)}">
         ${bulkToggle('pe-bulk-name', '이 이름', personBulk.name)}
 
-        <label style="margin-top:10px;">정보 (키/몸무게·성격 등, 항목별로 나눠서 적을 수 있어요 — 기타 설명이나 링크도 붙일 수 있어요)</label>
+        <label style="margin-top:10px;">정보 (키/몸무게·성격 등, 항목별로 나눠서 적을 수 있어요 — 기타 설명도 붙일 수 있어요)</label>
         <div class="pf-edit-list pe-fields-list"></div>
         <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
+        <button type="button" class="btn small ghost pe-add-link">+ 링크 추가</button>
       </div>
     `;
   };
@@ -1839,17 +1857,24 @@ function openProfileEditModal(slideIdx, secIdx, slides){
     [0,1].forEach(slot=>{
       const col = m.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
       const listEl = col.querySelector('.pe-fields-list');
-      const drawFields = ()=>{
-        listEl.innerHTML = slotState[slot].fields.map((f,i)=> `
-          <div class="pf-edit-row" data-idx="${i}">
+      const rowHtml = (f, i)=> f.type === 'link' ? `
+          <div class="pf-edit-row pf-edit-row-link" data-idx="${i}" data-type="link">
+            <input type="text" class="pf-edit-label" placeholder="링크 이름 (예: 플레이리스트)" value="${escapeHtml(f.label)}">
+            <input type="url" class="pf-edit-link" placeholder="링크 URL" value="${escapeHtml(f.link||'')}">
+            <button type="button" class="btn small danger" data-del="${i}">✕</button>
+            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 이 링크, 다른 시점/IF에도 똑같이 적용</label>` : ''}
+          </div>
+        ` : `
+          <div class="pf-edit-row" data-idx="${i}" data-type="text">
             <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
             <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
             <input type="text" class="pf-edit-desc" placeholder="기타 설명 (선택)" value="${escapeHtml(f.desc||'')}">
-            <input type="url" class="pf-edit-link" placeholder="링크 URL (선택)" value="${escapeHtml(f.link||'')}">
             <button type="button" class="btn small danger" data-del="${i}">✕</button>
             ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 이 항목, 다른 시점/IF에도 똑같이 적용</label>` : ''}
           </div>
-        `).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
+        `;
+      const drawFields = ()=>{
+        listEl.innerHTML = slotState[slot].fields.map((f,i)=> rowHtml(f,i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
         listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
           slotState[slot].fields.splice(Number(btn.dataset.del), 1);
           drawFields();
@@ -1859,7 +1884,9 @@ function openProfileEditModal(slideIdx, secIdx, slides){
         }));
       };
       drawFields();
-      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({label:'', value:'', desc:'', link:'', bulk:false}); drawFields(); };
+      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({type:'text', label:'', value:'', desc:'', bulk:false}); drawFields(); };
+      // 링크는 항목마다 붙이는 게 아니라, 링크 전용 항목으로만 추가하고 항상 목록 맨 아래에 놓임
+      col.querySelector('.pe-add-link').onclick = ()=>{ slotState[slot].fields.push({type:'link', label:'', link:'', bulk:false}); drawFields(); };
 
       col.querySelector('.pe-avatar-clear').onclick = ()=>{
         slotState[slot].avatarCleared = true;
@@ -1883,13 +1910,25 @@ function openProfileEditModal(slideIdx, secIdx, slides){
           const oneLiner = col.querySelector('.pe-oneliner').value.trim();
           const name = col.querySelector('.pe-name').value.trim();
           const role = col.querySelector('.pe-role').value.trim();
-          const fields = Array.from(col.querySelectorAll('.pf-edit-row')).map(row=>({
-            label: row.querySelector('.pf-edit-label').value.trim(),
-            value: row.querySelector('.pf-edit-value').value.trim(),
-            desc: row.querySelector('.pf-edit-desc').value.trim(),
-            link: row.querySelector('.pf-edit-link').value.trim(),
-            bulk: !!row.querySelector('.pf-edit-bulk') && row.querySelector('.pf-edit-bulk').checked
-          })).filter(f=> f.label || f.value || f.desc || f.link);
+          // 링크 전용 항목은 항상 뒤로 보내서, 저장 순서 자체도 일반 항목 다음에 오게 정리해둠
+          const rows = Array.from(col.querySelectorAll('.pf-edit-row'));
+          const textRows = rows.filter(r=> r.dataset.type !== 'link');
+          const linkRows = rows.filter(r=> r.dataset.type === 'link');
+          const fields = [
+            ...textRows.map(row=>({
+              type:'text',
+              label: row.querySelector('.pf-edit-label').value.trim(),
+              value: row.querySelector('.pf-edit-value').value.trim(),
+              desc: row.querySelector('.pf-edit-desc').value.trim(),
+              bulk: !!row.querySelector('.pf-edit-bulk') && row.querySelector('.pf-edit-bulk').checked
+            })).filter(f=> f.label || f.value || f.desc),
+            ...linkRows.map(row=>({
+              type:'link',
+              label: row.querySelector('.pf-edit-label').value.trim(),
+              link: row.querySelector('.pf-edit-link').value.trim(),
+              bulk: !!row.querySelector('.pf-edit-bulk') && row.querySelector('.pf-edit-bulk').checked
+            })).filter(f=> f.label || f.link)
+          ];
 
           const bulkAvatar = !!col.querySelector('.pe-bulk-avatar') && col.querySelector('.pe-bulk-avatar').checked;
           const bulkOneliner = !!col.querySelector('.pe-bulk-oneliner') && col.querySelector('.pe-bulk-oneliner').checked;
@@ -1913,16 +1952,21 @@ function openProfileEditModal(slideIdx, secIdx, slides){
           // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용
           otherSecIdxs.forEach(si=>{
             const targetPf = arr[slideIdx].sections[si].peopleFields[slot];
+            fields.forEach(f=>{
+              if(!f.bulk) return;
+              const existing = targetPf.fields.find(tf=> tf.label && tf.label.trim().toLowerCase() === f.label.trim().toLowerCase());
+              if(f.type === 'link'){
+                if(existing){ existing.type = 'link'; existing.link = f.link; delete existing.value; delete existing.desc; }
+                else targetPf.fields.push({ type:'link', label: f.label, link: f.link });
+              } else {
+                if(existing){ existing.type = 'text'; existing.value = f.value; existing.desc = f.desc; delete existing.link; }
+                else targetPf.fields.push({ type:'text', label: f.label, value: f.value, desc: f.desc });
+              }
+            });
             if(bulkAvatar) targetPf.avatar = avatar;
             if(bulkOneliner) targetPf.oneLiner = oneLiner;
             if(bulkName) targetPf.name = name;
             if(bulkRole) targetPf.role = role;
-            fields.forEach(f=>{
-              if(!f.bulk) return;
-              const existing = targetPf.fields.find(tf=> tf.label && tf.label.trim().toLowerCase() === f.label.trim().toLowerCase());
-              if(existing){ existing.value = f.value; existing.desc = f.desc; existing.link = f.link; }
-              else targetPf.fields.push({ label: f.label, value: f.value, desc: f.desc, link: f.link });
-            });
           });
 
           // "적용" 체크 상태를 AU(사람 슬롯)에 그대로 영구 저장 — 다음에 편집창을 다시 열거나

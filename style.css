@@ -49,7 +49,10 @@
   --glass-blur-med: blur(10px) saturate(160%);   /* 작은 버튼/배지류 */
   --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) */
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
-  --font-body: 'ZEN SERIF', 'Noto Sans KR', sans-serif;
+  /* 한국어·영어는 ZEN SERIF/Noto Sans KR로 커버되고, 그 외 언어(일본어·중국어·기타 문자 등)는
+     이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
+     sans-serif가 아니라 serif(명조체 계열)로 지정해서 다른 언어 글자도 명조 느낌으로 보이게 함. */
+  --font-body: 'ZEN SERIF', 'Noto Sans KR', serif;
   --radius: 28px;
 }
 *{ box-sizing: border-box; }
@@ -468,6 +471,13 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   width:100%; min-height:26px; padding:0 34px;
 }
 .profile-section-del{ position:absolute; top:50%; right:0; transform:translateY(-50%); }
+/* 시점/IF 이름 아래에 붙는 한두 줄짜리 짧은 설명(어떤 상황인지) */
+.profile-section-desc{
+  width:100%; margin-top:-4px; padding:0 8px; text-align:center;
+  font-size:.72rem; line-height:1.4; color: var(--ink-soft);
+}
+.profile-section-desc.empty-hint{ cursor:pointer; opacity:.65; }
+.profile-section-desc.empty-hint:hover{ opacity:1; }
 /* AU 탭 바 — 위젯 맨 위에 고정, 스크롤 영역(profile-viewport) 밖에 위치 */
 .profile-au-bar{
   display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px;
@@ -502,9 +512,16 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
 .profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; }
 .profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:break-word; flex:1; min-width:0; }
-.profile-field .pf-link{ flex:0 0 auto; text-decoration:none; font-size:.8rem; opacity:.85; }
-.profile-field .pf-link:hover{ opacity:1; }
 .profile-field .pf-desc{ color: var(--ink-soft); font-size:.66rem; line-height:1.4; white-space:pre-wrap; word-break:break-word; padding-left:2px; }
+/* 링크 전용 항목 — 일반 정보 항목들 맨 아래에 따로 모아서 작은 알약 버튼처럼 보여줌 */
+.profile-links{ display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; padding:0 4px; }
+.pf-link-item{
+  display:inline-flex; align-items:center; gap:4px; font-size:.7rem; font-weight:600;
+  padding:4px 10px; border-radius:999px; border:1px solid var(--card-border);
+  background: rgba(255,255,255,0.05); color: var(--ink); text-decoration:none;
+}
+a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
+.pf-link-item.empty-hint{ opacity:.6; cursor:default; }
 .profile-slide-desc.empty-hint{ text-align:center; cursor:pointer; opacity:.65; font-size:.68rem; color: var(--ink-soft); }
 .profile-slide-desc.empty-hint:hover{ opacity:1; }
 .profile-pair{ display:flex; flex-direction:row; align-items:flex-start; justify-content:center; gap:14px; width:100%; }
@@ -519,9 +536,8 @@ body.edit-mode .dday-item{ padding-right: 34px; }
    위아래나 좌우로 여백이 생길 수 있음). 박스 비율을 정사각형(1/1)보다 세로로 긴
    3/4로 잡아서 세로형 캐릭터 사진일 때 생기는 여백을 최대한 줄임. 사진이 있을
    때는 뒤에 깔린 박스 배경/테두리를 없애서 투명 배경 PNG가 카드 위에 자연스럽게
-   떠 보이게 함. position:relative는 아래 한마디 오버레이 배치를 위함. */
+   떠 보이게 함. */
 .profile-avatar{
-  position:relative;
   width:92%; aspect-ratio:3/4; height:auto; border-radius:20px; background-size:contain; background-repeat:no-repeat;
   background-position:center; background-color: var(--card-bg2); border:2px solid var(--card-border);
   display:flex; align-items:center; justify-content:center; font-size:1.8rem; color: var(--rose);
@@ -532,22 +548,17 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   /* 모바일에서는 프로필 카드가 한 열 전체 폭을 쓰게 되어 여유가 많으므로 사진을 더 키움 */
   .profile-avatar{ width:96%; border-radius:24px; font-size:2.2rem; }
 }
-/* 한마디는 "대사"라 사진 위에 자막처럼 겹쳐서 강조되도록 함. 사진 하단에 어두운
-   그라데이션을 깔아 어떤 사진 위에서도 흰 글씨가 잘 읽히게 함. */
-.profile-oneliner-scrim{
-  position:absolute; left:0; right:0; bottom:0; height:52%;
-  background: linear-gradient(to bottom, rgba(10,4,6,0) 0%, rgba(10,4,6,0.82) 100%);
-  pointer-events:none;
-}
+/* 한마디는 이제 사진 위에 겹쳐 보이던 자막이 아니라, 사진 아래에 오는 짧은 캡션임.
+   더 이상 사진 위에 얹히지 않으니 가독성용 그라데이션 오버레이도 필요 없어져서 삭제함. */
 .profile-oneliner{
-  position:absolute; left:10px; right:10px; bottom:10px; z-index:1;
-  font-family: var(--font-display); font-style:italic; font-weight:700;
-  font-size:.92rem; line-height:1.35; color:#fff; text-align:center;
-  text-shadow: 0 1px 8px rgba(0,0,0,0.7);
+  width:100%; margin-top:2px;
+  font-family: var(--font-body); font-style:italic; font-weight:700;
+  font-size:.86rem; line-height:1.35; color: var(--ink-soft); text-align:center;
+  text-shadow:none;
   overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  white-space:normal; max-width:none; cursor:default;
+  white-space:normal; max-width:100%; cursor:default;
 }
-.profile-oneliner.empty-hint{ opacity:.8; cursor:pointer; font-style:normal; font-weight:600; font-size:.74rem; }
+.profile-oneliner.empty-hint{ opacity:.7; cursor:pointer; font-style:normal; font-weight:600; font-size:.7rem; }
 .profile-oneliner.empty-hint:hover{ opacity:1; }
 .profile-name{ font-weight:700; font-size:1.15rem; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-role{ font-size:.72rem; color: var(--ink-soft); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
