@@ -1840,11 +1840,17 @@ function bindProfile(slides){
   // 정보 항목에 링크가 달려 있으면 그 링크를 누를 땐 편집 모달 대신 링크가 바로 열리게 함
   box.querySelectorAll('.pf-link-item').forEach(a=> a.addEventListener('click', (e)=> e.stopPropagation()));
 
-  // 사진·이름·한줄소개·정보 항목을 어디를 누르든 두 프로필을 한 창에서 같이 수정할 수 있게 함
-  box.querySelectorAll('.profile-person-fields.editable, .profile-photo.editable, .profile-info.editable').forEach(el=>{
+  // 사진/한마디/소개/이름은 한 창에서, 정보 항목은 별도 창에서 — 각각 두 프로필을 한 창 안에서 같이 수정
+  box.querySelectorAll('.profile-photo.editable, .profile-info.editable').forEach(el=>{
     el.addEventListener('click', (e)=>{
       e.stopPropagation();
-      openProfileEditModal(profileSlideIndex, profileSectionIndex, slides);
+      openProfileBasicModal(profileSlideIndex, profileSectionIndex, slides);
+    });
+  });
+  box.querySelectorAll('.profile-person-fields.editable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openProfileFieldsModal(profileSlideIndex, profileSectionIndex, slides);
     });
   });
 
@@ -1866,10 +1872,11 @@ function bindProfile(slides){
 }
 
 /* 예전엔 사진/한마디, 이름/한줄소개, 체형·성격 같은 세부 정보가 각각 다른 창으로
-   나뉘어 있었고, 게다가 프로필 ①·②도 따로 눌러야 했음. 이제는 지금 보고 있는
-   시점/IF의 두 프로필을 한 창 안에 나란히 놓고, 사진부터 세부 정보까지 한 번에
-   고쳐서 한 번에 저장할 수 있게 합침. */
-function openProfileEditModal(slideIdx, secIdx, slides){
+   나뉘어 있었고, 게다가 프로필 ①·②도 따로 눌러야 했음. 한동안 이걸 전부 한 창에
+   합쳐뒀었는데, 창이 너무 길어진다는 의견에 따라 "사진/한마디/소개/이름"과
+   "정보"를 다시 두 개의 창으로 나눔. 다만 프로필 ①·②는 계속 한 창 안에 나란히
+   놓아 두 프로필을 같이 고칠 수 있게 유지함. */
+function openProfileBasicModal(slideIdx, secIdx, slides){
   const slide = slides[slideIdx];
   const section = slide.sections[secIdx];
   const secLabel = section.name || '이 시점/IF';
@@ -1908,17 +1915,12 @@ function openProfileEditModal(slideIdx, secIdx, slides){
         <label style="margin-top:10px;">이름</label>
         <input type="text" class="pe-name" value="${escapeHtml(pf.name)}">
         ${bulkToggle('pe-bulk-name', '이 이름', personBulk.name)}
-
-        <label style="margin-top:10px;">정보 (나이·생년월일·키/몸무게·BWH 등은 숫자만 넣으면 자동으로 예쁘게 정리돼요, 성격은 쉼표로 구분하면 해시태그로 보여요)</label>
-        <div class="pf-edit-list pe-fields-list"></div>
-        <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
-        <button type="button" class="btn small ghost pe-add-link">+ 링크 추가</button>
       </div>
     `;
   };
 
   openModal(`
-    <h3>프로필 편집 · ${escapeHtml(secLabel)}</h3>
+    <h3>사진 · 한마디 · 소개 · 이름 · ${escapeHtml(secLabel)}</h3>
     <p class="hint">기본적으로는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 저장돼요. 항목 아래 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 똑같이 적용할 수 있어요. 한 번 체크해두면 직접 해제하기 전까진 계속 체크된 채로 남고, 새 시점/IF를 추가할 때도 그대로 이어져요.</p>
     <div class="profile-edit-cols">
       ${colHtml(0)}
@@ -1930,50 +1932,10 @@ function openProfileEditModal(slideIdx, secIdx, slides){
       <button class="btn primary" id="s">저장</button>
     </div>
   `, m=>{
-    // 항목별 "적용" 체크 초기값도 매번 false로 시작하지 않고, AU에 저장된 값에서 라벨로 찾아 이어받음
-    const personBulkOf = (slot)=> (slide.people[slot] && slide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
-    const fieldKey = (label)=> (label||'').trim().toLowerCase();
-    const slotState = [0,1].map(slot=>{
-      const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
-      const pBulk = personBulkOf(slot);
-      return { avatarCleared:false, fields:(pf.fields||[]).map(f=>({ ...f, bulk: !!pBulk.fields[fieldKey(f.label)] })) };
-    });
-
     [0,1].forEach(slot=>{
       const col = m.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
-      const listEl = col.querySelector('.pe-fields-list');
-      const rowHtml = (f, i)=> f.type === 'link' ? `
-          <div class="pf-edit-row pf-edit-row-link" data-idx="${i}" data-type="link">
-            <input type="text" class="pf-edit-label" placeholder="링크 이름 (예: 플레이리스트)" value="${escapeHtml(f.label)}">
-            <input type="url" class="pf-edit-link" placeholder="링크 URL" value="${escapeHtml(f.link||'')}">
-            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 링크를 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 전체적용</label>` : ''}
-            <button type="button" class="btn small danger" data-del="${i}">✕</button>
-          </div>
-        ` : `
-          <div class="pf-edit-row" data-idx="${i}" data-type="text">
-            <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
-            <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
-            ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 항목을 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 전체적용</label>` : ''}
-            <button type="button" class="btn small danger" data-del="${i}">✕</button>
-          </div>
-        `;
-      const drawFields = ()=>{
-        listEl.innerHTML = slotState[slot].fields.map((f,i)=> rowHtml(f,i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
-        listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
-          slotState[slot].fields.splice(Number(btn.dataset.del), 1);
-          drawFields();
-        }));
-        listEl.querySelectorAll('.pf-edit-bulk').forEach((cb,i)=> cb.addEventListener('change', ()=>{
-          slotState[slot].fields[i].bulk = cb.checked;
-        }));
-      };
-      drawFields();
-      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({type:'text', label:'', value:'', bulk:false}); drawFields(); };
-      // 링크는 항목마다 붙이는 게 아니라, 링크 전용 항목으로만 추가하고 항상 목록 맨 아래에 놓임
-      col.querySelector('.pe-add-link').onclick = ()=>{ slotState[slot].fields.push({type:'link', label:'', link:'', bulk:false}); drawFields(); };
-
       col.querySelector('.pe-avatar-clear').onclick = ()=>{
-        slotState[slot].avatarCleared = true;
+        col.dataset.avatarCleared = '1';
         col.querySelector('.pe-avatar-preview').style.display = 'none';
         toast('저장하면 사진이 지워져요');
       };
@@ -1994,6 +1956,148 @@ function openProfileEditModal(slideIdx, secIdx, slides){
           const oneLiner = col.querySelector('.pe-oneliner').value.trim();
           const name = col.querySelector('.pe-name').value.trim();
           const role = col.querySelector('.pe-role').value.trim();
+
+          const bulkAvatar = !!col.querySelector('.pe-bulk-avatar') && col.querySelector('.pe-bulk-avatar').checked;
+          const bulkOneliner = !!col.querySelector('.pe-bulk-oneliner') && col.querySelector('.pe-bulk-oneliner').checked;
+          const bulkName = !!col.querySelector('.pe-bulk-name') && col.querySelector('.pe-bulk-name').checked;
+          const bulkRole = !!col.querySelector('.pe-bulk-role') && col.querySelector('.pe-bulk-role').checked;
+
+          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+          let avatar = pf.avatar || '';
+          if(col.dataset.avatarCleared === '1') avatar = '';
+          if(url) avatar = url;
+          if(file){
+            saveBtn.textContent = '사진 처리 중…';
+            avatar = await compressAvatarImageFile(file, 900, 320000);
+          }
+
+          // 지금 보고 있는 시점/IF에는 항상 반영 (정보 항목은 별도 창에서 관리하므로 그대로 유지)
+          arr[slideIdx].sections[secIdx].peopleFields[slot] = {
+            ...pf, avatar, oneLiner, name, role
+          };
+
+          // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용
+          otherSecIdxs.forEach(si=>{
+            const targetPf = arr[slideIdx].sections[si].peopleFields[slot];
+            if(bulkAvatar) targetPf.avatar = avatar;
+            if(bulkOneliner) targetPf.oneLiner = oneLiner;
+            if(bulkName) targetPf.name = name;
+            if(bulkRole) targetPf.role = role;
+          });
+
+          // "적용" 체크 상태를 AU(사람 슬롯)에 그대로 영구 저장 — 정보 항목의 적용 상태(fields)는
+          // 정보 편집 창에서 따로 관리하므로 여기서는 건드리지 않고 그대로 유지
+          arr[slideIdx].people[slot] = {
+            ...arr[slideIdx].people[slot], name, role, avatar: '',
+            bulk: {
+              ...(arr[slideIdx].people[slot].bulk || {}),
+              avatar: bulkAvatar, oneLiner: bulkOneliner, name: bulkName, role: bulkRole
+            }
+          };
+        }
+        saveBtn.textContent = '저장 중…';
+        await docRef('profile').set({slides:arr}, {merge:true});
+      }catch(err){
+        toast(`저장하지 못했어요: ${err.message || err}`);
+        saveBtn.disabled = false; saveBtn.textContent = '저장';
+        return;
+      }
+      closeModal();
+    };
+  }, 'modal-profile-edit');
+}
+
+/* "정보" 항목(성격·나이·키/몸무게·링크 등)만 따로 편집하는 창. 사진/한마디/소개/이름은
+   openProfileBasicModal 쪽에서 관리하고, 이 창은 정보 목록만 다룸. */
+function openProfileFieldsModal(slideIdx, secIdx, slides){
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+  const secLabel = section.name || '이 시점/IF';
+
+  const bulkNote = slide.sections.length > 1;
+
+  const colHtml = (slot)=>{
+    return `
+      <div class="profile-edit-col" data-slot="${slot}">
+        <h4>정보 ${slot===0?'①':'②'}</h4>
+        <label>정보 (나이·생년월일·키/몸무게·BWH 등은 숫자만 넣으면 자동으로 예쁘게 정리돼요, 성격은 쉼표로 구분하면 해시태그로 보여요)</label>
+        <div class="pf-edit-list pe-fields-list"></div>
+        <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
+        <button type="button" class="btn small ghost pe-add-link">+ 링크 추가</button>
+      </div>
+    `;
+  };
+
+  openModal(`
+    <h3>정보 편집 · ${escapeHtml(secLabel)}</h3>
+    <p class="hint">기본적으로는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 저장돼요. 항목 아래 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 똑같이 적용할 수 있어요. 한 번 체크해두면 직접 해제하기 전까진 계속 체크된 채로 남고, 새 시점/IF를 추가할 때도 그대로 이어져요.</p>
+    <div class="profile-edit-cols">
+      ${colHtml(0)}
+      <div class="profile-edit-divider"></div>
+      ${colHtml(1)}
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    // 항목별 "적용" 체크 초기값도 매번 false로 시작하지 않고, AU에 저장된 값에서 라벨로 찾아 이어받음
+    const personBulkOf = (slot)=> (slide.people[slot] && slide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
+    const fieldKey = (label)=> (label||'').trim().toLowerCase();
+    const slotState = [0,1].map(slot=>{
+      const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
+      const pBulk = personBulkOf(slot);
+      return { fields:(pf.fields||[]).map(f=>({ ...f, bulk: !!pBulk.fields[fieldKey(f.label)] })) };
+    });
+
+    [0,1].forEach(slot=>{
+      const col = m.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
+      const listEl = col.querySelector('.pe-fields-list');
+      const rowHtml = (f, i)=> f.type === 'link' ? `
+          <div class="pf-edit-row pf-edit-row-link" data-idx="${i}" data-type="link">
+            <input type="text" class="pf-edit-label" placeholder="링크 이름 (예: 플레이리스트)" value="${escapeHtml(f.label)}">
+            <input type="url" class="pf-edit-link" placeholder="링크 URL" value="${escapeHtml(f.link||'')}">
+            <div class="pf-edit-row-actions">
+              ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 링크를 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>` : ''}
+              <button type="button" class="btn small danger" data-del="${i}">✕</button>
+            </div>
+          </div>
+        ` : `
+          <div class="pf-edit-row" data-idx="${i}" data-type="text">
+            <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
+            <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
+            <div class="pf-edit-row-actions">
+              ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row" title="이 항목을 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>` : ''}
+              <button type="button" class="btn small danger" data-del="${i}">✕</button>
+            </div>
+          </div>
+        `;
+      const drawFields = ()=>{
+        listEl.innerHTML = slotState[slot].fields.map((f,i)=> rowHtml(f,i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
+        listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
+          slotState[slot].fields.splice(Number(btn.dataset.del), 1);
+          drawFields();
+        }));
+        listEl.querySelectorAll('.pf-edit-bulk').forEach((cb,i)=> cb.addEventListener('change', ()=>{
+          slotState[slot].fields[i].bulk = cb.checked;
+        }));
+      };
+      drawFields();
+      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({type:'text', label:'', value:'', bulk:false}); drawFields(); };
+      // 링크는 항목마다 붙이는 게 아니라, 링크 전용 항목으로만 추가하고 항상 목록 맨 아래에 놓임
+      col.querySelector('.pe-add-link').onclick = ()=>{ slotState[slot].fields.push({type:'link', label:'', link:'', bulk:false}); drawFields(); };
+    });
+
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      try{
+        const arr = cloneSlides(slides);
+        const otherSecIdxs = arr[slideIdx].sections.map((_,i)=>i).filter(i=> i !== secIdx);
+        for(const slot of [0,1]){
+          const col = m.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
           // 링크 전용 항목은 항상 뒤로 보내서, 저장 순서 자체도 일반 항목 다음에 오게 정리해둠
           const rows = Array.from(col.querySelectorAll('.pf-edit-row'));
           const textRows = rows.filter(r=> r.dataset.type !== 'link');
@@ -2013,23 +2117,11 @@ function openProfileEditModal(slideIdx, secIdx, slides){
             })).filter(f=> f.label || f.link)
           ];
 
-          const bulkAvatar = !!col.querySelector('.pe-bulk-avatar') && col.querySelector('.pe-bulk-avatar').checked;
-          const bulkOneliner = !!col.querySelector('.pe-bulk-oneliner') && col.querySelector('.pe-bulk-oneliner').checked;
-          const bulkName = !!col.querySelector('.pe-bulk-name') && col.querySelector('.pe-bulk-name').checked;
-          const bulkRole = !!col.querySelector('.pe-bulk-role') && col.querySelector('.pe-bulk-role').checked;
-
           const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
-          let avatar = pf.avatar || '';
-          if(slotState[slot].avatarCleared) avatar = '';
-          if(url) avatar = url;
-          if(file){
-            saveBtn.textContent = '사진 처리 중…';
-            avatar = await compressAvatarImageFile(file, 900, 320000);
-          }
 
-          // 지금 보고 있는 시점/IF에는 항상 반영
+          // 지금 보고 있는 시점/IF에는 항상 반영 (사진/한마디/소개/이름은 그대로 유지)
           arr[slideIdx].sections[secIdx].peopleFields[slot] = {
-            fields: fields.map(({bulk, ...f})=> f), avatar, oneLiner, name, role
+            ...pf, fields: fields.map(({bulk, ...f})=> f)
           };
 
           // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용
@@ -2046,10 +2138,6 @@ function openProfileEditModal(slideIdx, secIdx, slides){
                 else targetPf.fields.push({ type:'text', label: f.label, value: f.value });
               }
             });
-            if(bulkAvatar) targetPf.avatar = avatar;
-            if(bulkOneliner) targetPf.oneLiner = oneLiner;
-            if(bulkName) targetPf.name = name;
-            if(bulkRole) targetPf.role = role;
           });
 
           // "적용" 체크 상태를 AU(사람 슬롯)에 그대로 영구 저장 — 다음에 편집창을 다시 열거나
@@ -2061,8 +2149,8 @@ function openProfileEditModal(slideIdx, secIdx, slides){
             if(key) nextBulkFields[key] = f.bulk;
           });
           arr[slideIdx].people[slot] = {
-            ...arr[slideIdx].people[slot], name, role, avatar: '',
-            bulk: { avatar: bulkAvatar, oneLiner: bulkOneliner, name: bulkName, role: bulkRole, fields: nextBulkFields }
+            ...arr[slideIdx].people[slot],
+            bulk: { ...(arr[slideIdx].people[slot].bulk || {}), fields: nextBulkFields }
           };
         }
         saveBtn.textContent = '저장 중…';
