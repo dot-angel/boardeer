@@ -1410,8 +1410,7 @@ function formatProfileFieldValue(label, rawValue){
     return `${escapeHtml(nums[0])}cm · ${escapeHtml(nums[1])}kg`;
   }
   if(lbl === 'BWH' && nums.length >= 3){
-    return `B${escapeHtml(nums[0])} · W${escapeHtml(nums[1])} · H${escapeHtml(nums[2])} <span class="pf-unit">(cm)</span>`;
-  }
+    return `B${escapeHtml(nums[0])} · W${escapeHtml(nums[1])} · H${escapeHtml(nums[2])}
   return escapeHtml(value);
 }
 // 성격은 줄글 대신 해시태그 키워드로 보여줌 — 쉼표/슬래시/공백으로 입력한 걸 나눠서 각각 #키워드로 렌더링
