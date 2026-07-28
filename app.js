@@ -3198,6 +3198,11 @@ let skipNextRefGalleryRender = false;
 function fitRefGalleryToCalendarHeight(){
   const calCard = document.getElementById('cardCalendar');
   const refCard = document.getElementById('cardRefGallery');
+  // row-refpair에서 레퍼런스 갤러리와 나란히 놓이는 갤러리2도 같이 잡아줌.
+  // (레퍼런스 갤러리만 캘린더 높이에 맞추고 갤러리2는 내용물 높이만큼 자유롭게
+  // 자라던 예전 방식에서는, 사진 개수가 서로 다르면 PC에서 두 카드 높이가
+  // 어긋나 보이는 문제가 있었음 → 같은 값을 두 카드 모두에 명시적으로 줘서 항상 일치시킴)
+  const gallery2Card = document.getElementById('cardGallery2');
   if(!calCard || !refCard) return;
   // 모바일(카드가 세로로 한 열로 쌓이는 폭)에서는 캘린더와 레퍼런스 갤러리가 서로
   // 다른 줄(row)에 놓이므로 높이를 맞출 이유가 없고, 오히려 캘린더 높이를 그대로
@@ -3205,6 +3210,7 @@ function fitRefGalleryToCalendarHeight(){
   // 남게 됨. 이 폭 이하에서는 보정을 끄고 자연스러운(내용에 맞는) 높이로 둠.
   if(window.innerWidth <= 900){
     refCard.style.height = '';
+    if(gallery2Card) gallery2Card.style.height = '';
     return;
   }
   // 캘린더의 "진짜" 높이(=레퍼런스 갤러리 없이 음악/디데이 칸과만 맞췄을 때의 높이)를 재려면
@@ -3219,7 +3225,12 @@ function fitRefGalleryToCalendarHeight(){
   // align-items:stretch를 무시하고 그 값 그대로 확정되고, 안쪽 flex:1 그리드는 그 안에서만
   // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
   // 캘린더보다 조금 더 작게(-120px) 잡음.
-  refCard.style.height = `${Math.max(200, Math.round(calH) - 120)}px`;
+  const targetH = `${Math.max(200, Math.round(calH) - 120)}px`;
+  refCard.style.height = targetH;
+  // 갤러리2도 정확히 같은 값으로 고정 → 두 카드가 항상 같은 높이가 되고,
+  // 안쪽 gallery2-grid(flex:1, overflow-y:auto)도 이제 부모 높이가 생겼으니
+  // 사진이 넘칠 때 카드 자체가 커지지 않고 내부 스크롤로만 처리됨.
+  if(gallery2Card) gallery2Card.style.height = targetH;
 }
 window.addEventListener('resize', debounce(()=>{
   // PC(2열) ↔ 모바일(3열) 경계를 넘어가면 열 구성 자체가 달라지므로 다시 그려야 함
