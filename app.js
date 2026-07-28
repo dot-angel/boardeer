@@ -1566,21 +1566,31 @@ function renderProfile(){
   // 보기 전용(방문자) 모드에선 아직 값을 안 채운 항목(템플릿만 깔려있고 내용이 빈 항목)이
   // 그대로 보이면 빈 줄처럼 보여서 어색함 → 내용/기타설명/링크 중 하나도 없는 항목은 숨김.
   // 편집 모드에선 어떤 항목을 채울 수 있는지 알 수 있게 그대로 다 보여줌.
+  // 나이·생년월일·키/몸무게·BWH·성격은 값 자체만 봐도 뭔지 알 수 있어서(예: "142cm · 32kg"),
+  // 항목명을 따로 안 붙이고 값만 보여줌. 기타 설명은 목록 속 한 줄이 아니라 따로 떨어진
+  // 박스로 보여줘서 다른 항목들과 헷갈리지 않게 함.
+  const NO_LABEL_FIELDS = ['나이', '생년월일', '키/몸무게', 'BWH', '성격'];
   const fieldsHtml = (fields)=>{
     const textFields = fields.filter(f=> f.type !== 'link');
     const linkFields = fields.filter(f=> f.type === 'link');
-    const visibleText = editMode ? textFields : textFields.filter(f=> f.value);
+    const descField = textFields.find(f=> (f.label||'').trim() === '기타 설명');
+    const listFields = textFields.filter(f=> f !== descField);
+    const visibleText = editMode ? listFields : listFields.filter(f=> f.value);
     const visibleLinks = editMode ? linkFields : linkFields.filter(f=> f.link);
-    if(!visibleText.length && !visibleLinks.length){
+    const showDescBox = editMode || (descField && descField.value);
+    if(!visibleText.length && !visibleLinks.length && !showDescBox){
       return editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '';
     }
     const textHtml = visibleText.map(f=>{
       const label = (f.label || '').trim();
+      const noLabel = NO_LABEL_FIELDS.includes(label);
       if(label === '성격' && f.value){
+        return `<div class="profile-field profile-field-personality">${personalityHashtagsHtml(f.value)}</div>`;
+      }
+      if(noLabel){
         return `
-          <div class="profile-field profile-field-personality">
-            <span class="pf-label">${escapeHtml(label || '항목')}：</span>
-            ${personalityHashtagsHtml(f.value)}
+          <div class="profile-field profile-field-plain">
+            <span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>
           </div>
         `;
       }
@@ -1602,7 +1612,14 @@ function renderProfile(){
           ).join('')}
         </div>
       ` : '';
-    return `<div class="profile-fields">${textHtml}${linksHtml}</div>`;
+    // 기타 설명은 목록과 분리된 별도 박스로 — 값이 있을 때는 물론, 편집모드에선
+    // 아직 비어있어도 여기에 채울 수 있다는 걸 알 수 있게 자리 안내를 보여줌
+    const descHtml = showDescBox ? `
+        <div class="profile-desc-box ${!(descField && descField.value) ? 'empty-hint' : ''}">
+          ${(descField && descField.value) ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '')}
+        </div>
+      ` : '';
+    return `<div class="profile-fields">${textHtml}${linksHtml}</div>${descHtml}`;
   };
 
   // AU 이름은 항상 위젯 맨 위, 시점/IF 이름과는 확실히 구분되는 모양으로 고정 표시함.
