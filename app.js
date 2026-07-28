@@ -1377,12 +1377,12 @@ const PROFILE_FIELD_TEMPLATE = [
 ];
 function freshTemplateFields(){ return PROFILE_FIELD_TEMPLATE.map(f=>({...f})); }
 // 이름/한줄소개도 이제 시점/IF별로 따로 쓸 수 있음(비어 있으면 아래에서 legacy 공용값으로 자동 대체됨)
-// 프로필 사진 박스는 정사각형으로 고정돼 있는데, 캐릭터 사진은 대부분 세로로 긴 형태라
-// contain을 쓰면 박스와 이미지의 가로세로 비율이 달라서 여백을 트리밍해도 좌우에
-// 빈 공간이 남을 수밖에 없음. 박스를 항상 꽉 채우도록 cover로 통일(넘치는 가장자리만
-// 살짝 잘림, 여백 없음)
+// 프로필 사진 박스는 세로로 긴 비율(3/4)로 잡아뒀지만, 사진마다 실제 비율은 다 달라서
+// cover를 쓰면 여백은 안 남는 대신 위아래(또는 좌우)가 잘려 나감. "사진이 위아래로
+// 잘리지 않았으면 좋겠다"는 요청으로 contain으로 바꿔서 잘리는 대신 남는 여백이
+// 생기는 쪽을 택함(여백이 생기는 안쪽 아래에 한마디가 겹치면 그라데이션으로 가독성 확보).
 function avatarBgSize(){
-  return 'cover';
+  return 'contain';
 }
 // 새 시점/IF의 사람별 정보 세트(항목 + 사진 + 한마디) 기본값
 function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', oneLiner:'', name:'', role:'' }; }
@@ -1514,18 +1514,21 @@ function renderProfile(){
           </span>
         `).join('')}
         ${editMode ? `<button class="profile-section-add" id="profAuAddBtn" title="AU 추가">＋</button>` : ''}
+        ${editMode ? `<button class="icon-btn profile-au-del" id="profAuDelBtn" title="이 AU 전체 삭제">✕</button>` : ''}
       </div>
     ` : ''}
     <div class="profile-viewport" id="profileViewport">
-      ${editMode ? `<button class="icon-btn profile-slide-del" id="profAuDelBtn" title="이 AU 전체 삭제">✕</button>` : ''}
-      <div class="profile-slide-meta">
-        ${!(slides.length > 1 || editMode) && slide.label ? `<div class="profile-slide-label">${escapeHtml(slide.label)}</div>` : ''}
-        ${(slide.sections.length > 1 || section.name || editMode) ? `
+      ${!(slides.length > 1 || editMode) && slide.label ? `
+        <div class="profile-slide-meta"><div class="profile-slide-label">${escapeHtml(slide.label)}</div></div>
+      ` : ''}
+      ${(slide.sections.length > 1 || section.name || editMode) ? `
+        <div class="profile-section-header" id="profSecHeader">
           <div class="profile-slide-label ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
             ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
           </div>
-        ` : ''}
-      </div>
+          ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
+        </div>
+      ` : ''}
       <div class="profile-pair">
         ${[0,1].map(slot=>{
           const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'', name:'', role:'' };
@@ -1538,8 +1541,13 @@ function renderProfile(){
           return `
             <div class="profile-person" data-slot="${slot}">
               <div class="profile-photo ${editMode ? 'editable' : ''}" data-slot="${slot}">
-                <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>${avatar ? '' : '👤'}</div>
-                ${oneLiner || editMode ? `<div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? escapeHtml(oneLiner) : (editMode ? '+ 한마디 추가' : '')}</div>` : ''}
+                <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
+                  ${avatar ? '' : '👤'}
+                  ${oneLiner || editMode ? `
+                    <div class="profile-oneliner-scrim"></div>
+                    <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
+                  ` : ''}
+                </div>
               </div>
               <div class="profile-info ${editMode ? 'editable' : ''}" data-slot="${slot}">
                 ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
@@ -1656,6 +1664,17 @@ function bindProfile(slides){
     arr[profileSlideIndex].sections.push({ name:'', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()] });
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSectionIndex = arr[profileSlideIndex].sections.length - 1;
+  };
+
+  // 지금 보고 있는 시점/IF만 삭제(AU 전체 삭제인 profAuDelBtn과는 별개) — 시점/IF가
+  // 하나뿐일 땐 렌더링 단계에서 아예 버튼을 안 그려서 여기까지 오지 않음
+  const secDelBtn = box.querySelector('#profSecDelBtn');
+  if(secDelBtn) secDelBtn.onclick = async (e)=>{
+    e.stopPropagation();
+    const arr = cloneSlides(slides);
+    arr[profileSlideIndex].sections.splice(profileSectionIndex, 1);
+    await docRef('profile').set({slides:arr}, {merge:true});
+    profileSectionIndex = 0;
   };
 
   // 사진·이름·한줄소개·정보 항목을 어디를 누르든 두 프로필을 한 창에서 같이 수정할 수 있게 함
@@ -3429,8 +3448,9 @@ function fitRefGalleryToCalendarHeight(){
   // 그리드 아이템인 카드 자체에 명시적 높이를 줌. 그리드 아이템은 명시적 높이가 있으면
   // align-items:stretch를 무시하고 그 값 그대로 확정되고, 안쪽 flex:1 그리드는 그 안에서만
   // 채워지다가 사진이 넘치면 overflow-y:auto로 스크롤됨.
-  // 캘린더보다 조금 더 작게(-120px) 잡음.
-  const targetH = `${Math.max(200, Math.round(calH) - 120)}px`;
+  // 캘린더보다 조금 더 작게(-120) 잡았었는데, 세 갤러리를 모두 더 길게 늘려달라는
+  // 요청으로 +200px만큼 더 키움(캘린더보다 오히려 커질 수 있음).
+  const targetH = `${Math.max(200, Math.round(calH) + 80)}px`;
   refCard.style.height = targetH;
   // 갤러리2도 정확히 같은 값으로 고정 → 두 카드가 항상 같은 높이가 되고,
   // 안쪽 gallery2-grid(flex:1, overflow-y:auto)도 이제 부모 높이가 생겼으니
