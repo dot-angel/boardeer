@@ -1324,12 +1324,18 @@ let profileSectionIndex = 0; // 현재 AU 안에서 보고 있는 시점/IF 슬�
 // 새 시점/IF를 만들 때 각 프로필에 기본으로 깔아주는 항목들 — 체형·성격 등 세분화된 설명을 쓰기 쉽도록 미리 틀을 마련해둠
 const PROFILE_FIELD_TEMPLATE = [
   { label:'나이', value:'' },
-  { label:'키', value:'' },
-  { label:'체형', value:'' },
+  { label:'생년월일', value:'' },
+  { label:'키/몸무게', value:'' },
   { label:'성격', value:'' },
   { label:'취향/취미', value:'' },
 ];
 function freshTemplateFields(){ return PROFILE_FIELD_TEMPLATE.map(f=>({...f})); }
+// 프로필 사진 배경 표시 방식: PNG(투명 배경 캐릭터컷일 수 있음)는 잘리지 않게 contain,
+// 그 외 일반 사진(JPG 등)은 박스를 꽉 채우는 cover로 보여줘서 작게 보이지 않게 함
+function avatarBgSize(avatar){
+  const isPng = avatar.startsWith('data:image/png') || /\.png(\?|$)/i.test(avatar);
+  return isPng ? 'contain' : 'cover';
+}
 // 새 시점/IF의 사람별 정보 세트(항목 + 사진 + 한마디) 기본값
 function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', oneLiner:'' }; }
 
@@ -1437,7 +1443,7 @@ function renderProfile(){
           <span class="pf-value">${escapeHtml(f.value)}</span>
         </div>
       `).join('')}</div>`
-    : (editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (체형·성격 등)</div>` : '');
+    : (editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '');
 
   box.innerHTML = `
     ${(slides.length > 1 || editMode) ? `
@@ -1472,12 +1478,12 @@ function renderProfile(){
           return `
             <div class="profile-person" data-slot="${slot}">
               <div class="profile-photo ${editMode ? 'editable' : ''}" data-slot="${slot}">
-                <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}')"` : ''}>${avatar ? '' : '👤'}</div>
+                <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>${avatar ? '' : '👤'}</div>
                 ${oneLiner || editMode ? `<div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? escapeHtml(oneLiner) : (editMode ? '+ 한마디 추가' : '')}</div>` : ''}
               </div>
               <div class="profile-info ${editMode ? 'editable' : ''}" data-slot="${slot}">
-                <div class="profile-name">${hasContent ? escapeHtml(p.name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
                 ${p.role ? `<div class="profile-role">${escapeHtml(p.role)}</div>` : ''}
+                <div class="profile-name">${hasContent ? escapeHtml(p.name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
               </div>
               <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
                 ${fieldsHtml(fields)}
@@ -1646,7 +1652,7 @@ function openProfileEditModal(slideIdx, secIdx, slides){
         <input type="text" class="pe-name" value="${escapeHtml(p.name)}">
         <label>한줄 소개 (선택 — 나이·역할 등)</label>
         <input type="text" class="pe-role" value="${escapeHtml(p.role)}">
-        <label style="margin-top:10px;">정보 (체형·성격 등, 항목별로 나눠서 적을 수 있어요)</label>
+        <label style="margin-top:10px;">정보 (키/몸무게·성격 등, 항목별로 나눠서 적을 수 있어요)</label>
         <div class="pf-edit-list pe-fields-list"></div>
         <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
       </div>
@@ -1677,7 +1683,7 @@ function openProfileEditModal(slideIdx, secIdx, slides){
       const drawFields = ()=>{
         listEl.innerHTML = slotState[slot].fields.map((f,i)=> `
           <div class="pf-edit-row" data-idx="${i}">
-            <input type="text" class="pf-edit-label" placeholder="항목명 (예: 체형)" value="${escapeHtml(f.label)}">
+            <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
             <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
             <button type="button" class="btn small danger" data-del="${i}">✕</button>
           </div>
@@ -1725,7 +1731,7 @@ function openProfileEditModal(slideIdx, secIdx, slides){
             avatar = await compressAvatarImageFile(file, 900, 320000);
           }
 
-          arr[slideIdx].people[slot] = { ...arr[slideIdx].people[slot], name, role };
+          arr[slideIdx].people[slot] = { ...arr[slideIdx].people[slot], name, role, avatar: '' };
           arr[slideIdx].sections[secIdx].peopleFields[slot] = { fields, avatar, oneLiner };
         }
         saveBtn.textContent = '저장 중…';
@@ -1747,7 +1753,7 @@ function openProfileSlideModal(slideIdx, slides){
     <h3>AU 이름</h3>
     <label>이름 (선택 — 예: 본편, 카페 AU, 학원 AU)</label>
     <input type="text" id="slLabel" value="${escapeHtml(slide.label)}" placeholder="비워두면 이름 없이 보여요">
-    <p class="hint">시점/IF 이름은 카드에서 그 부분을 눌러서, 체형·성격 같은 정보는 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
+    <p class="hint">시점/IF 이름은 카드에서 그 부분을 눌러서, 키/몸무게·성격 같은 정보는 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
     <div class="modal-actions">
       ${canDelete ? `<button class="btn danger" id="d" type="button">이 AU 전체 삭제</button>` : ''}
       <button class="btn ghost" id="c">취소</button>
@@ -1780,7 +1786,7 @@ function openProfileSectionModal(slideIdx, secIdx, slides){
     <h3>시점/IF 이름</h3>
     <label>이름 (선택 — 예: 첫 만남, 사귄 후, IF: 헤어졌다면)</label>
     <input type="text" id="secName" value="${escapeHtml(section.name)}" placeholder="비워두면 이름 없이 보여요">
-    <p class="hint">체형·성격 같은 정보 항목은 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
+    <p class="hint">키/몸무게·성격 같은 정보 항목은 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
     <div class="modal-actions">
       ${canDelete ? `<button class="btn danger" id="d" type="button">이 시점/IF 삭제</button>` : ''}
       <button class="btn ghost" id="c">취소</button>

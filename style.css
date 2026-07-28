@@ -215,7 +215,7 @@ body::before{
 .row-strip{ grid-template-columns: 0.85fr 1.75fr 0.7fr; align-items: stretch; }
 .row-strip > .w-card{ min-width:0; }
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
-.row-strip-right{ display:grid; grid-template-rows: 1.6fr 1fr; gap:20px; }
+.row-strip-right{ display:grid; grid-template-rows: 1fr auto; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
 /* 왼쪽: 캘린더 + 세션(나란히) / 오른쪽: 문서 + 체크리스트(문서 아래로 체크리스트, 세로로 쌓임) */
 .row-2{ grid-template-columns: 1.6fr 1fr; }
@@ -413,7 +413,7 @@ body::before{
 .dday-item{
   position: relative;
   display:flex; align-items:center; justify-content:space-between; gap:14px;
-  padding: 10px 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--card-border);
 }
 /* 삭제 버튼(✕)은 편집모드에서만 나오므로, 그 자리를 위한 오른쪽 여백도
@@ -432,7 +432,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .dday-count{
   font-family: var(--font-display); font-weight:800; letter-spacing:-0.02em;
-  font-size: clamp(2.8rem, 22cqw, 7.5rem); line-height:0.95; color: var(--rose);
+  font-size: clamp(2.2rem, 16cqw, 5rem); line-height:0.95; color: var(--rose);
   text-align: right; flex: 0 0 auto;
 }
 .dday-item .icon-btn{
@@ -727,7 +727,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   background: var(--rose-solid); color:#fff; border:none; font-size:1.2rem; box-shadow: var(--shadow); cursor:pointer;
 }
 /* ---------- 레퍼런스 갤러리 (캘린더 옆, 블러 옵션 없이 촘촘한 썸네일 전용) ---------- */
-.w-refgallery{ padding-bottom: 60px; }
+.w-refgallery{ padding-bottom: 20px; }
 /* 모바일에서는 카드 높이를 캘린더에 맞춰 강제로 늘리지 않게 되므로(app.js
    fitRefGalleryToCalendarHeight 참고), FAB 여유공간용 하단 padding도 함께 줄여서
    사진 아래로 불필요한 빈 여백이 남지 않게 함 */
