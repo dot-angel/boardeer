@@ -493,14 +493,32 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-slide-del{ position:absolute; top:0; right:0; }
 .profile-pair{ display:flex; flex-direction:row; align-items:flex-start; justify-content:center; gap:14px; width:100%; }
 .profile-person{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; padding:6px; border-radius:16px; }
-.profile-person.editable{ cursor:pointer; transition: background .15s ease; }
-.profile-person.editable:hover{ background: rgba(255,255,255,0.06); }
+.profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; max-width:100%; }
+.profile-photo.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px; }
+.profile-photo.editable:hover{ background: rgba(255,255,255,0.06); }
+.profile-info{ display:flex; flex-direction:column; align-items:center; gap:2px; max-width:100%; }
+.profile-info.editable{ cursor:pointer; border-radius:10px; transition: background .15s ease; padding:2px 8px; }
+.profile-info.editable:hover{ background: rgba(255,255,255,0.06); }
+/* 사진을 더 크게 보여주고, background-size:contain으로 잘라내지 않아 배경이 투명한
+   PNG(캐릭터 전신 컷 등)를 올려도 원본 형태 그대로 보임. 사진이 있을 때는 뒤에 깔린
+   박스 배경/테두리를 없애서 투명 배경 PNG가 카드 위에 자연스럽게 떠 보이게 함. */
 .profile-avatar{
-  width:78px; height:78px; border-radius:50%; background-size:cover; background-position:center;
-  background-color: var(--card-bg2); border:2px solid var(--card-border);
-  display:flex; align-items:center; justify-content:center; font-size:1.5rem; color: var(--rose);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  width:100px; height:100px; border-radius:20px; background-size:contain; background-repeat:no-repeat;
+  background-position:center; background-color: var(--card-bg2); border:2px solid var(--card-border);
+  display:flex; align-items:center; justify-content:center; font-size:1.8rem; color: var(--rose);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25); flex:0 0 auto;
 }
+.profile-avatar.has-image{ background-color:transparent; border-color:transparent; box-shadow:none; }
+@media (max-width: 900px){
+  /* 모바일에서는 프로필 카드가 한 열 전체 폭을 쓰게 되어 여유가 많으므로 사진을 더 키움 */
+  .profile-avatar{ width:130px; height:130px; border-radius:24px; font-size:2.2rem; }
+}
+.profile-oneliner{
+  font-size:.72rem; color: var(--ink-soft); text-align:center; max-width:150px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.profile-oneliner.empty-hint{ opacity:.65; cursor:pointer; }
+.profile-oneliner.empty-hint:hover{ opacity:1; }
 .profile-name{ font-weight:700; font-size:.82rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-role{ font-size:.68rem; color: var(--ink-soft); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
@@ -585,7 +603,6 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .icon-btn:hover{ background: rgba(255,255,255,0.14); }
 /* ---------- 갤러리 (핀터레스트형 매스너리) — 높이 고정, 넘치면 위젯 내부에서 스크롤 ---------- */
 .w-gallery{ padding-bottom:20px; }
-#cardGallery2.w-gallery{ padding-bottom:0; }
 /* 스크롤/높이 제한은 바깥 래퍼(.pin-grid-scroll)에만 걸고, 실제 위치 계산이 일어나는
    .pin-grid 자체에는 높이를 주지 않음(app.js의 layoutPinMasonry()가 매번 실제 콘텐츠
    높이를 재서 인라인으로 넣어줌). 래퍼를 한 겹 씌워서 완전히 분리하면 항상 세로로만
@@ -869,7 +886,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
-.session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; overflow-y:auto; padding-right:2px; }
+.session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 @media (max-width: 900px){
   .session-grid{ max-height: 320px; }
 }
@@ -878,7 +895,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .session-card{
   position:relative; border-radius:18px; overflow:hidden; cursor:pointer;
   border:1px solid var(--card-border); aspect-ratio: 16/9; background: var(--card-bg2);
-  transition: transform .15s ease;
+  transition: transform .15s ease; min-width:0;
 }
 .session-card:hover{ transform: scale(1.03); }
 .session-card img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -898,6 +915,16 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .session-add{ margin-top:10px; align-self:flex-start; }
 /* ---------- 체크보드 ---------- */
+.checklist-subtitle-row{ display:flex; justify-content:flex-end; }
+.checklist-subtitle-row:not(:empty){ margin-bottom:8px; }
+.checklist-subtitle{
+  font-family: var(--font-display); font-size:.76rem; font-weight:700; color: var(--rose);
+  text-align:right; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.checklist-subtitle.editable{ cursor:pointer; border-radius:8px; padding:2px 6px; transition: background .15s ease; }
+.checklist-subtitle.editable:hover{ background: rgba(255,255,255,0.06); }
+.checklist-subtitle.empty-hint{ font-family: var(--font-body); font-weight:400; color: var(--ink-soft); opacity:.7; }
+.checklist-subtitle.empty-hint:hover{ opacity:1; }
 .checklist{ max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
 .check-item{
   display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem;

@@ -611,6 +611,64 @@ function fileToBase64(file){
   });
 }
 
+/* 프로필 사진 전용 압축: compressImageFile은 항상 JPEG로 인코딩해서 투명한 부분을
+   검은/흰 배경으로 덮어버리므로, 배경이 투명한 PNG 캐릭터 이미지를 올리면 망가짐.
+   원본이 PNG면 PNG로 그대로 인코딩해서 투명도를 살리고, PNG는 화질(quality) 옵션이
+   없으므로 용량이 넘치면 해상도를 단계적으로 줄여가며 목표 용량에 맞춤. */
+function compressAvatarImageFile(file, maxDim=900, maxBytes=320000, gifMaxBytes=650000){
+  return new Promise((resolve, reject)=>{
+    if(file.type === 'image/gif'){
+      if(file.size > gifMaxBytes){
+        reject(new Error(`GIF 용량이 너무 커요(최대 약 ${Math.round(gifMaxBytes/1024)}KB). 더 작은 GIF를 쓰거나, URL 방식을 이용해주세요.`));
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = ()=> resolve(reader.result);
+      reader.onerror = ()=> reject(new Error('파일을 읽지 못했어요'));
+      reader.readAsDataURL(file);
+      return;
+    }
+    const isPng = file.type === 'image/png';
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const drawAt = (dim)=>{
+          let { width, height } = img;
+          if(width > height && width > dim){ height = Math.round(height * (dim/width)); width = dim; }
+          else if(height >= width && height > dim){ width = Math.round(width * (dim/height)); height = dim; }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          return canvas;
+        };
+        if(isPng){
+          let dim = maxDim;
+          let dataUrl = drawAt(dim).toDataURL('image/png');
+          while(dataUrl.length > maxBytes * 1.37 && dim > 200){
+            dim = Math.round(dim * 0.8);
+            dataUrl = drawAt(dim).toDataURL('image/png');
+          }
+          resolve(dataUrl);
+        } else {
+          const canvas = drawAt(maxDim);
+          let quality = 0.85;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          while(dataUrl.length > maxBytes * 1.37 && quality > 0.25){
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = ()=> reject(new Error('이미지를 불러오지 못했어요'));
+      img.src = reader.result;
+    };
+    reader.onerror = ()=> reject(new Error('파일을 읽지 못했어요'));
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ---------------- 큰 파일(문서/PDF) 청크 저장 ----------------
    Firestore는 문서 1개당 1MB 제한이 있어서, 큰 파일은 하나의 문서에
    통째로 못 넣음. 그래서 base64 문자열을 잘게 잘라 fileChunks 컬렉션에
@@ -1270,13 +1328,15 @@ const PROFILE_FIELD_TEMPLATE = [
   { label:'체형', value:'' },
   { label:'성격', value:'' },
   { label:'취향/취미', value:'' },
-  { label:'말투/습관', value:'' },
-  { label:'매력 포인트', value:'' },
 ];
 function freshTemplateFields(){ return PROFILE_FIELD_TEMPLATE.map(f=>({...f})); }
+// 새 시점/IF의 사람별 정보 세트(항목 + 사진 + 한마디) 기본값
+function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', oneLiner:'' }; }
 
 function normalizeProfilePerson(p){
   p = p || {};
+  // avatar는 예전 버전에서 AU 전체가 공유하던 사진의 흔적(마이그레이션용)으로만 남겨둠.
+  // 화면에는 더 이상 여기서 직접 쓰지 않고, section.peopleFields[slot].avatar를 사용함.
   return { name: p.name || '', role: p.role || '', avatar: p.avatar || '' };
 }
 function normalizeProfileField(f){
@@ -1286,9 +1346,14 @@ function normalizeProfileField(f){
 function normalizePersonFieldSet(pf){
   // Firestore엔 배열 속 배열을 못 넣어서, 사람별 정보는 {fields:[...]} 형태의 객체로 감싸서 저장함.
   // 예전에 배열을 바로 넣었던 데이터가 있을 수도 있어 그것도 호환해줌.
-  if(Array.isArray(pf)) return { fields: pf.map(normalizeProfileField) };
+  // 사진(avatar)과 한마디(oneLiner)는 시점/IF마다 따로 설정할 수 있도록 이 사람별 정보 세트에 같이 저장함.
+  if(Array.isArray(pf)) return { fields: pf.map(normalizeProfileField), avatar:'', oneLiner:'' };
   pf = pf || {};
-  return { fields: Array.isArray(pf.fields) ? pf.fields.map(normalizeProfileField) : [] };
+  return {
+    fields: Array.isArray(pf.fields) ? pf.fields.map(normalizeProfileField) : [],
+    avatar: pf.avatar || '',
+    oneLiner: pf.oneLiner || ''
+  };
 }
 function normalizeProfileSection(sec){
   sec = sec || {};
@@ -1298,29 +1363,50 @@ function normalizeProfileSection(sec){
   } else if(Array.isArray(sec.fields)){
     // 이전 버전 호환: 두 프로필이 공유하던 정보를 그대로 양쪽에 복사해서 시작(이후 각자 따로 수정 가능)
     const legacy = sec.fields.map(normalizeProfileField);
-    peopleFields = [{fields: legacy.map(f=>({...f}))}, {fields: legacy.map(f=>({...f}))}];
+    peopleFields = [
+      { fields: legacy.map(f=>({...f})), avatar:'', oneLiner:'' },
+      { fields: legacy.map(f=>({...f})), avatar:'', oneLiner:'' }
+    ];
   } else {
-    peopleFields = [{fields:[]}, {fields:[]}];
+    peopleFields = [{fields:[], avatar:'', oneLiner:''}, {fields:[], avatar:'', oneLiner:''}];
   }
   return { name: sec.name || '', peopleFields };
 }
 function normalizeProfileSlide(s){
   s = s || {};
-  const people = Array.isArray(s.people) ? s.people : [];
+  const peopleRaw = Array.isArray(s.people) ? s.people : [];
+  const people = [0,1].map(i=> normalizeProfilePerson(peopleRaw[i]));
   let sections = Array.isArray(s.sections) ? s.sections.map(normalizeProfileSection) : [];
   if(sections.length === 0){
     // 이전 버전(슬라이드당 항목 한 세트 / 자유 서술) 데이터 호환
     let legacyFields = Array.isArray(s.fields) ? s.fields.map(normalizeProfileField) : [];
     if(legacyFields.length === 0 && s.desc) legacyFields = [{ label:'설명', value: s.desc }];
-    sections = [{ name:'', peopleFields: [{fields: legacyFields.map(f=>({...f}))}, {fields: legacyFields.map(f=>({...f}))}] }];
+    sections = [{ name:'', peopleFields: [
+      { fields: legacyFields.map(f=>({...f})), avatar:'', oneLiner:'' },
+      { fields: legacyFields.map(f=>({...f})), avatar:'', oneLiner:'' }
+    ] }];
   }
-  return { label: s.label || '', people: [ normalizeProfilePerson(people[0]), normalizeProfilePerson(people[1]) ], sections };
+  // 예전엔 사진이 AU 전체(사람별)에서 공용이었음. 시점/IF마다 따로 사진을 쓸 수 있게
+  // 구조를 바꾸면서, 아직 이 시점/IF에 사진이 따로 저장돼 있지 않다면(=예전 데이터라면)
+  // 예전 공용 사진을 기본값으로 채워 넣어서 사진이 갑자기 사라져 보이지 않게 함.
+  sections = sections.map(sec=> ({
+    ...sec,
+    peopleFields: sec.peopleFields.map((pf,i)=> pf.avatar ? pf : { ...pf, avatar: people[i].avatar || '' })
+  }));
+  return { label: s.label || '', people, sections };
 }
 function cloneSlides(slides){
   return slides.map(s=> ({
     label: s.label,
     people: s.people.map(p=>({...p})),
-    sections: s.sections.map(sec=> ({ name: sec.name, peopleFields: sec.peopleFields.map(pf=> ({fields: pf.fields.map(f=>({...f}))})) }))
+    sections: s.sections.map(sec=> ({
+      name: sec.name,
+      peopleFields: sec.peopleFields.map(pf=> ({
+        fields: pf.fields.map(f=>({...f})),
+        avatar: pf.avatar || '',
+        oneLiner: pf.oneLiner || ''
+      }))
+    }))
   }));
 }
 
@@ -1378,13 +1464,21 @@ function renderProfile(){
       <div class="profile-pair">
         ${[0,1].map(slot=>{
           const p = slide.people[slot];
-          const hasContent = p.name || p.avatar;
-          const fields = (section.peopleFields[slot] && section.peopleFields[slot].fields) || [];
+          const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
+          const avatar = pf.avatar || '';
+          const oneLiner = pf.oneLiner || '';
+          const hasContent = p.name || avatar;
+          const fields = pf.fields || [];
           return `
-            <div class="profile-person ${editMode ? 'editable' : ''}" data-slot="${slot}">
-              <div class="profile-avatar" ${p.avatar ? `style="background-image:url('${p.avatar}')"` : ''}>${p.avatar ? '' : '👤'}</div>
-              <div class="profile-name">${hasContent ? escapeHtml(p.name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
-              ${p.role ? `<div class="profile-role">${escapeHtml(p.role)}</div>` : ''}
+            <div class="profile-person" data-slot="${slot}">
+              <div class="profile-photo ${editMode ? 'editable' : ''}" data-slot="${slot}">
+                <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}')"` : ''}>${avatar ? '' : '👤'}</div>
+                ${oneLiner || editMode ? `<div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? escapeHtml(oneLiner) : (editMode ? '+ 한마디 추가' : '')}</div>` : ''}
+              </div>
+              <div class="profile-info ${editMode ? 'editable' : ''}" data-slot="${slot}">
+                <div class="profile-name">${hasContent ? escapeHtml(p.name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                ${p.role ? `<div class="profile-role">${escapeHtml(p.role)}</div>` : ''}
+              </div>
               <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
                 ${fieldsHtml(fields)}
               </div>
@@ -1425,7 +1519,7 @@ function bindProfile(slides){
   if(auAddBtn) auAddBtn.onclick = async (e)=>{
     e.stopPropagation();
     const arr = cloneSlides(slides);
-    arr.push({ label:'', sections:[{name:'', peopleFields:[{fields:freshTemplateFields()}, {fields:freshTemplateFields()}]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] });
+    arr.push({ label:'', sections:[{name:'', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] });
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = arr.length - 1;
     profileSectionIndex = 0;
@@ -1439,7 +1533,7 @@ function bindProfile(slides){
   };
   const addBtn = box.querySelector('#profAddBtn');
   if(addBtn) addBtn.onclick = async ()=>{
-    const arr = [...slides, { label:'', sections:[{name:'', peopleFields:[{fields:freshTemplateFields()}, {fields:freshTemplateFields()}]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
+    const arr = [...slides, { label:'', sections:[{name:'', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = arr.length - 1;
     profileSectionIndex = 0;
@@ -1493,7 +1587,7 @@ function bindProfile(slides){
   if(secAddBtn) secAddBtn.onclick = async (e)=>{
     e.stopPropagation();
     const arr = cloneSlides(slides);
-    arr[profileSlideIndex].sections.push({ name:'', peopleFields:[{fields:freshTemplateFields()}, {fields:freshTemplateFields()}] });
+    arr[profileSlideIndex].sections.push({ name:'', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()] });
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSectionIndex = arr[profileSlideIndex].sections.length - 1;
   };
@@ -1507,21 +1601,33 @@ function bindProfile(slides){
     });
   });
 
-  box.querySelectorAll('.profile-person').forEach(el=>{
-    if(!editMode) return;
-    el.addEventListener('click', ()=> openProfilePersonModal(profileSlideIndex, Number(el.dataset.slot), slides));
+  // 사진(+한마디)은 지금 보고 있는 시점/IF에만 적용되는 정보라 따로 편집창을 염
+  box.querySelectorAll('.profile-photo.editable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openProfilePhotoModal(profileSlideIndex, profileSectionIndex, Number(el.dataset.slot), slides);
+    });
+  });
+  // 이름/한줄소개는 AU 전체가 공유하는 정보라 별도 편집창을 염
+  box.querySelectorAll('.profile-info.editable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      openProfilePersonModal(profileSlideIndex, Number(el.dataset.slot), slides);
+    });
   });
 
   if(!editMode){
-    box.querySelectorAll('.profile-avatar').forEach(av=>{
-      const person = av.closest('.profile-person');
-      const slot = Number(person.dataset.slot);
-      const p = slides[profileSlideIndex].people[slot];
-      if(!p.avatar) return;
+    box.querySelectorAll('.profile-avatar.has-image').forEach(av=>{
+      const photoWrap = av.closest('.profile-photo');
+      if(!photoWrap) return;
+      const slot = Number(photoWrap.dataset.slot);
+      const pf = slide.sections[profileSectionIndex].peopleFields[slot];
+      const avatar = pf && pf.avatar;
+      if(!avatar) return;
       av.style.cursor = 'pointer';
       av.addEventListener('click', (e)=>{
         e.stopPropagation();
-        openImageLightbox({ items:[{url:p.avatar}], index:0, resolve: item=>item.url, onDelete:null });
+        openImageLightbox({ items:[{url:avatar}], index:0, resolve: item=>item.url, onDelete:null });
       });
     });
   }
@@ -1530,15 +1636,51 @@ function bindProfile(slides){
 function openProfilePersonModal(slideIdx, slot, slides){
   const p = slides[slideIdx].people[slot];
   openModal(`
-    <h3>프로필 ${slot===0?'①':'②'} 수정</h3>
+    <h3>프로필 ${slot===0?'①':'②'} 이름</h3>
     <label>이름</label><input type="text" id="pName" value="${escapeHtml(p.name)}">
-    <label>한줄 소개 (선택 — 나이·역할·한마디 등)</label><input type="text" id="pRole" value="${escapeHtml(p.role)}">
-    <label>프로필 사진 (선택)</label>
+    <label>한줄 소개 (선택 — 나이·역할 등)</label><input type="text" id="pRole" value="${escapeHtml(p.role)}">
+    <p class="hint">이름·한줄 소개는 모든 시점/IF에서 공통으로 쓰여요. 사진은 사진을 눌러서, 체형·성격 같은 세부 정보는 이름 아래쪽 정보 영역을 눌러서 따로 편집해요.</p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const name = m.querySelector('#pName').value.trim();
+      const role = m.querySelector('#pRole').value.trim();
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      const arr = cloneSlides(slides);
+      arr[slideIdx].people[slot] = { ...arr[slideIdx].people[slot], name, role };
+      try{
+        await docRef('profile').set({slides:arr}, {merge:true});
+      }catch(err){
+        toast(`저장하지 못했어요: ${err.message || err}`);
+        saveBtn.disabled = false; saveBtn.textContent = '저장';
+        return;
+      }
+      closeModal();
+    };
+  });
+}
+
+function openProfilePhotoModal(slideIdx, secIdx, slot, slides){
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+  const person = slide.people[slot];
+  const pf = section.peopleFields[slot] || { fields:[], avatar:'', oneLiner:'' };
+  openModal(`
+    <h3>${escapeHtml(person.name || (slot===0?'프로필 ①':'프로필 ②'))}의 사진${section.name ? ` · ${escapeHtml(section.name)}` : ''}</h3>
+    <label>프로필 사진 (선택 — 배경이 투명한 PNG도 그대로 지원돼요)</label>
     <input type="file" id="pAvatarFile" accept="image/*">
     <label style="margin-top:6px;">또는 이미지 URL</label>
     <input type="url" id="pAvatarUrl" placeholder="https://...">
-    ${p.avatar ? `<div class="mp-modal-cover-preview" id="pAvatarPreviewWrap"><img src="${p.avatar}" alt=""><button type="button" class="btn ghost small" id="pAvatarClear">사진 지우기</button></div>` : ''}
-    <p class="hint">이름만 적어도 되고, 사진은 비워둬도 괜찮아요. 체형·성격 같은 세부 정보는 카드에서 이름 아래쪽 정보 영역을 눌러서 따로 편집해요.</p>
+    ${pf.avatar ? `<div class="mp-modal-cover-preview" id="pAvatarPreviewWrap"><img src="${pf.avatar}" alt=""><button type="button" class="btn ghost small" id="pAvatarClear">사진 지우기</button></div>` : ''}
+    <label style="margin-top:10px;">사진 아래 한마디 (선택)</label>
+    <input type="text" id="pOneLiner" maxlength="60" value="${escapeHtml(pf.oneLiner)}" placeholder="예: 오늘도 좋은 하루 보내요">
+    <p class="hint">사진과 한마디는 지금 보고 있는 "${escapeHtml(section.name || '이 시점/IF')}"에만 적용돼요. 다른 시점/IF는 각각 따로 사진을 설정할 수 있어요.</p>
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">저장</button>
@@ -1555,17 +1697,16 @@ function openProfilePersonModal(slideIdx, slot, slides){
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
-      const name = m.querySelector('#pName').value.trim();
-      const role = m.querySelector('#pRole').value.trim();
       const file = m.querySelector('#pAvatarFile').files[0];
       const url = m.querySelector('#pAvatarUrl').value.trim();
-      let avatar = p.avatar || '';
+      const oneLiner = m.querySelector('#pOneLiner').value.trim();
+      let avatar = pf.avatar || '';
       if(avatarCleared) avatar = '';
       if(url) avatar = url;
       if(file){
         saveBtn.disabled = true;
         saveBtn.textContent = '사진 처리 중…';
-        try{ avatar = await compressImageFile(file, 700, 200000); }
+        try{ avatar = await compressAvatarImageFile(file, 900, 320000); }
         catch(err){
           toast(`사진 처리 실패: ${err.message || err}`);
           saveBtn.disabled = false; saveBtn.textContent = '저장';
@@ -1575,7 +1716,7 @@ function openProfilePersonModal(slideIdx, slot, slides){
       saveBtn.disabled = true;
       saveBtn.textContent = '저장 중…';
       const arr = cloneSlides(slides);
-      arr[slideIdx].people[slot] = { name, role, avatar };
+      arr[slideIdx].sections[secIdx].peopleFields[slot] = { fields: pf.fields, avatar, oneLiner };
       try{
         await docRef('profile').set({slides:arr}, {merge:true});
       }catch(err){
@@ -1695,7 +1836,10 @@ function openProfileFieldsModal(slideIdx, secIdx, slot, slides){
         value: row.querySelector('.pf-edit-value').value.trim()
       })).filter(f=> f.label || f.value);
       const arr = cloneSlides(slides);
-      arr[slideIdx].sections[secIdx].peopleFields[slot] = { fields };
+      arr[slideIdx].sections[secIdx].peopleFields[slot] = {
+        ...arr[slideIdx].sections[secIdx].peopleFields[slot],
+        fields
+      };
       saveBtn.disabled = true;
       saveBtn.textContent = '저장 중…';
       try{
@@ -3945,9 +4089,19 @@ function openSessionEditModal(idx){
 
 /* ---------------- 8. 체크보드 (체크된 항목은 아래로) ---------------- */
 
-let checklistData = { items: [] };
+let checklistData = { items: [], subtitle: '' };
 
 function renderChecklist(){
+  const subWrap = document.getElementById('checklistSubtitleWrap');
+  const subtitle = checklistData.subtitle || '';
+  if(subtitle || editMode){
+    subWrap.innerHTML = `<div class="checklist-subtitle ${editMode ? 'editable' : ''} ${!subtitle ? 'empty-hint' : ''}" id="checklistSubtitleBtn">${subtitle ? escapeHtml(subtitle) : (editMode ? '+ 부제목 추가' : '')}</div>`;
+    const subBtn = document.getElementById('checklistSubtitleBtn');
+    if(subBtn && editMode) subBtn.onclick = openChecklistSubtitleModal;
+  } else {
+    subWrap.innerHTML = '';
+  }
+
   const body = document.getElementById('checklistBody');
   const all = (checklistData.items || []).map((it,i)=>({...it, _i:i}));
   const unchecked = all.filter(it=> !it.checked);
@@ -4007,7 +4161,42 @@ function renderChecklist(){
   input.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
 }
 
-docRef('checklist').onSnapshot(doc=>{ checklistData = doc.exists ? doc.data() : {items:[]}; renderChecklist(); });
+docRef('checklist').onSnapshot(doc=>{ checklistData = doc.exists ? doc.data() : {items:[], subtitle:''}; renderChecklist(); });
+
+function openChecklistSubtitleModal(){
+  const cur = checklistData.subtitle || '';
+  openModal(`
+    <h3>체크리스트 부제목</h3>
+    <label>부제목 (선택 — 카드 오른쪽 위에 작게 표시돼요)</label>
+    <input type="text" id="checkSubInput" value="${escapeHtml(cur)}" placeholder="예: 결혼 준비 체크리스트">
+    <div class="modal-actions">
+      ${cur ? `<button class="btn danger" id="d" type="button">지우기</button>` : ''}
+      <button class="btn ghost" id="c">취소</button>
+      <button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    const delBtn = m.querySelector('#d');
+    if(delBtn) delBtn.onclick = async ()=>{
+      await docRef('checklist').set({ subtitle:'' }, {merge:true});
+      closeModal();
+    };
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const subtitle = m.querySelector('#checkSubInput').value.trim();
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      try{
+        await docRef('checklist').set({ subtitle }, {merge:true});
+      }catch(err){
+        toast('저장하지 못했어요');
+        saveBtn.disabled = false; saveBtn.textContent = '저장';
+        return;
+      }
+      closeModal();
+    };
+  });
+}
 
 function openChecklistLinkModal(idx){
   const cur = (checklistData.items||[])[idx];
