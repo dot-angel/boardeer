@@ -45,8 +45,12 @@
   --card-hi: rgba(255,255,255,0.07);  /* 유리 상단 하이라이트 라인 */
   --shadow: 0 24px 60px rgba(0,0,0,0.55);
   --shadow-press: 0 8px 20px rgba(0,0,0,0.5);
-  --glass-blur: blur(20px) saturate(170%);       /* 큰 유리 표면(카드/모달/토스트) — 블러를 낮춰 배경이 더 선명하게 비치는 얇은 유리 느낌 */
-  --glass-blur-med: blur(10px) saturate(160%);   /* 작은 버튼/배지류 */
+  /* 블러 세기를 낮춤(20px→12px, 10px→7px) — backdrop-filter는 카드마다 매 프레임 다시
+     계산되는 무거운 연산이라, 여러 장의 유리 카드가 한 화면에 겹치면 특히 저사양
+     기기에서 스크롤/탭 전환이 버벅였음. 값을 낮추면 유리 느낌은 거의 그대로 유지하면서
+     렌더링 비용은 눈에 띄게 줄어듦. */
+  --glass-blur: blur(12px) saturate(150%);       /* 큰 유리 표면(카드/모달/토스트) */
+  --glass-blur-med: blur(7px) saturate(140%);    /* 작은 버튼/배지류 */
   --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) */
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   /* 한국어·영어는 ZEN SERIF/Noto Sans KR로 커버되고, 그 외 언어(일본어·중국어·기타 문자 등)는
@@ -254,6 +258,10 @@ body::before{
   overflow: hidden;
   display:flex; flex-direction:column;
   padding: 18px;
+  /* 카드 하나의 레이아웃/페인트 변화가 페이지 전체 재계산으로 안 번지게 격리해서
+     스크롤·편집 중 렉을 줄임(카드는 이미 overflow:hidden이라 밖으로 튀어나가는
+     요소가 없어서 안전하게 적용 가능). */
+  contain: layout style paint;
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .w-card, .modal, .btn{ background: #1c0e12; }
@@ -456,13 +464,15 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-viewport{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:6px 4px; min-height:0; overflow-y:auto; }
 .profile-viewport::-webkit-scrollbar{ width:5px; }
 .profile-viewport::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
-.profile-slide-meta{ display:flex; flex-direction:column; align-items:center; gap:8px; width:100%; }
-.profile-slide-label{
-  font-family: var(--font-display); font-weight:700; font-size:1.3rem; color: var(--rose);
-  text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; cursor:default;
+/* AU 이름은 위젯 맨 위에, 시점/IF 이름과는 뚜렷이 다른 모양(작은 대문자 라벨 느낌)으로 둠 */
+.profile-au-name{
+  font-family: var(--font-body); font-weight:700; font-size:.72rem; letter-spacing:.08em;
+  text-transform:uppercase; color: var(--gold); text-align:center; cursor:default;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%;
 }
-.profile-slide-label.empty-hint{ font-family: var(--font-body); font-weight:400; font-size:.68rem; color: var(--ink-soft); cursor:pointer; opacity:.75; }
-.profile-slide-label.empty-hint:hover{ opacity:1; }
+/* AU가 하나뿐이라 탭 없이 이름표만 보여줄 때는 탭 바 특유의 아래 테두리는 없이,
+   그냥 위젯 맨 위에 살짝 얹힌 라벨처럼 보이게 함 */
+.profile-au-bar-single{ border-bottom:none; padding-bottom:2px; margin-bottom:6px; }
 /* 시점/IF 제목 + "이 시점/IF 삭제" 버튼을 한 줄에 — 제목은 항상 가운데, 삭제 버튼은
    그 줄의 오른쪽 끝에 겹쳐 붙임(예전엔 삭제 버튼이 AU 전체 삭제 버튼처럼 보이는
    자리에 있어서 헷갈렸음 → 이제 그 자리엔 지금 보고 있는 시점/IF의 삭제 버튼만 옴) */
@@ -470,6 +480,14 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   position:relative; display:flex; align-items:center; justify-content:center;
   width:100%; min-height:26px; padding:0 34px;
 }
+/* 시점/IF 이름은 AU 이름과 반대로, 크고 뚜렷한 세리프체 제목으로 둬서 서로
+   한눈에 구분되게 함(AU=위쪽의 작은 라벨, 시점/IF=본문 안의 큰 타이틀) */
+.profile-section-name{
+  font-family: var(--font-display); font-weight:700; font-size:1.3rem; color: var(--rose);
+  text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; cursor:default;
+}
+.profile-section-name.empty-hint{ font-family: var(--font-body); font-weight:400; font-size:.68rem; color: var(--ink-soft); cursor:pointer; opacity:.75; }
+.profile-section-name.empty-hint:hover{ opacity:1; }
 .profile-section-del{ position:absolute; top:50%; right:0; transform:translateY(-50%); }
 /* 시점/IF 이름 아래에 붙는 한두 줄짜리 짧은 설명(어떤 상황인지) */
 .profile-section-desc{
@@ -478,7 +496,8 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .profile-section-desc.empty-hint{ cursor:pointer; opacity:.65; }
 .profile-section-desc.empty-hint:hover{ opacity:1; }
-/* AU 탭 바 — 위젯 맨 위에 고정, 스크롤 영역(profile-viewport) 밖에 위치 */
+/* AU 탭 바 — 위젯 맨 위에 고정, 스크롤 영역(profile-viewport) 밖에 위치해서
+   내용이 짧아 세로 중앙 정렬되더라도 AU 이름만은 항상 맨 위에 붙어 있음 */
 .profile-au-bar{
   display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px;
   flex:0 0 auto; width:100%; padding-bottom:10px; margin-bottom:8px;
@@ -512,7 +531,14 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
 .profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; }
 .profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:break-word; flex:1; min-width:0; }
-.profile-field .pf-desc{ color: var(--ink-soft); font-size:.66rem; line-height:1.4; white-space:pre-wrap; word-break:break-word; padding-left:2px; }
+.profile-field .pf-value .pf-unit{ color: var(--ink-soft); font-size:.9em; }
+/* 성격 항목은 줄글 대신 키워드 해시태그 알약으로 보여줌 */
+.profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; }
+.pf-hashtags{ display:flex; flex-wrap:wrap; gap:5px; flex:1; min-width:0; }
+.pf-hashtag{
+  font-size:.72rem; font-weight:600; color: var(--rose);
+  background: var(--rose-soft); border-radius:999px; padding:2px 9px;
+}
 /* 링크 전용 항목 — 일반 정보 항목들 맨 아래에 따로 모아서 작은 알약 버튼처럼 보여줌 */
 .profile-links{ display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; padding:0 4px; }
 .pf-link-item{
@@ -552,8 +578,8 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
    더 이상 사진 위에 얹히지 않으니 가독성용 그라데이션 오버레이도 필요 없어져서 삭제함. */
 .profile-oneliner{
   width:100%; margin-top:2px;
-  font-family: var(--font-body); font-style:italic; font-weight:700;
-  font-size:.86rem; line-height:1.35; color: var(--ink-soft); text-align:center;
+  font-family: var(--font-display); font-style:italic; font-weight:700;
+  font-size:.92rem; line-height:1.35; color: var(--ink); text-align:center;
   text-shadow:none;
   overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
   white-space:normal; max-width:100%; cursor:default;

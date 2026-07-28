@@ -1075,7 +1075,7 @@ globalStyleBtn.addEventListener('click', async ()=>{
     <label>카드 색상 · 투명도</label>
     <div class="color-row">
       <input type="color" id="tCardBgHex" value="${cardBgParsed.hex}">
-      <input type="range" id="tCardBgAlpha" min="10" max="90" value="${cardBgAlphaPct}" style="flex:1;">
+      <input type="range" id="tCardBgAlpha" min="5" max="90" value="${cardBgAlphaPct}" style="flex:1;">
       <span id="tCardBgAlphaLabel" style="font-size:.78rem;color:var(--ink-soft);min-width:34px;">${cardBgAlphaPct}%</span>
     </div>
     <p class="hint">투명도를 낮출수록(왼쪽) 배경이 카드 뒤로 더 비쳐서 유리 느낌이 강해져요.</p>
@@ -1367,15 +1367,59 @@ let profileData = { slides: [] };
 let profileSlideIndex = 0; // 현재 선택된 AU 탭 인덱스
 let profileSectionIndex = 0; // 현재 AU 안에서 보고 있는 시점/IF 슬라이드 인덱스
 
-// 새 시점/IF를 만들 때 각 프로필에 기본으로 깔아주는 항목들 — 체형·성격 등 세분화된 설명을 쓰기 쉽도록 미리 틀을 마련해둠
+// 새 시점/IF를 만들 때 각 프로필에 기본으로 깔아주는 항목들 — 체형·성격 등 세분화된 설명을 쓰기 쉽도록 미리 틀을 마련해둠.
+// "기타 설명"은 예전엔 항목마다 하나씩 붙는 부가 설명란이었는데, 이제는 그 자체로
+// 다른 항목들과 똑같은 자리의 기본 항목 하나로 정리함. BWH는 키/몸무게 바로 다음 자리에 둠.
 const PROFILE_FIELD_TEMPLATE = [
   { label:'나이', value:'' },
   { label:'생년월일', value:'' },
   { label:'키/몸무게', value:'' },
+  { label:'BWH', value:'' },
   { label:'성격', value:'' },
   { label:'취향/취미', value:'' },
+  { label:'기타 설명', value:'' },
 ];
 function freshTemplateFields(){ return PROFILE_FIELD_TEMPLATE.map(f=>({...f})); }
+// 나이·생년월일·키/몸무게·BWH처럼 정해진 자리 값을 다루는 항목은, 숫자만 입력해도
+// 보기 좋게 정리되도록 라벨을 보고 자동으로 포맷을 입혀줌(글자가 섞여 있으면
+// 이미 사용자가 원하는 형식대로 적은 것으로 보고 손대지 않음).
+function formatProfileFieldValue(label, rawValue){
+  const value = (rawValue || '').trim();
+  if(!value) return '';
+  const lbl = (label || '').trim();
+  const digitsOnly = /^[\d\s./\-,]+$/;
+  if(!digitsOnly.test(value)) return escapeHtml(value);
+  const nums = value.match(/\d+/g) || [];
+
+  if(lbl === '생년월일' && nums.length){
+    let y, mo, d;
+    if(nums.length === 1 && nums[0].length === 8){
+      y = nums[0].slice(0,4); mo = nums[0].slice(4,6); d = nums[0].slice(6,8);
+    } else if(nums.length >= 3){
+      [y, mo, d] = nums;
+    }
+    if(y){
+      const pad = n=> String(n).padStart(2,'0');
+      return escapeHtml(`${y}.${d && mo ? pad(mo) : ''}${d ? '.' + pad(d) : ''}`);
+    }
+  }
+  if(lbl === '나이' && nums.length === 1 && /^\d+$/.test(value)){
+    return `${escapeHtml(value)}세`;
+  }
+  if(lbl === '키/몸무게' && nums.length >= 2){
+    return `${escapeHtml(nums[0])}cm · ${escapeHtml(nums[1])}kg`;
+  }
+  if(lbl === 'BWH' && nums.length >= 3){
+    return `B${escapeHtml(nums[0])} · W${escapeHtml(nums[1])} · H${escapeHtml(nums[2])} <span class="pf-unit">(cm)</span>`;
+  }
+  return escapeHtml(value);
+}
+// 성격은 줄글 대신 해시태그 키워드로 보여줌 — 쉼표/슬래시/공백으로 입력한 걸 나눠서 각각 #키워드로 렌더링
+function personalityHashtagsHtml(value){
+  const tags = (value || '').split(/[,\/·\s]+/).map(t=> t.trim()).filter(Boolean);
+  if(!tags.length) return '';
+  return `<div class="pf-hashtags">${tags.map(t=> `<span class="pf-hashtag">#${escapeHtml(t)}</span>`).join('')}</div>`;
+}
 // 이름/한줄소개도 이제 시점/IF별로 따로 쓸 수 있음(비어 있으면 아래에서 legacy 공용값으로 자동 대체됨)
 // 프로필 사진 박스는 세로로 긴 비율(3/4)로 잡아뒀지만, 사진마다 실제 비율은 다 달라서
 // cover를 쓰면 여백은 안 남는 대신 위아래(또는 좌우)가 잘려 나감. "사진이 위아래로
@@ -1409,13 +1453,16 @@ function normalizeProfilePerson(p){
 }
 function normalizeProfileField(f){
   f = f || {};
-  // 항목은 두 종류: 일반(text, 라벨+내용+기타설명)과 링크 전용(link, 라벨+URL만).
+  // 항목은 두 종류: 일반(text, 라벨+내용)과 링크 전용(link, 라벨+URL만).
   // 링크는 이제 항목마다 따로 붙이는 게 아니라, 링크 전용 항목으로만 만들 수 있고
   // 화면에는 항상 일반 항목들 다음 맨 아래에 모아서 보여줌(렌더링 쪽에서 정렬).
+  // "기타 설명"도 예전엔 항목마다 붙는 부가란이었지만, 이제 다른 항목들과 똑같은
+  // 자리의 기본 항목(PROFILE_FIELD_TEMPLATE)으로 옮겨서 desc는 더 이상 쓰지 않음.
+  // 예전 데이터에 desc가 남아있으면, 값이 비어있을 때 한해 desc를 값으로 이어받아 안 사라지게 함.
   if(f.type === 'link'){
     return { type:'link', label: f.label || '', link: f.link || '' };
   }
-  return { type:'text', label: f.label || '', value: f.value || '', desc: f.desc || '' };
+  return { type:'text', label: f.label || '', value: f.value || f.desc || '' };
 }
 function normalizePersonFieldSet(pf){
   // Firestore엔 배열 속 배열을 못 넣어서, 사람별 정보는 {fields:[...]} 형태의 객체로 감싸서 저장함.
@@ -1522,20 +1569,30 @@ function renderProfile(){
   const fieldsHtml = (fields)=>{
     const textFields = fields.filter(f=> f.type !== 'link');
     const linkFields = fields.filter(f=> f.type === 'link');
-    const visibleText = editMode ? textFields : textFields.filter(f=> f.value || f.desc);
+    const visibleText = editMode ? textFields : textFields.filter(f=> f.value);
     const visibleLinks = editMode ? linkFields : linkFields.filter(f=> f.link);
     if(!visibleText.length && !visibleLinks.length){
       return editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '';
     }
-    const textHtml = visibleText.map(f=> `
+    const textHtml = visibleText.map(f=>{
+      const label = (f.label || '').trim();
+      if(label === '성격' && f.value){
+        return `
+          <div class="profile-field profile-field-personality">
+            <span class="pf-label">${escapeHtml(label || '항목')}：</span>
+            ${personalityHashtagsHtml(f.value)}
+          </div>
+        `;
+      }
+      return `
         <div class="profile-field">
           <div class="pf-row">
             <span class="pf-label">${escapeHtml(f.label || '항목')}${f.label ? '：' : ''}</span>
-            <span class="pf-value">${escapeHtml(f.value)}</span>
+            <span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>
           </div>
-          ${f.desc ? `<div class="pf-desc">${escapeHtml(f.desc)}</div>` : ''}
         </div>
-      `).join('');
+      `;
+    }).join('');
     // 링크 전용 항목은 항목 목록 맨 아래에 따로 모아서, 버튼처럼 눌러서 여는 형태로 보여줌
     const linksHtml = visibleLinks.length ? `
         <div class="profile-links">
@@ -1548,8 +1605,11 @@ function renderProfile(){
     return `<div class="profile-fields">${textHtml}${linksHtml}</div>`;
   };
 
-  box.innerHTML = `
-    ${(slides.length > 1 || editMode) ? `
+  // AU 이름은 항상 위젯 맨 위, 시점/IF 이름과는 확실히 구분되는 모양으로 고정 표시함.
+  // AU가 여럿이거나 편집모드일 땐 눌러서 전환하는 탭 형태, AU가 하나뿐인 보기 모드에선
+  // 탭 없이 이름표만 조용히 상단에 얹어서 보여줌 — 어느 쪽이든 세로 중앙 정렬되는
+  // profile-viewport "밖"에 있어서 콘텐츠가 짧아도 아래로 처지지 않고 항상 맨 위에 붙음.
+  const auHeaderHtml = (slides.length > 1 || editMode) ? `
       <div class="profile-au-bar" id="profAuTabs">
         ${slides.map((s,i)=> `
           <span class="profile-section-tab ${i===profileSlideIndex?'active':''}" data-au="${i}">
@@ -1560,14 +1620,18 @@ function renderProfile(){
         ${editMode ? `<button class="profile-section-add" id="profAuAddBtn" title="AU 추가">＋</button>` : ''}
         ${editMode ? `<button class="icon-btn profile-au-del" id="profAuDelBtn" title="이 AU 전체 삭제">✕</button>` : ''}
       </div>
-    ` : ''}
+    ` : (slide.label ? `
+      <div class="profile-au-bar profile-au-bar-single">
+        <span class="profile-au-name">${escapeHtml(slide.label)}</span>
+      </div>
+    ` : '');
+
+  box.innerHTML = `
+    ${auHeaderHtml}
     <div class="profile-viewport" id="profileViewport">
-      ${!(slides.length > 1 || editMode) && slide.label ? `
-        <div class="profile-slide-meta"><div class="profile-slide-label">${escapeHtml(slide.label)}</div></div>
-      ` : ''}
       ${(slide.sections.length > 1 || section.name || section.desc || editMode) ? `
         <div class="profile-section-header" id="profSecHeader">
-          <div class="profile-slide-label ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
+          <div class="profile-section-name ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
             ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
           </div>
           ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
@@ -1649,6 +1713,8 @@ function bindProfile(slides){
   const auDelBtn = box.querySelector('#profAuDelBtn');
   if(auDelBtn) auDelBtn.onclick = async (e)=>{
     e.stopPropagation();
+    const auName = slides[profileSlideIndex] && slides[profileSlideIndex].label;
+    if(!confirm(`"${auName || 'AU'}"를 정말 삭제하시겠어요? 이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`)) return;
     const arr = [...slides]; arr.splice(profileSlideIndex,1);
     await docRef('profile').set({slides:arr}, {merge:true});
     profileSlideIndex = 0; profileSectionIndex = 0;
@@ -1746,6 +1812,8 @@ function bindProfile(slides){
   const secDelBtn = box.querySelector('#profSecDelBtn');
   if(secDelBtn) secDelBtn.onclick = async (e)=>{
     e.stopPropagation();
+    const secName = slide.sections[profileSectionIndex] && slide.sections[profileSectionIndex].name;
+    if(!confirm(`"${secName || '이 시점/IF'}"를 정말 삭제하시겠어요? 되돌릴 수 없어요.`)) return;
     const arr = cloneSlides(slides);
     arr[profileSlideIndex].sections.splice(profileSectionIndex, 1);
     await docRef('profile').set({slides:arr}, {merge:true});
@@ -1824,7 +1892,7 @@ function openProfileEditModal(slideIdx, secIdx, slides){
         <input type="text" class="pe-name" value="${escapeHtml(pf.name)}">
         ${bulkToggle('pe-bulk-name', '이 이름', personBulk.name)}
 
-        <label style="margin-top:10px;">정보 (키/몸무게·성격 등, 항목별로 나눠서 적을 수 있어요 — 기타 설명도 붙일 수 있어요)</label>
+        <label style="margin-top:10px;">정보 (나이·생년월일·키/몸무게·BWH 등은 숫자만 넣으면 자동으로 예쁘게 정리돼요, 성격은 쉼표로 구분하면 해시태그로 보여요)</label>
         <div class="pf-edit-list pe-fields-list"></div>
         <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
         <button type="button" class="btn small ghost pe-add-link">+ 링크 추가</button>
@@ -1868,7 +1936,6 @@ function openProfileEditModal(slideIdx, secIdx, slides){
           <div class="pf-edit-row" data-idx="${i}" data-type="text">
             <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
             <input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">
-            <input type="text" class="pf-edit-desc" placeholder="기타 설명 (선택)" value="${escapeHtml(f.desc||'')}">
             <button type="button" class="btn small danger" data-del="${i}">✕</button>
             ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 이 항목, 다른 시점/IF에도 똑같이 적용</label>` : ''}
           </div>
@@ -1884,7 +1951,7 @@ function openProfileEditModal(slideIdx, secIdx, slides){
         }));
       };
       drawFields();
-      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({type:'text', label:'', value:'', desc:'', bulk:false}); drawFields(); };
+      col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({type:'text', label:'', value:'', bulk:false}); drawFields(); };
       // 링크는 항목마다 붙이는 게 아니라, 링크 전용 항목으로만 추가하고 항상 목록 맨 아래에 놓임
       col.querySelector('.pe-add-link').onclick = ()=>{ slotState[slot].fields.push({type:'link', label:'', link:'', bulk:false}); drawFields(); };
 
@@ -1919,9 +1986,8 @@ function openProfileEditModal(slideIdx, secIdx, slides){
               type:'text',
               label: row.querySelector('.pf-edit-label').value.trim(),
               value: row.querySelector('.pf-edit-value').value.trim(),
-              desc: row.querySelector('.pf-edit-desc').value.trim(),
               bulk: !!row.querySelector('.pf-edit-bulk') && row.querySelector('.pf-edit-bulk').checked
-            })).filter(f=> f.label || f.value || f.desc),
+            })).filter(f=> f.label || f.value),
             ...linkRows.map(row=>({
               type:'link',
               label: row.querySelector('.pf-edit-label').value.trim(),
@@ -1959,8 +2025,8 @@ function openProfileEditModal(slideIdx, secIdx, slides){
                 if(existing){ existing.type = 'link'; existing.link = f.link; delete existing.value; delete existing.desc; }
                 else targetPf.fields.push({ type:'link', label: f.label, link: f.link });
               } else {
-                if(existing){ existing.type = 'text'; existing.value = f.value; existing.desc = f.desc; delete existing.link; }
-                else targetPf.fields.push({ type:'text', label: f.label, value: f.value, desc: f.desc });
+                if(existing){ existing.type = 'text'; existing.value = f.value; delete existing.link; }
+                else targetPf.fields.push({ type:'text', label: f.label, value: f.value });
               }
             });
             if(bulkAvatar) targetPf.avatar = avatar;
@@ -2011,6 +2077,7 @@ function openProfileSlideModal(slideIdx, slides){
     m.querySelector('#c').onclick = closeModal;
     const delBtn = m.querySelector('#d');
     if(delBtn) delBtn.onclick = async ()=>{
+      if(!confirm(`"${slide.label || 'AU'}"를 정말 삭제하시겠어요? 이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`)) return;
       const arr = [...slides]; arr.splice(slideIdx,1);
       await docRef('profile').set({slides:arr}, {merge:true});
       profileSlideIndex = 0; profileSectionIndex = 0;
@@ -2026,32 +2093,24 @@ function openProfileSlideModal(slideIdx, slides){
   });
 }
 
+// 시점/IF 이름·설명을 고치는 창. 삭제 버튼은 이제 여기 없음 — 삭제는 카드 위
+// 시점/IF 제목 옆의 ✕ 아이콘(경고 확인 포함)에서만 하도록 한곳으로 모음.
 function openProfileSectionModal(slideIdx, secIdx, slides){
   const slide = slides[slideIdx];
   const section = slide.sections[secIdx];
-  const canDelete = slide.sections.length > 1;
   openModal(`
     <h3>시점/IF 이름</h3>
     <label>이름 (선택 — 예: 첫 만남, 사귄 후, IF: 헤어졌다면)</label>
     <input type="text" id="secName" value="${escapeHtml(section.name)}" placeholder="비워두면 이름 없이 보여요">
     <label style="margin-top:10px;">짧은 설명 (선택 — 이 시점/IF가 어떤 상황인지 한두 줄로)</label>
     <textarea id="secDesc" rows="3" placeholder="예: 두 사람이 아직 서로 어색하던 시절">${escapeHtml(section.desc || '')}</textarea>
-    <p class="hint">키/몸무게·성격 같은 정보 항목은 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
+    <p class="hint">키/몸무게·성격 같은 정보 항목은 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요. 이 시점/IF를 삭제하려면 창을 닫고 제목 옆 ✕ 버튼을 눌러주세요.</p>
     <div class="modal-actions">
-      ${canDelete ? `<button class="btn danger" id="d" type="button">이 시점/IF 삭제</button>` : ''}
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">저장</button>
     </div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
-    const delBtn = m.querySelector('#d');
-    if(delBtn) delBtn.onclick = async ()=>{
-      const arr = cloneSlides(slides);
-      arr[slideIdx].sections.splice(secIdx, 1);
-      await docRef('profile').set({slides:arr}, {merge:true});
-      profileSectionIndex = 0;
-      closeModal();
-    };
     m.querySelector('#s').onclick = async ()=>{
       const name = m.querySelector('#secName').value.trim();
       const desc = m.querySelector('#secDesc').value.trim();
