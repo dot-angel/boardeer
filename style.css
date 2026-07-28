@@ -493,7 +493,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-slide-del{ position:absolute; top:0; right:0; }
 .profile-pair{ display:flex; flex-direction:row; align-items:flex-start; justify-content:center; gap:14px; width:100%; }
 .profile-person{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; padding:6px; border-radius:16px; }
-.profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; max-width:100%; }
+.profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; width:100%; max-width:100%; }
 .profile-photo.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px; }
 .profile-photo.editable:hover{ background: rgba(255,255,255,0.06); }
 .profile-info{ display:flex; flex-direction:column; align-items:center; gap:2px; max-width:100%; }

@@ -615,6 +615,35 @@ function fileToBase64(file){
    검은/흰 배경으로 덮어버리므로, 배경이 투명한 PNG 캐릭터 이미지를 올리면 망가짐.
    원본이 PNG면 PNG로 그대로 인코딩해서 투명도를 살리고, PNG는 화질(quality) 옵션이
    없으므로 용량이 넘치면 해상도를 단계적으로 줄여가며 목표 용량에 맞춤. */
+
+// 캐릭터컷 PNG는 캔버스 자체에 투명 여백이 꽤 있는 경우가 많아서(예: 정사각형 캔버스인데
+// 캐릭터는 가로로 70%만 차지), 그대로 압축하면 아바타 박스 안에서 캐릭터가 작아 보임.
+// 투명하지 않은 픽셀의 경계 상자를 찾아서, 그 부분만 잘라 쓰면 캐릭터가 박스를 꽉 채움.
+function findOpaqueBBox(img){
+  const c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  let data;
+  try{ data = ctx.getImageData(0, 0, c.width, c.height).data; }
+  catch(e){ return null; } // 캔버스 보안 제약 등으로 못 읽으면 원본 그대로 사용
+  let minX = c.width, minY = c.height, maxX = -1, maxY = -1;
+  const w = c.width, h = c.height;
+  for(let y=0; y<h; y++){
+    const rowBase = y * w;
+    for(let x=0; x<w; x++){
+      if(data[(rowBase + x) * 4 + 3] > 10){
+        if(x < minX) minX = x;
+        if(x > maxX) maxX = x;
+        if(y < minY) minY = y;
+        if(y > maxY) maxY = y;
+      }
+    }
+  }
+  if(maxX < minX || maxY < minY) return null; // 완전히 빈(전부 투명) 이미지
+  return { x:minX, y:minY, w:(maxX - minX + 1), h:(maxY - minY + 1) };
+}
+
 function compressAvatarImageFile(file, maxDim=900, maxBytes=320000, gifMaxBytes=650000){
   return new Promise((resolve, reject)=>{
     if(file.type === 'image/gif'){
@@ -633,24 +662,40 @@ function compressAvatarImageFile(file, maxDim=900, maxBytes=320000, gifMaxBytes=
     reader.onload = ()=>{
       const img = new Image();
       img.onload = ()=>{
-        const drawAt = (dim)=>{
-          let { width, height } = img;
-          if(width > height && width > dim){ height = Math.round(height * (dim/width)); width = dim; }
-          else if(height >= width && height > dim){ width = Math.round(width * (dim/height)); height = dim; }
-          const canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          return canvas;
-        };
         if(isPng){
+          // 투명 여백을 뺀 실제 캐릭터 영역(약간의 여유 마진 포함)만 잘라서 리사이즈
+          const bbox = findOpaqueBBox(img);
+          const margin = bbox ? Math.round(Math.max(bbox.w, bbox.h) * 0.04) : 0;
+          const sx = bbox ? Math.max(0, bbox.x - margin) : 0;
+          const sy = bbox ? Math.max(0, bbox.y - margin) : 0;
+          const sw = bbox ? Math.min(img.width - sx, bbox.w + margin * 2) : img.width;
+          const sh = bbox ? Math.min(img.height - sy, bbox.h + margin * 2) : img.height;
+          const drawTrimmed = (dim)=>{
+            let width = sw, height = sh;
+            if(width > height && width > dim){ height = Math.round(height * (dim/width)); width = dim; }
+            else if(height >= width && height > dim){ width = Math.round(width * (dim/height)); height = dim; }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, width, height);
+            return canvas;
+          };
           let dim = maxDim;
-          let dataUrl = drawAt(dim).toDataURL('image/png');
+          let dataUrl = drawTrimmed(dim).toDataURL('image/png');
           while(dataUrl.length > maxBytes * 1.37 && dim > 200){
             dim = Math.round(dim * 0.8);
-            dataUrl = drawAt(dim).toDataURL('image/png');
+            dataUrl = drawTrimmed(dim).toDataURL('image/png');
           }
           resolve(dataUrl);
         } else {
+          const drawAt = (dim)=>{
+            let { width, height } = img;
+            if(width > height && width > dim){ height = Math.round(height * (dim/width)); width = dim; }
+            else if(height >= width && height > dim){ width = Math.round(width * (dim/height)); height = dim; }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            return canvas;
+          };
           const canvas = drawAt(maxDim);
           let quality = 0.85;
           let dataUrl = canvas.toDataURL('image/jpeg', quality);
@@ -668,6 +713,7 @@ function compressAvatarImageFile(file, maxDim=900, maxBytes=320000, gifMaxBytes=
     reader.readAsDataURL(file);
   });
 }
+
 
 /* ---------------- 큰 파일(문서/PDF) 청크 저장 ----------------
    Firestore는 문서 1개당 1MB 제한이 있어서, 큰 파일은 하나의 문서에
@@ -1330,11 +1376,12 @@ const PROFILE_FIELD_TEMPLATE = [
   { label:'취향/취미', value:'' },
 ];
 function freshTemplateFields(){ return PROFILE_FIELD_TEMPLATE.map(f=>({...f})); }
-// 프로필 사진 배경 표시 방식: PNG(투명 배경 캐릭터컷일 수 있음)는 잘리지 않게 contain,
-// 그 외 일반 사진(JPG 등)은 박스를 꽉 채우는 cover로 보여줘서 작게 보이지 않게 함
-function avatarBgSize(avatar){
-  const isPng = avatar.startsWith('data:image/png') || /\.png(\?|$)/i.test(avatar);
-  return isPng ? 'contain' : 'cover';
+// 프로필 사진 박스는 정사각형으로 고정돼 있는데, 캐릭터 사진은 대부분 세로로 긴 형태라
+// contain을 쓰면 박스와 이미지의 가로세로 비율이 달라서 여백을 트리밍해도 좌우에
+// 빈 공간이 남을 수밖에 없음. 박스를 항상 꽉 채우도록 cover로 통일(넘치는 가장자리만
+// 살짝 잘림, 여백 없음)
+function avatarBgSize(){
+  return 'cover';
 }
 // 새 시점/IF의 사람별 정보 세트(항목 + 사진 + 한마디) 기본값
 function freshPersonFieldSet(){ return { fields: freshTemplateFields(), avatar:'', oneLiner:'' }; }
