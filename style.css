@@ -294,6 +294,7 @@ body::before{
   font-family: var(--font-display); font-weight:800; font-size: clamp(1.05rem, 2.4vw, 1.7rem);
   line-height:1.15; letter-spacing:-0.01em; color:#fff;
   text-shadow: 0 6px 26px rgba(0,0,0,0.6), 0 1px 4px rgba(0,0,0,0.7);
+  word-break:keep-all; overflow-wrap:break-word;
   pointer-events:none;
 }
 .slide-caption.cap-tl{ top:20px; left:20px; text-align:left; }
@@ -574,7 +575,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 /* 항목명 오른쪽에 내용이 오도록 한 줄로 배치(라벨은 줄바꿈 없이 고정, 내용은 남는 폭을 씀) */
 .profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
 .profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; }
-.profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:break-word; flex:1; min-width:0; }
+.profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; flex:1; min-width:0; }
 .profile-field .pf-value .pf-unit{ color: var(--ink-soft); font-size:.9em; }
 /* 성격 항목은 줄글 대신 키워드 해시태그 알약으로 보여줌 */
 .profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; justify-content:center; }
@@ -599,7 +600,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   width:100%; margin-top:6px; padding:8px 10px; border-radius:12px;
   background: rgba(255,255,255,0.045); border:1px solid var(--card-border);
   font-size:.72rem; line-height:1.5; color: var(--ink-soft);
-  white-space:pre-wrap; word-break:break-word; text-align:left;
+  white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; text-align:left;
 }
 .profile-desc-box.empty-hint{ cursor:pointer; opacity:.7; text-align:center; }
 .profile-desc-box.empty-hint:hover{ opacity:1; }
@@ -638,27 +639,19 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   .profile-avatar{ width:96%; border-radius:24px; font-size:2.2rem; }
 }
 /* 한마디는 이제 사진 위에 겹쳐 보이던 자막이 아니라, 사진 아래에 오는 짧은 캡션임.
-   더 이상 사진 위에 얹히지 않으니 가독성용 그라데이션 오버레이도 필요 없어져서 삭제함. */
+   더 이상 사진 위에 얹히지 않으니 가독성용 그라데이션 오버레이도 필요 없어져서 삭제함.
+   예전엔 2줄로 자르고 "..." 처리했는데, 내용이 잘려 보이는 게 더 불편하다는 의견이 있어
+   길이 제한 없이 전부 줄바꿈해서 보여줌(모바일에서 하던 걸 데스크톱에도 동일하게 적용) */
 .profile-oneliner{
   width:100%; margin-top:2px;
   font-family: var(--font-display); font-style:italic; font-weight:700;
   font-size:.92rem; line-height:1.35; color: var(--ink); text-align:center;
   text-shadow:none;
-  overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:visible; display:block;
   white-space:normal; word-break:keep-all; overflow-wrap:break-word; max-width:100%; cursor:default;
 }
 .profile-oneliner.empty-hint{ opacity:.7; cursor:pointer; font-style:normal; font-weight:600; font-size:.7rem; }
 .profile-oneliner.empty-hint:hover{ opacity:1; }
-/* 모바일에서는 세로 공간이 넉넉하므로 한마디(캐릭터 소개)를 2줄로 잘라 "..."
-   처리하지 않고, 줄바꿈해서 전체 내용을 다 보여줌 */
-@media (max-width: 900px){
-  .profile-oneliner{
-    overflow: visible;
-    display: block;
-    -webkit-line-clamp: unset;
-    -webkit-box-orient: unset;
-  }
-}
 .profile-name{ font-weight:700; font-size:1.15rem; max-width:min(200px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-role{ font-size:.72rem; color: var(--ink-soft); max-width:min(200px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
@@ -876,12 +869,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 }
 /* ---------- 레퍼런스 갤러리 (캘린더 옆, 블러 옵션 없이 촘촘한 썸네일 전용) ---------- */
 .w-refgallery{ padding-bottom: 20px; }
-/* 모바일에서는 카드 높이를 캘린더에 맞춰 강제로 늘리지 않게 되므로(app.js
-   fitRefGalleryToCalendarHeight 참고), FAB 여유공간용 하단 padding도 함께 줄여서
-   사진 아래로 불필요한 빈 여백이 남지 않게 함 */
-@media (max-width: 900px){
-  .w-refgallery{ padding-bottom: 0; }
-}
 /* CSS Grid(display:grid)로 이 레이아웃을 짜면, 여러 행에 음수 margin-top을 동시에 걸었을 때
    grid의 auto 행 높이 계산이 그 음수 margin까지 반영해 다시 계산되면서 행이 늘어날수록
    겹침이 기하급수적으로 누적되는 버그가 있었음(썸네일 개수가 많을수록 의도한 상한을
@@ -963,27 +950,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .modal label.opt-checkbox{
   display:flex; align-items:center; gap:6px; width:auto; margin:0; cursor:pointer;
   padding:6px 12px; border-radius:999px; border:1px solid var(--card-border);
-  background: rgba(255,255,255,0.05); font-size:.8rem; color:var(--ink);
+  background:none; font-size:.8rem; color:var(--ink);
 }
 .opt-checkbox input[type=checkbox]{ width:auto; margin:0; accent-color: var(--rose-solid); }
 .opt-checkbox:has(input:checked){
-  position: relative;
-  isolation: isolate;
-  background: rgba(196,66,95,0.1);
-  color:#fff; text-shadow: 0 1px 2px rgba(0,0,0,0.35);
-  border: 1px solid rgba(255,255,255,0.26);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.26);
-}
-.opt-checkbox:has(input:checked)::after{
-  content:"";
-  position:absolute; z-index:-1;
-  top:50%; left:50%; width:88%; height:140%;
-  transform: translate(-50%,-50%);
-  border-radius:50%;
-  background: radial-gradient(ellipse, rgba(196,66,95,0.5) 0%, rgba(196,66,95,0.2) 45%, transparent 70%);
-  filter: blur(3px);
-  pointer-events:none;
+  border-color: var(--rose); color: var(--ink); font-weight:700;
 }
 /* ---------- 옵션 필터 칩 (문서 위젯 + 모든 갤러리 공용) ----------
    카드 자체가 이미 유리(blur+반투명)라서 칩에도 따로 배경/블러를 주면 유리가 두 겹
@@ -1045,7 +1016,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 }
 .session-add{ margin-top:10px; align-self:flex-start; }
 /* ---------- 체크보드 ---------- */
-.checklist{ max-height:420px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; }
+.checklist{ max-height:420px; overflow-y:auto; display:flex; flex-direction:row; align-items:stretch; gap:0; }
+.check-col{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding:0 10px; }
+.check-col:first-child{ padding-left:0; }
+.check-col:last-child{ padding-right:0; }
+.check-col-full{ flex:1; padding:0; }
 .check-item{
   display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem;
 }
@@ -1068,7 +1043,7 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .check-item .del:hover{ color:#ff8f9e; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
-.check-divider{ border-top:1px dashed var(--card-border); margin:6px 2px; }
+.check-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; margin:0 2px; }
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
