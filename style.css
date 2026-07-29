@@ -540,11 +540,10 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 /* AU 탭 바 — 위젯 맨 위에 고정, 스크롤 영역(profile-viewport) 밖에 위치해서
    내용이 짧아 세로 중앙 정렬되더라도 AU 이름만은 항상 맨 위에 붙어 있음 */
 .profile-au-bar{
-  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px;
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:20px;
   flex:0 0 auto; width:100%; padding-bottom:10px; margin-bottom:8px;
   border-bottom:1px solid var(--card-border);
 }
-.profile-section-tabs{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:center; gap:22px; max-width:100%; }
 /* 목차/매거진 인덱스처럼 배경 없이 글자만 두고, 지금 보는 AU만 밑줄로 짚어주는 방식.
    글자색까지 로즈로 바꾸면 어두운 배경에서 잘 안 보일 수 있어 색은 밑줄에만 쓰고,
    선택된 글자 자체는 흰색+굵게로 확실히 눈에 띄게 함 */
@@ -578,7 +577,6 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
 .profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; }
 .profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; flex:1; min-width:0; }
-.profile-field .pf-value .pf-unit{ color: var(--ink-soft); font-size:.9em; }
 /* 성격 항목은 줄글 대신 키워드 해시태그 알약으로 보여줌 */
 .profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; justify-content:center; }
 .pf-hashtags{ display:flex; flex-wrap:wrap; gap:5px; justify-content:center; }
@@ -812,20 +810,7 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 /* 열 개수는 이제 app.js의 layoutPinMasonry()가 그리드 실제 폭을 보고 정하므로
    여기서 별도 반응형 규칙이 필요 없음(창 폭이 아니라 그리드 자체 폭 기준이라 더 정확함) */
 @media (max-width: 600px){ .doc-list{ grid-template-columns: 1fr; } }
-/* ---------- 갤러리 2번째: 접기/펼치기 + 빽빽한 정사각형 그리드 ---------- */
-.gallery-toggle-btn{
-  display:flex; align-items:center; justify-content:space-between; width:100%;
-  background:none; border:none; cursor:pointer; padding:2px 2px 12px;
-  font-family: var(--font-display); font-size:.92rem; color:var(--ink); font-weight:600;
-}
-.gallery-toggle-btn:hover{ color: var(--rose); }
-.gallery-toggle-btn .gallery-toggle-arrow{ transition: transform .2s ease; color:var(--ink-soft); font-size:1rem; }
-.gallery-toggle-btn .gallery-toggle-arrow.open{ transform: rotate(180deg); }
-.pin-grid-dense{
-  display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap:8px; max-height:360px; overflow-y:auto; padding-right:4px;
-  /* 사진이 아무리 많이 쌓여도 이 높이 이상으로는 절대 늘어나지 않고, 넘치는 만큼만 내부 스크롤로 처리함 */
-}
+/* ---------- 갤러리 2번째: 빽빽한 정사각형 그리드 ---------- */
 /* 갤러리2도 레퍼런스 갤러리와 같은 2열 겹침(masonry-ish overlap) 배치를 쓰도록 함.
    grid 대신 flex 세로열 2개로 나누는 이유는 위 레퍼런스 갤러리 설명과 동일(음수
    margin-top 누적 버그 회피) */
@@ -848,8 +833,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 }
 .gallery2-grid::-webkit-scrollbar{ width:5px; }
 .gallery2-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
-.pin-grid-dense::-webkit-scrollbar{ width:5px; }
-.pin-grid-dense::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .pin-item-dense{
   aspect-ratio: 1/1; border-radius:8px; overflow:hidden; cursor:pointer; position:relative;
   border:1px solid var(--card-border);
@@ -864,7 +847,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   background: rgba(0,0,0,0.12); pointer-events:none;
 }
 .pin-item-dense .pin-blur-btn{ width:20px; height:20px; font-size:.6rem; top:4px; right:4px; }
-@media (max-width: 600px){ .pin-grid-dense{ grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); } }
 .gallery-add-fab{
   position:absolute; right:26px; bottom:26px; width:44px; height:44px; border-radius:50%;
   background: var(--rose-solid); color:#fff; border:none; font-size:1.2rem; box-shadow: var(--shadow); cursor:pointer;
