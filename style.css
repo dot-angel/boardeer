@@ -398,15 +398,13 @@ body::before{
 .player-track .icon-btn{ background:none; border:none; }
 .player-track .icon-btn:hover{ background:none; opacity:.7; }
 .mp-play-btn{
-  width:42px; height:auto; border-radius:50%; border:none; cursor:pointer;
-  background: var(--rose); color:#fff; font-size:.85rem;
+  background:none; border:none; box-shadow:none; cursor:pointer;
+  color: var(--rose); font-size:2.1rem; line-height:1;
   display:flex; align-items:center; justify-content:center;
-  box-shadow: 0 6px 16px rgba(196,66,95,0.4);
-  flex: 1 1 42px;       /* 공간이 부족하면 다른 버튼들과 비례해서 줄어듦(넘치지 않음) */
-  aspect-ratio: 1 / 1;  /* height:auto + aspect-ratio 조합으로 줄어들 때도 항상 정원 유지 */
-  min-width: 28px;      /* 너무 작아지진 않도록 최소 크기 */
+  width:auto; height:auto; padding:0 6px;
+  flex: 0 0 auto;
 }
-.mp-play-btn:hover{ filter:brightness(1.08); }
+.mp-play-btn:hover{ filter:none; opacity:.8; }
 .player-tracks{ flex:0 1 auto; min-height:0; max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
 .player-tracks::-webkit-scrollbar{ width:5px; }
 .player-tracks::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
