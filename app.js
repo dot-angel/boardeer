@@ -2206,12 +2206,20 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
         `;
       };
       const drawFields = ()=>{
-        listEl.innerHTML = slotState[slot].fields.map((f,i)=> rowHtml(f,i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
+        const list = slotState[slot].fields;
+        // 새 항목은 배열 맨 뒤에 추가되는데, "기타 설명"이 중간에 있으면 새로 추가한
+        // 항목과 위치가 뒤섞여 헷갈리므로, 화면에는 "기타 설명"을 항상 맨 아래로 고정해서 보여줌
+        // (실제 배열 순서/삭제 인덱스는 그대로 유지 — 표시 순서만 바꿈)
+        const descIdx = list.findIndex(f=> f.type !== 'link' && (f.label||'').trim() === '기타 설명');
+        const order = list.map((_,i)=> i).filter(i=> i !== descIdx);
+        if(descIdx !== -1) order.push(descIdx);
+        listEl.innerHTML = order.map(i=> rowHtml(list[i], i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
         listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
           slotState[slot].fields.splice(Number(btn.dataset.del), 1);
           drawFields();
         }));
-        listEl.querySelectorAll('.pf-edit-bulk').forEach((cb,i)=> cb.addEventListener('change', ()=>{
+        listEl.querySelectorAll('.pf-edit-bulk').forEach(cb=> cb.addEventListener('change', ()=>{
+          const i = Number(cb.closest('.pf-edit-row').dataset.idx);
           slotState[slot].fields[i].bulk = cb.checked;
         }));
       };
@@ -2682,15 +2690,16 @@ function renderMusicList(){
   const listEl = document.getElementById('mpTrackList');
   if(!listEl) return;
   const tracks = mpTracks();
-  listEl.innerHTML = tracks.length ? tracks.map(t=>{
+  listEl.innerHTML = tracks.length ? tracks.map((t,i)=>{
     const thumbUrl = mpResolveCoverUrl(t, renderMusicList);
     return `
-    <div class="player-track mp-track-row ${t.id===mpCurrentId?'active':''}" data-id="${t.id}">
+    <div class="player-track mp-track-row ${t.id===mpCurrentId?'active':''}" data-id="${t.id}" data-idx="${i}">
       <div class="mp-track-thumb" ${thumbUrl ? `style="background-image:url('${thumbUrl}')"` : ''}>${thumbUrl ? '' : '♪'}</div>
       <div class="mp-track-info">
         <div class="mp-track-title">${escapeHtml(t.title)}</div>
         ${t.artist ? `<div class="mp-track-artist">${escapeHtml(t.artist)}</div>` : ''}
       </div>
+      ${editMode ? `<span class="mp-track-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
       ${editMode ? `<button class="icon-btn" data-edit="${t.id}" title="수정" style="width:22px;height:22px;font-size:.6rem;">✎</button>` : ''}
       ${editMode ? `<button class="icon-btn" data-del="${t.id}" title="삭제" style="width:22px;height:22px;font-size:.6rem;">✕</button>` : ''}
     </div>
@@ -2698,7 +2707,7 @@ function renderMusicList(){
   }).join('') : `<div class="w-empty">등록된 곡이 없어요</div>`;
   listEl.querySelectorAll('[data-id]').forEach(row=>{
     row.addEventListener('click', (e)=>{
-      if(e.target.closest('[data-edit]') || e.target.closest('[data-del]')) return;
+      if(e.target.closest('[data-edit]') || e.target.closest('[data-del]') || e.target.closest('.mp-track-drag-handle')) return;
       mpPlayById(row.dataset.id, true);
     });
   });
@@ -2711,6 +2720,12 @@ function renderMusicList(){
     e.stopPropagation();
     await mpDeleteTrack(btn.dataset.del);
   }));
+  // 편집모드에서 드래그로 재생목록 순서를 바꿀 수 있게 함(다른 위젯의 사진 순서 변경과 동일한 방식)
+  bindPinDragReorder(
+    listEl, '.mp-track-row',
+    ()=> (musicData.tracks || []).slice(),
+    async (arr)=> docRef('music').set({tracks:arr}, {merge:true})
+  );
 }
 
 function updateMpMetaDisplay(track){
@@ -4869,11 +4884,18 @@ function renderChecklist(){
     `;
   }
 
-  body.innerHTML =
-    unchecked.map(row).join('') +
-    (unchecked.length && checked.length ? `<div class="check-divider"></div>` : '') +
-    checked.map(row).join('') ||
-    `<div class="w-empty">등록된 항목이 없어요</div>`;
+  // 할 일/완료를 위아래로 쌓아 가로선으로 나누던 것에서, 좌우로 나란히 두고
+  // 세로선으로 구분하는 2단 레이아웃으로 바꿈
+  if(!unchecked.length && !checked.length){
+    body.innerHTML = `<div class="w-empty">등록된 항목이 없어요</div>`;
+  } else if(unchecked.length && checked.length){
+    body.innerHTML =
+      `<div class="check-col">${unchecked.map(row).join('')}</div>` +
+      `<div class="check-divider"></div>` +
+      `<div class="check-col">${checked.map(row).join('')}</div>`;
+  } else {
+    body.innerHTML = `<div class="check-col check-col-full">${(unchecked.map(row).join('') || checked.map(row).join(''))}</div>`;
+  }
 
   body.querySelectorAll('.check-item').forEach(el=>{
     const idx = Number(el.dataset.idx);
