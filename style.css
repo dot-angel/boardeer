@@ -655,7 +655,7 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .profile-oneliner.empty-hint{ opacity:.7; cursor:pointer; font-style:normal; font-weight:600; font-size:.7rem; }
 .profile-oneliner.empty-hint:hover{ opacity:1; }
 .profile-name{ font-weight:700; font-size:1.15rem; max-width:min(200px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.profile-role{ font-size:.72rem; color: var(--ink-soft); max-width:min(200px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-role{ font-size:.72rem; color: var(--ink-soft); max-width:100%; white-space:normal; word-break:keep-all; overflow-wrap:break-word; text-align:center; }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
