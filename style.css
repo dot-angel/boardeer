@@ -1204,21 +1204,22 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
      단위까지는 최대한 지키면서 줄바꿈하고, 그래도 넘치는 긴 단어만 break-word로
      끊음 — 한 글자씩 뚝뚝 끊기지 않게 함 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal;
-  /* 배너 배경 이미지 위에서도 잘 읽히도록 --card-bg(7.5% 불투명)보다 훨씬 진하고
-     불투명한 전용 배경을 사용. 블러는 살짝만 남겨서 유리 느낌만 유지 */
-  background: rgba(20,9,11,0.88); color: var(--ink); border:1px solid rgba(255,255,255,0.16);
+  /* 배너 배경 이미지 위에서도 읽히면서 다른 카드들처럼 유리 느낌이 나도록,
+     불투명도는 낮추고 블러(사이트의 큰 유리 표면용 --glass-blur)는 강하게 줘서
+     텍스트는 블러로 눌러주고 색은 은은하게 비치게 함 */
+  background: rgba(20,9,11,0.5); color: var(--ink); border:1px solid rgba(255,255,255,0.16);
   border-radius:16px; padding:9px 13px;
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow), inset 0 1px 0 var(--card-hi);
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:.82rem; line-height:1.4; text-align:center;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.55);
   opacity:0; pointer-events:none;
   transition: opacity .3s ease, transform .3s ease;
 }
 .sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 .sticker-bubble::after{
   content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  width:0; height:0; border:7px solid transparent; border-top-color: rgba(20,9,11,0.88);
+  width:0; height:0; border:7px solid transparent; border-top-color: rgba(20,9,11,0.5);
 }
 @media (max-width: 900px){
   .site-sticker{ width:92px; height:118px; }
