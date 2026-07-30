@@ -5113,7 +5113,7 @@ function initBoardTabs(){
    동시에 나타나기도 함. 나타날 때 스티커가 살짝 점프하는 효과도 같이 줌. */
 let stickerPosData = { positions: {} };
 const stickerEls = {}; // slot -> { root, avatarEl, bubbleEl, bubbleTextEl, bubbleTimer, dragging }
-const STICKER_W = 118, STICKER_H = 152;
+const STICKER_W = 160, STICKER_H = 206;
 
 function getStickerPeople(){
   // "등록된 인물"은 AU마다 따로 있는 게 아니라 이 사이트에 등장하는 두 사람(멧돼지/사슴)
@@ -5178,7 +5178,7 @@ function showStickerBubble(slot){
 // 가끔 둘이 동시에 말풍선을 띄우는 랜덤 스케줄러(클릭으로 보여주는 것과는 별개로 계속 돌아감)
 let stickerBothScheduleStarted = false;
 function scheduleBothStickerBubbles(){
-  const delay = 20000 + Math.random()*25000; // 20~45초 사이 랜덤
+  const delay = 70000 + Math.random()*80000; // 70~150초 사이 랜덤(너무 자주 뜨지 않게)
   setTimeout(()=>{
     Object.keys(stickerEls).forEach(slot=> showStickerBubble(Number(slot)));
     scheduleBothStickerBubbles();
@@ -5206,9 +5206,15 @@ function ensureStickerEl(slot){
   if(saved){
     applyStickerFrac(root, saved.x, saved.y);
   } else {
-    const rightMargin = 24, size = STICKER_W;
-    const defaultLeft = window.innerWidth - rightMargin - size - (slot===0 ? 0 : 74);
-    const defaultTop = bannerBottom - STICKER_H - 16 - (slot===0 ? 0 : 74);
+    // 앵커(오른쪽 아래 기준점)는 사슴(slot 1) 자리로 두고, 멧돼지(slot 0)는 그보다
+    // 왼쪽 위로 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를 그대로 지키면서,
+    // 멧돼지가 사슴보다 위에 오도록. 가로 간격을 스티커 폭보다 넉넉히 크게 잡아서
+    // 두 스티커가 절대 겹치지 않게 함.
+    const rightMargin = 24, hGap = STICKER_W + 20, vGap = 34;
+    const anchorLeft = window.innerWidth - rightMargin - STICKER_W;
+    const anchorTop = bannerBottom - STICKER_H - 16;
+    const defaultLeft = slot === 1 ? anchorLeft : anchorLeft - hGap;
+    const defaultTop = slot === 1 ? anchorTop : anchorTop - vGap;
     root.style.left = defaultLeft + 'px';
     root.style.top = defaultTop + 'px';
     stickerClamp(root);
