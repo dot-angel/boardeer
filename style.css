@@ -1178,44 +1178,41 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 
 /* ---------- 캐릭터 스티커(장식) ---------- */
 .site-sticker{
-  position: fixed; width: 118px; height: 152px; z-index: 150;
+  position: fixed; width: 160px; height: 206px; z-index: 150;
   touch-action: none; user-select: none; cursor: grab;
-  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.4));
 }
 .site-sticker.dragging{ cursor: grabbing; transition: none; }
+/* 이미지 자체(투명 배경 포함)만 떠 보이게, 뒤에 깔리던 블러/배경색/그림자를 다 없앰 */
 .sticker-avatar{
-  width:100%; height:100%; border-radius:18px;
-  background-color: var(--card-bg2); background-size:contain; background-repeat:no-repeat; background-position:center;
-  border:2px solid var(--card-hi);
+  width:100%; height:100%; border-radius:18px; overflow:hidden;
+  background-size:contain; background-repeat:no-repeat; background-position:center;
   display:flex; align-items:center; justify-content:center; font-size:2.2rem; color: var(--rose);
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
 }
-/* 말풍선이 뜰 때 스티커가 살짝 통통 뛰는 듯한 느낌 */
+/* 말풍선 뜰 때 스티커가 아주 살짝만 떠오르는 정도로(너무 방정맞지 않게) */
 @keyframes stickerJump{
   0%{ transform: translateY(0); }
-  30%{ transform: translateY(-16px); }
-  50%{ transform: translateY(0); }
-  68%{ transform: translateY(-7px); }
+  40%{ transform: translateY(-6px); }
   100%{ transform: translateY(0); }
 }
-.sticker-avatar.jump{ animation: stickerJump .55s ease; }
-/* 말풍선은 평소엔 숨어있다가, 클릭했을 때 또는 가끔 둘이 동시에 잠깐 나타났다 사라짐 */
+.sticker-avatar.jump{ animation: stickerJump .5s ease-out; }
+/* 말풍선도 사이트 다른 카드들과 같은 유리 카드 톤으로: 만화식 꼬리표 대신
+   둥근 사각형 카드 하나로 통일해서 글래스모피즘 톤에서 붕 뜨지 않게 함 */
 .sticker-bubble{
-  position:absolute; left:50%; bottom:100%; transform: translate(-50%, 6px) scale(.92);
-  margin-bottom:8px; max-width:170px; width:max-content;
-  background: rgba(24,11,14,0.85); color: var(--ink); border:1px solid var(--card-border);
-  border-radius:14px; padding:8px 12px;
+  position:absolute; left:50%; bottom:100%; transform: translate(-50%, 6px) scale(.95);
+  margin-bottom:10px; max-width:170px; width:max-content;
+  background: var(--card-bg); color: var(--ink); border:1px solid var(--card-border);
+  border-radius:16px; padding:9px 13px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--card-hi);
   font-family: var(--font-display); font-style:italic; font-size:.82rem; line-height:1.35; text-align:center;
   opacity:0; pointer-events:none;
   transition: opacity .3s ease, transform .3s ease;
 }
+.sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 .sticker-bubble::after{
   content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  width:0; height:0; border:6px solid transparent; border-top-color: rgba(24,11,14,0.85);
+  width:0; height:0; border:7px solid transparent; border-top-color: var(--card-bg);
 }
-.sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 @media (max-width: 900px){
   .site-sticker{ width:92px; height:118px; }
   .sticker-bubble{ max-width:130px; font-size:.76rem; padding:7px 10px; }
