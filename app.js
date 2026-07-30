@@ -5124,10 +5124,14 @@ function getStickerPeople(){
   // 데이터가 섞여 있어도 프로필 위젯과 똑같이 안전하게 해석되게 함.
   const slides = (profileData.slides || []).map(normalizeProfileSlide);
   const candidates = [];
+  const hasPerson = (pf)=> !!(pf && (pf.name || pf.avatar));
   slides.forEach((slide, slideIdx)=>{
     (slide.sections||[]).forEach((section, secIdx)=>{
-      const hasData = (section.peopleFields||[]).some(pf=> pf && (pf.name || pf.avatar));
-      if(hasData) candidates.push({ slideIdx, secIdx, section });
+      // 두 항목(슬롯0, 슬롯1)이 전부 채워져 있는 프로필만 스티커 후보로 삼음 —
+      // 하나라도 비어있으면 그 프로필은 아예 건너뛰고 다른 프로필을 고름
+      const pf0 = (section.peopleFields||[])[0];
+      const pf1 = (section.peopleFields||[])[1];
+      if(hasPerson(pf0) && hasPerson(pf1)) candidates.push({ slideIdx, secIdx, section });
     });
   });
   if(!candidates.length) return [];
