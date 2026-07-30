@@ -5124,7 +5124,7 @@ function getStickerPeople(){
   // 데이터가 섞여 있어도 프로필 위젯과 똑같이 안전하게 해석되게 함.
   const slides = (profileData.slides || []).map(normalizeProfileSlide);
   const candidates = [];
-  const hasPerson = (pf)=> !!(pf && (pf.name || pf.avatar));
+  const hasPerson = (pf)=> !!(pf && pf.avatar && pf.oneLiner);
   slides.forEach((slide, slideIdx)=>{
     (slide.sections||[]).forEach((section, secIdx)=>{
       // 두 항목(슬롯0, 슬롯1)이 전부 채워져 있는 프로필만 스티커 후보로 삼음 —
@@ -5144,7 +5144,7 @@ function getStickerPeople(){
   const section = chosen.section;
   return [0,1].map(slot=>{
     const pf = (section.peopleFields||[])[slot];
-    if(!pf || !(pf.name || pf.avatar)) return null;
+    if(!pf || !(pf.avatar && pf.oneLiner)) return null;
     // 말풍선엔 "한줄소개"(role)가 아니라 "한마디"(oneLiner)가 나와야 함
     return { slot, name: pf.name||'', oneLiner: (pf.oneLiner || ''), pf };
   }).filter(Boolean);
@@ -5280,7 +5280,7 @@ function ensureStickerEl(slot){
 function renderStickers(){
   const people = getStickerPeople();
   const validSlots = new Set(people.map(p=>p.slot));
-  // 더 이상 존재하지 않는(이름/사진 다 지워진) 슬롯은 스티커도 치움
+  // 더 이상 조건(사진+한마디 둘 다 있음)을 만족하지 않는 슬롯은 스티커도 치움
   Object.keys(stickerEls).forEach(slot=>{
     if(!validSlots.has(Number(slot))){
       clearTimeout(stickerEls[slot].bubbleTimer);
