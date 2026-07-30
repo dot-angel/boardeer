@@ -5217,11 +5217,14 @@ function ensureStickerEl(slot){
     applyStickerFrac(root, saved.x, saved.y);
   } else {
     // 앵커(왼쪽 위 기준점)는 멧돼지(slot 0) 자리로 두고, 사슴(slot 1)은 그보다
-    // 오른쪽 아래로 살짝 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를
+    // 오른쪽 아래로 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를
     // 그대로 지키면서, 멧돼지가 사슴보다 위에 오도록. 말풍선은 스티커 위쪽으로
     // 떠오르므로 배너 맨 위에서 말풍선이 잘리지 않도록 위쪽 여백(topClearance)을
-    // 충분히 두고, 두 스티커의 가로/세로 간격은 겹치지 않는 선에서 최대한 좁게 잡음.
-    const leftMargin = 24, topClearance = 92, hGap = STICKER_W - 60, vGap = 14;
+    // 충분히 두고, 왼쪽도 화면 끝에 바짝 붙지 않도록 여백(leftMargin)을 넉넉히 둬서
+    // 좀 더 중앙 쪽으로 오게 함. 말풍선 너비를 좁혀둔 만큼 가로 간격(hGap)만으로도
+    // 말풍선끼리 안 겹치게 하고, 세로 간격(vGap)은 캐릭터 키 차이가 너무 크지
+    // 않도록 작게 유지함.
+    const leftMargin = 64, topClearance = 92, hGap = STICKER_W - 42, vGap = 36;
     const anchorLeft = leftMargin;
     const anchorTop = topClearance;
     const defaultLeft = slot === 1 ? anchorLeft + hGap : anchorLeft;
