@@ -122,11 +122,15 @@ window.addEventListener('resize', ()=>{
   if(g) relayoutPinMasonryDebounced(g);
 });
 /* 그리드 안 이미지들이 로드될 때마다(썸네일 실제 크기를 알게 될 때마다) 다시 배치해서,
-   플레이스홀더 높이로 어림잡았던 자리가 실제 사진 비율에 맞게 자연스럽게 자리잡게 함 */
+   플레이스홀더 높이로 어림잡았던 자리가 실제 사진 비율에 맞게 자연스럽게 자리잡게 함.
+   사진이 많을 땐 로드 완료 이벤트가 짧은 시간에 몰려서 들어오는데, 그때마다 매번
+   즉시 layoutPinMasonry를 부르면 타일 개수만큼 강제 리플로우가 그대로 겹쳐 쌓여서
+   렉으로 느껴질 수 있음. 그래서 디바운스된 재계산(relayoutPinMasonryDebounced)을 써서
+   몰려 들어오는 로드 이벤트를 한 번의 재계산으로 묶어 처리함 */
 function watchPinTileImagesForRelayout(gridEl){
   gridEl.querySelectorAll('img').forEach(img=>{
     if(img.complete) return;
-    img.addEventListener('load', ()=> layoutPinMasonry(gridEl), { once:true });
+    img.addEventListener('load', ()=> relayoutPinMasonryDebounced(gridEl), { once:true });
   });
 }
 
@@ -3586,8 +3590,8 @@ function fillGalleryTile(tile, idx, url, it){
   attachImgFallback(img);
   const grid = tile.closest('#galleryGrid');
   if(grid){
-    if(img && !img.complete) img.addEventListener('load', ()=> layoutPinMasonry(grid), { once:true });
-    else layoutPinMasonry(grid);
+    if(img && !img.complete) img.addEventListener('load', ()=> relayoutPinMasonryDebounced(grid), { once:true });
+    else relayoutPinMasonryDebounced(grid);
   }
 }
 function handleGalleryDelete(idx){
@@ -5124,7 +5128,12 @@ function getStickerPeople(){
   // 데이터가 섞여 있어도 프로필 위젯과 똑같이 안전하게 해석되게 함.
   const slides = (profileData.slides || []).map(normalizeProfileSlide);
   const candidates = [];
-  const hasPerson = (pf)=> !!(pf && pf.avatar && pf.oneLiner);
+  // 사진은 URL로 그대로 들어있는 경우(pf.avatar)와, 1MB 문서 한도 때문에 따로
+  // 청크로 저장되고 여기엔 참조만 남는 경우(pf.avatarChunked + pf.avatarFileId)가
+  // 둘 다 있어서, 이 둘 중 하나라도 있으면 "사진 있음"으로 봐야 함. avatar만 보면
+  // (실제로 프로필 사진을 올리면 거의 항상 청크로 저장되므로) 대부분의 경우
+  // 사진이 있어도 없는 걸로 오판해서 스티커가 아예 안 뜨는 문제가 있었음.
+  const hasPerson = (pf)=> !!(pf && (pf.avatar || (pf.avatarChunked && pf.avatarFileId)) && pf.oneLiner);
   slides.forEach((slide, slideIdx)=>{
     (slide.sections||[]).forEach((section, secIdx)=>{
       // 두 항목(슬롯0, 슬롯1)이 전부 채워져 있는 프로필만 스티커 후보로 삼음 —
@@ -5144,7 +5153,7 @@ function getStickerPeople(){
   const section = chosen.section;
   return [0,1].map(slot=>{
     const pf = (section.peopleFields||[])[slot];
-    if(!pf || !(pf.avatar && pf.oneLiner)) return null;
+    if(!pf || !((pf.avatar || (pf.avatarChunked && pf.avatarFileId)) && pf.oneLiner)) return null;
     // 말풍선엔 "한줄소개"(role)가 아니라 "한마디"(oneLiner)가 나와야 함
     return { slot, name: pf.name||'', oneLiner: (pf.oneLiner || ''), pf };
   }).filter(Boolean);
