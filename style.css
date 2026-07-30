@@ -1178,27 +1178,36 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 
 /* ---------- 캐릭터 스티커(장식) ---------- */
 .site-sticker{
-  position: fixed; width: 76px; height: 76px; z-index: 150;
+  position: fixed; width: 118px; height: 152px; z-index: 150;
   touch-action: none; user-select: none; cursor: grab;
   filter: drop-shadow(0 6px 14px rgba(0,0,0,0.4));
 }
 .site-sticker.dragging{ cursor: grabbing; transition: none; }
 .sticker-avatar{
-  width:100%; height:100%; border-radius:50%;
-  background-color: var(--card-bg2); background-size:cover; background-position:center;
+  width:100%; height:100%; border-radius:18px;
+  background-color: var(--card-bg2); background-size:contain; background-repeat:no-repeat; background-position:center;
   border:2px solid var(--card-hi);
-  display:flex; align-items:center; justify-content:center; font-size:1.6rem; color: var(--rose);
+  display:flex; align-items:center; justify-content:center; font-size:2.2rem; color: var(--rose);
   backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
 }
-/* 말풍선은 평소엔 숨어있다가(가끔 자동으로만 잠깐 나타남) .show가 붙을 때만 보이게 함 */
+/* 말풍선이 뜰 때 스티커가 살짝 통통 뛰는 듯한 느낌 */
+@keyframes stickerJump{
+  0%{ transform: translateY(0); }
+  30%{ transform: translateY(-16px); }
+  50%{ transform: translateY(0); }
+  68%{ transform: translateY(-7px); }
+  100%{ transform: translateY(0); }
+}
+.sticker-avatar.jump{ animation: stickerJump .55s ease; }
+/* 말풍선은 평소엔 숨어있다가, 클릭했을 때 또는 가끔 둘이 동시에 잠깐 나타났다 사라짐 */
 .sticker-bubble{
   position:absolute; left:50%; bottom:100%; transform: translate(-50%, 6px) scale(.92);
-  margin-bottom:8px; max-width:150px; width:max-content;
+  margin-bottom:8px; max-width:170px; width:max-content;
   background: rgba(24,11,14,0.85); color: var(--ink); border:1px solid var(--card-border);
   border-radius:14px; padding:8px 12px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--shadow);
-  font-family: var(--font-display); font-style:italic; font-size:.78rem; line-height:1.35; text-align:center;
+  font-family: var(--font-display); font-style:italic; font-size:.82rem; line-height:1.35; text-align:center;
   opacity:0; pointer-events:none;
   transition: opacity .3s ease, transform .3s ease;
 }
@@ -1208,6 +1217,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 }
 .sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 @media (max-width: 900px){
-  .site-sticker{ width:60px; height:60px; }
-  .sticker-bubble{ max-width:120px; font-size:.72rem; padding:7px 10px; }
+  .site-sticker{ width:92px; height:118px; }
+  .sticker-bubble{ max-width:130px; font-size:.76rem; padding:7px 10px; }
 }
