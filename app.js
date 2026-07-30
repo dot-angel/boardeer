@@ -5115,19 +5115,29 @@ let stickerPosData = { positions: {} };
 const stickerEls = {}; // slot -> { root, avatarEl, bubbleEl, bubbleTextEl, bubbleTimer, dragging }
 const STICKER_W = 160, STICKER_H = 206;
 
+// 접속(새로고침)할 때마다 등장하는 한 쌍(멧돼지+사슴)이 랜덤하게 바뀌도록,
+// 데이터가 있는 모든 AU×시점/IF 조합 중 하나를 세션당 한 번만 랜덤으로 골라 고정해둠
+// (렌더링될 때마다 다시 뽑으면 화면이 계속 바뀌어버리므로 세션 동안엔 값을 캐싱함).
+let stickerChosenKey = null; // "slideIdx-secIdx" 형태로 캐싱
 function getStickerPeople(){
-  // "등록된 인물"은 AU마다 따로 있는 게 아니라 이 사이트에 등장하는 두 사람(멧돼지/사슴)
-  // 자체를 말하는 거라, 여러 AU 중 실제로 데이터가 채워진 첫 AU를 기준으로 삼음.
   // 프로필 위젯이 쓰는 것과 같은 normalizeProfileSlide를 그대로 재사용해서, 예전 형식
   // 데이터가 섞여 있어도 프로필 위젯과 똑같이 안전하게 해석되게 함.
   const slides = (profileData.slides || []).map(normalizeProfileSlide);
-  const slide = slides.find(s => (s.sections||[]).some(sec=>
-    (sec.peopleFields||[]).some(pf=> pf && (pf.name || pf.avatar))
-  )) || slides[0];
-  if(!slide) return [];
-  const secIdx = slide.defaultSectionIndex || 0;
-  const section = (slide.sections||[])[secIdx] || (slide.sections||[])[0];
-  if(!section) return [];
+  const candidates = [];
+  slides.forEach((slide, slideIdx)=>{
+    (slide.sections||[]).forEach((section, secIdx)=>{
+      const hasData = (section.peopleFields||[]).some(pf=> pf && (pf.name || pf.avatar));
+      if(hasData) candidates.push({ slideIdx, secIdx, section });
+    });
+  });
+  if(!candidates.length) return [];
+
+  let chosen = stickerChosenKey ? candidates.find(c => `${c.slideIdx}-${c.secIdx}` === stickerChosenKey) : null;
+  if(!chosen){
+    chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    stickerChosenKey = `${chosen.slideIdx}-${chosen.secIdx}`;
+  }
+  const section = chosen.section;
   return [0,1].map(slot=>{
     const pf = (section.peopleFields||[])[slot];
     if(!pf || !(pf.name || pf.avatar)) return null;
