@@ -1175,3 +1175,39 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   font-size:.82rem; z-index: 300; animation: fadeIn .15s ease; box-shadow: var(--shadow);
 }
+
+/* ---------- 캐릭터 스티커(장식) ---------- */
+.site-sticker{
+  position: fixed; width: 76px; height: 76px; z-index: 150;
+  touch-action: none; user-select: none; cursor: grab;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.4));
+}
+.site-sticker.dragging{ cursor: grabbing; transition: none; }
+.sticker-avatar{
+  width:100%; height:100%; border-radius:50%;
+  background-color: var(--card-bg2); background-size:cover; background-position:center;
+  border:2px solid var(--card-hi);
+  display:flex; align-items:center; justify-content:center; font-size:1.6rem; color: var(--rose);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+}
+/* 말풍선은 평소엔 숨어있다가(가끔 자동으로만 잠깐 나타남) .show가 붙을 때만 보이게 함 */
+.sticker-bubble{
+  position:absolute; left:50%; bottom:100%; transform: translate(-50%, 6px) scale(.92);
+  margin-bottom:8px; max-width:150px; width:max-content;
+  background: rgba(24,11,14,0.85); color: var(--ink); border:1px solid var(--card-border);
+  border-radius:14px; padding:8px 12px;
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow);
+  font-family: var(--font-display); font-style:italic; font-size:.78rem; line-height:1.35; text-align:center;
+  opacity:0; pointer-events:none;
+  transition: opacity .3s ease, transform .3s ease;
+}
+.sticker-bubble::after{
+  content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  width:0; height:0; border:6px solid transparent; border-top-color: rgba(24,11,14,0.85);
+}
+.sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
+@media (max-width: 900px){
+  .site-sticker{ width:60px; height:60px; }
+  .sticker-bubble{ max-width:120px; font-size:.72rem; padding:7px 10px; }
+}
