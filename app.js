@@ -5106,13 +5106,14 @@ function initBoardTabs(){
 }
 
 /* ---------------- 캐릭터 스티커(장식) ----------------
-   프로필 위젯의 첫 번째 AU(본편) 사진/한줄소개를 기준으로, 인물 한 명당 스티커 하나씩
+   프로필 위젯의 첫 번째 AU(본편) 사진/한마디를 기준으로, 인물 한 명당 스티커 하나씩
    화면에 떠 있게 하고, 드래그로 자리를 옮길 수 있게 함. 위치는 Firestore에 저장해서
    새로고침해도 유지되고, 다른 기기에서 봐도 같은 자리에 있음(뷰포트 비율로 저장).
-   말풍선(한줄소개)은 항상 떠 있지 않고, 스티커를 누르면(클릭/탭) 잠깐 나타났다 사라짐. */
+   말풍선(한마디)은 스티커를 누르면(클릭/탭) 나타나고, 가끔은 랜덤한 타이밍에 둘이
+   동시에 나타나기도 함. 나타날 때 스티커가 살짝 점프하는 효과도 같이 줌. */
 let stickerPosData = { positions: {} };
 const stickerEls = {}; // slot -> { root, avatarEl, bubbleEl, bubbleTextEl, bubbleTimer, dragging }
-const STICKER_SIZE = 76;
+const STICKER_W = 118, STICKER_H = 152;
 
 function getStickerPeople(){
   // "등록된 인물"은 AU마다 따로 있는 게 아니라 이 사이트에 등장하는 두 사람(멧돼지/사슴)
@@ -5130,14 +5131,15 @@ function getStickerPeople(){
   return [0,1].map(slot=>{
     const pf = (section.peopleFields||[])[slot];
     if(!pf || !(pf.name || pf.avatar)) return null;
-    return { slot, name: pf.name||'', role: (pf.role || pf.oneLiner || ''), pf };
+    // 말풍선엔 "한줄소개"(role)가 아니라 "한마디"(oneLiner)가 나와야 함
+    return { slot, name: pf.name||'', oneLiner: (pf.oneLiner || ''), pf };
   }).filter(Boolean);
 }
 
 function stickerClamp(el){
-  const size = el.offsetWidth || STICKER_SIZE;
+  const w = el.offsetWidth || STICKER_W, h = el.offsetHeight || STICKER_H;
   const vw = window.innerWidth, vh = window.innerHeight;
-  const maxX = Math.max(0, vw - size), maxY = Math.max(0, vh - size);
+  const maxX = Math.max(0, vw - w), maxY = Math.max(0, vh - h);
   const x = Math.min(maxX, Math.max(0, parseFloat(el.style.left)||0));
   const y = Math.min(maxY, Math.max(0, parseFloat(el.style.top)||0));
   el.style.left = x + 'px'; el.style.top = y + 'px';
@@ -5145,9 +5147,9 @@ function stickerClamp(el){
 }
 
 function applyStickerFrac(el, xFrac, yFrac){
-  const size = el.offsetWidth || STICKER_SIZE;
+  const w = el.offsetWidth || STICKER_W, h = el.offsetHeight || STICKER_H;
   const vw = window.innerWidth, vh = window.innerHeight;
-  const maxX = Math.max(0, vw - size), maxY = Math.max(0, vh - size);
+  const maxX = Math.max(0, vw - w), maxY = Math.max(0, vh - h);
   el.style.left = (xFrac * maxX) + 'px';
   el.style.top = (yFrac * maxY) + 'px';
 }
@@ -5163,10 +5165,24 @@ function showStickerBubble(slot){
   if(!s || !s.bubbleTextEl.textContent) return;
   clearTimeout(s.bubbleTimer);
   s.bubbleEl.classList.add('show');
+  // 말풍선 뜨는 타이밍에 맞춰 살짝 점프
+  s.avatarEl.classList.remove('jump');
+  void s.avatarEl.offsetWidth; // 강제 reflow: 연달아 눌러도 애니메이션이 매번 다시 재생되게 함
+  s.avatarEl.classList.add('jump');
   s.bubbleTimer = setTimeout(()=>{
     const cur = stickerEls[slot];
     if(cur) cur.bubbleEl.classList.remove('show');
   }, 4000);
+}
+
+// 가끔 둘이 동시에 말풍선을 띄우는 랜덤 스케줄러(클릭으로 보여주는 것과는 별개로 계속 돌아감)
+let stickerBothScheduleStarted = false;
+function scheduleBothStickerBubbles(){
+  const delay = 20000 + Math.random()*25000; // 20~45초 사이 랜덤
+  setTimeout(()=>{
+    Object.keys(stickerEls).forEach(slot=> showStickerBubble(Number(slot)));
+    scheduleBothStickerBubbles();
+  }, delay);
 }
 
 function ensureStickerEl(slot){
@@ -5190,9 +5206,9 @@ function ensureStickerEl(slot){
   if(saved){
     applyStickerFrac(root, saved.x, saved.y);
   } else {
-    const rightMargin = 24, size = 76;
-    const defaultLeft = window.innerWidth - rightMargin - size - (slot===0 ? 0 : 58);
-    const defaultTop = bannerBottom - size - 16 - (slot===0 ? 0 : 58);
+    const rightMargin = 24, size = STICKER_W;
+    const defaultLeft = window.innerWidth - rightMargin - size - (slot===0 ? 0 : 74);
+    const defaultTop = bannerBottom - STICKER_H - 16 - (slot===0 ? 0 : 74);
     root.style.left = defaultLeft + 'px';
     root.style.top = defaultTop + 'px';
     stickerClamp(root);
@@ -5248,7 +5264,7 @@ function renderStickers(){
       delete stickerEls[slot];
     }
   });
-  people.forEach(({slot, role, pf})=>{
+  people.forEach(({slot, oneLiner, pf})=>{
     const s = ensureStickerEl(slot);
     const avatarUrl = resolveGalleryItemUrl(
       { chunked: !!pf.avatarChunked, fileId: pf.avatarFileId || '', chunkTotal: pf.avatarChunkTotal || 0, url: pf.avatar || '' },
@@ -5256,8 +5272,12 @@ function renderStickers(){
     ) || '';
     s.avatarEl.style.backgroundImage = avatarUrl ? `url('${avatarUrl}')` : 'none';
     s.avatarEl.textContent = avatarUrl ? '' : '👤';
-    s.bubbleTextEl.textContent = role || '';
+    s.bubbleTextEl.textContent = oneLiner || '';
   });
+  if(!stickerBothScheduleStarted && people.length){
+    stickerBothScheduleStarted = true;
+    scheduleBothStickerBubbles();
+  }
 }
 
 docRef('stickers').onSnapshot(doc=>{ stickerPosData = doc.exists ? doc.data() : { positions:{} }; renderStickers(); });
