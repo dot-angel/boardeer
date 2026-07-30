@@ -1202,8 +1202,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   margin-bottom:10px; max-width:128px; width:max-content;
   /* 다른 텍스트 영역(w-empty, profile-role 등)과 같은 규칙: keep-all로 어절
      단위까지는 최대한 지키면서 줄바꿈하고, 그래도 넘치는 긴 단어만 break-word로
-     끊음 — 한 글자씩 뚝뚝 끊기지 않게 함 */
-  word-break:keep-all; overflow-wrap:break-word; white-space:normal;
+     끊음 — 한 글자씩 뚝뚝 끊기지 않게 함. 텍스트(이름/한마디)가 매번 바뀌므로
+     특정 문장에 맞춰 폭을 튜닝하는 건 의미가 없고, 대신 text-wrap:pretty가
+     그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
+     브라우저가 지원하는 선에서 알아서 피해줌 */
+  word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
   /* 배너 배경 이미지 위에서도 읽히면서 다른 카드들처럼 유리 느낌이 나도록,
      불투명도는 낮추고 블러(사이트의 큰 유리 표면용 --glass-blur)는 강하게 줘서
      텍스트는 블러로 눌러주고 색은 은은하게 비치게 함 */
