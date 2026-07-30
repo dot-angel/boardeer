@@ -5208,7 +5208,7 @@ function ensureStickerEl(slot){
   const bubbleEl = root.querySelector('.sticker-bubble');
   const bubbleTextEl = root.querySelector('.sticker-bubble-text');
 
-  // 기본 위치(저장된 값이 없을 때): 배너 우하단 쪽에 두 스티커가 살짝 겹쳐 모여있게.
+  // 기본 위치(저장된 값이 없을 때): 배너 좌상단 쪽에 두 스티커가 가깝게 모여있게.
   // 배너 높이가 항상 560px 고정이라, 뷰포트 비율이 아니라 배너 기준 픽셀로 계산함
   // (화면이 배너보다 낮으면 화면 안에 들어오도록 보정).
   const bannerBottom = Math.min(560, window.innerHeight - 20);
@@ -5216,15 +5216,16 @@ function ensureStickerEl(slot){
   if(saved){
     applyStickerFrac(root, saved.x, saved.y);
   } else {
-    // 앵커(오른쪽 아래 기준점)는 사슴(slot 1) 자리로 두고, 멧돼지(slot 0)는 그보다
-    // 왼쪽 위로 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를 그대로 지키면서,
-    // 멧돼지가 사슴보다 위에 오도록. 가로 간격을 스티커 폭보다 넉넉히 크게 잡아서
-    // 두 스티커가 절대 겹치지 않게 함.
-    const rightMargin = 24, hGap = STICKER_W + 20, vGap = 34;
-    const anchorLeft = window.innerWidth - rightMargin - STICKER_W;
-    const anchorTop = bannerBottom - STICKER_H - 16;
-    const defaultLeft = slot === 1 ? anchorLeft : anchorLeft - hGap;
-    const defaultTop = slot === 1 ? anchorTop : anchorTop - vGap;
+    // 앵커(왼쪽 위 기준점)는 멧돼지(slot 0) 자리로 두고, 사슴(slot 1)은 그보다
+    // 오른쪽 아래로 살짝 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를
+    // 그대로 지키면서, 멧돼지가 사슴보다 위에 오도록. 말풍선은 스티커 위쪽으로
+    // 떠오르므로 배너 맨 위에서 말풍선이 잘리지 않도록 위쪽 여백(topClearance)을
+    // 충분히 두고, 두 스티커의 가로/세로 간격은 겹치지 않는 선에서 최대한 좁게 잡음.
+    const leftMargin = 24, topClearance = 92, hGap = STICKER_W - 60, vGap = 14;
+    const anchorLeft = leftMargin;
+    const anchorTop = topClearance;
+    const defaultLeft = slot === 1 ? anchorLeft + hGap : anchorLeft;
+    const defaultTop = slot === 1 ? anchorTop + vGap : anchorTop;
     root.style.left = defaultLeft + 'px';
     root.style.top = defaultTop + 'px';
     stickerClamp(root);
