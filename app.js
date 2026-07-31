@@ -818,7 +818,7 @@ function refreshLockUI(){
 
 function renderAllModules(){
   renderImages(); renderProfile(); renderMusic(); renderDday(); renderGuestbook();
-  renderCalendar(); renderGallery(); renderGallery2(); renderRefGallery(); renderDocs(); renderSessions(); renderChecklist();
+  renderCalendar(); renderGallery(); renderGallery2(); renderRefGallery(); renderVideos(); renderDocs(); renderSessions(); renderChecklist();
 }
 
 lockBtn.addEventListener('click', async ()=>{
@@ -1211,10 +1211,11 @@ let imgSlideIndex = 0;
 /* 예전 데이터(문자열 URL 배열 / 단일 caption 필드)와 새 데이터(모서리 4개짜리 captions 객체)를
    함께 지원. 예전에 쓰던 caption은 그대로 좌하단(bl)으로 이어짐 */
 function normalizeImageItem(it){
-  if(typeof it === 'string') return { url: it, captions: { tl:'', tr:'', bl:'', br:'' } };
+  if(typeof it === 'string') return { url: it, chunked:false, fileId:'', chunkTotal:0, captions: { tl:'', tr:'', bl:'', br:'' } };
   const c = it.captions || {};
   return {
     url: it.url || '',
+    chunked: !!it.chunked, fileId: it.fileId || '', chunkTotal: it.chunkTotal || 0,
     captions: {
       tl: c.tl || '',
       tr: c.tr || '',
@@ -1235,9 +1236,10 @@ function renderImages(){
   } else {
     if(imgSlideIndex >= items.length) imgSlideIndex = 0;
     const cur = items[imgSlideIndex];
+    const resolvedUrl = resolveGalleryItemUrl(cur, ()=> renderImages()) || '';
     box.innerHTML = `
       <div class="slide-viewport" id="slideViewport">
-        <img src="${cur.url}" id="slideImg" title="눌러서 크게 보기">
+        <img src="${resolvedUrl}" id="slideImg" title="눌러서 크게 보기">
         ${['tl','tr','bl','br'].map(pos=> cur.captions[pos] ? `<div class="slide-caption cap-${pos}">${escapeHtml(cur.captions[pos]).replace(/\n/g,'<br>')}</div>` : '').join('')}
         ${editMode ? `<button class="icon-btn slide-caption-btn" id="imgCaptionBtn" title="문구 편집">Aa</button>` : ''}
         ${editMode ? `<button class="icon-btn slide-del" id="imgDelBtn" title="이 사진 삭제">✕</button>` : ''}
@@ -1295,7 +1297,7 @@ function bindImages(){
   const del = box.querySelector('#imgDelBtn');
   if(del) del.onclick = async (e)=>{
     e.stopPropagation();
-    const arr = [...items]; arr.splice(imgSlideIndex,1);
+    const arr = [...items]; deleteGalleryImageIfChunked(arr[imgSlideIndex]); arr.splice(imgSlideIndex,1);
     await docRef('images').set({items:arr}, {merge:true});
   };
   const capBtn = box.querySelector('#imgCaptionBtn');
@@ -1309,9 +1311,9 @@ function bindImages(){
       openImageLightbox({
         items,
         index: imgSlideIndex,
-        resolve: (item)=> item.url,
+        resolve: resolveGalleryItemUrl,
         onDelete: editMode ? async (idx)=>{
-          const arr = [...items]; arr.splice(idx,1);
+          const arr = [...items]; deleteGalleryImageIfChunked(arr[idx]); arr.splice(idx,1);
           await docRef('images').set({items:arr}, {merge:true});
         } : null
       });
@@ -1338,7 +1340,7 @@ function openImageCaptionModal(idx, items){
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const arr = [...items];
-      arr[idx] = { url: cur.url, captions: {
+      arr[idx] = { ...cur, captions: {
         tl: m.querySelector('#capTL').value.trim(),
         tr: m.querySelector('#capTR').value.trim(),
         bl: m.querySelector('#capBL').value.trim(),
@@ -1370,7 +1372,15 @@ function openImagesAddModal(){
         saveBtn.disabled = true;
         for(let i=0;i<files.length;i++){
           saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
-          try{ newItems.push({ url: await compressImageFile(files[i], 2000, 480000), caption:'' }); }
+          // storeGalleryImage를 거쳐 청크로 저장(다른 갤러리들과 동일한 방식).
+          // 예전엔 압축된 base64를 문서에 바로 박아넣었는데, 사진 하나가 최대
+          // 480KB라 2장만 추가돼도 Firestore 문서 1MB 한도를 넘어 저장 자체가
+          // 실패하는 문제가 있었음(사진 슬라이드 위젯이 사실상 사진 한두 장
+          // 이상은 못 담는 상태였음).
+          try{
+            const compressed = await compressImageFile(files[i], 2000, 480000);
+            newItems.push({ ...(await storeGalleryImage(compressed)), captions:{ tl:'', tr:'', bl:'', br:'' } });
+          }
           catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
       } else if(url){
@@ -3438,6 +3448,32 @@ async function migrateOversizedGalleries(){
   await migrateInlineGalleryImages('gallery', ()=> galleryData.items || []);
   await migrateInlineGalleryImages('gallery2', ()=> gallery2Data.items || []);
   await migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []);
+  await migrateInlineImageSlides();
+}
+
+// 사진 슬라이드 위젯(content/images)도 예전엔 압축된 base64를 문서에 바로 저장했어서,
+// 그때 이미 쌓인 사진들을 다른 갤러리와 마찬가지로 청크 저장으로 옮겨줌. 캡션(4모서리
+// 문구) 필드는 그대로 유지해야 해서 migrateInlineGalleryImages를 그대로 재사용하지 않고
+// 별도로 둠.
+async function migrateInlineImageSlides(){
+  const items = (imagesData.items || []).map(normalizeImageItem);
+  let changed = false;
+  const newItems = [];
+  for(const it of items){
+    if(!it.chunked && it.url && it.url.startsWith('data:')){
+      try{
+        const stored = await storeGalleryImage(it.url);
+        newItems.push({ ...stored, captions: it.captions });
+        changed = true;
+      }catch(err){ newItems.push(it); }
+    } else {
+      newItems.push(it);
+    }
+  }
+  if(changed){
+    try{ await docRef('images').set({ items: newItems }, {merge:true}); }
+    catch(err){ console.error('사진 슬라이드 정리 실패:', err); }
+  }
 }
 
 /* 프로필 문서 하나에 모든 AU/시점/IF 정보가 같이 들어있어서, 예전에 사진을 그대로(inline
@@ -4381,6 +4417,90 @@ docRef('refgallery').onSnapshot(doc=>{
   if(editMode) migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []);
 });
 
+/* ---------------- 5-1. 영상전용 플레이어 (갤러리 탭, 유튜브 링크 여러 개를 목록에서 골라 재생) ---------------- */
+// 사진과 달리 영상은 원본을 우리 쪽에 저장하지 않고(용량이 너무 큼) 유튜브 링크만
+// 저장해서 링크당 몇십 바이트 수준이라 청크 저장 같은 건 필요 없음. 재생은 그냥
+// 표준 유튜브 임베드 iframe을 씀 (음악위젯의 숨겨진 오디오용 YT.Player API와는 별개 —
+// 여긴 화면에 그대로 보여지는 "영상 전용" 재생이라 굳이 API로 제어할 필요가 없음).
+
+let videosData = { items: [] };
+let currentVideoIdx = 0;
+
+function renderVideoPlayer(){
+  const holder = document.getElementById('videoPlayer');
+  const items = videosData.items || [];
+  if(!items.length){
+    holder.innerHTML = `<div class="w-empty">아직 등록된 영상이 없어요</div>`;
+    return;
+  }
+  if(currentVideoIdx >= items.length) currentVideoIdx = items.length - 1;
+  const cur = items[currentVideoIdx];
+  const ytId = extractYouTubeId(cur.url);
+  holder.innerHTML = ytId
+    ? `<iframe src="https://www.youtube.com/embed/${ytId}" title="${escapeHtml(cur.title || '')}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
+    : `<div class="w-empty">영상 링크를 확인할 수 없어요</div>`;
+}
+
+function renderVideos(){
+  renderVideoPlayer();
+  const list = document.getElementById('videoList');
+  const items = videosData.items || [];
+  list.innerHTML = items.map((v, i)=> `
+    <div class="video-item ${i===currentVideoIdx ? 'active' : ''}" data-idx="${i}">
+      <div class="video-thumb" style="background-image:url('https://img.youtube.com/vi/${extractYouTubeId(v.url) || ''}/hqdefault.jpg')"></div>
+      <div class="video-title">${escapeHtml(v.title || '제목 없음')}</div>
+      ${editMode ? `<button class="video-del" data-del="${i}" type="button">✕</button>` : ''}
+    </div>
+  `).join('');
+  list.querySelectorAll('.video-item').forEach(el=> el.addEventListener('click', (e)=>{
+    if(e.target.closest('[data-del]')) return;
+    currentVideoIdx = Number(el.dataset.idx);
+    renderVideos();
+  }));
+  list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
+    e.stopPropagation();
+    const idx = Number(btn.dataset.del);
+    const arr = [...(videosData.items||[])];
+    arr.splice(idx, 1);
+    await docRef('videos').set({ items: arr }, {merge:true});
+    toast('영상을 삭제했어요');
+  }));
+  const addWrap = document.getElementById('videoAddWrap');
+  addWrap.innerHTML = editMode ? `<button class="btn small" id="videoAddBtn" type="button">+ 영상 추가</button>` : '';
+  if(editMode) document.getElementById('videoAddBtn').addEventListener('click', openVideoAddModal);
+}
+
+function openVideoAddModal(){
+  openModal(`
+    <h3>영상 추가</h3>
+    <p class="hint">유튜브 링크를 넣으면 목록에 추가돼요.</p>
+    <label>유튜브 링크</label>
+    <input type="url" id="vUrl" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=...">
+    <label>제목 (선택)</label>
+    <input type="text" id="vTitle" placeholder="영상 제목">
+    <div class="modal-actions">
+      <button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const url = m.querySelector('#vUrl').value.trim();
+      const title = m.querySelector('#vTitle').value.trim();
+      if(!extractYouTubeId(url)){ toast('유튜브 링크를 확인해주세요'); return; }
+      const arr = [...(videosData.items||[]), { id: uid(), url, title }];
+      await docRef('videos').set({ items: arr }, {merge:true});
+      currentVideoIdx = arr.length - 1;
+      closeModal();
+      toast('영상을 추가했어요');
+    };
+  });
+}
+
+docRef('videos').onSnapshot(doc=>{
+  videosData = doc.exists ? doc.data() : {items:[]};
+  renderVideos();
+});
+
 /* ---------------- 6-1. 문서 정리 (갤러리와 세션카드 사이) ---------------- */
 
 let docsData = { cards: [] };
@@ -5309,6 +5429,9 @@ function renderStickers(){
   });
   if(!stickerBothScheduleStarted && people.length){
     stickerBothScheduleStarted = true;
+    // 접속/새로고침한 순간엔 70~150초짜리 랜덤 스케줄을 기다리지 않고 바로 한 번
+    // 말풍선을 띄워서, 처음 들어왔을 때도 스티커가 있다는 걸 바로 알 수 있게 함
+    Object.keys(stickerEls).forEach(slot=> showStickerBubble(Number(slot)));
     scheduleBothStickerBubbles();
   }
 }
