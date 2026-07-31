@@ -4425,41 +4425,64 @@ docRef('refgallery').onSnapshot(doc=>{
 
 let videosData = { items: [] };
 let currentVideoIdx = 0;
+// 평소엔 썸네일 목록만 보이다가, 목록에서 하나를 누르면 그 자리 위쪽으로 플레이어가
+// 펼쳐지는 방식(팝업 X, 화면을 덮지 않고 카드 안에서 인라인으로 커짐). 안 보는 동안엔
+// videoExpanded가 false라 플레이어(iframe)를 아예 렌더링하지 않아서 공간도 차지하지
+// 않고 불필요한 로드도 안 함.
+let videoExpanded = false;
 
 function renderVideoPlayer(){
   const holder = document.getElementById('videoPlayer');
   const items = videosData.items || [];
-  if(!items.length){
-    holder.innerHTML = `<div class="w-empty">아직 등록된 영상이 없어요</div>`;
+  if(!videoExpanded || !items.length){
+    holder.innerHTML = '';
+    holder.classList.remove('open');
     return;
   }
+  holder.classList.add('open');
   if(currentVideoIdx >= items.length) currentVideoIdx = items.length - 1;
   const cur = items[currentVideoIdx];
   const ytId = extractYouTubeId(cur.url);
-  holder.innerHTML = ytId
-    ? `<iframe src="https://www.youtube.com/embed/${ytId}" title="${escapeHtml(cur.title || '')}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
-    : `<div class="w-empty">영상 링크를 확인할 수 없어요</div>`;
+  holder.innerHTML = `
+    <button class="video-collapse" id="videoCollapseBtn" type="button" title="닫기">✕</button>
+    ${ytId
+      ? `<iframe src="https://www.youtube.com/embed/${ytId}?autoplay=1" title="${escapeHtml(cur.title || '')}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
+      : `<div class="w-empty">영상 링크를 확인할 수 없어요</div>`}
+  `;
+  document.getElementById('videoCollapseBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    videoExpanded = false;
+    renderVideos();
+  });
 }
 
 function renderVideos(){
   renderVideoPlayer();
   const list = document.getElementById('videoList');
   const items = videosData.items || [];
-  list.innerHTML = items.map((v, i)=> `
-    <div class="video-item ${i===currentVideoIdx ? 'active' : ''}" data-idx="${i}">
-      <div class="video-thumb" style="background-image:url('https://img.youtube.com/vi/${extractYouTubeId(v.url) || ''}/hqdefault.jpg')"></div>
-      <div class="video-title">${escapeHtml(v.title || '제목 없음')}</div>
-      ${editMode ? `<button class="video-del" data-del="${i}" type="button">✕</button>` : ''}
-    </div>
-  `).join('');
+  if(!items.length){
+    list.innerHTML = `<div class="w-empty">아직 등록된 영상이 없어요</div>`;
+  } else {
+    list.innerHTML = items.map((v, i)=> `
+      <div class="video-item ${videoExpanded && i===currentVideoIdx ? 'active' : ''}" data-idx="${i}">
+        <div class="video-thumb" style="background-image:url('https://img.youtube.com/vi/${extractYouTubeId(v.url) || ''}/hqdefault.jpg')"></div>
+        <div class="video-title">${escapeHtml(v.title || '제목 없음')}</div>
+        ${editMode ? `<button class="video-del" data-del="${i}" type="button">✕</button>` : ''}
+      </div>
+    `).join('');
+  }
   list.querySelectorAll('.video-item').forEach(el=> el.addEventListener('click', (e)=>{
     if(e.target.closest('[data-del]')) return;
-    currentVideoIdx = Number(el.dataset.idx);
+    const idx = Number(el.dataset.idx);
+    // 펼쳐진 채로 재생 중인 걸 다시 누르면 접히고, 그 외엔 그 영상으로 펼쳐짐
+    if(videoExpanded && idx === currentVideoIdx){ videoExpanded = false; }
+    else { currentVideoIdx = idx; videoExpanded = true; }
     renderVideos();
   }));
   list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
     e.stopPropagation();
     const idx = Number(btn.dataset.del);
+    if(videoExpanded && idx === currentVideoIdx) videoExpanded = false;
     const arr = [...(videosData.items||[])];
     arr.splice(idx, 1);
     await docRef('videos').set({ items: arr }, {merge:true});
@@ -5357,7 +5380,13 @@ function ensureStickerEl(slot){
     // 좀 더 중앙 쪽으로 오게 함. 말풍선 너비를 좁혀둔 만큼 가로 간격(hGap)만으로도
     // 말풍선끼리 안 겹치게 하고, 세로 간격(vGap)은 캐릭터 키 차이가 너무 크지
     // 않도록 작게 유지함.
-    const leftMargin = 64, topClearance = 92, hGap = STICKER_W - 42, vGap = 36;
+    // 모든 값은 STICKER_W(데스크탑 기준 160px)가 아니라 실제로 렌더링된 스티커
+    // 크기(root.offsetWidth)에 비례해서 계산함 — 화면이 좁아지면 미디어쿼리로
+    // 스티커 자체가 92px까지 작아지는데, 간격을 고정 px로 두면 스티커는 작아지는데
+    // 둘 사이 거리는 그대로라 오히려 서로 멀어져 보이는 문제가 있었음.
+    const actualW = root.offsetWidth || STICKER_W;
+    const scale = actualW / STICKER_W;
+    const leftMargin = 64 * scale, topClearance = 92 * scale, hGap = (STICKER_W - 42) * scale, vGap = 36 * scale;
     const anchorLeft = leftMargin;
     const anchorTop = topClearance;
     const defaultLeft = slot === 1 ? anchorLeft + hGap : anchorLeft;
