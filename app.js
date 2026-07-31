@@ -4433,7 +4433,9 @@ let videoExpanded = false;
 
 function renderVideoPlayer(){
   const holder = document.getElementById('videoPlayer');
+  const row = document.getElementById('refpairRow');
   const items = videosData.items || [];
+  row.classList.toggle('video-open', videoExpanded && !!items.length);
   if(!videoExpanded || !items.length){
     holder.innerHTML = '';
     holder.classList.remove('open');

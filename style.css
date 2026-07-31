@@ -231,15 +231,21 @@ body::before{
 .row-2-left > .w-card{ min-height:0; min-width:0; }
 .row-2-right{ display:grid; grid-template-rows: auto auto; gap:20px; min-width:0; }
 .row-2-right > .w-card{ min-height:0; }
-/* 두번째 갤러리 + 레퍼런스 갤러리: 한 행에 나란히. 레퍼런스 갤러리 폭을 살짝 늘림 */
-.row-refpair{ grid-template-columns: 1fr 270px; align-items: stretch; }
+/* 두번째 갤러리 + 레퍼런스 갤러리 + 영상목록: 한 행에 나란히. 평소엔 영상목록이
+   좁은 세로 줄로 옆에 붙어있다가, 영상을 재생하면(#refpairRow.video-open) 그
+   칸이 이 줄 전체 폭으로 넓어지고 나머지 두 갤러리는 잠깐 숨어서, 새 줄을 따로
+   만들지 않고도(스크롤 안 늘어남) 재생할 땐 충분히 큰 화면을 확보함 */
+.row-refpair{ grid-template-columns: 1fr 270px 110px; align-items: stretch; }
 .row-refpair > .w-card{ min-height:0; }
+.row-refpair.video-open{ grid-template-columns: 1fr; }
+.row-refpair.video-open > .w-gallery, .row-refpair.video-open > .w-refgallery{ display:none; }
 @media (max-width: 1100px){
   .row-2{ grid-template-columns: 1.5fr 1fr; }
-  .row-refpair{ grid-template-columns: 1fr 210px; }
+  .row-refpair{ grid-template-columns: 1fr 210px 100px; }
 }
 @media (max-width: 900px){
-  .row-2, .row-strip, .row-refpair{ grid-template-columns: 1fr; }
+  .row-2, .row-strip{ grid-template-columns: 1fr; }
+  .row-refpair{ grid-template-columns: 1fr; }
   .row-2-left{ grid-template-columns: 1fr; }
   /* 음악/디데이는 내용이 짧고 폭이 좁아도 괜찮은 "작은 카드"라, 모바일에서도 세로로
      쌓지 않고 2열로 나란히 둬서 스크롤 길이를 줄임(달력·문서처럼 읽을 내용이 많은
@@ -899,13 +905,13 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 /* ---------- 영상전용 플레이어 (갤러리 탭, 유튜브 여러 개를 목록에서 골라 재생) ---------- */
-.w-video{ gap:12px; }
+.w-video{ gap:10px; min-width:0; padding:10px; }
 .video-player{
   position:relative; width:100%; max-height:0; border-radius:14px; overflow:hidden;
   background: rgba(0,0,0,0.35); flex:0 0 auto;
   transition: max-height .28s ease;
 }
-.video-player.open{ max-height:400px; aspect-ratio:16/9; }
+.video-player.open{ max-height:600px; aspect-ratio:16/9; }
 .video-player iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
 .video-player .w-empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:0; }
 .video-collapse{
@@ -913,30 +919,36 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.75); color:var(--ink); font-size:.8rem;
   display:flex; align-items:center; justify-content:center;
 }
+/* 평소엔 레퍼런스갤러리 옆 좁은 칸에 세로로 쌓인 목록(제목은 자리가 없어 생략) */
 .video-list{
-  display:flex; flex-direction:row; gap:10px; overflow-x:auto; padding-bottom:4px;
+  display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:420px; padding-right:2px;
 }
-.video-list::-webkit-scrollbar{ height:5px; }
+.video-list::-webkit-scrollbar{ width:5px; }
 .video-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .video-item{
-  position:relative; flex:0 0 auto; width:150px; cursor:pointer; border-radius:12px; overflow:hidden;
+  position:relative; flex:0 0 auto; width:100%; cursor:pointer; border-radius:10px; overflow:hidden;
   border:2px solid transparent; transition: border-color .15s ease;
 }
 .video-item.active{ border-color: var(--rose); }
 .video-thumb{
   width:100%; aspect-ratio:16/9; background-size:cover; background-position:center; background-color: rgba(0,0,0,0.3);
 }
-.video-title{
-  font-size:.7rem; color: var(--ink); padding:4px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  background: rgba(0,0,0,0.35);
-}
+.video-title{ display:none; }
 .video-del{
   position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%;
   border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); color:#ff9aa6; font-size:.65rem;
 }
-@media (max-width: 900px){
-  .video-item{ width:120px; }
+/* 재생 중(줄이 전체 폭으로 넓어진 상태)엔 목록도 플레이어 아래에 가로로 넓게 펼쳐서
+   여러 영상을 둘러보기 편하게 하고, 이때는 제목도 같이 보여줌 */
+.row-refpair.video-open .video-list{
+  flex-direction:row; gap:10px; overflow-x:auto; overflow-y:visible; max-height:none; padding-bottom:4px; padding-right:0;
 }
+.row-refpair.video-open .video-item{ width:150px; flex:0 0 auto; }
+.row-refpair.video-open .video-title{
+  display:block; font-size:.7rem; color: var(--ink); padding:4px 6px; white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; background: rgba(0,0,0,0.35);
+}
+.w-video .w-edit-row button{ width:100%; white-space:normal; line-height:1.3; }
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
 .doc-list{ flex:1; min-height:0; min-width:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); align-content:start; gap:8px; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 /* 모바일에서는 문서 위젯이 들어있는 그리드(.row-2-right 등)의 행 높이가 auto라서
