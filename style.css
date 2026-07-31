@@ -256,9 +256,9 @@ body::before{
     grid-template-areas:
       "images images images images images images images images images images"
       "music music music music music music music music music music"
-      "dday dday dday dday dday dday dday dday dday dday"
       "profile profile profile profile profile profile profile profile profile profile"
       "gb gb gb gb gb gb gb gb gb gb"
+      "cal cal cal cal dday dday dday dday dday dday"
       "cal cal cal cal checklist checklist checklist checklist checklist checklist"
       "docs docs docs docs docs docs sessions sessions sessions sessions";
   }
