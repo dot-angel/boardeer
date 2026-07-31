@@ -782,9 +782,28 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .cal-month + .cal-month{ padding-top:10px; border-top:1px solid var(--card-border); }
 .cal-month.cal-month-side{ opacity:.6; }
 .cal-month.cal-month-current .cal-head strong{ color: var(--rose); }
-/* 모바일 전용 주간 스트립(칸 하나짜리, 달력 대신 한 주만 보여줌) */
+/* 모바일 전용 주간 스트립: 요일을 가로 7칸이 아니라 세로로 한 줄씩 나열함 */
 .cal-week{ display:flex; flex-direction:column; }
 .cal-week .cal-head strong{ color: var(--rose); }
+.cal-week-list{ display:flex; flex-direction:column; gap:4px; }
+.cal-week-day{
+  display:flex; align-items:center; gap:10px;
+  padding:8px 12px; border-radius:10px; cursor:pointer;
+  border:1px solid transparent; position:relative;
+}
+.cal-week-day:hover{ background: rgba(255,255,255,0.08); }
+.cal-week-day.today{ font-weight:700; color: var(--rose); }
+.cal-week-dow{ flex:0 0 22px; font-size:.72rem; color: var(--ink-soft); text-align:center; }
+.cal-week-day.today .cal-week-dow{ color: var(--rose); }
+.cal-week-date{ font-size:.85rem; }
+.cal-week-day.has-event::after{
+  content:""; position:absolute; right:16px; top:50%; transform:translateY(-50%);
+  width:5px; height:5px; border-radius:50%; background: var(--rose);
+}
+.cal-week-day.has-dday::before{
+  content:"✦"; position:absolute; right:30px; top:50%; transform:translateY(-50%);
+  font-size:9px; color: var(--sage);
+}
 .cal-head{ display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
 /* 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이도록 JS(renderCalendar)에서
    .cal-clip에 height를, .cal-grid에 marginTop을 직접 지정함. 여기서는 넘치는 부분을
