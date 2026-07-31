@@ -1152,16 +1152,14 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .check-item .del:hover{ color:#ff8f9e; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
-.check-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; margin:0 2px; }
 /* 폭이 좁은 폰에서는 할 일/완료를 좌우로 나누면 각 칸이 너무 좁아져서 글자가
-   답답하게 접힘. 이 폭에서는 위/아래로 쌓고, 구분선도 세로→가로로 되돌림.
-   (주의: 이 규칙은 반드시 위의 기본 .check-divider보다 뒤에 와야 적용됨 —
-   전에 순서가 반대라 모바일에서 구분선이 안 보이는 버그가 있었음) */
+   답답하게 접힘. 이 폭에서는 위/아래로 쌓고, 구분선도 세로→가로로 되돌림 */
 @media (max-width: 520px){
   .checklist{ flex-direction:column; }
   .check-col{ padding:0; }
   .check-divider{ width:auto; height:1px; align-self:stretch; margin:6px 0; }
 }
+.check-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; margin:0 2px; }
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
