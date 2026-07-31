@@ -3327,12 +3327,13 @@ function buildCalMonthHTML(y, m, kind){
   `;
 }
 
-// 모바일 전용 주간 스트립: 해당 주(일~토) 7칸만 한 줄로 보여줌.
+// 모바일 전용 주간 스트립: 해당 주(일~토)를 세로로 한 줄씩 나열함.
 function buildCalWeekHTML(startDate){
   const events = calendarData.events || {};
   const todayStr = new Date().toISOString().slice(0,10);
+  const dowNames = ['일','월','화','수','목','금','토'];
   const days = [];
-  let cells = '';
+  let rows = '';
   for(let i=0;i<7;i++){
     const d = new Date(startDate);
     d.setDate(d.getDate() + i);
@@ -3341,12 +3342,16 @@ function buildCalWeekHTML(startDate){
     const hasManual = events[dateStr] && events[dateStr].length;
     const ddayMarks = ddayMilestonesForDate(dateStr);
     const cls = [
-      'cal-day',
+      'cal-week-day',
       dateStr===todayStr ? 'today' : '',
       (hasManual || ddayMarks.length) ? 'has-event' : '',
       ddayMarks.length ? 'has-dday' : ''
     ].filter(Boolean).join(' ');
-    cells += `<div class="${cls}" data-day="${dateStr}" title="${ddayMarks.length ? escapeHtml(ddayMarks.join(', ')) : ''}">${d.getDate()}</div>`;
+    rows += `
+      <div class="${cls}" data-day="${dateStr}" title="${ddayMarks.length ? escapeHtml(ddayMarks.join(', ')) : ''}">
+        <span class="cal-week-dow">${dowNames[d.getDay()]}</span>
+        <span class="cal-week-date">${d.getMonth()+1}.${d.getDate()}</span>
+      </div>`;
   }
   const first = days[0], last = days[6];
   const rangeLabel = first.getMonth() === last.getMonth()
@@ -3355,9 +3360,8 @@ function buildCalWeekHTML(startDate){
   return `
     <div class="cal-week">
       <div class="cal-head"><strong>${rangeLabel}</strong></div>
-      <div class="cal-grid">
-        ${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}
-        ${cells}
+      <div class="cal-week-list">
+        ${rows}
       </div>
     </div>
   `;
