@@ -471,6 +471,10 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 /* ---------- 프로필 위젯 (두 사람 프로필, 슬라이드로 여러 장(예: 본편/AU) 전환, AU별 시점/IF 세분화) ---------- */
 .w-profile{ align-items:stretch; }
+@media (max-width: 900px){
+  /* 카드 기본 패딩(18px)이 모바일에서 좁은 폭을 더 잡아먹으므로 프로필 카드만 줄임 */
+  .w-profile{ padding:10px; }
+}
 .profile-viewport{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:6px 4px; min-height:0; overflow-y:auto; }
 .profile-viewport::-webkit-scrollbar{ width:5px; }
 .profile-viewport::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
@@ -620,6 +624,13 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .profile-slide-desc.empty-hint:hover{ opacity:1; }
 .profile-pair{ display:flex; flex-direction:row; align-items:flex-start; justify-content:center; gap:14px; width:100%; }
 .profile-person{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; padding:6px; border-radius:16px; }
+/* 모바일에서는 2단(가로) 배치를 그대로 유지하되(세로로 쌓으면 스크롤이 너무
+   길어짐), 대신 카드/뷰포트/사람 칸의 여백을 좁혀서 실제 글자가 쓸 수 있는
+   폭을 최대한 확보함 */
+@media (max-width: 900px){
+  .profile-pair{ gap:6px; }
+  .profile-person{ padding:2px; }
+}
 .profile-basic{ display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:100%; }
 .profile-basic.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px 8px; }
 .profile-basic.editable:hover{ background: rgba(255,255,255,0.06); }
@@ -887,6 +898,38 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
+/* ---------- 영상전용 플레이어 (갤러리 탭, 유튜브 여러 개를 목록에서 골라 재생) ---------- */
+.w-video{ gap:12px; }
+.video-player{
+  position:relative; width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden;
+  background: rgba(0,0,0,0.35); flex:0 0 auto;
+}
+.video-player iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
+.video-player .w-empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:0; }
+.video-list{
+  display:flex; flex-direction:row; gap:10px; overflow-x:auto; padding-bottom:4px;
+}
+.video-list::-webkit-scrollbar{ height:5px; }
+.video-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.video-item{
+  position:relative; flex:0 0 auto; width:150px; cursor:pointer; border-radius:12px; overflow:hidden;
+  border:2px solid transparent; transition: border-color .15s ease;
+}
+.video-item.active{ border-color: var(--rose); }
+.video-thumb{
+  width:100%; aspect-ratio:16/9; background-size:cover; background-position:center; background-color: rgba(0,0,0,0.3);
+}
+.video-title{
+  font-size:.7rem; color: var(--ink); padding:4px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  background: rgba(0,0,0,0.35);
+}
+.video-del{
+  position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%;
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); color:#ff9aa6; font-size:.65rem;
+}
+@media (max-width: 900px){
+  .video-item{ width:120px; }
+}
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
 .doc-list{ flex:1; min-height:0; min-width:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); align-content:start; gap:8px; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 /* 모바일에서는 문서 위젯이 들어있는 그리드(.row-2-right 등)의 행 높이가 auto라서
