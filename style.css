@@ -373,6 +373,12 @@ body::before{
 /* ---------- 음악 위젯 (자켓 이미지 + 진행바 + 반복/연속재생 + 재생목록) ---------- */
 .w-music{ gap:8px; padding:14px; }
 .mp-player{ position:relative; z-index:1; display:flex; flex-direction:column; gap:6px; flex:1; min-height:0; justify-content:flex-end; }
+/* 재생바/제목/아티스트(mp-nowplaying)와 컨트롤+재생목록(mp-side)을 각각 감싸는 래퍼.
+   데스크톱에서는 둘 다 세로 flex라서 이전과 똑같이 위→아래로 쌓여 보이고,
+   모바일에서만 아래 미디어쿼리로 서로 다른 위치에 배치함(재생정보는 자켓 위 좌측 하단,
+   컨트롤+재생목록은 자켓 오른쪽) */
+.mp-nowplaying{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+.mp-side{ display:flex; flex-direction:column; gap:6px; min-width:0; }
 .mp-cover-bg{
   position:absolute; inset:0; z-index:0; border-radius: inherit;
   background-size:cover; background-position:center;
@@ -492,18 +498,31 @@ body::before{
   }
   .w-music:has(.mp-cover-bg.has-cover) .mp-artist{ color: var(--ink-soft); }
   .mp-player{
-    position:relative; z-index:1;
-    margin-left: 38%; justify-content:center; padding:10px 12px 10px 4px; min-width:0;
+    position:relative; z-index:1; min-height:0;
+    display:block; /* 재생정보(좌하단 오버레이)와 재생목록(우측)을 따로 배치하기 위해 세로 flex 해제 */
+  }
+  /* 제목·아티스트·재생바·컨트롤을 전부 자켓 이미지 위, 좌측 하단에 모아서 표시.
+     재생목록(mp-side)이 46% 지점부터 시작하므로 그 앞에서 끝나도록 폭을 제한해 겹치지 않게 함 */
+  .mp-nowplaying{
+    position:absolute; left:12px; bottom:12px; width:calc(46% - 24px);
+    z-index:2; gap:4px;
   }
   .mp-meta{ text-align:left; padding:0; }
-  .mp-controls{ justify-content:flex-start; gap:5px; }
-  .mp-controls .icon-btn{ width:22px; font-size:.75rem; min-width:14px; }
+  .mp-controls{ justify-content:flex-start; gap:4px; }
+  .mp-controls .icon-btn{ width:18px; font-size:.7rem; min-width:14px; }
   .mp-times{ font-size:.6rem; }
-  .player-tracks{ max-height:140px; }
+  /* 재생목록만 남는 우측 영역: 카드 위/아래/오른쪽 끝까지 채워서 불필요한 여백이 생기지 않게 함 */
+  .mp-side{
+    position:absolute; top:0; right:0; bottom:0; left:46%;
+    padding:10px 8px 10px 6px; min-width:0;
+    display:flex; flex-direction:column;
+  }
+  .player-tracks{ flex:1; min-height:0; width:100%; max-height:none; overflow-y:auto; }
   /* 터치로 누르는 목록이니 줄 높이/글자를 살짝 키워서 오터치를 줄임 */
   .player-track{ padding:9px 8px; font-size:.85rem; }
   .mp-track-thumb{ width:34px; height:34px; }
-  .mp-track-artist{ font-size:.72rem; }
+  /* 재생목록에서는 아티스트명을 숨기고 곡 제목만 보이게 함 */
+  .mp-track-artist{ display:none; }
 }
 /* ---------- 디데이 (여백 없이 크게 — 레퍼런스처럼 굵은 타이포그래피 위주) ---------- */
 .w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; container-type: inline-size; }
