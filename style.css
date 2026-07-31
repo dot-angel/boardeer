@@ -244,14 +244,40 @@ body::before{
   .row-refpair{ grid-template-columns: 1fr 210px 150px; }
 }
 @media (max-width: 900px){
-  .row-2, .row-strip{ grid-template-columns: 1fr; }
   .row-refpair{ grid-template-columns: 1fr; }
-  .row-2-left{ grid-template-columns: 1fr; }
-  /* 음악 위젯이 이제 모바일에서 자체적으로 좌(커버)+우(컨트롤) 가로 구조를 쓰므로,
-     디데이와 2열로 나란히 두면 폭이 절반으로 눌려서 그 안에서 또 쪼개져 너무
-     좁아짐. 그래서 세로로 되돌림 — 음악이 위, 디데이가 그 아래 전체 폭으로 옴 */
-  .row-strip-right{ grid-template-rows: auto auto; grid-template-columns: 1fr; }
-  .row-strip-right > .w-card{ min-width:0; }
+  /* 모바일에서 캘린더를 방명록과 같은 줄에 두기 위해, 위젯 탭(페이지0)의 중첩된
+     row/row-strip-right/row-2-left/row-2-right 박스들을 display:contents로 다
+     투명하게 만들어서 그 안의 위젯 카드들이 전부 .board 하나의 grid로 합쳐지게
+     함. 그 다음 각 카드에 grid-area 이름을 줘서 원하는 자리에 자유롭게 배치.
+     (갤러리 탭인 page 1은 이 규칙 대상이 아니라서 desktop 레이아웃과 무관) */
+  .board-page[data-page="0"] .board{
+    display:grid; grid-template-columns: 1fr 1fr; gap:20px;
+    grid-template-areas:
+      "images images"
+      "music music"
+      "dday dday"
+      "profile profile"
+      "cal gb"
+      "sessions sessions"
+      "docs docs"
+      "checklist checklist";
+  }
+  .board-page[data-page="0"] .row-strip,
+  .board-page[data-page="0"] .row-2,
+  .board-page[data-page="0"] .row-strip-right,
+  .board-page[data-page="0"] .row-2-left,
+  .board-page[data-page="0"] .row-2-right{
+    display:contents;
+  }
+  #cardImages{ grid-area: images; }
+  #cardMusic{ grid-area: music; }
+  #cardDday{ grid-area: dday; }
+  #cardProfile{ grid-area: profile; }
+  #cardCalendar{ grid-area: cal; min-width:0; }
+  #cardGuestbook{ grid-area: gb; min-width:0; }
+  #cardSessions{ grid-area: sessions; }
+  #cardDocs{ grid-area: docs; }
+  #cardChecklist{ grid-area: checklist; }
   /* 입력창 글자가 16px보다 작으면 iOS 사파리가 포커스할 때 화면 전체를 확대해버림.
      모달(문서/갤러리/캘린더 등 모든 편집창)이랑 방명록 입력창 전부 여기 해당돼서,
      모바일에서만 16px로 올려 이 확대 버그를 막음(데스크톱은 기존 크기 유지) */
@@ -762,13 +788,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .cal-clip{ overflow:hidden; }
 .cal-month-prev .cal-clip{ mask-image: linear-gradient(to bottom, transparent, black 45%); -webkit-mask-image: linear-gradient(to bottom, transparent, black 45%); }
 .cal-month-next .cal-clip{ mask-image: linear-gradient(to bottom, black 55%, transparent); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent); }
-/* 넘김 버튼: 좌우가 아니라 캘린더 전체 위/아래(상하)에 배치 */
-/* 모바일에서는 이전달/다음달 미리보기를 아예 숨기고 이번 달만 보여줌
-   (이동 버튼(▲▼)은 그대로 남겨서 월 이동 기능은 유지됨) */
-@media (max-width: 900px){
-  .cal-month-prev, .cal-month-next{ display:none; }
-  .cal-month-current{ padding-top:0; border-top:none; }
-}
 .cal-nav{ display:flex; justify-content:center; }
 .cal-nav-prev{ margin-bottom:6px; }
 .cal-nav-next{ margin-top:6px; }
@@ -1133,14 +1152,16 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .check-item .del:hover{ color:#ff8f9e; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
+.check-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; margin:0 2px; }
 /* 폭이 좁은 폰에서는 할 일/완료를 좌우로 나누면 각 칸이 너무 좁아져서 글자가
-   답답하게 접힘. 이 폭에서는 위/아래로 쌓고, 구분선도 세로→가로로 되돌림 */
+   답답하게 접힘. 이 폭에서는 위/아래로 쌓고, 구분선도 세로→가로로 되돌림.
+   (주의: 이 규칙은 반드시 위의 기본 .check-divider보다 뒤에 와야 적용됨 —
+   전에 순서가 반대라 모바일에서 구분선이 안 보이는 버그가 있었음) */
 @media (max-width: 520px){
   .checklist{ flex-direction:column; }
   .check-col{ padding:0; }
   .check-divider{ width:auto; height:1px; align-self:stretch; margin:6px 0; }
 }
-.check-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; margin:0 2px; }
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
