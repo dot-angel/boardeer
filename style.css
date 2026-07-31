@@ -247,10 +247,10 @@ body::before{
   .row-2, .row-strip{ grid-template-columns: 1fr; }
   .row-refpair{ grid-template-columns: 1fr; }
   .row-2-left{ grid-template-columns: 1fr; }
-  /* 음악/디데이는 내용이 짧고 폭이 좁아도 괜찮은 "작은 카드"라, 모바일에서도 세로로
-     쌓지 않고 2열로 나란히 둬서 스크롤 길이를 줄임(달력·문서처럼 읽을 내용이 많은
-     카드는 그대로 전체 폭 1열 유지) */
-  .row-strip-right{ grid-template-rows: none; grid-template-columns: 1fr 1fr; }
+  /* 음악 위젯이 이제 모바일에서 자체적으로 좌(커버)+우(컨트롤) 가로 구조를 쓰므로,
+     디데이와 2열로 나란히 두면 폭이 절반으로 눌려서 그 안에서 또 쪼개져 너무
+     좁아짐. 그래서 세로로 되돌림 — 음악이 위, 디데이가 그 아래 전체 폭으로 옴 */
+  .row-strip-right{ grid-template-rows: auto auto; grid-template-columns: 1fr; }
   .row-strip-right > .w-card{ min-width:0; }
 }
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
