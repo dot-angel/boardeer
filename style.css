@@ -782,6 +782,9 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .cal-month + .cal-month{ padding-top:10px; border-top:1px solid var(--card-border); }
 .cal-month.cal-month-side{ opacity:.6; }
 .cal-month.cal-month-current .cal-head strong{ color: var(--rose); }
+/* 모바일 전용 주간 스트립(칸 하나짜리, 달력 대신 한 주만 보여줌) */
+.cal-week{ display:flex; flex-direction:column; }
+.cal-week .cal-head strong{ color: var(--rose); }
 .cal-head{ display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
 /* 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이도록 JS(renderCalendar)에서
    .cal-clip에 height를, .cal-grid에 marginTop을 직접 지정함. 여기서는 넘치는 부분을
