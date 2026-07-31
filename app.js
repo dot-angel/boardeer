@@ -3254,6 +3254,17 @@ document.getElementById('gbSubmit').addEventListener('click', async ()=>{
 let calendarData = { events: {} };
 let calState = (()=>{ const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; })();
 
+// 모바일에서는 캘린더를 달(月) 단위 대신 주(週) 단위 스트립으로 보여줌(칸이 좁아서
+// 한 달치를 다 넣으면 너무 빽빽해지므로). calWeekStart는 그 주의 일요일 00:00.
+function startOfWeek(date){
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+let calWeekStart = startOfWeek(new Date());
+function isMobileCalView(){ return window.innerWidth <= 900; }
+
 const DDAY_MILESTONE_INTERVAL = 50; // "50일 간격" 기념일 자동 표시 주기
 
 function daysBetween(baseDateStr, targetDateStr){
@@ -3316,8 +3327,61 @@ function buildCalMonthHTML(y, m, kind){
   `;
 }
 
+// 모바일 전용 주간 스트립: 해당 주(일~토) 7칸만 한 줄로 보여줌.
+function buildCalWeekHTML(startDate){
+  const events = calendarData.events || {};
+  const todayStr = new Date().toISOString().slice(0,10);
+  const days = [];
+  let cells = '';
+  for(let i=0;i<7;i++){
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const hasManual = events[dateStr] && events[dateStr].length;
+    const ddayMarks = ddayMilestonesForDate(dateStr);
+    const cls = [
+      'cal-day',
+      dateStr===todayStr ? 'today' : '',
+      (hasManual || ddayMarks.length) ? 'has-event' : '',
+      ddayMarks.length ? 'has-dday' : ''
+    ].filter(Boolean).join(' ');
+    cells += `<div class="${cls}" data-day="${dateStr}" title="${ddayMarks.length ? escapeHtml(ddayMarks.join(', ')) : ''}">${d.getDate()}</div>`;
+  }
+  const first = days[0], last = days[6];
+  const rangeLabel = first.getMonth() === last.getMonth()
+    ? `${first.getFullYear()}. ${first.getMonth()+1}.${first.getDate()} - ${last.getDate()}`
+    : `${first.getMonth()+1}.${first.getDate()} - ${last.getMonth()+1}.${last.getDate()}`;
+  return `
+    <div class="cal-week">
+      <div class="cal-head"><strong>${rangeLabel}</strong></div>
+      <div class="cal-grid">
+        ${['일','월','화','수','목','금','토'].map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+        ${cells}
+      </div>
+    </div>
+  `;
+}
+
+let calViewWasMobile = null;
 function renderCalendar(){
   const box = document.getElementById('cardCalendar');
+  const mobile = isMobileCalView();
+  calViewWasMobile = mobile;
+
+  if(mobile){
+    box.innerHTML = `
+      <div class="cal-nav cal-nav-prev"><span class="cal-nav-btn" id="calPrev">▲</span></div>
+      ${buildCalWeekHTML(calWeekStart)}
+      <div class="cal-nav cal-nav-next"><span class="cal-nav-btn" id="calNext">▼</span></div>
+    `;
+    box.querySelector('#calPrev').onclick = ()=>{ calWeekStart.setDate(calWeekStart.getDate() - 7); renderCalendar(); };
+    box.querySelector('#calNext').onclick = ()=>{ calWeekStart.setDate(calWeekStart.getDate() + 7); renderCalendar(); };
+    box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
+    fitRefGalleryToCalendarHeight();
+    return;
+  }
+
   let prevM = calState.m - 1, prevY = calState.y;
   if(prevM < 0){ prevM = 11; prevY--; }
   let nextM = calState.m + 1, nextY = calState.y;
@@ -3344,6 +3408,12 @@ function renderCalendar(){
 
   fitRefGalleryToCalendarHeight();
 }
+// 창 폭이 900px 경계를 넘나들 때(주간뷰 ↔ 월간뷰) 캘린더를 다시 그려줌
+// (리사이즈/기기 회전 등으로 모바일·PC 전환이 생겨도 항상 알맞은 뷰로 유지됨)
+window.addEventListener('resize', debounce(()=>{
+  if(calViewWasMobile === null) return;
+  if(isMobileCalView() !== calViewWasMobile) renderCalendar();
+}, 150));
 
 // 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이게 잘라냄.
 // prev는 아래쪽 절반(이번 달과 맞닿는 쪽)이 보이도록 위로 밀어 올리고,
