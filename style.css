@@ -252,6 +252,14 @@ body::before{
      좁아짐. 그래서 세로로 되돌림 — 음악이 위, 디데이가 그 아래 전체 폭으로 옴 */
   .row-strip-right{ grid-template-rows: auto auto; grid-template-columns: 1fr; }
   .row-strip-right > .w-card{ min-width:0; }
+  /* 입력창 글자가 16px보다 작으면 iOS 사파리가 포커스할 때 화면 전체를 확대해버림.
+     모달(문서/갤러리/캘린더 등 모든 편집창)이랑 방명록 입력창 전부 여기 해당돼서,
+     모바일에서만 16px로 올려 이 확대 버그를 막음(데스크톱은 기존 크기 유지) */
+  .modal input[type=text], .modal input[type=password], .modal input[type=date],
+  .modal input[type=url], .modal input[type=number], .modal textarea, .modal select,
+  .gb-form input, .gb-form textarea{
+    font-size: 16px;
+  }
 }
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
 .w-card{
@@ -436,16 +444,17 @@ body::before{
 .mp-modal-cover-preview img{ width:48px; height:48px; border-radius:10px; object-fit:cover; }
 .music-add{ align-self:flex-start; }
 /* 모바일: 커버가 카드 전체를 채우는 배경이라 그 위에 제목/컨트롤/재생목록이
-   전부 세로로 쌓이면서 위젯이 길어졌음. 커버를 왼쪽 고정 폭으로 옮기고
-   오른쪽에 제목/컨트롤/재생목록을 두는 가로 배치로 바꿔서 세로 길이를 줄임.
-   커버 오른쪽 끝은 mask로 투명하게 페이드시켜서 오른쪽 패널과 자연스럽게
-   이어지게 함(잘린 경계선처럼 안 보이게) */
+   전부 세로로 쌓이면서 위젯이 길어졌음. 커버를 왼쪽에 두고 오른쪽에
+   제목/컨트롤/재생목록을 두는 가로 배치로 바꿔서 세로 길이를 줄임.
+   커버가 오른쪽 패널 쪽으로 좀 더 자연스럽게 번져 들어가도록, 커버를 실제
+   패널 폭보다 넓게 깔고(겹치게) 페이드 구간을 길게 잡아서 경계가 딱 잘리지
+   않고 재생목록 초반부 아래까지 은은하게 이어지게 함 */
 @media (max-width: 900px){
-  .w-music{ flex-direction:row; align-items:stretch; padding:0; gap:0; }
+  .w-music{ position:relative; padding:0; gap:0; }
   .mp-cover-bg{
-    position:relative; inset:auto; flex:0 0 42%; width:42%;
-    mask-image: linear-gradient(90deg, #000 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.35) 70%, transparent 100%);
-    -webkit-mask-image: linear-gradient(90deg, #000 20%, rgba(0,0,0,0.75) 45%, rgba(0,0,0,0.35) 70%, transparent 100%);
+    position:absolute; inset:0; width:72%; height:100%;
+    mask-image: linear-gradient(90deg, #000 12%, rgba(0,0,0,0.8) 34%, rgba(0,0,0,0.35) 58%, transparent 92%);
+    -webkit-mask-image: linear-gradient(90deg, #000 12%, rgba(0,0,0,0.8) 34%, rgba(0,0,0,0.35) 58%, transparent 92%);
   }
   .mp-cover-bg.has-cover::after{ content:none; }
   .w-music:has(.mp-cover-bg.has-cover) .mp-title,
@@ -455,10 +464,19 @@ body::before{
     text-shadow:none;
   }
   .w-music:has(.mp-cover-bg.has-cover) .mp-artist{ color: var(--ink-soft); }
-  .mp-player{ justify-content:center; padding:10px 12px 10px 6px; min-width:0; }
+  .mp-player{
+    position:relative; z-index:1;
+    margin-left: 38%; justify-content:center; padding:10px 12px 10px 4px; min-width:0;
+  }
   .mp-meta{ text-align:left; padding:0; }
-  .mp-controls{ justify-content:flex-start; }
+  .mp-controls{ justify-content:flex-start; gap:5px; }
+  .mp-controls .icon-btn{ width:22px; font-size:.75rem; min-width:14px; }
+  .mp-times{ font-size:.6rem; }
   .player-tracks{ max-height:140px; }
+  /* 터치로 누르는 목록이니 줄 높이/글자를 살짝 키워서 오터치를 줄임 */
+  .player-track{ padding:9px 8px; font-size:.85rem; }
+  .mp-track-thumb{ width:34px; height:34px; }
+  .mp-track-artist{ font-size:.72rem; }
 }
 /* ---------- 디데이 (여백 없이 크게 — 레퍼런스처럼 굵은 타이포그래피 위주) ---------- */
 .w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; container-type: inline-size; }
@@ -1115,6 +1133,13 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .check-item .del:hover{ color:#ff8f9e; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
+/* 폭이 좁은 폰에서는 할 일/완료를 좌우로 나누면 각 칸이 너무 좁아져서 글자가
+   답답하게 접힘. 이 폭에서는 위/아래로 쌓고, 구분선도 세로→가로로 되돌림 */
+@media (max-width: 520px){
+  .checklist{ flex-direction:column; }
+  .check-col{ padding:0; }
+  .check-divider{ width:auto; height:1px; align-self:stretch; margin:6px 0; }
+}
 .check-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; margin:0 2px; }
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
