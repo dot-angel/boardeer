@@ -2652,21 +2652,25 @@ function buildMusicSkeleton(box){
   box.innerHTML = `
     <div class="mp-cover-bg" id="mpCoverBg"></div>
     <div class="mp-player">
-      <input type="range" class="mp-seek" id="mpSeek" min="0" max="1000" value="0">
-      <div class="mp-times"><span id="mpCurTime">0:00</span><span id="mpDurTime">0:00</span></div>
-      <div class="mp-meta">
-        <div class="mp-title" id="mpTitle">재생할 곡을 선택해주세요</div>
-        <div class="mp-artist" id="mpArtist"></div>
+      <div class="mp-nowplaying" id="mpNowPlaying">
+        <div class="mp-meta">
+          <div class="mp-title" id="mpTitle">재생할 곡을 선택해주세요</div>
+          <div class="mp-artist" id="mpArtist"></div>
+        </div>
+        <input type="range" class="mp-seek" id="mpSeek" min="0" max="1000" value="0">
+        <div class="mp-times"><span id="mpCurTime">0:00</span><span id="mpDurTime">0:00</span></div>
+        <div class="mp-controls">
+          <button class="icon-btn mp-repeat-btn" id="mpRepeatBtn" title="반복재생"></button>
+          <button class="icon-btn mp-prev-btn" id="mpPrevBtn" title="이전 곡">⏮</button>
+          <button class="mp-play-btn" id="mpPlayBtn" title="재생/일시정지">▶</button>
+          <button class="icon-btn mp-next-btn" id="mpNextBtn" title="다음 곡">⏭</button>
+          <button class="icon-btn mp-continuous-btn" id="mpContinuousBtn" title="연속재생">➜</button>
+        </div>
       </div>
-      <div class="mp-controls">
-        <button class="icon-btn mp-repeat-btn" id="mpRepeatBtn" title="반복재생"></button>
-        <button class="icon-btn mp-prev-btn" id="mpPrevBtn" title="이전 곡">⏮</button>
-        <button class="mp-play-btn" id="mpPlayBtn" title="재생/일시정지">▶</button>
-        <button class="icon-btn mp-next-btn" id="mpNextBtn" title="다음 곡">⏭</button>
-        <button class="icon-btn mp-continuous-btn" id="mpContinuousBtn" title="연속재생">➜</button>
+      <div class="mp-side">
+        <div class="player-tracks" id="mpTrackList"></div>
+        ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
       </div>
-      <div class="player-tracks" id="mpTrackList"></div>
-      ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
       <div id="mpYtHolder" style="display:none;"></div>
       <audio id="mpAudioEl" preload="metadata" style="display:none;"></audio>
     </div>
