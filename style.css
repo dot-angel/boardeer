@@ -252,15 +252,15 @@ body::before{
      줘서 원하는 자리에 자유롭게 배치.
      (갤러리 탭인 page 1은 이 규칙 대상이 아니라서 desktop 레이아웃과 무관) */
   .board-page[data-page="0"] .board{
-    display:grid; grid-template-columns: 1fr 1fr; gap:20px;
+    display:grid; grid-template-columns: repeat(10, 1fr); gap:20px;
     grid-template-areas:
-      "images images"
-      "music music"
-      "dday dday"
-      "profile profile"
-      "gb gb"
-      "cal checklist"
-      "docs sessions";
+      "images images images images images images images images images images"
+      "music music music music music music music music music music"
+      "dday dday dday dday dday dday dday dday dday dday"
+      "profile profile profile profile profile profile profile profile profile profile"
+      "gb gb gb gb gb gb gb gb gb gb"
+      "cal cal cal cal checklist checklist checklist checklist checklist checklist"
+      "docs docs docs docs docs docs sessions sessions sessions sessions";
   }
   .board-page[data-page="0"] .row-images,
   .board-page[data-page="0"] .row-strip,
