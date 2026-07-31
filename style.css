@@ -225,9 +225,9 @@ body::before{
 .row-strip-right{ display:grid; grid-template-rows: 1fr auto; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
 /* 왼쪽: 캘린더 + 세션(나란히) / 오른쪽: 문서 + 체크리스트(문서 아래로 체크리스트, 세로로 쌓임) */
-.row-2{ grid-template-columns: 1.6fr 1fr; }
+.row-2{ grid-template-columns: 1.2fr 1.4fr; }
 .row-2 > .row-2-left, .row-2 > .row-2-right{ min-width:0; min-height:0; }
-.row-2-left{ display:grid; grid-template-columns: 1fr 2.2fr; gap:20px; min-width:0; }
+.row-2-left{ display:grid; grid-template-columns: 1fr 1.4fr; gap:20px; min-width:0; }
 .row-2-left > .w-card{ min-height:0; min-width:0; }
 .row-2-right{ display:grid; grid-template-rows: auto auto; gap:20px; min-width:0; }
 .row-2-right > .w-card{ min-height:0; }
@@ -240,7 +240,7 @@ body::before{
 .row-refpair.video-open{ grid-template-columns: 1fr; }
 .row-refpair.video-open > .w-gallery, .row-refpair.video-open > .w-refgallery{ display:none; }
 @media (max-width: 1100px){
-  .row-2{ grid-template-columns: 1.5fr 1fr; }
+  .row-2{ grid-template-columns: 1.1fr 1.3fr; }
   .row-refpair{ grid-template-columns: 1fr 210px 150px; }
 }
 @media (max-width: 900px){
@@ -490,13 +490,8 @@ body::before{
     -webkit-mask-image: linear-gradient(90deg, #000 12%, rgba(0,0,0,0.8) 34%, rgba(0,0,0,0.35) 58%, transparent 92%);
   }
   .mp-cover-bg.has-cover::after{ content:none; }
-  .w-music:has(.mp-cover-bg.has-cover) .mp-title,
-  .w-music:has(.mp-cover-bg.has-cover) .mp-artist,
-  .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
-  .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
-    text-shadow:none;
-  }
-  .w-music:has(.mp-cover-bg.has-cover) .mp-artist{ color: var(--ink-soft); }
+  /* 제목/아티스트 텍스트 스타일(그림자·색)은 PC와 동일하게 유지 — 자켓 이미지 위에
+     그대로 얹히는 건 PC/모바일 둘 다 같으므로 여기서 따로 지우지 않음 */
   .mp-player{
     position:relative; z-index:1; min-height: 210px;
     display:block; /* 재생정보(좌하단 오버레이)와 재생목록(우측)을 따로 배치하기 위해 세로 flex 해제 */
@@ -778,8 +773,23 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 
 /* ---------- 방명록 ---------- */
 .w-guestbook .w-body{ flex:1; min-height:0; margin-bottom:10px; overflow-y:auto; }
+/* 접기/펼치기 버튼은 데스크톱에선 안 보임(다른 위젯처럼 제목 없는 톤 유지) —
+   모바일에서만 방명록이 다른 위젯들에 비해 세로로 길어지는 걸 줄이기 위해 노출.
+   기본 상태(HTML의 gb-collapsed 클래스)는 접힘이며, 이 규칙 자체가 모바일
+   미디어쿼리 안에 있어서 PC에서는 클래스가 있어도 항상 펼쳐진 채로 보임 */
+.gb-toggle{ display:none; }
 @media (max-width: 900px){
   .w-guestbook .w-body{ max-height: 260px; }
+  .gb-toggle{
+    display:flex; align-items:center; justify-content:space-between;
+    width:100%; background:none; border:none; padding:2px 2px 10px; margin:0;
+    font-family: var(--font-display); font-weight:700; font-size:.92rem; color: var(--ink);
+    cursor:pointer;
+  }
+  .gb-toggle-arrow{ font-size:.7rem; color: var(--ink-soft); transition: transform .2s ease; }
+  .w-guestbook.gb-collapsed .gb-toggle-arrow{ transform: rotate(-90deg); }
+  .w-guestbook.gb-collapsed .w-body,
+  .w-guestbook.gb-collapsed .gb-form{ display:none; }
 }
 .gb-entry{ border-bottom:1px solid var(--card-border); padding:9px 0; }
 .gb-entry .gb-name{ font-weight:600; font-size:.85rem; color: var(--rose); }
@@ -877,8 +887,9 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 @media (max-width: 900px){
   /* 원래 260px였는데, 갤러리1은 다른 두 갤러리보다 더 잘 보이면 좋겠다는 요청으로
      약 1.35배(260px → 350px)까지 늘렸었고, 이후 세 갤러리를 모두 더 길게 늘려달라는
-     요청으로 데스크톱과 동일하게 +200px만큼 더 늘림(350px → 550px). */
-  .pin-grid-scroll{ max-height: 550px; }
+     요청으로 데스크톱과 동일하게 +200px만큼 더 늘림(350px → 550px). 다시 위젯이
+     너무 길다는 요청으로 380px로 줄임(다른 두 갤러리보다는 여전히 좀 더 크게 유지). */
+  .pin-grid-scroll{ max-height: 380px; }
 }
 .pin-grid-scroll::-webkit-scrollbar{ width:5px; }
 .pin-grid-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
@@ -942,9 +953,10 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   gap:6px;
 }
 /* 모바일에서는 세 갤러리(갤러리1/갤러리2/레퍼런스 갤러리)가 세로로 쌓이므로,
-   갤러리1(.pin-grid-scroll)과 동일한 높이로 맞춰서 통일된 느낌이 되게 함 */
+   갤러리1(.pin-grid-scroll)과 비슷한 높이로 맞춰서 통일된 느낌이 되게 함(위젯이
+   너무 길어진다는 요청으로 전체적으로 낮춤) */
 @media (max-width: 900px){
-  .gallery2-grid{ max-height: 460px; }
+  .gallery2-grid{ max-height: 320px; }
 }
 .gallery2-col{
   flex:1 1 0; min-width:0;
@@ -987,10 +999,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   gap:6px;
 }
 /* 모바일에서는 세 갤러리(갤러리1/갤러리2/레퍼런스 갤러리)가 세로로 쌓이므로,
-   갤러리1(.pin-grid-scroll)과 동일한 높이로 맞춰서 통일된 느낌이 되게 함.
+   갤러리1(.pin-grid-scroll)과 비슷한 높이로 맞춰서 통일된 느낌이 되게 함(위젯이
+   너무 길어진다는 요청으로 전체적으로 낮춤).
    PC에서는 fitRefGalleryToCalendarHeight()가 카드 높이를 캘린더에 맞추므로 영향 없음 */
 @media (max-width: 900px){
-  .ref-gallery-grid{ max-height: 460px; }
+  .ref-gallery-grid{ max-height: 320px; }
 }
 .ref-gallery-col{
   flex:1 1 0; min-width:0;

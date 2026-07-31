@@ -58,7 +58,11 @@
             </div>
           </div>
           <div class="w-card w-profile" id="cardProfile"></div>
-          <div class="w-card w-guestbook" id="cardGuestbook">
+          <div class="w-card w-guestbook gb-collapsed" id="cardGuestbook">
+            <button class="gb-toggle" id="gbToggle" type="button" aria-expanded="false">
+              <span>방명록</span>
+              <span class="gb-toggle-arrow">▾</span>
+            </button>
             <div class="w-body scroll" id="guestbookBody"></div>
             <div class="gb-form" id="guestbookForm">
               <input type="text" id="gbName" placeholder="이름">

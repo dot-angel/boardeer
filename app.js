@@ -3234,6 +3234,16 @@ function renderGuestbook(){
 
 docRef('guestbook').onSnapshot(doc=>{ guestbookData = doc.exists ? doc.data() : {entries:[]}; renderGuestbook(); });
 
+// 모바일 전용 접기/펼치기 버튼(PC에서는 CSS가 이 클래스를 무시하고 항상 펼쳐둠)
+const gbToggleBtn = document.getElementById('gbToggle');
+if(gbToggleBtn){
+  gbToggleBtn.addEventListener('click', ()=>{
+    const card = document.getElementById('cardGuestbook');
+    const collapsed = card.classList.toggle('gb-collapsed');
+    gbToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+  });
+}
+
 // 방명록은 잠금 상태와 관계없이 누구나 남길 수 있어요 (삭제만 편집모드 전용)
 document.getElementById('gbSubmit').addEventListener('click', async ()=>{
   const nameInput = document.getElementById('gbName');
