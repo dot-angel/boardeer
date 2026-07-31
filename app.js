@@ -3339,22 +3339,41 @@ function renderCalendar(){
   box.querySelector('#calNext').onclick = ()=>{ calState.m++; if(calState.m>11){calState.m=0; calState.y++;} renderCalendar(); };
   box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
 
-  // 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이게 잘라냄.
-  // prev는 아래쪽 절반(이번 달과 맞닿는 쪽)이 보이도록 위로 밀어 올리고,
-  // next는 위쪽 절반(이번 달과 맞닿는 쪽)이 자연스럽게 보이도록 둠.
+  applyCalMonthClipHeights(box);
+  ensureCalClipResizeWatch(box);
+
+  fitRefGalleryToCalendarHeight();
+}
+
+// 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이게 잘라냄.
+// prev는 아래쪽 절반(이번 달과 맞닿는 쪽)이 보이도록 위로 밀어 올리고,
+// next는 위쪽 절반(이번 달과 맞닿는 쪽)이 자연스럽게 보이도록 둠.
+// (예전엔 renderCalendar() 안에서 딱 한 번만 계산했는데, 모바일에서 카드 폭이
+// 아직 0으로 잡히는 순간(탭이 화면에 보이기 전, 레이아웃/폰트가 자리잡기 전 등)에
+// 이 계산이 실행되면 fullH가 0이 되어 이전/다음 달이 통째로 높이 0px로 접혀
+// 안 보이는 문제가 있었음 — 이 파일의 layoutPinMasonry/ensurePinMasonryResizeWatch와
+// 같은 종류의 버그라 같은 방식(ResizeObserver)으로 고침. 폭을 못 구한 경우엔
+// 억지로 0으로 확정 짓지 않고 넘어가고, 아래 ResizeObserver가 카드가 실제
+// 크기를 갖는 순간(=모바일에서도) 다시 계산해줌. */
+function applyCalMonthClipHeights(box){
   const curGrid = box.querySelector('.cal-month-current .cal-grid');
   const prevClip = box.querySelector('.cal-month-prev .cal-clip');
   const prevGrid = box.querySelector('.cal-month-prev .cal-grid');
   const nextClip = box.querySelector('.cal-month-next .cal-clip');
-  if(curGrid && prevClip && prevGrid && nextClip){
-    const fullH = curGrid.getBoundingClientRect().height;
-    const halfH = fullH / 2;
-    prevClip.style.height = `${halfH}px`;
-    prevGrid.style.marginTop = `-${halfH}px`;
-    nextClip.style.height = `${halfH}px`;
-  }
-
-  fitRefGalleryToCalendarHeight();
+  if(!(curGrid && prevClip && prevGrid && nextClip)) return;
+  const fullH = curGrid.getBoundingClientRect().height;
+  if(!fullH) return;
+  const halfH = fullH / 2;
+  prevClip.style.height = `${halfH}px`;
+  prevGrid.style.marginTop = `-${halfH}px`;
+  nextClip.style.height = `${halfH}px`;
+}
+let calClipResizeObserver = null;
+function ensureCalClipResizeWatch(box){
+  if(typeof ResizeObserver === 'undefined') return;
+  if(calClipResizeObserver) calClipResizeObserver.disconnect();
+  calClipResizeObserver = new ResizeObserver(()=> applyCalMonthClipHeights(box));
+  calClipResizeObserver.observe(box);
 }
 
 function openDayModal(dateStr){
