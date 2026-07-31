@@ -245,10 +245,11 @@ body::before{
 }
 @media (max-width: 900px){
   .row-refpair{ grid-template-columns: 1fr; }
-  /* 모바일에서 캘린더를 방명록과 같은 줄에 두기 위해, 위젯 탭(페이지0)의 중첩된
-     row/row-strip-right/row-2-left/row-2-right 박스들을 display:contents로 다
-     투명하게 만들어서 그 안의 위젯 카드들이 전부 .board 하나의 grid로 합쳐지게
-     함. 그 다음 각 카드에 grid-area 이름을 줘서 원하는 자리에 자유롭게 배치.
+  /* 모바일에서 캘린더+세션리스트, 문서+체크리스트를 각각 한 줄에 두기 위해,
+     위젯 탭(페이지0)의 중첩된 row/row-images/row-strip-right/row-2-left/row-2-right
+     박스들을 display:contents로 다 투명하게 만들어서 그 안의 위젯 카드들이
+     전부 .board 하나의 grid로 합쳐지게 함. 그 다음 각 카드에 grid-area 이름을
+     줘서 원하는 자리에 자유롭게 배치.
      (갤러리 탭인 page 1은 이 규칙 대상이 아니라서 desktop 레이아웃과 무관) */
   .board-page[data-page="0"] .board{
     display:grid; grid-template-columns: 1fr 1fr; gap:20px;
@@ -257,11 +258,11 @@ body::before{
       "music music"
       "dday dday"
       "profile profile"
-      "cal gb"
-      "sessions sessions"
-      "docs docs"
-      "checklist checklist";
+      "gb gb"
+      "cal checklist"
+      "docs sessions";
   }
+  .board-page[data-page="0"] .row-images,
   .board-page[data-page="0"] .row-strip,
   .board-page[data-page="0"] .row-2,
   .board-page[data-page="0"] .row-strip-right,
