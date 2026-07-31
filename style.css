@@ -465,15 +465,13 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .dday-item .icon-btn{
   position:absolute; top:9px; right:0; width:22px; height:22px; font-size:.6rem;
 }
-/* 모바일에서는 라벨/날짜와 D-숫자를 한 줄에 나란히 두지 않고, D-숫자가 날짜 아래로
-   내려오도록 세로로 쌓음. 라벨/날짜는 그대로 왼쪽 정렬 유지, D-숫자만 오른쪽 정렬 */
+/* 모바일에서도 가로 한 줄(라벨/날짜 왼쪽, D-숫자 오른쪽) 그대로 유지함. 예전엔
+   D-숫자 최소 크기(2.2rem)가 좁은 폭에서도 안 줄어들어서 한 줄에 다 안 들어가
+   세로로 쌓는 우회책을 썼었는데, 그러면 항목마다 두 줄씩 차지해서 위젯 전체가
+   세로로 길어지는 문제가 있었음. 대신 좁은 화면에서만 D-숫자 최소 크기를 낮춰서
+   계속 한 줄에 들어가게 함 */
 @media (max-width: 600px){
-  .dday-item{
-    flex-direction: column;
-    align-items: stretch;
-    gap: 2px;
-  }
-  .dday-count{ width:100%; text-align: right; }
+  .dday-count{ font-size: clamp(1.5rem, 13cqw, 5rem); }
 }
 /* ---------- 프로필 위젯 (두 사람 프로필, 슬라이드로 여러 장(예: 본편/AU) 전환, AU별 시점/IF 세분화) ---------- */
 .w-profile{ align-items:stretch; }
