@@ -901,11 +901,18 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 /* ---------- 영상전용 플레이어 (갤러리 탭, 유튜브 여러 개를 목록에서 골라 재생) ---------- */
 .w-video{ gap:12px; }
 .video-player{
-  position:relative; width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden;
+  position:relative; width:100%; max-height:0; border-radius:14px; overflow:hidden;
   background: rgba(0,0,0,0.35); flex:0 0 auto;
+  transition: max-height .28s ease;
 }
+.video-player.open{ max-height:400px; aspect-ratio:16/9; }
 .video-player iframe{ position:absolute; inset:0; width:100%; height:100%; border:0; }
 .video-player .w-empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:0; }
+.video-collapse{
+  position:absolute; top:8px; right:8px; z-index:2; width:28px; height:28px; border-radius:50%;
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.75); color:var(--ink); font-size:.8rem;
+  display:flex; align-items:center; justify-content:center;
+}
 .video-list{
   display:flex; flex-direction:row; gap:10px; overflow-x:auto; padding-bottom:4px;
 }
