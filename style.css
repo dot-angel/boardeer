@@ -840,15 +840,15 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   border-radius:12px; padding:5px 10px; margin-bottom:8px;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal;
 }
-/* 꼬리: 본체와 완전히 같은 배경/블러/테두리를 가진 정사각형을 45도 돌려서 만듦.
-   이러면 꼬리에도 블러가 그대로 먹어서 본체와 이어지는 부분의 이음매가
-   티 안 나게 자연스럽게 붙어보임 */
+/* 꼬리: 본체와 완전히 같은 배경/블러를 가진 정사각형을 45도 돌려서 만듦.
+   테두리는 일부러 안 줌 — 꼬리에도 테두리를 넣으면 본체의 테두리 선과 꼬리의
+   테두리 선이 이어지는 지점에서 겹쳐 보이며 티가 나서(이중 선/각짐), 꼬리는
+   테두리 없이 배경색만으로 본체 밑에서 자연스럽게 이어져 보이게 함 */
 .profile-compact-oneliner::after{
   content:""; position:absolute; left:14px; bottom:-5px; width:12px; height:12px;
   background: rgba(255,255,255,0.07);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  border-right:1px solid var(--card-border); border-bottom:1px solid var(--card-border);
-  border-radius:0 0 3px 0; transform: rotate(45deg); z-index:-1;
+  transform: rotate(45deg); z-index:-1;
 }
 .profile-compact-name{
   grid-area:name; font-weight:700; font-size:.9rem; color: var(--ink);
@@ -1536,18 +1536,15 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   opacity:0; pointer-events:none;
   transition: opacity .3s ease, transform .3s ease;
 }
-/* 꼬리: 삼각형 border 트릭 대신, 본체와 완전히 같은 배경/블러/테두리를 가진
-   정사각형을 45도 돌려서 만듦. 이러면 꼬리에도 블러가 그대로 먹어서
-   본체와 이어지는 부분의 이음매가 티 안 나게 자연스럽게 붙어보임 */
-/* 꼬리: 본체와 겹치는 부분이 하나도 없게(0px 오버랩) 본체 바로 아래 경계선에
-   딱 붙여서 삼각형으로 잘라냄. 반투명 두 겹이 겹쳐서 그 부분만 유독 진하게
-   보이던 문제는 애초에 겹치는 면적을 없애서 해결함. 배경/블러는 본체와 동일해서
-   색감은 이어지고, 서로 겹치지 않으니 불투명도가 이중으로 쌓이지 않음 */
+/* 꼬리: 삼각형 border 트릭 대신, 본체와 완전히 같은 배경/블러를 가진 정사각형을
+   45도 돌려서 만듦. 테두리는 일부러 안 줌 — 꼬리에 테두리를 넣으면 본체
+   테두리 선과 만나는 지점에서 겹쳐 보이며 이음매가 티 나서(이중 선/각짐),
+   꼬리는 배경색만으로 본체 밑에서 자연스럽게 이어져 보이게 함 */
 .sticker-bubble::after{
-  content:""; position:absolute; left:50%; top:100%; width:16px; height:9px;
-  margin-left:-8px; background: rgba(20,9,11,0.5);
+  content:""; position:absolute; left:50%; bottom:-6px; width:14px; height:14px;
+  margin-left:-7px; background: rgba(20,9,11,0.5);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  clip-path: polygon(20% 0, 80% 0, 50% 100%);
+  transform: rotate(45deg); z-index:-1;
 }
 .sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 @media (max-width: 900px){
