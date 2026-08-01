@@ -894,42 +894,44 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-divider{
     display:none;
   }
-}
-/* IF 제목+설명: 한 줄로 나란히 놓고 글자 크기를 줄임. 사이엔 얇은 세로선으로만
-   구분함(제목 쪽 profile-section-header에 오른쪽 테두리를 줘서 그 선이 됨).
-   모바일 전용이 아니라 PC를 포함해 항상 적용하되, 편집모드에서는 이름 수정
-   버튼 등을 다 보여줘야 하니 기존(가운데 정렬 + 아래 설명) 모양을 그대로 둠 */
-body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-headline{
-  display:flex; align-items:center; justify-content:center;
-  width:100%; gap:10px; padding:0 4px;
-}
-/* 제목 쪽에 조금 더 너비를 줘서 이름이 너무 일찍 잘리지 않게 함 */
-body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-header{
-  width:auto; flex:0 1 44%; min-width:0; padding:0 10px 0 0;
-  border-right:1px solid var(--card-border);
-}
-/* 목록(☰) 등 액션 버튼은 간략 배치에선 아예 숨김 — 정적 흐름으로 바꿔봤더니
-   제목과 세로선 사이, 즉 줄 한가운데에 끼어드는 모양이 돼서 오히려 헷갈렸음.
-   편집모드로 들어가면(위 selector가 안 걸리므로) 원래 자리(제목 줄 오른쪽 끝)에
-   그대로 나옴 */
-body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-actions{
-  display:none;
-}
-/* 설명은 한 줄로 말줄임(...)하지 않고, 다른 위젯 텍스트들과 같이 어절 단위로
-   자연스럽게 줄바꿈되게 함 */
-body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
-  width:auto; flex:1 1 auto; min-width:0; margin-top:0; padding:0;
-  line-height:1.4; text-align:left;
-  white-space:normal; word-break:keep-all; overflow-wrap:break-word;
-}
-/* 글자 크기는 PC에서는 기존 그대로 두고, 모바일에서만 위젯 자체가 작아 보이는
-   만큼 함께 줄임 */
-@media (max-width:900px){
+  /* IF 제목+설명(모바일): 한 줄로 나란히 놓고 글자 크기를 줄임. 사이엔 얇은
+     세로선으로만 구분함(제목 쪽 profile-section-header에 오른쪽 테두리를 줘서
+     그 선이 됨) — 이번에 다듬어둔 모바일 전용 배치라 그대로 유지함 */
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-headline{
+    display:flex; align-items:center; justify-content:center;
+    width:100%; gap:10px; padding:0 4px;
+  }
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-header{
+    width:auto; flex:0 1 44%; min-width:0; padding:0 10px 0 0;
+    border-right:1px solid var(--card-border);
+  }
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-name{
     font-size:.86rem; max-width:100%;
   }
+  /* 목록(☰) 등 액션 버튼은 간략 배치에선 아예 숨김 — 정적 흐름으로 바꿔봤더니
+     제목과 세로선 사이, 즉 줄 한가운데에 끼어드는 모양이 돼서 오히려 헷갈렸음.
+     자세히 보기로 펼치면 원래 자리(제목 줄 오른쪽 끝)에 그대로 나옴 */
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-actions{
+    display:none;
+  }
+  /* 설명은 한 줄로 말줄임(...)하지 않고, 다른 위젯 텍스트들과 같이 어절 단위로
+     자연스럽게 줄바꿈되게 함 */
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
-    font-size:.66rem;
+    width:auto; flex:1 1 auto; min-width:0; margin-top:0; padding:0;
+    font-size:.66rem; line-height:1.4; text-align:left;
+    white-space:normal; word-break:keep-all; overflow-wrap:break-word;
+  }
+}
+/* IF 제목+설명(PC 전용) — "촘촘한 세로형": 제목을 작게, 설명을 바로 아래 붙여서
+   예전처럼 큰 제목(1.3rem) + 넉넉한 여백 때문에 위젯이 허전해 보이던 문제를 없앰.
+   모바일은 위 미디어쿼리의 가로+세로선 배치를 그대로 쓰고, PC 보기 전용(편집모드
+   아님)일 때만 이걸로 통일함 — 편집모드에선 기존 큰 제목 그대로 유지 */
+@media (min-width:901px){
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-name{
+    font-size:1.05rem;
+  }
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
+    margin-top:-2px;
   }
 }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
