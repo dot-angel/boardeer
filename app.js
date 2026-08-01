@@ -68,6 +68,53 @@ function debounce(fn, wait){
   return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
 }
 
+/* ---------------- 말풍선(본체+꼬리) 도형을 하나로 합쳐서 clip-path로 자르기 ----------------
+   기존 방식(회전시킨 정사각형을 반투명 배경 뒤에 겹쳐서 꼬리처럼 보이게 하는 방식)은
+   본체와 꼬리 둘 다 반투명이라 겹치는 부분이 두 겹만큼 진해지거나, 테두리를 넣으면
+   두 도형의 테두리 선이 만나는 지점에서 이중선처럼 보이는 문제가 있었음.
+   그래서 지금은 본체(둥근 사각형)+꼬리(삼각형)를 SVG path 하나로 합쳐서 그 모양
+   그대로 clip-path로 오려내고, 배경/블러/테두리(정확히는 filter:drop-shadow)를
+   그 '오려낸 모양 하나'에만 적용함 — 겹치는 두 겹이 원천적으로 존재하지 않음.
+   요소 폭은 내용(텍스트) 길이에 따라 달라지므로(width:fit-content 등),
+   매번 렌더링된 실제 크기를 재서 경로를 다시 계산함. */
+const BUBBLE_TAIL_KAPPA = 0.5522847498; // 사분원을 3차 베지어로 근사할 때 쓰는 표준 상수
+
+function buildBubbleTailPath(w, bodyH, radius, tailLeft, tailWidth, tailHeight){
+  const r = Math.max(0, Math.min(radius, w/2, bodyH/2));
+  const k = BUBBLE_TAIL_KAPPA * r;
+  const tx1 = Math.min(Math.max(tailLeft, r), w - r - tailWidth);
+  const tx2 = tx1 + tailWidth;
+  const tipX = (tx1 + tx2) / 2;
+  return [
+    `M ${r} 0`,
+    `L ${w - r} 0`,
+    `C ${w - r + k} 0 ${w} ${r - k} ${w} ${r}`,
+    `L ${w} ${bodyH - r}`,
+    `C ${w} ${bodyH - r + k} ${w - r + k} ${bodyH} ${w - r} ${bodyH}`,
+    `L ${tx2} ${bodyH}`,
+    `L ${tipX} ${bodyH + tailHeight}`,
+    `L ${tx1} ${bodyH}`,
+    `L ${r} ${bodyH}`,
+    `C ${r - k} ${bodyH} 0 ${bodyH - r + k} 0 ${bodyH - r}`,
+    `L 0 ${r}`,
+    `C 0 ${r - k} ${r - k} 0 ${r} 0`,
+    'Z'
+  ].join(' ');
+}
+
+// opts.tailLeft: 꼬리 왼쪽 끝의 x좌표(px) 또는 실제 렌더링 폭(w)을 받아 x좌표를
+// 반환하는 함수(가운데 정렬 등 폭에 따라 위치가 달라질 때 사용)
+function shapeSpeechBubble(el, opts){
+  if(!el) return;
+  const w = el.offsetWidth, totalH = el.offsetHeight;
+  if(!w || !totalH) return;
+  const tailHeight = opts.tailHeight;
+  const bodyH = totalH - tailHeight; // 꼬리용으로 미리 늘려둔 padding-bottom만큼 뺀, 본래 본체 높이
+  const tailLeft = typeof opts.tailLeft === 'function' ? opts.tailLeft(w) : opts.tailLeft;
+  const path = buildBubbleTailPath(w, bodyH, opts.radius, tailLeft, opts.tailWidth, tailHeight);
+  el.style.clipPath = `path('${path}')`;
+}
+
 /* ---------------- 메인 갤러리 매스너리(핀터레스트형) 실제 배치 ----------------
    예전엔 CSS column-count로 다단을 흉내냈는데, 그 방식은 브라우저가 "전체 높이를
    균형있게" 나눠서 채우기 때문에 배열 앞쪽(=최신, storeGalleryImage에서 항상 맨 앞에
@@ -1824,6 +1871,12 @@ function renderProfile(){
 function bindProfile(slides){
   const box = document.getElementById('cardProfile');
   box.classList.toggle('profile-mobile-expanded', profileMobileExpanded);
+
+  // 한마디 말풍선: 본체+꼬리를 하나로 합친 모양으로 잘라냄 (렌더링된 실제 폭에
+  // 맞춰 매번 다시 계산해야 하므로, 이 안에서 매 렌더링마다 새로 호출)
+  box.querySelectorAll('.profile-compact-oneliner').forEach(el=>{
+    shapeSpeechBubble(el, { radius:12, tailLeft:14, tailWidth:14, tailHeight:7 });
+  });
 
   const mobileToggleBtn = box.querySelector('#profileMobileToggleBtn');
   if(mobileToggleBtn) mobileToggleBtn.onclick = ()=>{ profileMobileExpanded = !profileMobileExpanded; renderProfile(); };
@@ -5593,6 +5646,7 @@ function renderStickers(){
     s.avatarEl.style.backgroundImage = avatarUrl ? `url('${avatarUrl}')` : 'none';
     s.avatarEl.textContent = avatarUrl ? '' : '👤';
     s.bubbleTextEl.textContent = oneLiner || '';
+    shapeSpeechBubble(s.bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
   });
   if(!stickerBothScheduleStarted && people.length){
     stickerBothScheduleStarted = true;
@@ -5610,3 +5664,13 @@ docRef('stickers').onSnapshot(doc=>{ stickerPosData = doc.exists ? doc.data() : 
 refreshLockUI();
 initRow2HeightSync();
 initBoardTabs();
+
+// 화면 폭이 바뀌면(반응형 구간 전환 등) 말풍선 폭도 달라질 수 있어서 다시 오려냄
+window.addEventListener('resize', debounce(()=>{
+  document.querySelectorAll('.profile-compact-oneliner').forEach(el=>{
+    shapeSpeechBubble(el, { radius:12, tailLeft:14, tailWidth:14, tailHeight:7 });
+  });
+  Object.values(stickerEls).forEach(s=>{
+    shapeSpeechBubble(s.bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
+  });
+}, 150));
