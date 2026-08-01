@@ -392,14 +392,20 @@ body::before{
   background-size:cover; background-position:center;
   /* 자켓이 없을 땐 채움 없이 카드 자체의 유리 배경이 그대로 비쳐 보임(다른 위젯과 동일) */
 }
-/* PC에서는 사진이 카드 전체를 채우는데, 재생목록이 시작되는 지점부터는 사진이
-   점점 옅어지다 재생목록 아래쪽 절반쯤에서 완전히 사라지도록(카드 유리 배경이
-   그대로 비치도록) 세로 마스크를 얹음. min-width로 데스크톱에만 한정해서
-   아래 모바일 미디어쿼리의 가로 마스크와 특정성이 충돌하지 않게 함. */
+/* 예전엔 사진이 카드 전체(100%)를 채우게 두고 마스크로 아래쪽을 지웠는데,
+   그러면 background-size:cover가 "카드 전체 높이"를 기준으로 사진을 계산해서
+   실제로는 안 보이게 될 부분까지 억지로 채우느라 사진이 필요 이상으로
+   확대/크롭됐음. 그래서 사진 박스 자체의 높이를 줄여(예: 66%) 그 아래는
+   처음부터 사진이 없는 진짜 여백이 되게 하고, cover 계산도 이 줄어든 높이
+   기준으로만 이뤄지게 함(=사진이 덜 잘려 보임). 마스크는 박스 맨 아래
+   가장자리에서만 살짝 부드럽게 흐려지는 정도로만 남겨서, 여백과의 경계가
+   딱딱하지 않게만 함. min-width로 데스크톱에만 한정해서 아래 모바일
+   미디어쿼리의 가로 마스크와 특정성이 충돌하지 않게 함. */
 @media (min-width: 901px){
   .mp-cover-bg.has-cover{
-    mask-image: linear-gradient(180deg, #000 0%, #000 52%, rgba(0,0,0,0.35) 68%, transparent 86%);
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 52%, rgba(0,0,0,0.35) 68%, transparent 86%);
+    top:0; left:0; right:0; height:66%;
+    mask-image: linear-gradient(180deg, #000 0%, #000 82%, transparent 100%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 82%, transparent 100%);
   }
 }
 .mp-cover-bg.has-cover::after{
@@ -1469,9 +1475,10 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   100%{ transform: translateY(0); }
 }
 .sticker-avatar.jump{ animation: stickerJump .5s ease-out; }
-/* 말풍선은 사이트 다른 카드들과 같은 유리 카드 톤(둥근 사각형 + 블러)을 기본으로 쓰되,
-   아래쪽에 만화 말풍선 느낌의 꼬리표(삼각형)를 붙여서 "이 스티커가 하는 말"이라는 게
-   더 직관적으로 보이게 함 */
+/* 말풍선은 사이트 다른 카드들과 같은 유리 카드 톤(둥근 사각형 + 블러)으로 통일함.
+   만화식 꼬리표(삼각형)를 넣어봤지만 삼각형은 backdrop-filter 블러가 먹지 않아
+   말풍선 자체의 유리 질감과 이질감이 나서, 억지로 맞추는 대신 꼬리표 없이
+   둥근 카드 하나로만 남김 */
 .sticker-bubble{
   position:absolute; left:50%; bottom:100%; transform: translate(-50%, 6px) scale(.95);
   margin-bottom:10px; max-width:128px; width:max-content;
@@ -1495,20 +1502,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   transition: opacity .3s ease, transform .3s ease;
 }
 .sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
-/* 만화 말풍선처럼 또렷한 꼬리표 — 테두리용 큰 삼각형 위에 채움용 삼각형을 살짝
-   작게 얹어서, 말풍선 테두리 색이 꼬리 가장자리에도 얇게 이어지는 느낌을 줌 */
-.sticker-bubble::before{
-  content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  width:0; height:0;
-  border-left:9px solid transparent; border-right:9px solid transparent;
-  border-top:11px solid rgba(255,255,255,0.16);
-}
-.sticker-bubble::after{
-  content:""; position:absolute; top:100%; left:50%; transform:translateX(-50%);
-  margin-top:-1.5px; width:0; height:0;
-  border-left:7px solid transparent; border-right:7px solid transparent;
-  border-top:9px solid rgba(20,9,11,0.72);
-}
 @media (max-width: 900px){
   .site-sticker{ width:92px; height:118px; }
   .sticker-bubble{ max-width:104px; font-size:.76rem; padding:7px 10px; }
