@@ -900,7 +900,7 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
    모바일 전용이 아니라 PC를 포함해 항상 적용하되, 편집모드에서는 이름 수정
    버튼 등을 다 보여줘야 하니 기존(가운데 정렬 + 아래 설명) 모양을 그대로 둠 */
 body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-headline{
-  display:flex; align-items:flex-start; justify-content:center;
+  display:flex; align-items:flex-end; justify-content:center;
   width:100%; gap:10px; padding:0 4px;
 }
 /* 제목 쪽에 조금 더 너비를 줘서 이름이 너무 일찍 잘리지 않게 함 */
