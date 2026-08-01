@@ -3299,16 +3299,16 @@ function startOfWeek(date){
 let calWeekStart = startOfWeek(new Date());
 function isMobileCalView(){ return window.innerWidth <= 900; }
 
-const DDAY_MILESTONE_INTERVAL = 50; // "50일 간격" 기념일 자동 표시 주기
-
 function daysBetween(baseDateStr, targetDateStr){
   const base = new Date(baseDateStr + 'T00:00:00');
   const target = new Date(targetDateStr + 'T00:00:00');
   return Math.round((target - base) / 86400000);
 }
 
-// 디데이 위젯에 등록된 날짜를 기준으로, 해당 날짜와 그 뒤 50일 단위가 되는 날짜,
-// 그리고 매년 돌아오는 N주년(같은 월/일)까지 전부 캘린더에 자동으로 기념일로 표시함
+const DDAY_MILESTONE_INTERVAL = 100; // 보통 커플들이 챙기는 "100일 단위" 기념일 표시 주기
+
+// 디데이 위젯에 등록된 날짜를 기준으로, 100일 단위가 되는 날짜와
+// 매년 돌아오는 N주년(같은 월/일)까지 전부 캘린더에 자동으로 기념일로 표시함
 // (직접 캘린더에 따로 입력할 필요 없음)
 function ddayMilestonesForDate(dateStr){
   const marks = [];
@@ -3317,6 +3317,7 @@ function ddayMilestonesForDate(dateStr){
     const diff = daysBetween(it.date, dateStr);
     if(diff < 0) return;
     if(diff === 0){ marks.push(`${it.label} 시작일`); return; }
+    if(diff === 50){ marks.push(`${it.label} 50일`); }
     if(diff % DDAY_MILESTONE_INTERVAL === 0){
       marks.push(`${it.label} ${diff}일`);
     }
