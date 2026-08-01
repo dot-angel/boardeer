@@ -125,6 +125,13 @@ body::before{
   text-shadow: 0 6px 30px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.45);
 }
 .site-name[contenteditable="true"]:hover{ background: rgba(255,255,255,0.1); cursor:text; border-radius:8px; }
+/* 모바일에서는 배너가 화면 세로 공간을 지나치게 많이 차지해서(560px 고정) 위젯들을
+   보기까지 스크롤이 길어졌음 → 배너 높이를 훨씬 낮추고, 제목 폰트/여백도 그에 맞춰 줄임 */
+@media (max-width: 900px){
+  .site-banner{ height: 220px; }
+  .banner-bottom{ padding: 16px 18px 16px; gap:10px; }
+  .site-name{ font-size: clamp(2.1rem, 11vw, 3.4rem); }
+}
 .btn{
   font-family: var(--font-body);
   border: 1px solid var(--card-border);
