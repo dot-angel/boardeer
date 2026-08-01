@@ -620,6 +620,11 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 /* 시점/IF 제목 + "이 시점/IF 삭제" 버튼을 한 줄에 — 제목은 항상 가운데, 삭제 버튼은
    그 줄의 오른쪽 끝에 겹쳐 붙임(예전엔 삭제 버튼이 AU 전체 삭제 버튼처럼 보이는
    자리에 있어서 헷갈렸음 → 이제 그 자리엔 지금 보고 있는 시점/IF의 삭제 버튼만 옴) */
+/* 시점/IF 제목+설명을 감싸는 래퍼. 평소(데스크톱/펼친 모바일)엔 display:contents라서
+   자식(profile-section-header, profile-section-desc)이 profile-viewport의 직속
+   자식인 것처럼 그대로 세로로 쌓임 — 시각적으로 예전과 동일함. 모바일 간략보기에서만
+   아래 미디어쿼리로 가로 배치+세로선을 추가함 */
+.profile-headline{ display:contents; width:100%; }
 .profile-section-header{
   position:relative; display:flex; align-items:center; justify-content:center;
   width:100%; min-height:26px; padding:0 92px;
@@ -888,6 +893,30 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   }
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-divider{
     display:none;
+  }
+  /* IF 제목+설명: 간략보기에선 프로필 카드 자체가 작아 보이는 만큼 이 둘도
+     한 줄로 나란히 놓고 글자 크기를 줄임. 사이엔 얇은 세로선으로만 구분함
+     (제목 쪽 profile-section-header에 오른쪽 테두리를 줘서 그 선이 됨) */
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-headline{
+    display:flex; align-items:center; justify-content:center;
+    width:100%; gap:10px; padding:0 4px;
+  }
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-header{
+    width:auto; flex:0 1 auto; min-width:0; padding:0 10px 0 0;
+    border-right:1px solid var(--card-border);
+  }
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-name{
+    font-size:.86rem;
+  }
+  /* 액션(☰ 등) 버튼은 평소엔 절대좌표로 오른쪽 끝에 겹쳐 두는데, 간략보기에서는
+     헤더 자체가 내용 너비만큼만 좁아지므로 겹치지 않게 일반 흐름으로 바꿈 */
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-actions{
+    position:static; transform:none; margin-left:4px;
+  }
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
+    width:auto; flex:1 1 auto; min-width:0; margin-top:0; padding:0;
+    font-size:.66rem; text-align:left;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   }
 }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
