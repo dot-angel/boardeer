@@ -827,11 +827,16 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .profile-compact-photo.has-image{ border-color:transparent; }
 /* 강조 순서: 한마디(오네라이너) > 이름 > 한줄소개(태그라인).
    한마디를 가장 크고 진하게, 이름은 그보다 한 단계 옅게, 한줄소개는 가장 작고 옅게 둠 */
+/* 한마디는 말풍선 모양(둥근 사각형 배경)으로 감싸고, 길면 말줄임표 대신
+   어절 단위로 줄바꿈되게 함(sticker-bubble과 동일한 줄바꿈 규칙) */
 .profile-compact-oneliner{
   grid-area:oneliner;
-  font-family: var(--font-display); font-style:italic; font-weight:700;
-  font-size:1.02rem; line-height:1.28; color: var(--ink);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-family: var(--font-display); font-style:italic; font-weight:400;
+  font-size:1rem; line-height:1.35; color: var(--ink);
+  width:fit-content; max-width:100%;
+  background: rgba(255,255,255,0.06); border:1px solid var(--card-border);
+  border-radius:12px; padding:5px 10px; margin-bottom:1px;
+  word-break:keep-all; overflow-wrap:break-word; white-space:normal;
 }
 .profile-compact-name{
   grid-area:name; font-weight:700; font-size:.9rem; color: var(--ink);
