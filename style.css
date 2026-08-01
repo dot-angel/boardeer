@@ -825,18 +825,36 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   font-size:1.6rem; color: var(--rose); overflow:hidden;
 }
 .profile-compact-photo.has-image{ border-color:transparent; }
-/* 강조 순서: 한마디(오네라이너) > 이름 > 한줄소개(태그라인).
-   한마디를 가장 크고 진하게, 이름은 그보다 한 단계 옅게, 한줄소개는 가장 작고 옅게 둠 */
-/* 한마디는 말풍선 모양(둥근 사각형 배경)으로 감싸고, 길면 말줄임표 대신
-   어절 단위로 줄바꿈되게 함(sticker-bubble과 동일한 줄바꿈 규칙) */
+/* 강조 순서: 한마디(오네라이너) > 이름 > 한줄소개(태그라인) — 다만 글자 크기 자체는
+   한마디를 이름보다 작게 둬서(대신 말풍선 모양으로) 과하게 커 보이지 않게 함 */
+/* 한마디는 진짜 말풍선처럼 꼬리(테일)를 단 둥근 사각형으로 감싸고, 길면 말줄임표
+   대신 어절 단위로 줄바꿈되게 함(sticker-bubble과 동일한 줄바꿈 규칙) */
 .profile-compact-oneliner{
+  position:relative;
   grid-area:oneliner;
   font-family: var(--font-display); font-style:italic; font-weight:400;
-  font-size:1rem; line-height:1.35; color: var(--ink);
+  font-size:.8rem; line-height:1.35; color: var(--ink);
   width:fit-content; max-width:100%;
-  background: rgba(255,255,255,0.06); border:1px solid var(--card-border);
-  border-radius:12px; padding:5px 10px; margin-bottom:1px;
+  background: rgba(255,255,255,0.07); border:1px solid var(--card-border);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  border-radius:12px; padding:5px 10px; margin-bottom:8px;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal;
+}
+/* 말풍선 꼬리: 테두리색 삼각형 위에 살짝 작은 배경색 삼각형을 겹쳐서
+   "테두리 있는 꼬리"처럼 보이게 함(블러는 필요 없어서 아예 뺌) */
+.profile-compact-oneliner::before,
+.profile-compact-oneliner::after{
+  content:""; position:absolute; left:14px; width:0; height:0;
+  border-style:solid;
+}
+.profile-compact-oneliner::before{
+  top:100%; border-width:7px 6px 0 0;
+  border-color: var(--card-border) transparent transparent transparent;
+}
+.profile-compact-oneliner::after{
+  top:100%; margin-top:-1px; left:15px;
+  border-width:6px 5px 0 0;
+  border-color: rgba(255,255,255,0.07) transparent transparent transparent;
 }
 .profile-compact-name{
   grid-area:name; font-weight:700; font-size:.9rem; color: var(--ink);
@@ -1503,13 +1521,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   100%{ transform: translateY(0); }
 }
 .sticker-avatar.jump{ animation: stickerJump .5s ease-out; }
-/* 말풍선은 사이트 다른 카드들과 같은 유리 카드 톤(둥근 사각형 + 블러)으로 통일함.
-   만화식 꼬리표(삼각형)를 넣어봤지만 삼각형은 backdrop-filter 블러가 먹지 않아
-   말풍선 자체의 유리 질감과 이질감이 나서, 억지로 맞추는 대신 꼬리표 없이
-   둥근 카드 하나로만 남김 */
+/* 참고 이미지처럼 안쪽 블러 없이, 테두리와 꼬리(테일)만으로 말풍선 모양을 냄.
+   블러가 빠진 만큼 텍스트 가독성을 위해 배경 불투명도를 좀 더 올림 */
 .sticker-bubble{
   position:absolute; left:50%; bottom:100%; transform: translate(-50%, 6px) scale(.95);
-  margin-bottom:10px; max-width:128px; width:max-content;
+  margin-bottom:16px; max-width:128px; width:max-content;
   /* 다른 텍스트 영역(w-empty, profile-role 등)과 같은 규칙: keep-all로 어절
      단위까지는 최대한 지키면서 줄바꿈하고, 그래도 넘치는 긴 단어만 break-word로
      끊음 — 한 글자씩 뚝뚝 끊기지 않게 함. 텍스트(이름/한마디)가 매번 바뀌므로
@@ -1517,17 +1533,30 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
      그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
      브라우저가 지원하는 선에서 알아서 피해줌 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  /* 배너 배경 이미지 위에서도 읽히면서 다른 카드들처럼 유리 느낌이 나도록,
-     불투명도는 낮추고 블러(사이트의 큰 유리 표면용 --glass-blur)는 강하게 줘서
-     텍스트는 블러로 눌러주고 색은 은은하게 비치게 함 */
-  background: rgba(20,9,11,0.5); color: var(--ink); border:1px solid rgba(255,255,255,0.16);
+  background: rgba(20,9,11,0.5); color: var(--ink); border:1px solid rgba(255,255,255,0.22);
   border-radius:16px; padding:9px 13px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow), inset 0 1px 0 var(--card-hi);
+  box-shadow: var(--shadow);
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:.82rem; line-height:1.4; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
   opacity:0; pointer-events:none;
   transition: opacity .3s ease, transform .3s ease;
+}
+/* 꼬리: 아래쪽(스티커 쪽)을 향해 뾰족하게 — 테두리색 삼각형 위에 배경색 삼각형을
+   살짝 작게 겹쳐서 "테두리 있는 꼬리"처럼 보이게 함 */
+.sticker-bubble::before, .sticker-bubble::after{
+  content:""; position:absolute; left:50%; width:0; height:0;
+  border-style:solid;
+}
+.sticker-bubble::before{
+  top:100%; transform:translateX(-50%);
+  border-width:9px 8px 0 8px;
+  border-color: rgba(255,255,255,0.22) transparent transparent transparent;
+}
+.sticker-bubble::after{
+  top:100%; margin-top:-1px; transform:translateX(-50%);
+  border-width:8px 7px 0 7px;
+  border-color: rgba(20,9,11,0.5) transparent transparent transparent;
 }
 .sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 @media (max-width: 900px){
