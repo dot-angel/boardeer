@@ -1244,8 +1244,8 @@ function renderImages(){
         ${editMode ? `<button class="icon-btn slide-caption-btn" id="imgCaptionBtn" title="문구 편집">Aa</button>` : ''}
         ${editMode ? `<button class="icon-btn slide-del" id="imgDelBtn" title="이 사진 삭제">✕</button>` : ''}
         ${items.length>1 ? `<button class="slide-nav prev" id="imgPrev">‹</button><button class="slide-nav next" id="imgNext">›</button>` : ''}
+        ${items.length>1 ? `<div class="slide-dots slide-dots-overlay">${items.map((_,i)=>`<span class="dot ${i===imgSlideIndex?'active':''}" data-dot="${i}"></span>`).join('')}</div>` : ''}
       </div>
-      ${items.length>1 ? `<div class="slide-dots">${items.map((_,i)=>`<span class="dot ${i===imgSlideIndex?'active':''}" data-dot="${i}"></span>`).join('')}</div>` : ''}
       ${editMode ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
     `;
   }
@@ -1409,6 +1409,7 @@ let profileData = { slides: [] };
 let profileSlideIndex = 0; // 현재 선택된 AU 탭 인덱스
 let profileSectionIndex = 0; // 현재 AU 안에서 보고 있는 시점/IF 슬라이드 인덱스
 let profileInitializedDefault = false; // 페이지 로드 후 첫 렌더에서만 AU의 지정된 기본 시점/IF를 한 번 적용하기 위한 플래그
+let profileMobileExpanded = false; // 모바일 간략보기 상태에서 "자세히 보기"를 눌러 기존 전체 위젯 모양으로 펼친 상태인지
 
 // 새 시점/IF를 만들 때 각 프로필에 기본으로 깔아주는 항목들 — 체형·성격 등 세분화된 설명을 쓰기 쉽도록 미리 틀을 마련해둠.
 // "기타 설명"은 예전엔 항목마다 하나씩 붙는 부가 설명란이었는데, 이제는 그 자체로
@@ -1764,29 +1765,46 @@ function renderProfile(){
           const role = pf.role || '';
           const hasContent = name || avatar;
           const fields = pf.fields || [];
+          // 모바일 간략보기에서는 성격만 함께 보여줌(나이·키/몸무게 등 나머지 항목은
+          // "자세히 보기"를 눌러 기존 위젯 모양으로 펼쳤을 때만 보임)
+          const personalityField = fields.find(f=> (f.label||'').trim() === '성격' && f.value);
           return `
             <div class="profile-person" data-slot="${slot}">
-              <div class="profile-basic ${editMode ? 'editable' : ''}" data-slot="${slot}">
-                <div class="profile-photo">
-                  <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
-                    ${avatar ? '' : '👤'}
-                  </div>
-                  ${oneLiner || editMode ? `
-                    <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
-                  ` : ''}
+              <div class="profile-compact ${hasContent ? '' : 'profile-compact-empty'}">
+                <div class="profile-compact-photo ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}')"` : ''}>
+                  ${avatar ? '' : '👤'}
                 </div>
-                <div class="profile-info">
-                  ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
-                  <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                ${oneLiner ? `<div class="profile-compact-oneliner">“${escapeHtml(oneLiner)}”</div>` : ''}
+                <div class="profile-compact-namerole">
+                  <span class="profile-compact-name">${escapeHtml(name || '(이름 없음)')}</span>
+                  ${role ? `<span class="profile-compact-role">${escapeHtml(role)}</span>` : ''}
                 </div>
+                ${personalityField ? `<div class="profile-compact-personality">${personalityHashtagsHtml(personalityField.value)}</div>` : ''}
               </div>
-              <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
-                ${fieldsHtml(fields)}
+              <div class="profile-full">
+                <div class="profile-basic ${editMode ? 'editable' : ''}" data-slot="${slot}">
+                  <div class="profile-photo">
+                    <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
+                      ${avatar ? '' : '👤'}
+                    </div>
+                    ${oneLiner || editMode ? `
+                      <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
+                    ` : ''}
+                  </div>
+                  <div class="profile-info">
+                    ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
+                    <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                  </div>
+                </div>
+                <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
+                  ${fieldsHtml(fields)}
+                </div>
               </div>
             </div>
           `;
         }).join('<div class="profile-divider"></div>')}
       </div>
+      <button class="profile-mobile-toggle" id="profileMobileToggleBtn" type="button">${profileMobileExpanded ? '간략히 보기 ▴' : '자세히 보기 ▾'}</button>
     </div>
     ${slide.sections.length > 1 ? `
       <div class="profile-slide-nav">
@@ -1807,6 +1825,10 @@ function renderProfile(){
 
 function bindProfile(slides){
   const box = document.getElementById('cardProfile');
+  box.classList.toggle('profile-mobile-expanded', profileMobileExpanded);
+
+  const mobileToggleBtn = box.querySelector('#profileMobileToggleBtn');
+  if(mobileToggleBtn) mobileToggleBtn.onclick = ()=>{ profileMobileExpanded = !profileMobileExpanded; renderProfile(); };
 
   // AU 탭 전환
   box.querySelectorAll('.profile-au-bar .profile-section-tab').forEach(tab=>{
@@ -3287,15 +3309,23 @@ function daysBetween(baseDateStr, targetDateStr){
   return Math.round((target - base) / 86400000);
 }
 
-// 디데이 위젯에 등록된 날짜를 기준으로, 해당 날짜와 그 뒤 50일 단위가 되는 날짜마다
-// 캘린더에 자동으로 기념일 표시를 띄워줌 (직접 캘린더에 따로 입력할 필요 없음)
+// 디데이 위젯에 등록된 날짜를 기준으로, 해당 날짜와 그 뒤 50일 단위가 되는 날짜,
+// 그리고 매년 돌아오는 N주년(같은 월/일)까지 전부 캘린더에 자동으로 기념일로 표시함
+// (직접 캘린더에 따로 입력할 필요 없음)
 function ddayMilestonesForDate(dateStr){
   const marks = [];
   (ddayData.items || []).forEach(it=>{
     if(!it.date) return;
     const diff = daysBetween(it.date, dateStr);
-    if(diff >= 0 && diff % DDAY_MILESTONE_INTERVAL === 0){
-      marks.push(diff === 0 ? `${it.label} 시작일` : `${it.label} ${diff}일`);
+    if(diff < 0) return;
+    if(diff === 0){ marks.push(`${it.label} 시작일`); return; }
+    if(diff % DDAY_MILESTONE_INTERVAL === 0){
+      marks.push(`${it.label} ${diff}일`);
+    }
+    const base = new Date(it.date + 'T00:00:00');
+    const target = new Date(dateStr + 'T00:00:00');
+    if(base.getMonth() === target.getMonth() && base.getDate() === target.getDate() && target.getFullYear() > base.getFullYear()){
+      marks.push(`${it.label} ${target.getFullYear() - base.getFullYear()}주년`);
     }
   });
   return marks;
