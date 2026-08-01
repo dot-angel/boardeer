@@ -908,9 +908,6 @@ body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-h
   width:auto; flex:0 1 44%; min-width:0; padding:0 10px 0 0;
   border-right:1px solid var(--card-border);
 }
-body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-name{
-  font-size:.86rem; max-width:100%;
-}
 /* 목록(☰) 등 액션 버튼은 간략 배치에선 아예 숨김 — 정적 흐름으로 바꿔봤더니
    제목과 세로선 사이, 즉 줄 한가운데에 끼어드는 모양이 돼서 오히려 헷갈렸음.
    편집모드로 들어가면(위 selector가 안 걸리므로) 원래 자리(제목 줄 오른쪽 끝)에
@@ -922,8 +919,18 @@ body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-a
    자연스럽게 줄바꿈되게 함 */
 body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
   width:auto; flex:1 1 auto; min-width:0; margin-top:0; padding:0;
-  font-size:.66rem; line-height:1.4; text-align:left;
+  line-height:1.4; text-align:left;
   white-space:normal; word-break:keep-all; overflow-wrap:break-word;
+}
+/* 글자 크기는 PC에서는 기존 그대로 두고, 모바일에서만 위젯 자체가 작아 보이는
+   만큼 함께 줄임 */
+@media (max-width:900px){
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-name{
+    font-size:.86rem; max-width:100%;
+  }
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
+    font-size:.66rem;
+  }
 }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
