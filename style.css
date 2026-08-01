@@ -392,6 +392,16 @@ body::before{
   background-size:cover; background-position:center;
   /* 자켓이 없을 땐 채움 없이 카드 자체의 유리 배경이 그대로 비쳐 보임(다른 위젯과 동일) */
 }
+/* PC에서는 사진이 카드 전체를 채우는데, 재생목록이 시작되는 지점부터는 사진이
+   점점 옅어지다 재생목록 아래쪽 절반쯤에서 완전히 사라지도록(카드 유리 배경이
+   그대로 비치도록) 세로 마스크를 얹음. min-width로 데스크톱에만 한정해서
+   아래 모바일 미디어쿼리의 가로 마스크와 특정성이 충돌하지 않게 함. */
+@media (min-width: 901px){
+  .mp-cover-bg.has-cover{
+    mask-image: linear-gradient(180deg, #000 0%, #000 52%, rgba(0,0,0,0.35) 68%, transparent 86%);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 52%, rgba(0,0,0,0.35) 68%, transparent 86%);
+  }
+}
 .mp-cover-bg.has-cover::after{
   content:""; position:absolute; inset:0;
   /* 내용물(제목·아티스트·재생시간·재생목록)이 전부 위젯 하단에 모여있으므로,
