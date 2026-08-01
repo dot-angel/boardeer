@@ -898,25 +898,29 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
      한 줄로 나란히 놓고 글자 크기를 줄임. 사이엔 얇은 세로선으로만 구분함
      (제목 쪽 profile-section-header에 오른쪽 테두리를 줘서 그 선이 됨) */
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-headline{
-    display:flex; align-items:center; justify-content:center;
+    display:flex; align-items:flex-start; justify-content:center;
     width:100%; gap:10px; padding:0 4px;
   }
+  /* 제목 쪽에 조금 더 너비를 줘서 이름이 너무 일찍 잘리지 않게 함 */
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-header{
-    width:auto; flex:0 1 auto; min-width:0; padding:0 10px 0 0;
+    width:auto; flex:0 1 44%; min-width:0; padding:0 10px 0 0;
     border-right:1px solid var(--card-border);
   }
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-name{
-    font-size:.86rem;
+    font-size:.86rem; max-width:100%;
   }
-  /* 액션(☰ 등) 버튼은 평소엔 절대좌표로 오른쪽 끝에 겹쳐 두는데, 간략보기에서는
-     헤더 자체가 내용 너비만큼만 좁아지므로 겹치지 않게 일반 흐름으로 바꿈 */
+  /* 목록(☰) 등 액션 버튼은 간략보기에선 아예 숨김 — 정적 흐름으로 바꿔봤더니
+     제목과 세로선 사이, 즉 줄 한가운데에 끼어드는 모양이 돼서 오히려 헷갈렸음.
+     자세히 보기로 펼치면 원래 자리(제목 줄 오른쪽 끝)에 그대로 나옴 */
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-actions{
-    position:static; transform:none; margin-left:4px;
+    display:none;
   }
+  /* 설명은 한 줄로 말줄임(...)하지 않고, 다른 위젯 텍스트들과 같이 어절 단위로
+     자연스럽게 줄바꿈되게 함 */
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
     width:auto; flex:1 1 auto; min-width:0; margin-top:0; padding:0;
-    font-size:.66rem; text-align:left;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size:.66rem; line-height:1.4; text-align:left;
+    white-space:normal; word-break:keep-all; overflow-wrap:break-word;
   }
 }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
