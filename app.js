@@ -1774,11 +1774,9 @@ function renderProfile(){
                 <div class="profile-compact-photo ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}')"` : ''}>
                   ${avatar ? '' : '👤'}
                 </div>
+                <div class="profile-compact-name">${escapeHtml(name || '(이름 없음)')}</div>
+                ${role ? `<div class="profile-compact-role">${escapeHtml(role)}</div>` : ''}
                 ${oneLiner ? `<div class="profile-compact-oneliner">“${escapeHtml(oneLiner)}”</div>` : ''}
-                <div class="profile-compact-namerole">
-                  <span class="profile-compact-name">${escapeHtml(name || '(이름 없음)')}</span>
-                  ${role ? `<span class="profile-compact-role">${escapeHtml(role)}</span>` : ''}
-                </div>
                 ${personalityField ? `<div class="profile-compact-personality">${personalityHashtagsHtml(personalityField.value)}</div>` : ''}
               </div>
               <div class="profile-full">
