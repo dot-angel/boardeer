@@ -50,31 +50,34 @@
         </div>
 
         <div class="row row-strip">
+          <div class="w-card w-music" id="cardMusic"></div>
+          <div class="w-card w-profile" id="cardProfile"></div>
           <div class="row-strip-right">
-            <div class="w-card w-music" id="cardMusic"></div>
+            <div class="w-card w-guestbook gb-collapsed" id="cardGuestbook">
+              <button class="gb-toggle" id="gbToggle" type="button" aria-expanded="false">
+                <span>방명록</span>
+                <span class="gb-toggle-arrow">▾</span>
+              </button>
+              <div class="w-body scroll" id="guestbookBody"></div>
+              <div class="gb-form" id="guestbookForm">
+                <input type="text" id="gbName" placeholder="이름">
+                <textarea id="gbMsg" placeholder="메시지를 남겨주세요"></textarea>
+                <button class="btn small primary" id="gbSubmit">남기기</button>
+              </div>
+            </div>
             <div class="w-card w-dday" id="cardDday">
               <div class="w-body" id="ddayBody"></div>
               <div class="w-edit-row" id="ddayAddWrap"></div>
-            </div>
-          </div>
-          <div class="w-card w-profile" id="cardProfile"></div>
-          <div class="w-card w-guestbook gb-collapsed" id="cardGuestbook">
-            <button class="gb-toggle" id="gbToggle" type="button" aria-expanded="false">
-              <span>방명록</span>
-              <span class="gb-toggle-arrow">▾</span>
-            </button>
-            <div class="w-body scroll" id="guestbookBody"></div>
-            <div class="gb-form" id="guestbookForm">
-              <input type="text" id="gbName" placeholder="이름">
-              <textarea id="gbMsg" placeholder="메시지를 남겨주세요"></textarea>
-              <button class="btn small primary" id="gbSubmit">남기기</button>
             </div>
           </div>
         </div>
 
         <div class="row row-2">
           <div class="row-2-left">
-            <div class="w-card w-calendar" id="cardCalendar"></div>
+            <div class="w-card w-checklist" id="cardChecklist">
+              <div class="checklist" id="checklistBody"></div>
+              <div class="check-add-row" id="checklistAddWrap" style="display:none;"></div>
+            </div>
             <div class="w-card w-sessions" id="cardSessions">
               <div class="session-grid" id="sessionGrid"></div>
               <div class="w-edit-row" id="sessionAddWrap"></div>
@@ -86,10 +89,7 @@
               <div class="doc-list" id="docList"></div>
               <div class="w-edit-row" id="docAddWrap"></div>
             </div>
-            <div class="w-card w-checklist" id="cardChecklist">
-              <div class="checklist" id="checklistBody"></div>
-              <div class="check-add-row" id="checklistAddWrap" style="display:none;"></div>
-            </div>
+            <div class="w-card w-calendar" id="cardCalendar"></div>
           </div>
         </div>
 

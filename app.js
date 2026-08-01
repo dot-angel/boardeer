@@ -3345,7 +3345,8 @@ function buildCalMonthHTML(y, m, kind){
 function buildCalWeekHTML(startDate){
   const events = calendarData.events || {};
   const todayStr = new Date().toISOString().slice(0,10);
-  const dowNames = ['일','월','화','수','목','금','토'];
+  // 요일은 알파벳(영문 한 글자)으로 표시
+  const dowNames = ['S','M','T','W','T','F','S'];
   const days = [];
   let rows = '';
   for(let i=0;i<7;i++){
@@ -3364,13 +3365,12 @@ function buildCalWeekHTML(startDate){
     rows += `
       <div class="${cls}" data-day="${dateStr}" title="${ddayMarks.length ? escapeHtml(ddayMarks.join(', ')) : ''}">
         <span class="cal-week-dow">${dowNames[d.getDay()]}</span>
-        <span class="cal-week-date">${d.getMonth()+1}.${d.getDate()}</span>
+        <span class="cal-week-date">${d.getDate()}</span>
       </div>`;
   }
-  const first = days[0], last = days[6];
-  const rangeLabel = first.getMonth() === last.getMonth()
-    ? `${first.getFullYear()}. ${first.getMonth()+1}.${first.getDate()} - ${last.getDate()}`
-    : `${first.getMonth()+1}.${first.getDate()} - ${last.getMonth()+1}.${last.getDate()}`;
+  // 상단 라벨: 해당 주의 수요일을 기준으로 한 '월'만 숫자로 표시(연도/텍스트 없음)
+  const wednesday = days[3];
+  const rangeLabel = `${wednesday.getMonth()+1}`;
   return `
     <div class="cal-week">
       <div class="cal-head"><strong>${rangeLabel}</strong></div>

@@ -224,7 +224,7 @@ body::before{
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
 .row-strip-right{ display:grid; grid-template-rows: 1fr auto; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
-/* 왼쪽: 캘린더 + 세션(나란히) / 오른쪽: 문서 + 체크리스트(문서 아래로 체크리스트, 세로로 쌓임) */
+/* 왼쪽: 체크리스트 + 세션(나란히) / 오른쪽: 문서 + 캘린더(문서 아래로 캘린더, 세로로 쌓임) */
 .row-2{ grid-template-columns: 1.2fr 1.4fr; }
 .row-2 > .row-2-left, .row-2 > .row-2-right{ min-width:0; min-height:0; }
 .row-2-left{ display:grid; grid-template-columns: 1fr 1.4fr; gap:20px; min-width:0; }
@@ -1066,6 +1066,10 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .w-video .w-edit-row button{ width:100%; white-space:normal; line-height:1.3; }
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
 .doc-list{ flex:1; min-height:0; min-width:0; display:grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); align-content:start; gap:8px; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
+/* PC 환경에서는 문서 위젯을 2열이 아니라 3열로 고정 표시 */
+@media (min-width: 901px){
+  .doc-list{ grid-template-columns: repeat(3, 1fr); }
+}
 /* 모바일에서는 문서 위젯이 들어있는 그리드(.row-2-right 등)의 행 높이가 auto라서
    카드 자체가 내용 길이만큼 계속 늘어나 버림 → 카드 안에서 스크롤되도록 높이 상한을 둠 */
 @media (max-width: 900px){
