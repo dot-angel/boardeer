@@ -1107,7 +1107,7 @@ globalStyleBtn.addEventListener('click', async ()=>{
     <label>카드 색상 · 투명도</label>
     <div class="color-row">
       <input type="color" id="tCardBgHex" value="${cardBgParsed.hex}">
-      <input type="range" id="tCardBgAlpha" min="5" max="90" value="${cardBgAlphaPct}" style="flex:1;">
+      <input type="range" id="tCardBgAlpha" min="0" max="90" value="${cardBgAlphaPct}" style="flex:1;">
       <span id="tCardBgAlphaLabel" style="font-size:.78rem;color:var(--ink-soft);min-width:34px;">${cardBgAlphaPct}%</span>
     </div>
     <p class="hint">투명도를 낮출수록(왼쪽) 배경이 카드 뒤로 더 비쳐서 유리 느낌이 강해져요.</p>
