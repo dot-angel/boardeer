@@ -368,6 +368,14 @@ body::before{
 .slide-dots{ display:flex; justify-content:center; gap:6px; padding:12px 0; }
 .slide-dots .dot{ width:6px; height:6px; border-radius:50%; background: var(--gold-soft); cursor:pointer; }
 .slide-dots .dot.active{ background: var(--rose); }
+/* 이미지 위젯의 점 아이콘은 사진 아래 별도 줄 대신, 사진 안쪽 하단에 겹쳐서 보여줘
+   그 아래 남던 여백을 없앰(사진 자체 그라데이션 위라 대비도 충분함) */
+.slide-dots.slide-dots-overlay{
+  position:absolute; left:0; right:0; bottom:10px; z-index:3;
+  padding:0; margin:0; pointer-events:auto;
+}
+.slide-dots.slide-dots-overlay .dot{ background: rgba(255,255,255,0.45); box-shadow:0 1px 3px rgba(0,0,0,0.5); }
+.slide-dots.slide-dots-overlay .dot.active{ background: #fff; }
 .slide-add{ margin: 0 18px 16px; align-self:flex-start; }
 .slide-empty{ flex:1; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:.85rem; min-height:220px; }
 /* ---------- 음악 위젯 (자켓 이미지 + 진행바 + 반복/연속재생 + 재생목록) ---------- */
@@ -506,16 +514,18 @@ body::before{
   .mp-controls{ justify-content:flex-start; gap:4px; }
   .mp-controls .icon-btn{ width:18px; font-size:.7rem; min-width:14px; }
   .mp-times{ font-size:.6rem; }
-  /* 재생목록만 남는 우측 영역: 카드 위/아래/오른쪽 끝까지 채워서 불필요한 여백이 생기지 않게 함 */
+  /* 재생목록만 남는 우측 영역: 폰트를 줄인 만큼 구역 폭도 좁혀서(46%→58% 지점부터
+     시작) 재생목록이 카드에서 차지하는 비중을 줄임 */
   .mp-side{
-    position:absolute; top:0; right:0; bottom:0; left:46%;
-    padding:10px 8px 10px 6px; min-width:0;
+    position:absolute; top:0; right:0; bottom:0; left:58%;
+    padding:10px 6px 10px 4px; min-width:0;
     display:flex; flex-direction:column;
   }
   .player-tracks{ flex:1; min-height:0; width:100%; max-height:none; overflow-y:auto; }
-  /* 터치로 누르는 목록이니 줄 높이/글자를 살짝 키워서 오터치를 줄임 */
-  .player-track{ padding:9px 8px; font-size:.85rem; }
-  .mp-track-thumb{ width:34px; height:34px; }
+  /* 구역 폭을 줄인 대신 글자/썸네일도 함께 줄여서 한 줄에 자연스럽게 들어가게 함 */
+  .player-track{ padding:7px 6px; font-size:.72rem; gap:6px; }
+  .mp-track-thumb{ width:26px; height:26px; }
+  .mp-track-drag-handle{ width:14px; font-size:.7rem; }
   /* 재생목록에서는 아티스트명을 숨기고 곡 제목만 보이게 함 */
   .mp-track-artist{ display:none; }
 }
@@ -757,6 +767,72 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .profile-name{ font-weight:700; font-size:1.15rem; max-width:min(200px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .profile-role{ font-size:.72rem; color: var(--ink-soft); max-width:100%; white-space:normal; word-break:keep-all; overflow-wrap:break-word; text-align:center; }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
+/* 기존 전체 레이아웃(사진/한마디/이름/소개 + 모든 정보 항목)은 데스크톱과, 모바일에서
+   "자세히 보기"로 펼쳤을 때만 그대로 보임. display:contents라서 평소엔 감싸는
+   div 자체가 레이아웃에 아무 영향을 주지 않고 자식들이 profile-person의 직속
+   자식인 것처럼 배치됨 */
+.profile-full{ display:contents; }
+/* 모바일 간략보기: 사진(좌) + 한마디/이름·소개/성격(우) 3줄로 요약한 카드.
+   기본적으로는 숨겨두고, 모바일에서 보기 전용일 때만 아래 미디어쿼리로 드러냄 */
+.profile-compact{
+  display:none; width:100%; text-align:left;
+  grid-template-columns: 30% 1fr;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    "photo oneliner"
+    "photo namerole"
+    "photo personality";
+  column-gap:10px; row-gap:6px; align-items:start;
+}
+.profile-compact.profile-compact-empty{ display:none !important; }
+.profile-compact-photo{
+  grid-area:photo; width:100%; aspect-ratio:3/4; border-radius:16px;
+  background-size:cover; background-position:center; background-color: var(--card-bg2);
+  border:2px solid var(--card-border); display:flex; align-items:center; justify-content:center;
+  font-size:1.6rem; color: var(--rose); overflow:hidden;
+}
+.profile-compact-photo.has-image{ border-color:transparent; }
+.profile-compact-oneliner{
+  grid-area:oneliner;
+  font-family: var(--font-display); font-style:italic; font-weight:700;
+  font-size:.8rem; line-height:1.3; color: var(--ink);
+  background: rgba(255,255,255,0.05); border:1px solid var(--card-border);
+  border-radius:9px; padding:5px 9px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.profile-compact-namerole{ grid-area:namerole; display:flex; gap:6px; min-width:0; }
+.profile-compact-name{
+  flex:0 1 auto; max-width:48%; font-weight:700; font-size:.82rem; color: var(--ink);
+  background: rgba(255,255,255,0.06); border:1px solid var(--card-border);
+  border-radius:9px; padding:4px 9px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.profile-compact-role{
+  flex:1 1 auto; min-width:0; font-size:.7rem; color: var(--ink-soft);
+  background: rgba(255,255,255,0.04); border:1px solid var(--card-border);
+  border-radius:9px; padding:4px 9px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.profile-compact-personality{
+  grid-area:personality;
+  background: rgba(255,255,255,0.04); border:1px solid var(--card-border);
+  border-radius:9px; padding:5px 9px;
+}
+.profile-compact-personality .pf-hashtags{ justify-content:flex-start; }
+/* 펼치기/접기 토글 — 데스크톱에선 안 보이고, 모바일 보기 전용일 때만 노출 */
+.profile-mobile-toggle{
+  display:none; width:100%; margin-top:8px; padding:7px; border-radius:10px;
+  border:1px solid var(--card-border); background: rgba(255,255,255,0.04);
+  color: var(--ink-soft); font-size:.72rem; font-weight:600; cursor:pointer;
+}
+.profile-mobile-toggle:hover{ background: rgba(255,255,255,0.08); color: var(--ink); }
+@media (max-width:900px){
+  /* 편집 모드에서는 필드를 직접 눌러 고쳐야 하니 간략보기를 적용하지 않고
+     항상 기존 전체 위젯 그대로 보여줌 */
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-full{ display:none; }
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-compact{ display:grid; }
+  body:not(.edit-mode) .profile-mobile-toggle{ display:block; }
+}
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
 .pf-edit-list{ display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; }
