@@ -605,26 +605,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   /* 카드 기본 패딩(18px)이 모바일에서 좁은 폭을 더 잡아먹으므로 프로필 카드만 줄임 */
   .w-profile{ padding:10px; }
 }
-/* AU/IF 슬라이드를 넘길 때마다 필드 개수·설명 길이·성격 태그 개수 등 내용 양이
-   달라지는데, 이 영역이 justify-content:center로 "세로 가운데 정렬"돼 있어서
-   내용이 많고 적음에 따라 제목·사진 등 위쪽 요소들까지 통째로 위아래로 밀려
-   보였음(가운데 맞추려고 재배치됨). 그래서 위에서부터 고정으로 쌓이게(top-anchored)
-   바꿔서, 슬라이드를 넘겨도 제목/사진 위치는 항상 같은 자리에 있고 그 아래
-   내용 길이만 달라지게 함.
-   그런데 이것만으로는 부족했던 게, profile-viewport 자체가 flex:1(내용에 따라
-   커지거나 작아짐)이라 섹션마다 위젯 전체 높이가 달라지고, 그러면 같은 줄에 있는
-   다른 위젯(뮤직·방명록 등)까지 덩달아 높이가 바뀌면서 페이지 전체가 흔들렸음.
-   그래서 아예 높이를 고정값으로 박아두고, 그보다 내용이 길 때만 안에서
-   스크롤되게 함(짧은 섹션은 아래에 여백이 남더라도 위젯 전체 크기는 항상 같음).
-   프로필 사진 2장이 나란히 있는 형태를 기준으로 넉넉히 잡은 값이라, 막상 보면서
-   너무 크거나 작으면 이 숫자만 조절하면 됨 */
-.profile-viewport{
-  position:relative; height:420px; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:12px; padding:6px 4px;
-  overflow-y:auto;
-}
-@media (max-width: 900px){
-  .profile-viewport{ height:380px; }
-}
+.profile-viewport{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:6px 4px; min-height:0; overflow-y:auto; }
 .profile-viewport::-webkit-scrollbar{ width:5px; }
 .profile-viewport::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 /* AU 이름은 위젯 맨 위에, 시점/IF 이름과는 뚜렷이 다른 모양(작은 대문자 라벨 느낌)으로 둠 */
@@ -732,33 +713,23 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-person-fields{ width:100%; border-radius:12px; margin-top:4px; }
 .profile-person-fields.editable{ cursor:pointer; transition: background .15s ease; padding:4px; }
 .profile-person-fields.editable:hover{ background: rgba(255,255,255,0.06); }
-/* 항목 목록을 표처럼 취급함: 나이/생년월일 줄, 키몸무게/BWH 줄, 성격 줄, 기타설명 줄을
-   각각 정해진 높이의 "행"으로 못박아 둔 그리드로 만듦. 표의 각 행 높이가 항상
-   똑같듯이, 이 4개 행은 슬라이드가 뭐든 항상 정확히 같은 높이·같은 위치에 있고,
-   그 안의 값이 넘치면(잘라내지 않고) 그 행 안에서만 스크롤됨. 이 4개 다음에
-   오는, 슬라이드마다 종류 자체가 다른 임의 추가 항목·링크만 내용에 맞는
-   높이(auto)로 붙음(이것들은애초에 슬라이드마다 다른 고유 항목이라 표에 넣을
-   공통 행이 없음) */
-.profile-fields{
-  display:grid; grid-template-rows: 34px 34px 44px 52px; grid-auto-rows:auto;
-  row-gap:4px; width:100%;
-}
-.profile-field{ display:flex; flex-direction:column; gap:1px; font-size:.72rem; line-height:1.45; padding:0 4px; text-align:left; justify-content:center; min-height:0; }
+.profile-fields{ display:flex; flex-direction:column; gap:4px; width:100%; }
+.profile-field{ display:flex; flex-direction:column; gap:1px; font-size:.72rem; line-height:1.45; padding:0 4px; text-align:left; }
 /* 항목명 오른쪽에 내용이 오도록 한 줄로 배치(라벨은 줄바꿈 없이 고정, 내용은 남는 폭을 씀) */
-.profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; height:100%; }
-.profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; padding-top:1px; }
-.profile-field .pf-value{
-  color: var(--ink); white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; flex:1; min-width:0;
-  max-height:100%; overflow-y:auto; align-self:stretch; display:flex; align-items:center;
-}
+.profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
+.profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; }
+.profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; flex:1; min-width:0; }
+/* 성격 항목은 줄글 대신 키워드 해시태그 알약으로 보여줌 */
 .profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; justify-content:center; }
-.pf-hashtags{ display:flex; flex-wrap:wrap; gap:5px; justify-content:center; height:100%; overflow-y:auto; align-content:flex-start; }
+.pf-hashtags{ display:flex; flex-wrap:wrap; gap:5px; justify-content:center; }
 .pf-hashtag{
   font-size:.72rem; font-weight:600; color: var(--rose);
   background: var(--rose-soft); border-radius:999px; padding:2px 9px;
 }
-.profile-field-plain{ text-align:center; display:flex; align-items:center; justify-content:center; min-height:0; }
-.profile-field-plain .pf-value{ font-weight:600; overflow-y:auto; max-height:100%; }
+/* 나이·생년월일·키/몸무게·BWH처럼 값만 봐도 뭔지 알 수 있는 항목은 항목명 없이
+   값만 가운데 정렬로 보여줌(리스트라기보다 짧은 요약 카드처럼 보이게) */
+.profile-field-plain{ text-align:center; }
+.profile-field-plain .pf-value{ font-weight:600; }
 /* 나이·생년월일 / 키몸무게·BWH처럼 짝을 지어 한 줄에 보여줄 때 — 값 두 개 사이에
    세로 구분선만 넣어서 각각 구분되게 함 */
 .profile-field-pair{ flex-direction:row; align-items:center; justify-content:center; gap:8px; }
@@ -766,22 +737,17 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-field-pair .pf-value:last-child{ text-align:left; }
 .profile-field-pair .pf-pair-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; }
 /* 기타 설명은 다른 항목들과 같은 줄 목록이 아니라, 살짝 구분되는 박스 안에 따로 담아서
-   "이건 정형화된 항목이 아니라 자유롭게 쓰는 설명"이라는 걸 한눈에 알 수 있게 함.
-   이 행도 위 표의 4번째 행(52px)에 고정으로 들어가서 슬라이드마다 위치가 같음 */
+   "이건 정형화된 항목이 아니라 자유롭게 쓰는 설명"이라는 걸 한눈에 알 수 있게 함 */
 .profile-desc-box{
-  width:100%; padding:8px 10px; border-radius:12px; box-sizing:border-box;
+  width:100%; margin-top:6px; padding:8px 10px; border-radius:12px;
   background: rgba(255,255,255,0.045); border:1px solid var(--card-border);
   font-size:.72rem; line-height:1.5; color: var(--ink-soft);
   white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; text-align:left;
-  overflow-y:auto; align-self:stretch;
 }
 .profile-desc-box.empty-hint{ cursor:pointer; opacity:.7; text-align:center; }
 .profile-desc-box.empty-hint:hover{ opacity:1; }
-/* 보기 모드에서 이 슬라이드엔 기타 설명이 비어있을 때 — 위치(자리)는 다른 슬라이드와
-   똑같이 지키되, 테두리·배경은 다 지워서 뜬금없이 빈 박스가 보이는 일은 없게 함 */
-.profile-desc-box-blank{ border-color:transparent; background:transparent; }
 /* 링크 전용 항목 — 일반 정보 항목들 맨 아래에 따로 모아서 작은 알약 버튼처럼 보여줌 */
-.profile-links{ display:flex; flex-wrap:wrap; gap:6px; padding:0 4px; }
+.profile-links{ display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; padding:0 4px; }
 .pf-link-item{
   display:inline-flex; align-items:center; gap:4px; font-size:.7rem; font-weight:600;
   padding:4px 10px; border-radius:999px; border:1px solid var(--card-border);
