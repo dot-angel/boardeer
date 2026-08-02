@@ -1842,12 +1842,10 @@ function renderProfile(){
                     <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
                       ${avatar ? '' : '👤'}
                     </div>
-                    ${oneLiner || editMode ? `
-                      <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
-                    ` : ''}
+                    <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
                   </div>
                   <div class="profile-info">
-                    ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
+                    <div class="profile-role ${!role ? 'empty-hint':''}">${role ? escapeHtml(role) : ''}</div>
                     <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
                   </div>
                 </div>
