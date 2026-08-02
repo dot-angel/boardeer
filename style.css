@@ -802,7 +802,11 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 .profile-oneliner.empty-hint{ opacity:.7; cursor:pointer; font-style:normal; font-weight:600; font-size:.7rem; }
 .profile-oneliner.empty-hint:hover{ opacity:1; }
 .profile-name{ font-weight:700; font-size:1.15rem; max-width:min(200px, 100%); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.profile-name.empty-hint{ opacity:.7; cursor:pointer; font-weight:600; font-size:.85rem; }
+.profile-name.empty-hint:hover{ opacity:1; }
 .profile-role{ font-size:.72rem; color: var(--ink-soft); max-width:100%; white-space:normal; word-break:keep-all; overflow-wrap:break-word; text-align:center; }
+.profile-role.empty-hint{ opacity:.7; cursor:pointer; }
+.profile-role.empty-hint:hover{ opacity:1; }
 .profile-divider{ width:1px; align-self:stretch; background: var(--card-border); margin:8px 0; }
 /* 기존 전체 레이아웃(사진/한마디/이름/소개 + 모든 정보 항목)은 데스크톱과, 모바일에서
    "자세히 보기"로 펼쳤을 때만 그대로 보임. display:contents라서 평소엔 감싸는

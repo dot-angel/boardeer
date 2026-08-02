@@ -1690,7 +1690,6 @@ function renderProfile(){
     const descField = textFields.find(f=> (f.label||'').trim() === '기타 설명');
     const listFields = textFields.filter(f=> f !== descField);
     const visibleLinks = editMode ? linkFields : linkFields.filter(f=> f.link);
-    const showDescBox = editMode || (descField && descField.value);
 
     // 나이/생년월일, 키몸무게/BWH, 성격 — 이 세 줄은 "표"처럼 사람/시점마다 자리가
     // 고정돼야 하는 항목이라, listFields 전체(값 유무·편집모드 상관없이)에서 먼저
@@ -1749,13 +1748,16 @@ function renderProfile(){
           ).join('')}
         </div>
       ` : '';
-    // 기타 설명은 목록과 분리된 별도 박스로 — 값이 있을 때는 물론, 편집모드에선
-    // 아직 비어있어도 여기에 채울 수 있다는 걸 알 수 있게 자리 안내를 보여줌
-    const descHtml = showDescBox ? `
-        <div class="profile-desc-box ${!(descField && descField.value) ? 'empty-hint' : ''}">
-          ${(descField && descField.value) ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '')}
+    // 기타 설명도 나이/생년월일 등과 같은 "필수기재란" 취급 — 값이 없어도 아예
+    // 사라지지 않고 자리(빈 줄)를 그대로 차지하게 함. 편집모드에선 기존처럼
+    // "+ 기타 설명 추가" 안내를 보여주고, 보기 전용에서 값이 없으면 위 필드들과
+    // 동일하게 profile-field-empty로 표시해서 PC에선 빈 자리 유지·모바일에선 숨김
+    const descHasValue = !!(descField && descField.value);
+    const descHtml = `
+        <div class="profile-desc-box ${editMode ? (descHasValue ? '' : 'empty-hint') : (descHasValue ? '' : 'profile-field-empty')}">
+          ${descHasValue ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '&nbsp;')}
         </div>
-      ` : '';
+      `;
     return `<div class="profile-fields">${fixedRowsHtml}${customHtml}${linksHtml}</div>${descHtml}`;
   };
 
@@ -1838,13 +1840,15 @@ function renderProfile(){
                     <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
                       ${avatar ? '' : '👤'}
                     </div>
-                    ${oneLiner || editMode ? `
-                      <div class="profile-oneliner ${!oneLiner ? 'empty-hint':''}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '')}</div>
-                    ` : ''}
+                    <!-- 한마디도 나이/생년월일 등과 같은 "필수기재란" 취급 — 값이 없어도
+                         자리를 그대로 차지함(편집모드가 아니면 blank 처리) -->
+                    <div class="profile-oneliner ${oneLiner ? '' : (editMode ? 'empty-hint' : 'profile-field-empty')}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '&nbsp;')}</div>
                   </div>
                   <div class="profile-info">
-                    ${role ? `<div class="profile-role">${escapeHtml(role)}</div>` : ''}
-                    <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                    <!-- 한줄소개(역할)도 마찬가지 — 값 없으면 통째로 사라지는 대신 자리만 비움 -->
+                    <div class="profile-role ${role ? '' : (editMode ? 'empty-hint' : 'profile-field-empty')}">${role ? escapeHtml(role) : (editMode ? '+ 한줄소개 추가' : '&nbsp;')}</div>
+                    <!-- 이름도 마찬가지 — 값 없을 때 "(이름 없음)" 같은 안내 문구 대신 빈 자리로 둠 -->
+                    <div class="profile-name ${name ? '' : (editMode ? 'empty-hint' : 'profile-field-empty')}">${name ? escapeHtml(name) : (editMode ? '+ 프로필 추가' : '&nbsp;')}</div>
                   </div>
                 </div>
                 <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
