@@ -1709,12 +1709,7 @@ function renderProfile(){
       const idx = remaining.findIndex(f=> (f.label||'').trim() === lbl);
       return idx === -1 ? null : remaining.splice(idx, 1)[0];
     };
-    const ageField = takeByLabel('나이');
-    const bdayField = takeByLabel('생년월일');
-    const bodyField = takeByLabel('키/몸무게');
-    const bwhField = takeByLabel('BWH');
-    const pairedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField);
-    const textHtml = pairedRowsHtml + remaining.map(f=>{
+    const renderFieldRow = f=>{
       const label = (f.label || '').trim();
       const noLabel = NO_LABEL_FIELDS.includes(label);
       if(label === '성격' && f.value){
@@ -1735,7 +1730,25 @@ function renderProfile(){
           </div>
         </div>
       `;
-    }).join('');
+    };
+    const ageField = takeByLabel('나이');
+    const bdayField = takeByLabel('생년월일');
+    const bodyField = takeByLabel('키/몸무게');
+    const bwhField = takeByLabel('BWH');
+    const personalityField = takeByLabel('성격');
+    const pairedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField);
+    // 나이~BWH~성격~기타설명까지는 어느 시점/IF에나 있을 법한 "공통 항목"이라, 슬라이드를
+    // 넘겨도 항상 이 순서 그대로 고정해서 보여줌(줄맞춤). 그 뒤에 오는 임의의 추가 항목만
+    // 슬라이드마다 있고 없고가 달라짐
+    const personalityHtml = personalityField ? renderFieldRow(personalityField) : '';
+    // 기타 설명은 값이 있을 때는 물론, 편집모드에선 아직 비어있어도 여기에 채울 수 있다는 걸
+    // 알 수 있게 자리 안내를 보여줌 — 성격 바로 다음 자리에 고정
+    const descHtml = showDescBox ? `
+        <div class="profile-desc-box ${!(descField && descField.value) ? 'empty-hint' : ''}">
+          ${(descField && descField.value) ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '')}
+        </div>
+      ` : '';
+    const remainingHtml = remaining.map(renderFieldRow).join('');
     // 링크 전용 항목은 항목 목록 맨 아래에 따로 모아서, 버튼처럼 눌러서 여는 형태로 보여줌
     const linksHtml = visibleLinks.length ? `
         <div class="profile-links">
@@ -1745,14 +1758,7 @@ function renderProfile(){
           ).join('')}
         </div>
       ` : '';
-    // 기타 설명은 목록과 분리된 별도 박스로 — 값이 있을 때는 물론, 편집모드에선
-    // 아직 비어있어도 여기에 채울 수 있다는 걸 알 수 있게 자리 안내를 보여줌
-    const descHtml = showDescBox ? `
-        <div class="profile-desc-box ${!(descField && descField.value) ? 'empty-hint' : ''}">
-          ${(descField && descField.value) ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '')}
-        </div>
-      ` : '';
-    return `<div class="profile-fields">${textHtml}${linksHtml}</div>${descHtml}`;
+    return `<div class="profile-fields">${pairedRowsHtml}${personalityHtml}${descHtml}${remainingHtml}${linksHtml}</div>`;
   };
 
   // AU 이름은 항상 위젯 맨 위, 시점/IF 이름과는 확실히 구분되는 모양으로 고정 표시함.
@@ -2296,12 +2302,18 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
       };
       const drawFields = ()=>{
         const list = slotState[slot].fields;
-        // 새 항목은 배열 맨 뒤에 추가되는데, "기타 설명"이 중간에 있으면 새로 추가한
-        // 항목과 위치가 뒤섞여 헷갈리므로, 화면에는 "기타 설명"을 항상 맨 아래로 고정해서 보여줌
-        // (실제 배열 순서/삭제 인덱스는 그대로 유지 — 표시 순서만 바꿈)
-        const descIdx = list.findIndex(f=> f.type !== 'link' && (f.label||'').trim() === '기타 설명');
-        const order = list.map((_,i)=> i).filter(i=> i !== descIdx);
-        if(descIdx !== -1) order.push(descIdx);
+        // 나이~생년월일~키몸무게~BWH~성격~기타 설명까지는 화면(줄맞춤)과 똑같이 항상 이
+        // 순서로 고정해서 보여줌 — 이 항목들이 편집창에서 뒤섞여 있으면 실제 위젯에
+        // 어떤 순서로 나오는지 헷갈림 (실제 배열 순서/삭제 인덱스는 그대로 유지 —
+        // 표시 순서만 바꿈). 나머지 임의의 커스텀 항목/링크는 원래 순서 그대로 그 뒤에 옴
+        const FIXED_ORDER_LABELS = ['나이', '생년월일', '키/몸무게', 'BWH', '성격', '기타 설명'];
+        const used = new Set();
+        const order = [];
+        FIXED_ORDER_LABELS.forEach(lbl=>{
+          const idx = list.findIndex((f,i)=> !used.has(i) && f.type !== 'link' && (f.label||'').trim() === lbl);
+          if(idx !== -1){ order.push(idx); used.add(idx); }
+        });
+        list.forEach((_,i)=>{ if(!used.has(i)) order.push(i); });
         listEl.innerHTML = order.map(i=> rowHtml(list[i], i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
         listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
           slotState[slot].fields.splice(Number(btn.dataset.del), 1);
