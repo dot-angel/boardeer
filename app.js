@@ -1687,43 +1687,50 @@ function renderProfile(){
   const fieldsHtml = (fields)=>{
     const textFields = fields.filter(f=> f.type !== 'link');
     const linkFields = fields.filter(f=> f.type === 'link');
-    const descField = textFields.find(f=> (f.label||'').trim() === '기타 설명');
-    const listFields = textFields.filter(f=> f !== descField);
-    const visibleText = editMode ? listFields : listFields.filter(f=> f.value);
     const visibleLinks = editMode ? linkFields : linkFields.filter(f=> f.link);
-    const showDescBox = editMode || (descField && descField.value);
-    if(!visibleText.length && !visibleLinks.length && !showDescBox){
-      return editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '';
-    }
-    // 나이·생년월일, 키/몸무게·BWH는 각각 세로 구분선 하나로 나눠서 같은 줄에 보여줌
-    // (둘 다 값이 있을 때만 한 줄로 묶고, 하나만 있으면 그 하나만 그대로 보여줌) —
-    // 위젯이 위아래로 너무 길어진다는 요청에 따라 높이를 줄이기 위함.
-    const pairFieldHtml = f=> `<span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>`;
-    const pairRowHtml = (a, b)=>{
-      if(a && b) return `<div class="profile-field profile-field-plain profile-field-pair">${pairFieldHtml(a)}<span class="pf-pair-divider"></span>${pairFieldHtml(b)}</div>`;
-      const only = a || b;
-      return only ? `<div class="profile-field profile-field-plain">${pairFieldHtml(only)}</div>` : '';
-    };
-    const remaining = visibleText.slice();
+    // 나이~BWH~성격~기타설명은 "값이 있는지"가 아니라 "이 항목이 있는 슬라이드/시점인지"를
+    // 기준으로 자리를 잡음. 예전엔 값이 빈 항목을 미리 걸러내고 나서 찾다 보니, 어떤
+    // 슬라이드에선 이 항목 자체가 통째로 사라져서 그 아래 내용들이 전부 위로 밀려
+    // 보였음(줄 개수 자체가 슬라이드마다 달라짐). 이제는 항목이 있기만 하면(값이
+    // 비어있어도) 그 자리를 그대로 비워서라도 지켜, 슬라이드를 넘겨도 같은 항목은
+    // 항상 같은 위치에 있게 함 — 그 뒤에 오는 임의의 추가 항목만 슬라이드마다 있고
+    // 없고가 달라짐(그건 애초에 슬라이드마다 다른 고유 항목이라 자리를 맞출 방법이 없음)
     const takeByLabel = (lbl)=>{
-      const idx = remaining.findIndex(f=> (f.label||'').trim() === lbl);
-      return idx === -1 ? null : remaining.splice(idx, 1)[0];
+      const idx = textFields.findIndex(f=> (f.label||'').trim() === lbl);
+      return idx === -1 ? null : textFields.splice(idx, 1)[0];
     };
     const ageField = takeByLabel('나이');
     const bdayField = takeByLabel('생년월일');
     const bodyField = takeByLabel('키/몸무게');
     const bwhField = takeByLabel('BWH');
-    const pairedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField);
-    const textHtml = pairedRowsHtml + remaining.map(f=>{
+    const personalityField = takeByLabel('성격');
+    const descField = takeByLabel('기타 설명');
+    // 나머지(임의로 추가한 항목들)는 지금까지처럼 값이 있을 때만 보임(보기 모드 기준)
+    const remaining = editMode ? textFields : textFields.filter(f=> f.value);
+    const hasPinned = ageField || bdayField || bodyField || bwhField || personalityField || descField;
+    if(!hasPinned && !remaining.length && !visibleLinks.length){
+      return editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '';
+    }
+    // 나이·생년월일, 키/몸무게·BWH는 각각 세로 구분선 하나로 나눠서 같은 줄에 보여줌
+    // (둘 다 값이 있을 때만 한 줄로 묶고, 하나만 있으면 그 하나만 그대로 보여줌) —
+    // 위젯이 위아래로 너무 길어진다는 요청에 따라 높이를 줄이기 위함.
+    const pairFieldHtml = f=> f && f.value ? `<span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>` : `<span class="pf-value"></span>`;
+    const pairRowHtml = (a, b)=>{
+      if(!a && !b) return '';
+      if(a && b) return `<div class="profile-field profile-field-plain profile-field-pair">${pairFieldHtml(a)}<span class="pf-pair-divider"></span>${pairFieldHtml(b)}</div>`;
+      const only = a || b;
+      return `<div class="profile-field profile-field-plain">${pairFieldHtml(only)}</div>`;
+    };
+    const renderFieldRow = f=>{
       const label = (f.label || '').trim();
       const noLabel = NO_LABEL_FIELDS.includes(label);
-      if(label === '성격' && f.value){
-        return `<div class="profile-field profile-field-personality">${personalityHashtagsHtml(f.value)}</div>`;
+      if(label === '성격'){
+        return `<div class="profile-field profile-field-personality">${f.value ? personalityHashtagsHtml(f.value) : '<div class="pf-hashtags"></div>'}</div>`;
       }
       if(noLabel){
         return `
           <div class="profile-field profile-field-plain">
-            <span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>
+            <span class="pf-value">${f.value ? formatProfileFieldValue(f.label, f.value) : ''}</span>
           </div>
         `;
       }
@@ -1735,7 +1742,19 @@ function renderProfile(){
           </div>
         </div>
       `;
-    }).join('');
+    };
+    const pairedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField);
+    const personalityHtml = personalityField ? renderFieldRow(personalityField) : '';
+    // 기타 설명은 값이 있을 때, 편집모드일 때는 물론, 자리를 지키기 위해 이 항목이
+    // 있는 슬라이드라면(값이 비어도) 항상 렌더링함. 다만 보기 모드에서 값이 없을 땐
+    // 테두리/배경 있는 박스가 뜬금없이 빈 채로 보이지 않도록 완전히 투명한 상태로만
+    // 자리를 차지하게 함(자리는 지키되 눈엔 안 띔)
+    const descHtml = descField ? `
+        <div class="profile-desc-box ${editMode && !descField.value ? 'empty-hint' : ''} ${!editMode && !descField.value ? 'profile-desc-box-blank' : ''}">
+          ${descField.value ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '')}
+        </div>
+      ` : '';
+    const remainingHtml = remaining.map(renderFieldRow).join('');
     // 링크 전용 항목은 항목 목록 맨 아래에 따로 모아서, 버튼처럼 눌러서 여는 형태로 보여줌
     const linksHtml = visibleLinks.length ? `
         <div class="profile-links">
@@ -1745,14 +1764,7 @@ function renderProfile(){
           ).join('')}
         </div>
       ` : '';
-    // 기타 설명은 목록과 분리된 별도 박스로 — 값이 있을 때는 물론, 편집모드에선
-    // 아직 비어있어도 여기에 채울 수 있다는 걸 알 수 있게 자리 안내를 보여줌
-    const descHtml = showDescBox ? `
-        <div class="profile-desc-box ${!(descField && descField.value) ? 'empty-hint' : ''}">
-          ${(descField && descField.value) ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '')}
-        </div>
-      ` : '';
-    return `<div class="profile-fields">${textHtml}${linksHtml}</div>${descHtml}`;
+    return `<div class="profile-fields">${pairedRowsHtml}${personalityHtml}${descHtml}${remainingHtml}${linksHtml}</div>`;
   };
 
   // AU 이름은 항상 위젯 맨 위, 시점/IF 이름과는 확실히 구분되는 모양으로 고정 표시함.
@@ -1779,8 +1791,7 @@ function renderProfile(){
   box.innerHTML = `
     ${auHeaderHtml}
     <div class="profile-viewport" id="profileViewport">
-      ${(slide.sections.length > 1 || section.name || section.desc || editMode) ? `
-        <div class="profile-headline" id="profileHeadline">
+      <div class="profile-headline" id="profileHeadline">
           <div class="profile-section-header" id="profSecHeader">
             <div class="profile-section-name ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
               ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
@@ -1793,13 +1804,10 @@ function renderProfile(){
               </div>
             ` : ''}
           </div>
-          ${(section.desc || editMode) ? `
-            <div class="profile-section-desc ${!section.desc ? 'empty-hint':''}" id="profSecDescBtn" ${editMode ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
-              ${section.desc ? escapeHtml(section.desc) : (editMode ? '+ 짧은 설명 추가' : '')}
-            </div>
-          ` : ''}
-        </div>
-      ` : ''}
+          <div class="profile-section-desc ${!section.desc ? 'empty-hint':''}" id="profSecDescBtn" ${editMode ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
+            ${section.desc ? escapeHtml(section.desc) : (editMode ? '+ 짧은 설명 추가' : '')}
+          </div>
+      </div>
       <div class="profile-pair">
         ${[0,1].map(slot=>{
           const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
@@ -2296,12 +2304,18 @@ function openProfileFieldsModal(slideIdx, secIdx, slides){
       };
       const drawFields = ()=>{
         const list = slotState[slot].fields;
-        // 새 항목은 배열 맨 뒤에 추가되는데, "기타 설명"이 중간에 있으면 새로 추가한
-        // 항목과 위치가 뒤섞여 헷갈리므로, 화면에는 "기타 설명"을 항상 맨 아래로 고정해서 보여줌
-        // (실제 배열 순서/삭제 인덱스는 그대로 유지 — 표시 순서만 바꿈)
-        const descIdx = list.findIndex(f=> f.type !== 'link' && (f.label||'').trim() === '기타 설명');
-        const order = list.map((_,i)=> i).filter(i=> i !== descIdx);
-        if(descIdx !== -1) order.push(descIdx);
+        // 나이~생년월일~키몸무게~BWH~성격~기타 설명까지는 화면(줄맞춤)과 똑같이 항상 이
+        // 순서로 고정해서 보여줌 — 이 항목들이 편집창에서 뒤섞여 있으면 실제 위젯에
+        // 어떤 순서로 나오는지 헷갈림 (실제 배열 순서/삭제 인덱스는 그대로 유지 —
+        // 표시 순서만 바꿈). 나머지 임의의 커스텀 항목/링크는 원래 순서 그대로 그 뒤에 옴
+        const FIXED_ORDER_LABELS = ['나이', '생년월일', '키/몸무게', 'BWH', '성격', '기타 설명'];
+        const used = new Set();
+        const order = [];
+        FIXED_ORDER_LABELS.forEach(lbl=>{
+          const idx = list.findIndex((f,i)=> !used.has(i) && f.type !== 'link' && (f.label||'').trim() === lbl);
+          if(idx !== -1){ order.push(idx); used.add(idx); }
+        });
+        list.forEach((_,i)=>{ if(!used.has(i)) order.push(i); });
         listEl.innerHTML = order.map(i=> rowHtml(list[i], i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
         listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
           slotState[slot].fields.splice(Number(btn.dataset.del), 1);
