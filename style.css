@@ -720,7 +720,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; }
 .profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; flex:1; min-width:0; }
 /* 성격 항목은 줄글 대신 키워드 해시태그 알약으로 보여줌 */
-.profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; justify-content:center; }
+.profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; justify-content:center; min-height:22px; }
 .pf-hashtags{ display:flex; flex-wrap:wrap; gap:5px; justify-content:center; }
 .pf-hashtag{
   font-size:.72rem; font-weight:600; color: var(--rose);
@@ -736,11 +736,11 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-field-pair .pf-value:first-child{ text-align:right; }
 .profile-field-pair .pf-value:last-child{ text-align:left; }
 .profile-field-pair .pf-pair-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; }
-/* 기타 설명은 다른 항목들과 같은 줄 목록이 아니라, 살짝 구분되는 박스 안에 따로 담아서
-   "이건 정형화된 항목이 아니라 자유롭게 쓰는 설명"이라는 걸 한눈에 알 수 있게 함 */
+/* 기타 설명은 다른 항목들과 같은 줄 목록이 아니라는 걸 표시하되, 박스(배경+테두리)로
+   감싸면 사람마다 설명 길이가 달라 높이가 들쭉날쭉한 게 상자 테두리 때문에 더
+   도드라져 보였음 → 상자 대신 위에 가로 구분선 하나만 그어서 자연스럽게 분리함 */
 .profile-desc-box{
-  width:100%; margin-top:6px; padding:8px 10px; border-radius:12px;
-  background: rgba(255,255,255,0.045); border:1px solid var(--card-border);
+  width:100%; margin-top:8px; padding:8px 4px 0; border-top:1px solid var(--card-border);
   font-size:.72rem; line-height:1.5; color: var(--ink-soft);
   white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; text-align:left;
 }
@@ -933,6 +933,25 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-section-desc{
     margin-top:-2px;
   }
+  /* 진짜 원인: .profile-viewport가 justify-content:center라서, 카드 높이가
+     (같은 줄의 다른 위젯이나 내용이 가장 많은 AU/시점 기준으로) 실제 내용보다
+     커지면 남는 공간만큼 전체가 세로로 가운데 밀림 — 그래서 항목이 적은
+     AU/시점일수록 제목·설명·프로필이 위아래로 붕 떠 보였음. 위쪽에 고정해서
+     카드 높이가 얼마든 제목/설명/프로필 위치가 항상 같은 자리에서 시작하게 함 */
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-viewport{
+    justify-content:flex-start;
+  }
+  /* 나이/생년월일, 키몸무게/BWH, 성격 — 이 세 줄(app.js fieldsHtml)은 값이 없어도
+     항상 렌더링되게 바꿔서, 사람/시점마다 이 줄이 있었다 없었다 하며 그 아래
+     커스텀 항목들 위치가 들쭉날쭉해지지 않고 표처럼 고정된 자리를 갖게 함 */
+  body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-field-empty{
+    visibility:hidden;
+  }
+}
+/* 위 세 줄의 "빈 자리 유지"는 PC 전용 — 모바일(펼치기 포함)에서는 원래대로
+   빈 항목을 아예 안 보이게(공간도 차지 않게) 둠 */
+@media (max-width:900px){
+  .profile-field-empty{ display:none; }
 }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
