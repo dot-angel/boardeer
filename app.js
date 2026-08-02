@@ -1689,22 +1689,13 @@ function renderProfile(){
     const linkFields = fields.filter(f=> f.type === 'link');
     const descField = textFields.find(f=> (f.label||'').trim() === '기타 설명');
     const listFields = textFields.filter(f=> f !== descField);
-    const visibleText = editMode ? listFields : listFields.filter(f=> f.value);
     const visibleLinks = editMode ? linkFields : linkFields.filter(f=> f.link);
     const showDescBox = editMode || (descField && descField.value);
-    if(!visibleText.length && !visibleLinks.length && !showDescBox){
-      return editMode ? `<div class="profile-slide-desc empty-hint">+ 정보 추가 (키/몸무게·성격 등)</div>` : '';
-    }
-    // 나이·생년월일, 키/몸무게·BWH는 각각 세로 구분선 하나로 나눠서 같은 줄에 보여줌
-    // (둘 다 값이 있을 때만 한 줄로 묶고, 하나만 있으면 그 하나만 그대로 보여줌) —
-    // 위젯이 위아래로 너무 길어진다는 요청에 따라 높이를 줄이기 위함.
-    const pairFieldHtml = f=> `<span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>`;
-    const pairRowHtml = (a, b)=>{
-      if(a && b) return `<div class="profile-field profile-field-plain profile-field-pair">${pairFieldHtml(a)}<span class="pf-pair-divider"></span>${pairFieldHtml(b)}</div>`;
-      const only = a || b;
-      return only ? `<div class="profile-field profile-field-plain">${pairFieldHtml(only)}</div>` : '';
-    };
-    const remaining = visibleText.slice();
+
+    // 나이/생년월일, 키몸무게/BWH, 성격 — 이 세 줄은 "표"처럼 사람/시점마다 자리가
+    // 고정돼야 하는 항목이라, listFields 전체(값 유무·편집모드 상관없이)에서 먼저
+    // 뽑아내고 남은 것들만 뒤에서 "자유 항목"으로 다룸
+    const remaining = listFields.slice();
     const takeByLabel = (lbl)=>{
       const idx = remaining.findIndex(f=> (f.label||'').trim() === lbl);
       return idx === -1 ? null : remaining.splice(idx, 1)[0];
@@ -1713,20 +1704,33 @@ function renderProfile(){
     const bdayField = takeByLabel('생년월일');
     const bodyField = takeByLabel('키/몸무게');
     const bwhField = takeByLabel('BWH');
-    const pairedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField);
-    const textHtml = pairedRowsHtml + remaining.map(f=>{
-      const label = (f.label || '').trim();
-      const noLabel = NO_LABEL_FIELDS.includes(label);
-      if(label === '성격' && f.value){
-        return `<div class="profile-field profile-field-personality">${personalityHashtagsHtml(f.value)}</div>`;
-      }
-      if(noLabel){
-        return `
-          <div class="profile-field profile-field-plain">
-            <span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>
-          </div>
-        `;
-      }
+    const personalityField = takeByLabel('성격');
+
+    // 나이·생년월일, 키/몸무게·BWH는 각각 세로 구분선 하나로 나눠서 같은 줄에 보여줌
+    // (둘 다 값이 있을 때만 한 줄로 묶고, 하나만 있으면 그 하나만 그대로 보여줌) —
+    // 위젯이 위아래로 너무 길어진다는 요청에 따라 높이를 줄이기 위함.
+    // PC에서는 값이 하나도 없어도 그 줄 자체는 항상 자리를 차지하게 비워서 렌더링함
+    // (다른 사람/시점엔 값이 있어서 줄이 생기고 이 사람만 없어서 줄이 통째로
+    // 사라지면, 그 아래 항목들 위치가 사람마다 달라져 "표"처럼 안 보였음).
+    // .profile-field-empty는 모바일에서만 CSS로 다시 숨겨서(펼치기 포함) 기존
+    // "빈 항목은 안 보이게" 동작을 그대로 유지함
+    const pairFieldHtml = f=> `<span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>`;
+    const pairRowHtml = (a, b)=>{
+      const av = a && a.value, bv = b && b.value;
+      if(av && bv) return `<div class="profile-field profile-field-plain profile-field-pair">${pairFieldHtml(a)}<span class="pf-pair-divider"></span>${pairFieldHtml(b)}</div>`;
+      const only = av ? a : (bv ? b : null);
+      if(only) return `<div class="profile-field profile-field-plain">${pairFieldHtml(only)}</div>`;
+      return `<div class="profile-field profile-field-plain profile-field-empty">&nbsp;</div>`;
+    };
+    const personalityRowHtml = (personalityField && personalityField.value)
+      ? `<div class="profile-field profile-field-personality">${personalityHashtagsHtml(personalityField.value)}</div>`
+      : `<div class="profile-field profile-field-personality profile-field-empty">&nbsp;</div>`;
+    const fixedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField) + personalityRowHtml;
+
+    // 이 뒤로 붙는 건 사람마다 자유롭게 추가한 커스텀 항목(취향/무기 등)이라 개수 자체가
+    // 달라서 "표"처럼 자리를 고정할 수 없음 — 예전처럼 값 있는 것만(또는 편집모드면 전부) 보여줌
+    const visibleCustom = editMode ? remaining : remaining.filter(f=> f.value);
+    const customHtml = visibleCustom.map(f=>{
       return `
         <div class="profile-field">
           <div class="pf-row">
@@ -1752,7 +1756,7 @@ function renderProfile(){
           ${(descField && descField.value) ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '')}
         </div>
       ` : '';
-    return `<div class="profile-fields">${textHtml}${linksHtml}</div>${descHtml}`;
+    return `<div class="profile-fields">${fixedRowsHtml}${customHtml}${linksHtml}</div>${descHtml}`;
   };
 
   // AU 이름은 항상 위젯 맨 위, 시점/IF 이름과는 확실히 구분되는 모양으로 고정 표시함.
