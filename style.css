@@ -246,6 +246,12 @@ body::before{
    세션 0.7fr, 문서/체크리스트 1.4fr, 캘린더 0.5fr (0.7+0.5 = 기존 1.2fr과 동일) */
 .row-2{ grid-template-columns: 0.7fr 1.4fr 0.5fr; }
 .row-2 > .w-card, .row-2 > .row-2-right{ min-width:0; min-height:0; }
+/* 캘린더 카드는 syncRow2Height()가 기준 높이로 읽는 대상이라, 기본 stretch로
+   행 높이만큼 같이 늘어나 버리면 안 됨 — 그러면 JS가 읽는 기준 높이가 이미
+   부풀려진 값이 되고, 그걸 세션/문서/체크리스트에 그대로 다시 적용하면서
+   행이 계속 더 커지는 순환이 생김. align-self:start로 캘린더는 항상
+   자기 콘텐츠만큼의 높이만 갖도록 고정해서 이 순환을 끊음. */
+#cardCalendar{ align-self: start; }
 .row-2-right{ display:grid; grid-template-rows: 1fr 1fr; gap:20px; min-width:0; }
 .row-2-right > .w-card{ min-height:0; }
 /* 두번째 갤러리 + 레퍼런스 갤러리 + 영상목록: 한 행에 나란히. 평소엔 영상목록이
@@ -1393,7 +1399,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 .pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
-.session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
+.session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; min-width:0; max-height:420px; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 @media (max-width: 900px){
   .session-grid{ max-height: 320px; }
 }
