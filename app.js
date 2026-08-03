@@ -1884,26 +1884,6 @@ function renderProfile(){
   bindProfile(slides);
 }
 
-// AU/시점(IF) 탭마다 항목 개수가 달라서, 그동안은 탭을 넘길 때마다 프로필
-// 위젯 자체의 높이가 늘었다 줄었다 했음. 모든 탭을 한꺼번에 미리 렌더링해서
-// 재는 대신(렌더링 구조상 한 번에 한 탭만 DOM에 그려짐), 실제로 지금까지
-// 열어본 탭들 중 가장 큰 높이를 기억해뒀다가 그 값으로 위젯 높이를 고정함.
-// 그보다 짧은 탭은 위(justify-content:flex-start)부터 채우고 아래는 빈
-// 공간으로 남고, 혹시 더 큰 탭을 나중에 발견하면 그 값으로 다시 갱신됨
-let profileViewportMaxHeight = 0;
-function syncProfileViewportHeight(box){
-  if(editMode) return; // 편집모드는 "+ 추가" 안내문 등으로 실제 내용보다 커 보일 수 있어 대상에서 제외
-  const isMobileSimplified = !profileMobileExpanded && window.innerWidth <= 900;
-  const viewport = box.querySelector('.profile-viewport');
-  if(!viewport || isMobileSimplified) return;
-  const prevMinHeight = viewport.style.minHeight;
-  viewport.style.minHeight = '0';
-  const h = viewport.scrollHeight;
-  viewport.style.minHeight = prevMinHeight; // 측정 중 깜빡임 방지 — 재기 전 값으로 잠깐 복원
-  if(h > profileViewportMaxHeight) profileViewportMaxHeight = h;
-  if(profileViewportMaxHeight > 0) viewport.style.minHeight = profileViewportMaxHeight + 'px';
-}
-
 function bindProfile(slides){
   const box = document.getElementById('cardProfile');
   box.classList.toggle('profile-mobile-expanded', profileMobileExpanded);
@@ -1913,10 +1893,6 @@ function bindProfile(slides){
   box.querySelectorAll('.profile-compact-oneliner').forEach(el=>{
     shapeSpeechBubble(el, { radius:12, tailLeft:14, tailWidth:14, tailHeight:7 });
   });
-
-  // 프로필 위젯 높이 고정 (위 함수 설명 참고) — 이 탭의 실제 내용 높이를 재서
-  // 지금까지 본 것 중 가장 큰 값으로 위젯 전체 높이를 통일시킴
-  syncProfileViewportHeight(box);
 
   const mobileToggleBtn = box.querySelector('#profileMobileToggleBtn');
   if(mobileToggleBtn) mobileToggleBtn.onclick = ()=>{ profileMobileExpanded = !profileMobileExpanded; renderProfile(); };
@@ -5705,7 +5681,7 @@ refreshLockUI();
 initRow2HeightSync();
 initBoardTabs();
 
-// 화면 폭이 바뀌면(반응형 구간 전환 등) 말풍선 폭/프로필 위젯 높이도 달라질 수 있어서 다시 계산
+// 화면 폭이 바뀌면(반응형 구간 전환 등) 말풍선 폭도 달라질 수 있어서 다시 오려냄
 window.addEventListener('resize', debounce(()=>{
   document.querySelectorAll('.profile-compact-oneliner').forEach(el=>{
     shapeSpeechBubble(el, { radius:12, tailLeft:14, tailWidth:14, tailHeight:7 });
@@ -5713,6 +5689,4 @@ window.addEventListener('resize', debounce(()=>{
   Object.values(stickerEls).forEach(s=>{
     shapeSpeechBubble(s.bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
   });
-  const profileBox = document.getElementById('cardProfile');
-  if(profileBox) syncProfileViewportHeight(profileBox);
 }, 150));
