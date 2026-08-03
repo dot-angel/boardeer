@@ -537,9 +537,11 @@ body::before{
     display:block; /* 재생정보(좌하단 오버레이)와 재생목록(우측)을 따로 배치하기 위해 세로 flex 해제 */
   }
   /* 제목·아티스트·재생바·컨트롤을 전부 자켓 이미지 위, 좌측 하단에 모아서 표시.
-     재생목록(mp-side)이 46% 지점부터 시작하므로 그 앞에서 끝나도록 폭을 제한해 겹치지 않게 함 */
+     재생목록(mp-side)이 58% 지점부터 시작하므로 그 앞에서 끝나도록 폭을 맞춤
+     (이 값이 mp-side의 left:58%와 어긋나 있으면 두 구역 사이에 아무것도 없는
+     빈 띠가 생김 — 실제로 그 문제였음) */
   .mp-nowplaying{
-    position:absolute; left:12px; bottom:12px; width:calc(46% - 24px);
+    position:absolute; left:12px; bottom:12px; width:calc(58% - 24px);
     z-index:2; gap:4px;
   }
   .mp-meta{ text-align:left; padding:0; }
