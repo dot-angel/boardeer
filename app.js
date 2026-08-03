@@ -1847,8 +1847,8 @@ function renderProfile(){
                   <div class="profile-info">
                     <!-- 한줄소개(역할)도 마찬가지 — 값 없으면 통째로 사라지는 대신 자리만 비움 -->
                     <div class="profile-role ${role ? '' : (editMode ? 'empty-hint' : 'profile-field-empty')}">${role ? escapeHtml(role) : (editMode ? '+ 한줄소개 추가' : '&nbsp;')}</div>
-                    <!-- 이름도 마찬가지 — 값 없을 때 "(이름 없음)" 같은 안내 문구 대신 빈 자리로 둠 -->
-                    <div class="profile-name ${name ? '' : (editMode ? 'empty-hint' : 'profile-field-empty')}">${name ? escapeHtml(name) : (editMode ? '+ 프로필 추가' : '&nbsp;')}</div>
+                    <!-- 이름은 원래대로 복구 -->
+                    <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
                   </div>
                 </div>
                 <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
