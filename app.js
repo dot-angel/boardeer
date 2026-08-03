@@ -5370,8 +5370,9 @@ function openChecklistLinkModal(idx){
    맞춰줌(모두 이미 내부 스크롤 처리가 되어 있어서, 높이가 줄어들면 안에서
    스크롤됨). 세션 위젯은 캘린더 옆(나란히)이라 캘린더와 같은 높이를 그대로
    가지고, 문서·체크리스트 위젯은 캘린더 아래로 쌓여 있으므로 둘을 합친 높이가
-   캘린더 높이와 같아지도록 나눠 가짐(문서 위젯이 더 크게). 900px 이하(row-2가
-   1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
+   캘린더 높이와 같아지도록 반씩 나눠 가짐(문서/체크리스트 동일 면적). 900px
+   이하(row-2가 1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자 자연스러운
+   높이로 둠. */
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
   const docsCard = document.getElementById('cardDocs');
@@ -5388,7 +5389,7 @@ function syncRow2Height(){
   if(h > 0){
     sessionsCard.style.height = h + 'px';
     const gap = 20;
-    const checklistH = Math.max(120, Math.round((h - gap) * 0.35));
+    const checklistH = Math.max(120, Math.round((h - gap) * 0.5));
     const docsH = h - gap - checklistH;
     docsCard.style.height = docsH + 'px';
     checklistCard.style.height = checklistH + 'px';
