@@ -5574,7 +5574,7 @@ function scheduleBothStickerBubbles(){
 function positionStickerDefault(root, slot){
   const actualW = root.offsetWidth || STICKER_W;
   const scale = actualW / STICKER_W;
-  const leftMargin = 64 * scale, topClearance = 92 * scale, hGap = (STICKER_W - 42) * scale, vGap = 36 * scale;
+  const leftMargin = 64 * scale, topClearance = 92 * scale, hGap = (STICKER_W - 15) * scale, vGap = 54 * scale;
   const anchorLeft = leftMargin;
   const anchorTop = topClearance;
   const defaultLeft = slot === 1 ? anchorLeft + hGap : anchorLeft;
