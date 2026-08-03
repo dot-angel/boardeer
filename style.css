@@ -246,7 +246,7 @@ body::before{
    세션 0.7fr, 문서/체크리스트 1.4fr, 캘린더 0.5fr (0.7+0.5 = 기존 1.2fr과 동일) */
 .row-2{ grid-template-columns: 0.7fr 1.4fr 0.5fr; }
 .row-2 > .w-card, .row-2 > .row-2-right{ min-width:0; min-height:0; }
-.row-2-right{ display:grid; grid-template-rows: auto auto; gap:20px; min-width:0; }
+.row-2-right{ display:grid; grid-template-rows: 1fr 1fr; gap:20px; min-width:0; }
 .row-2-right > .w-card{ min-height:0; }
 /* 두번째 갤러리 + 레퍼런스 갤러리 + 영상목록: 한 행에 나란히. 평소엔 영상목록이
    좁은 세로 줄로 옆에 붙어있다가, 영상을 재생하면(#refpairRow.video-open) 그
@@ -716,6 +716,17 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-person-fields.editable{ cursor:pointer; transition: background .15s ease; padding:4px; }
 .profile-person-fields.editable:hover{ background: rgba(255,255,255,0.06); }
 .profile-fields{ display:flex; flex-direction:column; gap:4px; width:100%; }
+/* 나이/생년월일·키몸무게/BWH·성격까지는 항상 같은 자리를 차지해서 위젯 높이에
+   영향이 없지만, 그 아래 커스텀 항목+링크+기타설명은 사람/시점마다 개수·길이가
+   달라서 여기가 위젯 전체 높이를 들쭉날쭉하게 만드는 원인이었음. 그래서 이
+   구역만 높이를 못박고 넘치면 내부에서만 스크롤되게 함 — 편집모드에선 전체
+   내용을 다 보면서 편집해야 하니 제한을 풀어둠 */
+body:not(.edit-mode) .profile-fields-scroll{
+  max-height:170px; overflow-y:auto;
+}
+.profile-fields-scroll{ display:flex; flex-direction:column; gap:4px; width:100%; margin-top:4px; min-height:0; }
+.profile-fields-scroll::-webkit-scrollbar{ width:4px; }
+.profile-fields-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .profile-field{ display:flex; flex-direction:column; gap:1px; font-size:.72rem; line-height:1.45; padding:0 4px; text-align:left; }
 /* 항목명 오른쪽에 내용이 오도록 한 줄로 배치(라벨은 줄바꿈 없이 고정, 내용은 남는 폭을 씀) */
 .profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
