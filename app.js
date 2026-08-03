@@ -5558,6 +5558,46 @@ function scheduleBothStickerBubbles(){
   }, delay);
 }
 
+// 기본 위치(저장된 값이 없을 때): 배너 좌상단 쪽에 두 스티커가 가깝게 모여있게.
+// 앵커(왼쪽 위 기준점)는 멧돼지(slot 0) 자리로 두고, 사슴(slot 1)은 그보다
+// 오른쪽 아래로 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를
+// 그대로 지키면서, 멧돼지가 사슴보다 위에 오도록. 말풍선은 스티커 위쪽으로
+// 떠오르므로 배너 맨 위에서 말풍선이 잘리지 않도록 위쪽 여백(topClearance)을
+// 충분히 두고, 왼쪽도 화면 끝에 바짝 붙지 않도록 여백(leftMargin)을 넉넉히 둬서
+// 좀 더 중앙 쪽으로 오게 함. 말풍선 너비를 좁혀둔 만큼 가로 간격(hGap)만으로도
+// 말풍선끼리 안 겹치게 하고, 세로 간격(vGap)은 캐릭터 키 차이가 너무 크지
+// 않도록 작게 유지함.
+// 모든 값은 STICKER_W(데스크탑 기준 160px)가 아니라 실제로 렌더링된 스티커
+// 크기(root.offsetWidth)에 비례해서 계산함 — 화면이 좁아지면 미디어쿼리로
+// 스티커 자체가 92px까지 작아지는데, 간격을 고정 px로 두면 스티커는 작아지는데
+// 둘 사이 거리는 그대로라 오히려 서로 멀어져 보이는 문제가 있었음.
+function positionStickerDefault(root, slot){
+  const actualW = root.offsetWidth || STICKER_W;
+  const scale = actualW / STICKER_W;
+  const leftMargin = 64 * scale, topClearance = 92 * scale, hGap = (STICKER_W - 42) * scale, vGap = 36 * scale;
+  const anchorLeft = leftMargin;
+  const anchorTop = topClearance;
+  const defaultLeft = slot === 1 ? anchorLeft + hGap : anchorLeft;
+  const defaultTop = slot === 1 ? anchorTop + vGap : anchorTop;
+  root.style.left = defaultLeft + 'px';
+  root.style.top = defaultTop + 'px';
+  stickerClamp(root);
+}
+
+// 저장된 위치가 있으면 그 비율(frac)로, 없으면 기본 자리로 배치 — 생성 시점과
+// resize 시점 둘 다 이 함수 하나로 통일해서, 화면 크기가 바뀔 때도 "저장된
+// 의도"를 기준으로 다시 계산하게 함(전에는 resize 때 그 순간의 픽셀 좌표에서
+// 거꾸로 비율을 뽑아 그대로 재적용하는 식이라 사실상 아무것도 안 바뀌었고,
+// 그 사이 미디어쿼리로 스티커 크기만 작아지면서 간격이 상대적으로 멀어져 보였음)
+function positionSticker(root, slot){
+  const saved = (stickerPosData.positions||{})[slot];
+  if(saved){
+    applyStickerFrac(root, saved.x, saved.y);
+  } else {
+    positionStickerDefault(root, slot);
+  }
+}
+
 function ensureStickerEl(slot){
   if(stickerEls[slot]) return stickerEls[slot];
   const root = document.createElement('div');
@@ -5571,37 +5611,7 @@ function ensureStickerEl(slot){
   const bubbleEl = root.querySelector('.sticker-bubble');
   const bubbleTextEl = root.querySelector('.sticker-bubble-text');
 
-  // 기본 위치(저장된 값이 없을 때): 배너 좌상단 쪽에 두 스티커가 가깝게 모여있게.
-  // 배너 높이가 항상 560px 고정이라, 뷰포트 비율이 아니라 배너 기준 픽셀로 계산함
-  // (화면이 배너보다 낮으면 화면 안에 들어오도록 보정).
-  const bannerBottom = Math.min(560, window.innerHeight - 20);
-  const saved = (stickerPosData.positions||{})[slot];
-  if(saved){
-    applyStickerFrac(root, saved.x, saved.y);
-  } else {
-    // 앵커(왼쪽 위 기준점)는 멧돼지(slot 0) 자리로 두고, 사슴(slot 1)은 그보다
-    // 오른쪽 아래로 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를
-    // 그대로 지키면서, 멧돼지가 사슴보다 위에 오도록. 말풍선은 스티커 위쪽으로
-    // 떠오르므로 배너 맨 위에서 말풍선이 잘리지 않도록 위쪽 여백(topClearance)을
-    // 충분히 두고, 왼쪽도 화면 끝에 바짝 붙지 않도록 여백(leftMargin)을 넉넉히 둬서
-    // 좀 더 중앙 쪽으로 오게 함. 말풍선 너비를 좁혀둔 만큼 가로 간격(hGap)만으로도
-    // 말풍선끼리 안 겹치게 하고, 세로 간격(vGap)은 캐릭터 키 차이가 너무 크지
-    // 않도록 작게 유지함.
-    // 모든 값은 STICKER_W(데스크탑 기준 160px)가 아니라 실제로 렌더링된 스티커
-    // 크기(root.offsetWidth)에 비례해서 계산함 — 화면이 좁아지면 미디어쿼리로
-    // 스티커 자체가 92px까지 작아지는데, 간격을 고정 px로 두면 스티커는 작아지는데
-    // 둘 사이 거리는 그대로라 오히려 서로 멀어져 보이는 문제가 있었음.
-    const actualW = root.offsetWidth || STICKER_W;
-    const scale = actualW / STICKER_W;
-    const leftMargin = 64 * scale, topClearance = 92 * scale, hGap = (STICKER_W - 42) * scale, vGap = 36 * scale;
-    const anchorLeft = leftMargin;
-    const anchorTop = topClearance;
-    const defaultLeft = slot === 1 ? anchorLeft + hGap : anchorLeft;
-    const defaultTop = slot === 1 ? anchorTop + vGap : anchorTop;
-    root.style.left = defaultLeft + 'px';
-    root.style.top = defaultTop + 'px';
-    stickerClamp(root);
-  }
+  positionSticker(root, slot);
 
   // 드래그(마우스/터치 공용, Pointer Events)
   let dragging = false, startX=0, startY=0, baseLeft=0, baseTop=0, moved=false;
@@ -5632,10 +5642,11 @@ function ensureStickerEl(slot){
   root.addEventListener('pointerup', endDrag);
   root.addEventListener('pointercancel', endDrag);
 
-  // 화면 크기가 바뀌면(회전 등) 비율 기준으로 다시 위치 맞춤
+  // 화면 크기가 바뀌면(회전, 창 크기 조절, 모바일 미디어쿼리로 스티커 자체
+  // 크기가 바뀌는 경우 등) "저장된 의도"를 기준으로 다시 배치 — 드래그로
+  // 옮겨둔 적이 있으면 그 비율로, 없으면 기본 자리 공식으로 다시 계산
   window.addEventListener('resize', debounce(()=>{
-    const {x,y,maxX,maxY} = stickerClamp(root);
-    applyStickerFrac(root, maxX? x/maxX : 0, maxY? y/maxY : 0);
+    positionSticker(root, slot);
   }, 150));
 
   stickerEls[slot] = { root, avatarEl, bubbleEl, bubbleTextEl, bubbleTimer: null };
