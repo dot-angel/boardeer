@@ -5398,7 +5398,16 @@ function initRow2HeightSync(){
   const cal = document.getElementById('cardCalendar');
   if(!cal) return;
   if(typeof ResizeObserver !== 'undefined'){
-    new ResizeObserver(()=> syncRow2Height()).observe(cal);
+    // 캘린더는 이제 align-self:start라 자기 콘텐츠 높이만 갖지만, 혹시 모를
+    // 반올림 오차 등으로 값이 미세하게 계속 흔들려 행이 서서히 부풀어오르는
+    // 걸 막기 위해 실제로 높이가 바뀐 경우에만 다시 계산하도록 이중 안전장치를 둠
+    let lastH = -1;
+    new ResizeObserver(()=>{
+      const h = Math.round(cal.getBoundingClientRect().height);
+      if(h === lastH) return;
+      lastH = h;
+      syncRow2Height();
+    }).observe(cal);
   }
   window.addEventListener('resize', syncRow2Height);
   syncRow2Height();
