@@ -475,7 +475,39 @@ function openImageLightbox(cfg){
   render();
 }
 
-/* 갤러리 사진 타일을 드래그로 끌어서 순서 바꾸기 (편집모드에서만 동작) */
+/* 묶음(여러 장을 하나로 올린 항목) 안의 사진들만 따로 넘겨보는 라이트박스.
+   기존 openImageLightbox를 "묶음 안 사진 배열" 하나로만 다시 호출하는 것뿐이라
+   좌우 넘기기/스와이프/키보드 등은 전부 그대로 재사용됨(인스타그램에서 여러 장
+   게시물을 열면 그 게시물 사진끼리만 넘겨지는 것과 같은 방식).
+   groupItem: normalizeGalleryItem이 돌려주는 { group:true, images:[...], blur, opts } 형태
+   onChange(updatedOrNull): 묶음 안 사진이 삭제되어 구성이 바뀔 때마다 호출됨
+     - 사진이 2장 이상 남으면 갱신된 그룹 항목을
+     - 1장만 남으면 더 이상 묶음이 아니므로 일반 낱장 항목을
+     - 0장이 되면 null을 넘겨줌(호출한 쪽에서 항목 자체를 목록에서 제거하면 됨)
+   onEditTag(newOpts=>void)|null: 태그(옵션) 수정 버튼 — 묶음 전체에 적용되는 태그를 고침 */
+function openGalleryGroupLightbox(groupItem, { onChange, onEditTag } = {}){
+  const images = groupItem.images.slice();
+  openImageLightbox({
+    items: images,
+    index: 0,
+    resolve: resolveGalleryItemUrl,
+    tag: onEditTag ? ()=> groupItem.opts : null,
+    onEditTag: onEditTag ? ()=>{
+      closeModal();
+      openItemOptEditModal(groupItem.opts, sharedGalleryOptionsData.options, (opts)=> onEditTag(opts));
+    } : null,
+    onDelete: onChange ? (pos)=>{
+      const removed = images[pos];
+      deleteGalleryImageIfChunked(removed);
+      images.splice(pos, 1);
+      if(images.length === 0) onChange(null);
+      else if(images.length === 1) onChange({ ...images[0], blur: groupItem.blur, opts: groupItem.opts });
+      else onChange({ group:true, images: images.slice(), blur: groupItem.blur, opts: groupItem.opts });
+    } : null
+  });
+}
+
+
 function bindPinDragReorder(container, tileSelector, getItems, saveItems){
   if(!editMode) return;
   let dragIdx = null;
@@ -3569,11 +3601,22 @@ docRef('calendar').onSnapshot(doc=>{ calendarData = doc.exists ? doc.data() : {e
 
 /* 예전엔 items가 그냥 URL 문자열 배열이었어서, 새로 추가된 블러 옵션과 호환되도록
    문자열이면 {url, blur:false}로, 객체면 그대로 정규화해줌 */
+// 사진 여러 장을 인스타그램 여러 장 게시물처럼 "하나로 묶어서" 올릴 때 쓰는 항목 모양.
+// 낱장 항목은 그대로 두고, 묶음만 { group:true, images:[...] } 형태로 별도 표시함
+function normalizeGalleryImageRef(img){
+  if(!img) return { url:'' };
+  if(img.chunked) return { chunked:true, fileId: img.fileId, chunkTotal: img.chunkTotal };
+  return { url: img.url };
+}
 function normalizeGalleryItem(it){
   if(typeof it === 'string') return { url: it, blur: false, opts: [] };
+  if(it.group && Array.isArray(it.images)) return { group:true, images: it.images.map(normalizeGalleryImageRef), blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
   if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
   return { url: it.url, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
 }
+// 묶음이면 대표(첫 번째) 사진을, 낱장이면 자기 자신을 돌려줌 — 썸네일/지연로딩은
+// 항상 이 대표 사진 기준으로 동작하면 됨
+function galleryItemCover(it){ return (it && it.group) ? (it.images[0] || {url:''}) : it; }
 
 /* 갤러리는 사진 여러 장이 문서 하나(gallery/gallery2)에 배열로 함께 저장되는데,
    사진을 그대로 base64로 박아넣으면 Firestore 문서 1MB 한도를 여러 장이
@@ -3718,6 +3761,7 @@ function runChunkLoad(fileId, chunkTotal, priority){
    진행 중인 로딩을 pendingChunkedLoads에 캐시해뒀다가 재사용함 */
 const pendingChunkedLoads = new Map(); // fileId -> 로딩 중인 Promise
 function resolveGalleryItemUrl(item, onReady, priority){
+  if(item && item.group) return resolveGalleryItemUrl(galleryItemCover(item), onReady, priority);
   if(!item.chunked) return item.url;
   if(chunkedImageCache.has(item.fileId)) return chunkedImageCache.get(item.fileId);
   if(!pendingChunkedLoads.has(item.fileId)){
@@ -3758,7 +3802,9 @@ function setupPinGalleryLazyLoad(gridEl, pairs, observerHolder, loadingSelector,
 }
 
 function deleteGalleryImageIfChunked(item){
-  if(item && item.chunked){ deleteFileChunked(item.fileId, item.chunkTotal).catch(()=>{}); }
+  if(!item) return;
+  if(item.group && Array.isArray(item.images)){ item.images.forEach(deleteGalleryImageIfChunked); return; }
+  if(item.chunked){ deleteFileChunked(item.fileId, item.chunkTotal).catch(()=>{}); }
 }
 
 let galleryData = { items: [] };
@@ -3775,14 +3821,16 @@ let skipNextGalleryRender = false;
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
    setupPinGalleryLazyLoad가 화면 근처로 스크롤됐을 때 시작함 */
 function galleryTileHtml(it, i){
-  if(it.chunked && chunkedImageCache.has(it.fileId)) return galleryTileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
-  if(!it.chunked) return galleryTileMarkup(it, it.url, i);
+  const cover = galleryItemCover(it);
+  if(cover.chunked && chunkedImageCache.has(cover.fileId)) return galleryTileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
+  if(!cover.chunked) return galleryTileMarkup(it, cover.url, i);
   return `<div class="pin-item pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
 }
 function galleryTileMarkup(it, url, i){
   return `
-    <div class="pin-item ${it.blur ? 'blurred' : ''}" data-idx="${i}">
+    <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
       ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
       ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
@@ -3791,8 +3839,10 @@ function galleryTileMarkup(it, url, i){
 function fillGalleryTile(tile, idx, url, it){
   if(!tile.isConnected) return; // 그사이 그리드가 다시 그려져서 이 타일이 이미 화면에서 빠졌으면 무시
   tile.classList.remove('pin-loading');
+  tile.classList.toggle('pin-item-group', !!it.group);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+    ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
     ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
     ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
@@ -3896,6 +3946,22 @@ function renderGallery(){
 
 function openGalleryViewModal(idx){
   const allItems = (galleryData.items || []).map(normalizeGalleryItem);
+  if(allItems[idx] && allItems[idx].group){
+    openGalleryGroupLightbox(allItems[idx], {
+      onEditTag: editMode ? (opts)=>{
+        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+        arr[idx] = { ...arr[idx], opts };
+        if(!galleryFilterOpt) skipNextGalleryRender = true;
+        docRef('gallery').set({items:arr}, {merge:true});
+      } : null,
+      onChange: editMode ? (updated)=>{
+        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
+        docRef('gallery').set({items:arr}, {merge:true});
+      } : null
+    });
+    return;
+  }
   // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
   // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
   const idxMap = allItems.map((it,i)=> i).filter(i=> !galleryFilterOpt || (allItems[i].opts||[]).includes(galleryFilterOpt));
@@ -3948,6 +4014,10 @@ function openGalleryAddModal(){
       <input type="checkbox" id="galBlur" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">썸네일 블러 처리 (눌러야만 원본이 보여요)</span>
     </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <input type="checkbox" id="galGroup" style="width:auto;">
+      <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(카드 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
+    </label>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -3956,6 +4026,7 @@ function openGalleryAddModal(){
       const files = Array.from(m.querySelector('#galFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#galUrl').value.trim());
       const blur = m.querySelector('#galBlur').checked;
+      const asGroup = m.querySelector('#galGroup').checked;
       const opts = getCheckedOptionValues(m.querySelector('#galOptBox'));
       const newItems = [];
       if(files.length){
@@ -3974,9 +4045,13 @@ function openGalleryAddModal(){
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
       }
+      // 두 장 이상이고 "묶어서 올리기"를 체크했으면, 낱장 여러 개 대신 묶음 하나로 합침
+      const finalNewItems = (asGroup && newItems.length > 1)
+        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), blur, opts }]
+        : newItems;
       try{
         const existing = (galleryData.items||[]).map(normalizeGalleryItem);
-        await docRef('gallery').set({ items: [...newItems, ...existing] }, {merge:true});
+        await docRef('gallery').set({ items: [...finalNewItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -4061,14 +4136,16 @@ window.addEventListener('resize', refreshGallery2LayoutDebounced);
 
 
 function gallery2TileHtml(it, i){
-  if(it.chunked && chunkedImageCache.has(it.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
-  if(!it.chunked) return gallery2TileMarkup(it, it.url, i);
+  const cover = galleryItemCover(it);
+  if(cover.chunked && chunkedImageCache.has(cover.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
+  if(!cover.chunked) return gallery2TileMarkup(it, cover.url, i);
   return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
 }
 function gallery2TileMarkup(it, url, i){
   return `
-    <div class="pin-item-dense ${it.blur ? 'blurred' : ''}" data-idx="${i}">
+    <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
       ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
       ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
@@ -4077,8 +4154,10 @@ function gallery2TileMarkup(it, url, i){
 function fillGallery2Tile(tile, idx, url, it){
   if(!tile.isConnected) return;
   tile.classList.remove('pin-loading');
+  tile.classList.toggle('pin-item-group', !!it.group);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+    ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
     ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
     ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
@@ -4178,6 +4257,22 @@ function renderGallery2(){
 
 function openGallery2ViewModal(idx){
   const allItems = (gallery2Data.items || []).map(normalizeGalleryItem);
+  if(allItems[idx] && allItems[idx].group){
+    openGalleryGroupLightbox(allItems[idx], {
+      onEditTag: editMode ? (opts)=>{
+        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+        arr[idx] = { ...arr[idx], opts };
+        if(!gallery2FilterOpt) skipNextGallery2Render = true;
+        docRef('gallery2').set({items:arr}, {merge:true});
+      } : null,
+      onChange: editMode ? (updated)=>{
+        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
+        docRef('gallery2').set({items:arr}, {merge:true});
+      } : null
+    });
+    return;
+  }
   // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
   // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
   const idxMap = allItems.map((it,i)=> i).filter(i=> !gallery2FilterOpt || (allItems[i].opts||[]).includes(gallery2FilterOpt));
@@ -4226,6 +4321,10 @@ function openGallery2AddModal(){
       <input type="checkbox" id="gal2Blur" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">썸네일 블러 처리 (눌러야만 원본이 보여요)</span>
     </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <input type="checkbox" id="gal2Group" style="width:auto;">
+      <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(카드 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
+    </label>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -4234,6 +4333,7 @@ function openGallery2AddModal(){
       const files = Array.from(m.querySelector('#gal2Files').files || []);
       const url = normalizeImageUrl(m.querySelector('#gal2Url').value.trim());
       const blur = m.querySelector('#gal2Blur').checked;
+      const asGroup = m.querySelector('#gal2Group').checked;
       const opts = getCheckedOptionValues(m.querySelector('#gal2OptBox'));
       const newItems = [];
       if(files.length){
@@ -4252,9 +4352,12 @@ function openGallery2AddModal(){
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
       }
+      const finalNewItems = (asGroup && newItems.length > 1)
+        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), blur, opts }]
+        : newItems;
       try{
         const existing = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        await docRef('gallery2').set({ items: [...newItems, ...existing] }, {merge:true});
+        await docRef('gallery2').set({ items: [...finalNewItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -4277,6 +4380,7 @@ docRef('gallery2').onSnapshot(doc=>{
 
 function normalizeRefGalleryItem(it){
   if(typeof it === 'string') return { url: it, opts: [] };
+  if(it.group && Array.isArray(it.images)) return { group:true, images: it.images.map(normalizeGalleryImageRef), opts: it.opts || (it.opt ? [it.opt] : []) };
   if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, opts: it.opts || (it.opt ? [it.opt] : []) };
   return { url: it.url, opts: it.opts || (it.opt ? [it.opt] : []) };
 }
@@ -4449,15 +4553,17 @@ function renderRefGallery(){
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
    setupRefGalleryLazyLoad가 화면 근처로 스크롤됐을 때 시작함 */
 function renderRefGalleryTileHtml(it, i){
-  if(it.chunked && chunkedImageCache.has(it.fileId)) return refGalleryTileMarkup(chunkedImageCache.get(it.fileId) || '', i);
-  if(!it.chunked) return refGalleryTileMarkup(it.url, i);
+  const cover = galleryItemCover(it);
+  if(cover.chunked && chunkedImageCache.has(cover.fileId)) return refGalleryTileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
+  if(!cover.chunked) return refGalleryTileMarkup(it, cover.url, i);
   return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>...</span></div>`;
 }
 
-function refGalleryTileMarkup(url, i){
+function refGalleryTileMarkup(it, url, i){
   return `
-    <div class="pin-item-dense" data-idx="${i}">
+    <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
       ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
     </div>`;
@@ -4467,14 +4573,16 @@ function refGalleryTileMarkup(url, i){
 let refGalleryObserverHolder = { current: null };
 function setupRefGalleryLazyLoad(gridEl, pairs){
   setupPinGalleryLazyLoad(gridEl, pairs, refGalleryObserverHolder, '.pin-item-dense.pin-loading',
-    (tile, idx, url)=> fillRefGalleryTile(tile, idx, url));
+    (tile, idx, url, it)=> fillRefGalleryTile(tile, idx, url, it));
 }
 
-function fillRefGalleryTile(tile, idx, url){
+function fillRefGalleryTile(tile, idx, url, it){
   if(!tile.isConnected) return; // 그사이 그리드가 다시 그려져서 이 타일이 이미 화면에서 빠졌으면 무시
   tile.classList.remove('pin-loading');
+  tile.classList.toggle('pin-item-group', !!(it && it.group));
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
+    ${it && it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
     ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
   `;
@@ -4502,6 +4610,22 @@ function handleRefGalleryOptEdit(idx){
 
 function openRefGalleryViewModal(idx){
   const allItems = (refGalleryData.items || []).map(normalizeRefGalleryItem);
+  if(allItems[idx] && allItems[idx].group){
+    openGalleryGroupLightbox(allItems[idx], {
+      onEditTag: editMode ? (opts)=>{
+        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+        arr[idx] = { ...arr[idx], opts };
+        if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
+        docRef('refgallery').set({items:arr}, {merge:true});
+      } : null,
+      onChange: editMode ? (updated)=>{
+        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
+        docRef('refgallery').set({items:arr}, {merge:true});
+      } : null
+    });
+    return;
+  }
   // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
   // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
   const idxMap = allItems.map((it,i)=> i).filter(i=> !refGalleryFilterOpt || (allItems[i].opts||[]).includes(refGalleryFilterOpt));
@@ -4547,6 +4671,10 @@ function openRefGalleryAddModal(){
     <label>옵션 (분류, 여러 개 선택 가능)</label>
     <div id="refGalOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
     <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+      <input type="checkbox" id="refGalGroup" style="width:auto;">
+      <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(칸 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
+    </label>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -4554,6 +4682,7 @@ function openRefGalleryAddModal(){
       const saveBtn = m.querySelector('#s');
       const files = Array.from(m.querySelector('#refGalFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#refGalUrl').value.trim());
+      const asGroup = m.querySelector('#refGalGroup').checked;
       const opts = getCheckedOptionValues(m.querySelector('#refGalOptBox'));
       const newItems = [];
       if(files.length){
@@ -4572,9 +4701,12 @@ function openRefGalleryAddModal(){
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
       }
+      const finalNewItems = (asGroup && newItems.length > 1)
+        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), opts }]
+        : newItems;
       try{
         const existing = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        await docRef('refgallery').set({ items: [...newItems, ...existing] }, {merge:true});
+        await docRef('refgallery').set({ items: [...finalNewItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
