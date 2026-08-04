@@ -745,9 +745,42 @@ function openGalleryLightboxCore(clickedSrcIdx, { getItems, normalize, save, get
 }
 
 
-function bindPinDragReorder(container, tileSelector, getItems, saveItems){
+/* opts.pointerLine: true면 사각 테두리 대신, 커서가 타일의 왼쪽/오른쪽 중 어디 있는지 봐서
+   그 사진의 "앞" 또는 "뒤" 자리에 정확히 세로선 하나로 표시함(핀터레스트 그리드용).
+   지정 안 하면(음악 재생목록처럼 세로로 쌓인 목록) 예전 그대로 사각 테두리로 표시함 */
+function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts = {}){
   if(!editMode) return;
+  const pointerLine = !!opts.pointerLine;
   let dragIdx = null;
+  // 핀터레스트식 매스너리 그리드는 실제 타일이 container의 직계 자식이 아니라 안쪽
+  // .pin-grid(타일들의 좌표 기준이 되는 position:relative 요소)의 자식일 수 있음
+  // (layoutPinMasonry와 동일한 방식으로 찾음). 표시선을 타일과 같은 좌표계에
+  // 그려야 어긋나지 않고 정확히 겹쳐 보임
+  const posRoot = pointerLine
+    ? (container.classList.contains('pin-grid') ? container : (container.querySelector(':scope > .pin-grid') || container))
+    : null;
+  let dropLine = null;
+  if(pointerLine){
+    dropLine = posRoot.querySelector(':scope > .pin-drop-line');
+    if(!dropLine){
+      dropLine = document.createElement('div');
+      dropLine.className = 'pin-drop-line';
+      posRoot.appendChild(dropLine);
+    }
+  }
+  const hideDropLine = ()=>{ if(dropLine) dropLine.style.opacity = '0'; };
+  // el(지금 커서가 올라간 타일) 기준으로, before(왼쪽 절반=이 사진 앞)면 그 타일의
+  // 왼쪽 틈 한가운데에, 아니면 오른쪽 틈 한가운데에 타일 높이만큼 세로선을 그려줌
+  const showDropLineAt = (el, before)=>{
+    const cRect = posRoot.getBoundingClientRect();
+    const tRect = el.getBoundingClientRect();
+    const gap = PIN_MASONRY_GAP;
+    const centerX = before ? (tRect.left - cRect.left - gap/2) : (tRect.right - cRect.left + gap/2);
+    dropLine.style.left = (centerX - 1.5) + 'px';
+    dropLine.style.top = (tRect.top - cRect.top) + 'px';
+    dropLine.style.height = tRect.height + 'px';
+    dropLine.style.opacity = '1';
+  };
   container.querySelectorAll(tileSelector).forEach(el=>{
     el.setAttribute('draggable', 'true');
     el.addEventListener('dragstart', e=>{
@@ -760,26 +793,44 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems){
     el.addEventListener('dragend', ()=>{
       el.classList.remove('dragging');
       container.querySelectorAll('.drag-over').forEach(x=> x.classList.remove('drag-over'));
+      hideDropLine();
       dragIdx = null;
     });
     el.addEventListener('dragover', e=>{
       if(dragIdx === null) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      container.querySelectorAll('.drag-over').forEach(x=>{ if(x!==el) x.classList.remove('drag-over'); });
-      el.classList.add('drag-over');
+      if(pointerLine){
+        const rect = el.getBoundingClientRect();
+        const before = (e.clientX - rect.left) < rect.width / 2;
+        el.dataset.dropBefore = before ? '1' : '0';
+        showDropLineAt(el, before);
+      } else {
+        container.querySelectorAll('.drag-over').forEach(x=>{ if(x!==el) x.classList.remove('drag-over'); });
+        el.classList.add('drag-over');
+      }
     });
-    el.addEventListener('dragleave', ()=> el.classList.remove('drag-over'));
+    el.addEventListener('dragleave', ()=>{ if(!pointerLine) el.classList.remove('drag-over'); });
     el.addEventListener('drop', async e=>{
       e.preventDefault();
       el.classList.remove('drag-over');
+      hideDropLine();
       const targetIdx = Number(el.dataset.idx);
       const srcIdx = dragIdx;
       dragIdx = null;
       if(srcIdx === null || srcIdx === targetIdx) return;
       const arr = getItems();
       const [moved] = arr.splice(srcIdx, 1);
-      arr.splice(targetIdx, 0, moved);
+      let insertAt = targetIdx;
+      if(pointerLine){
+        // 커서가 타일 왼쪽 절반이면 이 사진 "앞"(같은 인덱스 자리)에, 오른쪽 절반이면
+        // "뒤"(다음 인덱스 자리)에 넣음. 방금 srcIdx 자리를 빼냈으니, 그보다 뒤쪽으로
+        // 들어갈 땐 한 칸씩 당겨진 만큼 보정함
+        const before = el.dataset.dropBefore === '1';
+        insertAt = before ? targetIdx : targetIdx + 1;
+        if(srcIdx < insertAt) insertAt--;
+      }
+      arr.splice(insertAt, 0, moved);
       await saveItems(arr);
     });
   });
