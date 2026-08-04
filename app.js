@@ -691,15 +691,23 @@ function restoreScrollPos(el, pos){
    다른 확장자로 자동 재시도. i.imgur.com 주소에만 적용됨 */
 function attachImgFallback(imgEl){
   if(!imgEl) return;
+  const markBroken = ()=>{
+    const tile = imgEl.closest('.pin-item, .pin-item-dense');
+    if(tile) tile.classList.add('img-broken');
+  };
   const src = imgEl.getAttribute('src') || '';
   const m = src.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
-  if(!m) return;
+  if(!m){
+    // imgur 확장자 재시도 대상이 아닌 일반 URL — 로드 실패하면 바로 깨짐 표시
+    imgEl.addEventListener('error', markBroken, { once:true });
+    return;
+  }
   const exts = ['jpg','jpeg','png','gif','webp'];
   let tries = 0;
   imgEl.addEventListener('error', function handler(){
     tries++;
     if(tries < exts.length){ imgEl.src = `${m[1]}.${exts[tries]}`; }
-    else{ imgEl.removeEventListener('error', handler); }
+    else{ imgEl.removeEventListener('error', handler); markBroken(); }
   });
 }
 
@@ -5555,6 +5563,37 @@ function openChecklistLinkModal(idx){
    캘린더 높이와 같아지도록 반씩 나눠 가짐(문서/체크리스트 동일 면적). 900px
    이하(row-2가 1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자 자연스러운
    높이로 둠. */
+// row-strip(음악/프로필/방명록+디데이)에서 프로필 위젯만 align-self:start로
+// stretch를 빠져나와 있는데, 그 실제 높이 값은 여기서 음악 위젯의 렌더링된
+// 높이를 그대로 재서 맞춰줌 — 옆 두 위젯과 항상 정확히 같은 높이가 되도록.
+// (calendar 기준으로 세션/문서/체크리스트 높이를 맞추는 syncRow2Height와 같은 패턴)
+function syncRowStripHeight(){
+  const music = document.getElementById('cardMusic');
+  const profile = document.getElementById('cardProfile');
+  if(!music || !profile) return;
+  if(window.innerWidth <= 900){
+    profile.style.height = '';
+    return;
+  }
+  const h = music.getBoundingClientRect().height;
+  if(h > 0) profile.style.height = h + 'px';
+}
+function initRowStripHeightSync(){
+  const music = document.getElementById('cardMusic');
+  if(!music) return;
+  if(typeof ResizeObserver !== 'undefined'){
+    let lastH = -1;
+    new ResizeObserver(()=>{
+      const h = Math.round(music.getBoundingClientRect().height);
+      if(h === lastH) return;
+      lastH = h;
+      syncRowStripHeight();
+    }).observe(music);
+  }
+  window.addEventListener('resize', syncRowStripHeight);
+  syncRowStripHeight();
+}
+
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
   const docsCard = document.getElementById('cardDocs');
@@ -5882,6 +5921,7 @@ docRef('stickers').onSnapshot(doc=>{ stickerPosData = doc.exists ? doc.data() : 
 
 refreshLockUI();
 initRow2HeightSync();
+initRowStripHeightSync();
 initBoardTabs();
 
 // 화면 폭이 바뀌면(반응형 구간 전환 등) 말풍선 폭도 달라질 수 있어서 다시 오려냄
