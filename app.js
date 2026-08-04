@@ -1660,9 +1660,16 @@ function renderImages(){
     if(imgSlideIndex >= items.length) imgSlideIndex = 0;
     const cur = items[imgSlideIndex];
     const resolvedUrl = resolveGalleryItemUrl(cur, ()=> renderImages()) || '';
+    // resolvedUrl이 아직 없을 때(청크 로딩 중) <img src="">를 그대로 넣으면, 빈 src를
+    // 브라우저가 "깨진 이미지"로 처리해서 실제로는 로딩 중일 뿐인데도 이미지가
+    // 아예 깨진 것처럼 보이는 그림 아이콘이 떠 버림. 그래서 그 사이에는 <img> 대신
+    // 갤러리 타일과 같은 느낌의 "불러오는 중" 플레이스홀더를 보여줌
+    const slideMediaHtml = resolvedUrl
+      ? `<img src="${resolvedUrl}" id="slideImg" title="눌러서 크게 보기">`
+      : `<div class="slide-loading">불러오는 중…</div>`;
     box.innerHTML = `
       <div class="slide-viewport" id="slideViewport">
-        <img src="${resolvedUrl}" id="slideImg" title="눌러서 크게 보기">
+        ${slideMediaHtml}
         ${['tl','tr','bl','br'].map(pos=> cur.captions[pos] ? `<div class="slide-caption cap-${pos}">${escapeHtml(cur.captions[pos]).replace(/\n/g,'<br>')}</div>` : '').join('')}
         ${editMode ? `<button class="icon-btn slide-caption-btn" id="imgCaptionBtn" title="문구 편집">Aa</button>` : ''}
         ${editMode ? `<button class="icon-btn slide-del" id="imgDelBtn" title="이 사진 삭제">✕</button>` : ''}
