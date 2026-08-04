@@ -1197,7 +1197,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    묶음 칸만은 옆에 다음 사진들을 나눠 붙여야 하므로 "가상의 정사각형" 한 칸으로 고정함
    (실제 사진 비율과 무관하게 항상 1:1) — 나머지 낱장 사진들은 그대로 자기 비율 유지 */
 .pin-item.pin-item-group{ aspect-ratio: 1/1; }
-.pin-item.pin-item-group .dense-strip:not(:first-child){ border-left-color: rgba(255,255,255,0.16); }
 .pin-item:hover img{ transform: scale(1.03); }
 .pin-item.blurred img{ filter: blur(22px) saturate(1.1); transform: scale(1.12); }
 .pin-item.blurred:hover img{ transform: scale(1.16); }
@@ -1267,14 +1266,18 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    다음 사진들을 세로로 가늘게 잘라 이어 붙여서 한 칸을 나눠 채움(최대 3장, 그
    이상은 마지막 칸이 "···" 생략 표시). 칸 전체(.pin-item-dense)는 그대로 정사각형을
    유지하고, 그 안에서 가로로만 나눠 각 조각이 칸 높이를 100% 채우도록 크롭함 */
-.dense-stack{ display:flex; width:100%; height:100%; }
-.dense-strip{ overflow:hidden; min-width:0; }
+.dense-stack{ display:flex; width:100%; height:100%; gap:3px; }
+.dense-strip{ overflow:hidden; min-width:0; border-radius:6px; }
 .dense-strip img{ width:100%; height:100%; object-fit:cover; display:block; }
-.dense-strip:not(:first-child){ border-left:1px solid rgba(255,255,255,0.12); }
 .dense-strip-more{
   display:flex; align-items:center; justify-content:center;
   background: var(--card-bg2); color: var(--ink-soft); font-size:.7rem; letter-spacing:1px;
 }
+/* 메인 갤러리(.pin-item, 큰 칸)의 조각은 살짝 더 크게 둥글려서 전체 카드 모서리
+   둥글기(18px)와 비율이 어울리게 함 — 빽빽한 정사각형 그리드(.pin-item-dense)는
+   칸 자체가 작아서 위에서 정한 6px을 그대로 씀 */
+.pin-item .dense-strip{ border-radius:12px; }
+.pin-item .dense-stack{ gap:4px; }
 /* 기존에 낱장으로 올라와 있던 사진들을 나중에 골라 하나의 묶음으로 합치는
    "사진 묶기" 선택 모드. 선택 모드인 동안엔 타일을 눌러도 라이트박스가 열리는
    대신 체크 표시가 토글되고, 삭제/블러/옵션 버튼은 헷갈리지 않도록 숨겨둠
@@ -1684,6 +1687,18 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.5);
   backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
 }
+/* 닫기 버튼: 기존엔 하단 버튼 줄(.modal-actions)에 다른 액션 버튼들과 나란히 있어서
+   혼자 있을 때도 줄 하나를 다 차지했음 — 라이트박스 박스 우상단에 동그랗게 겹쳐
+   띄워서 자리를 안 차지하고 사진 위 어디서든 바로 눈에 띄게 함 */
+.lightbox-x{
+  position:absolute; top:10px; right:10px; z-index:4;
+  width:32px; height:32px; border-radius:50%; border:none;
+  background: rgba(15,4,6,0.55); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  color:#fff; font-size:.85rem; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition: background .15s ease;
+}
+.lightbox-x:hover{ background: rgba(196,66,95,0.6); }
 .lightbox-body{ position:relative; text-align:center; }
 /* 이미지 실제 렌더링 크기에 딱 맞는 래퍼. 이 래퍼 안에 좌/우 클릭·스와이프 존을 깔아서
    화살표 버튼이 아니라 사진 자체의 왼쪽/오른쪽을 눌러 이동하게 함 */
@@ -1775,7 +1790,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   display:inline-block; font-size:.74rem; padding:4px 12px; border-radius:999px;
   background: var(--rose-soft); color: var(--rose); border:1px solid rgba(196,66,95,0.35);
 }
-.lightbox-tag-chip.empty{ background: rgba(255,255,255,0.06); color: var(--ink-soft); border-color: var(--card-border); }
 .color-row{ display:flex; align-items:center; gap:8px; }
 .color-row span{ font-size:.78rem; color:var(--ink-soft); }
 .toast{

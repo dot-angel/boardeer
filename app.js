@@ -497,6 +497,7 @@ function openImageLightbox(cfg){
     const nextSideHtml = nextPeek.map((entry,i)=> peekCellHtml(entry, i+1)).join('');
     const moreCellHtml = `<div class="lightbox-carousel-more">···</div>`;
     const bodyHtml = `
+      <button class="lightbox-x" id="c" title="닫기" aria-label="닫기">✕</button>
       <div class="lightbox-body">
         <div class="lightbox-carousel ${isStack ? 'is-stack' : ''}">
           ${isStack ? `<div class="lightbox-carousel-side side-prev">${prevMore>0?moreCellHtml:''}${prevSideHtml}</div>` : ''}
@@ -513,14 +514,14 @@ function openImageLightbox(cfg){
           ${metaInfo.title ? `<div class="lightbox-meta-title">${escapeHtml(metaInfo.title)}</div>` : ''}
           ${metaInfo.desc ? `<div class="lightbox-meta-desc">${escapeHtml(metaInfo.desc)}</div>` : ''}
         </div>` : ''}
-      ${cfg.tag ? `<div class="lightbox-tag">${tagInfo && tagInfo.length ? tagInfo.map(t=> `<span class="lightbox-tag-chip">${escapeHtml(t)}</span>`).join('') : `<span class="lightbox-tag-chip empty">태그 없음</span>`}</div>` : ''}
+      ${cfg.tag && tagInfo && tagInfo.length ? `<div class="lightbox-tag">${tagInfo.map(t=> `<span class="lightbox-tag-chip">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+      ${(cfg.onEditMeta || cfg.onEditTag || (cfg.onUngroup && isStack) || cfg.onDelete) ? `
       <div class="modal-actions">
         ${cfg.onEditMeta ? `<button class="btn ghost" id="editMeta">${metaInfo && (metaInfo.title || metaInfo.desc) ? '정보 수정' : '정보 추가'}</button>` : ''}
         ${cfg.onEditTag ? `<button class="btn ghost" id="editTag">태그 수정</button>` : ''}
         ${cfg.onUngroup && isStack ? `<button class="btn ghost" id="ungroupBtn" title="묶음을 풀어 낱장 사진으로 나눠요">묶음 해체</button>` : ''}
         ${cfg.onDelete ? `<button class="btn danger" id="del">삭제</button>` : ''}
-        <button class="btn ghost" id="c">닫기</button>
-      </div>
+      </div>` : ''}
     `;
     const mountLightbox = m=>{
       m.querySelector('#c').onclick = closeModal;
@@ -3885,15 +3886,17 @@ function galleryPickOverlayHtml(key, idx){
   const picked = galleryGroupPick.selected.has(idx);
   return `<div class="pin-pick-check ${picked ? 'picked' : ''}"></div>`;
 }
-// 블러 처리된 썸네일 위에 얹는 문구(기본 문구 또는 직접 입력한 문구) + 편집모드일 때만
-// 보이는 문구 편집 버튼. blur가 아니면 빈 문자열
+// 블러 처리된 썸네일 위에 얹는 문구(직접 입력한 문구가 있을 때만) + 편집모드일 때만
+// 보이는 문구 편집 버튼. blur가 아니면 빈 문자열. 문구도 없고 편집 버튼도 안 뜰
+// 상황(보기 전용 + 문구 미입력)이면 아예 아무것도 그리지 않음
 function pinBlurLabelHtml(it, picking, idx){
   if(!it.blur) return '';
-  const label = it.blurText ? escapeHtml(it.blurText) : '눌러서 보기';
+  const showEditBtn = editMode && !picking;
+  if(!it.blurText && !showEditBtn) return '';
   return `
     <div class="pin-blur-label">
-      <span class="pin-blur-label-text">${label}</span>
-      ${(editMode && !picking) ? `<button class="pin-blur-edit-btn" data-blur-text-edit="${idx}" title="문구 편집">✎</button>` : ''}
+      ${it.blurText ? `<span class="pin-blur-label-text">${escapeHtml(it.blurText)}</span>` : ''}
+      ${showEditBtn ? `<button class="pin-blur-edit-btn" data-blur-text-edit="${idx}" title="문구 편집">✎</button>` : ''}
     </div>`;
 }
 // 선택 모드 툴바 버튼 + 확정/취소 바(선택 모드가 아니면 버튼만)
@@ -4267,8 +4270,11 @@ function handleGalleryBlurTextEdit(idx){
     skipNextGalleryRender = true;
     docRef('gallery').set({ items: arr }, {merge:true});
     const tile = document.querySelector(`#galleryGrid .pin-item[data-idx="${idx}"]`);
-    const labelText = tile && tile.querySelector('.pin-blur-label-text');
-    if(labelText) labelText.textContent = blurText || '눌러서 보기';
+    if(tile){
+      const oldLabel = tile.querySelector('.pin-blur-label');
+      if(oldLabel) oldLabel.remove();
+      tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery'), idx));
+    }
   });
 }
 function handleGalleryOptEdit(idx){
@@ -4569,8 +4575,11 @@ function handleGallery2BlurTextEdit(idx){
     skipNextGallery2Render = true;
     docRef('gallery2').set({ items: arr }, {merge:true});
     const tile = document.querySelector(`#gallery2Grid .pin-item-dense[data-idx="${idx}"]`);
-    const labelText = tile && tile.querySelector('.pin-blur-label-text');
-    if(labelText) labelText.textContent = blurText || '눌러서 보기';
+    if(tile){
+      const oldLabel = tile.querySelector('.pin-blur-label');
+      if(oldLabel) oldLabel.remove();
+      tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery2'), idx));
+    }
   });
 }
 function handleGallery2OptEdit(idx){
