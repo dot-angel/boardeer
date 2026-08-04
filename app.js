@@ -3403,13 +3403,18 @@ function ddayMilestonesForDate(dateStr){
 // kind: 'prev' | 'current' | 'next'. 이동 버튼은 더 이상 각 달의 head에 붙이지 않고
 // (아래 renderCalendar에서 전체 캘린더 위/아래에 상하 버튼으로 따로 배치함),
 // 이전/다음 달은 요일(dow) 줄 없이 흐리게(opacity) 표시해서 이번 달과 구분함.
-function buildCalMonthHTML(y, m, kind){
+// refYear: 이번 달의 연도. 이전/다음 달도 거의 항상 같은 연도라서 매번 "2026. 1" 식으로
+// 셋 다 연도를 반복하면 지저분해 보임 — 이번 달과 연도가 같으면 월만 표시하고,
+// 연말/연초라 실제로 연도가 달라지는 경우에만 그 달에 연도를 같이 보여줌
+function buildCalMonthHTML(y, m, kind, refYear){
   const events = calendarData.events || {};
   const first = new Date(y, m, 1);
   const startDow = first.getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const todayStr = new Date().toISOString().slice(0,10);
   const isCurrent = kind === 'current';
+  const showYear = isCurrent || refYear === undefined || y !== refYear;
+  const headLabel = showYear ? `${y}. ${m+1}` : `${m+1}`;
   let cells = '';
   for(let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
@@ -3427,7 +3432,7 @@ function buildCalMonthHTML(y, m, kind){
   return `
     <div class="cal-month cal-month-${kind} ${isCurrent ? 'cal-month-current' : 'cal-month-side'}">
       <div class="cal-head">
-        <strong>${y}. ${m+1}</strong>
+        <strong>${headLabel}</strong>
       </div>
       <div class="cal-clip">
         <div class="cal-grid">
@@ -3509,9 +3514,9 @@ function renderCalendar(){
   box.innerHTML = `
     <div class="cal-nav cal-nav-prev"><span class="cal-nav-btn" id="calPrev">▲</span></div>
     <div class="cal-months">
-      ${buildCalMonthHTML(prevY, prevM, 'prev')}
+      ${buildCalMonthHTML(prevY, prevM, 'prev', calState.y)}
       ${buildCalMonthHTML(calState.y, calState.m, 'current')}
-      ${buildCalMonthHTML(nextY, nextM, 'next')}
+      ${buildCalMonthHTML(nextY, nextM, 'next', calState.y)}
     </div>
     <div class="cal-nav cal-nav-next"><span class="cal-nav-btn" id="calNext">▼</span></div>
   `;
