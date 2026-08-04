@@ -3957,7 +3957,13 @@ function setupPinGalleryLazyLoad(gridEl, pairs, observerHolder, loadingSelector,
       const idx = Number(tile.dataset.idx);
       const item = byIdx.get(idx);
       if(!item) return;
-      const resolved = resolveGalleryItemUrl(item, ()=> fillTile(tile, idx, chunkedImageCache.get(item.fileId) || '', item));
+      // 그룹 사진(item.group)은 실제 fileId가 item이 아니라 대표 사진
+      // (galleryItemCover(item))에 있음. 캐시 조회를 item.fileId로 하면
+      // (그룹엔 그 값이 없어서 undefined) 청크 로딩 자체는 성공해도 콜백에서
+      // 엉뚱한 키로 캐시를 찾아 빈 URL로 채워버려서 썸네일이 영영 안 뜨는
+      // 문제가 있었음 — 대표 사진의 fileId로 조회하도록 고침
+      const coverFileId = galleryItemCover(item).fileId;
+      const resolved = resolveGalleryItemUrl(item, ()=> fillTile(tile, idx, chunkedImageCache.get(coverFileId) || '', item));
       if(resolved !== null) fillTile(tile, idx, resolved, item);
     });
   }, { root: gridEl, rootMargin: '200px 0px' });
