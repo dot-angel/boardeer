@@ -4319,11 +4319,11 @@ function openGallery2AddModal(){
     <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="gal2Blur" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">썸네일 블러 처리 (눌러야만 원본이 보여요)</span>
+      <span style="font-size:.82rem;color:var(--ink);">미리보기 방지</span>
     </label>
     <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
       <input type="checkbox" id="gal2Group" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(카드 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
+      <span style="font-size:.82rem;color:var(--ink);">모아올리기</span>
     </label>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
