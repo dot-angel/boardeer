@@ -386,9 +386,18 @@ function openImageLightbox(cfg){
     const metaInfo = cfg.meta ? cfg.meta(item) : null;
     const tagInfo = cfg.tag ? cfg.tag(item) : null;
     const showNav = items.length > 1;
+    // 묶음(모아올리기) 라이트박스일 때만, 지금 사진 뒤로 남은 장수만큼(최대 3장)
+    // 모서리가 어긋난 카드를 겹쳐 그려서 "겹쳐진 사진 뭉치"라는 걸 시각적으로 보여줌
+    const stackRemaining = cfg.stack ? Math.min(3, items.length - 1 - index) : 0;
+    const stackPeekHtml = cfg.stack ? `
+      <div class="lightbox-stack-peek l3"></div>
+      <div class="lightbox-stack-peek l2"></div>
+      <div class="lightbox-stack-peek l1"></div>
+    ` : '';
     openModal(`
       <div class="lightbox-body">
-        <div class="lightbox-imgwrap" id="lbImgWrap">
+        <div class="lightbox-imgwrap ${cfg.stack ? 'is-stack' : ''}" id="lbImgWrap" ${cfg.stack ? `data-remaining="${stackRemaining}"` : ''}>
+          ${stackPeekHtml}
           ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
           ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
         </div>
@@ -490,6 +499,7 @@ function openGalleryGroupLightbox(groupItem, { onChange, onEditTag } = {}){
   openImageLightbox({
     items: images,
     index: 0,
+    stack: true,
     resolve: resolveGalleryItemUrl,
     tag: onEditTag ? ()=> groupItem.opts : null,
     onEditTag: onEditTag ? ()=>{
@@ -503,93 +513,6 @@ function openGalleryGroupLightbox(groupItem, { onChange, onEditTag } = {}){
       if(images.length === 0) onChange(null);
       else if(images.length === 1) onChange({ ...images[0], blur: groupItem.blur, opts: groupItem.opts });
       else onChange({ group:true, images: images.slice(), blur: groupItem.blur, opts: groupItem.opts });
-    } : null
-  });
-}
-
-/* 묶음(모아올리기)과 낱장 사진을 구분하지 않고, 그리드에 보이는 순서 그대로
-   전체 사진을 하나로 이어서 넘겨보게 하는 공용 라이트박스 함수.
-   예전엔(openGalleryGroupLightbox) 묶음을 열면 그 묶음 안 사진끼리만 넘길 수
-   있어서 묶음 밖으로 못 나갔고, 낱장 사진들 사이를 넘기다 묶음을 만나면 대표
-   사진 한 장만 보이고 그 안으로는 못 들어갔음. "묶음도 결국 하나의 라이트박스
-   안에 겹쳐진 사진일 뿐"이라는 개념으로, 묶음은 그 안의 사진들로 풀어헤쳐서
-   전체 목록에 이어붙이고, 어디서 열든 묶음 경계를 넘어 계속 이어서 넘길 수
-   있게 함. 예전에 낱장만 올라가 있던 사진들도 이 목록에 똑같이 섞여 있으므로
-   자연히 묶음 사진들과 같은 방식으로 이어보게 됨.
-   cfg:
-     getItems(): 정규화된 전체 항목(낱장+묶음) 배열을 새로 읽어와 돌려줌
-     saveItems(arr): 정규화된 전체 항목 배열을 그대로 저장
-     filterOpt: 현재 선택된 태그 필터(없으면 null/undefined)
-     startTopIdx: 클릭한 항목의 최상위 인덱스
-     startImgIdx: 묶음을 클릭했다면 그 안에서 시작할 사진 인덱스(낱장이면 null)
-     editable: 태그수정/삭제 버튼을 보여줄지
-     skipNextRender(): 필터가 꺼져 있어 태그만 바뀌어도 화면 구성이 안 바뀔 때
-       호출해두는 콜백(각 갤러리가 이미 갖고 있는 skipNextXxxRender 플래그를 세움) */
-function openGalleryFlatLightbox(cfg){
-  const allItems = cfg.getItems();
-  const flat = [];
-  allItems.forEach((it, topIdx)=>{
-    if(cfg.filterOpt && !(it.opts||[]).includes(cfg.filterOpt)) return;
-    if(it.group){
-      it.images.forEach((img, imgIdx)=> flat.push({ ...img, opts: it.opts, __topIdx: topIdx, __imgIdx: imgIdx }));
-    } else {
-      flat.push({ ...it, __topIdx: topIdx, __imgIdx: null });
-    }
-  });
-  let startPos = flat.findIndex(f=> f.__topIdx === cfg.startTopIdx && (cfg.startImgIdx == null ? f.__imgIdx === null : f.__imgIdx === cfg.startImgIdx));
-  if(startPos === -1) startPos = 0;
-
-  openImageLightbox({
-    items: flat,
-    index: startPos,
-    resolve: resolveGalleryItemUrl,
-    tag: (item)=> item.opts,
-    onEditTag: cfg.editable ? (pos)=>{
-      const f = flat[pos];
-      closeModal();
-      openItemOptEditModal(f.opts, sharedGalleryOptionsData.options, (opts)=>{
-        const arr = cfg.getItems();
-        arr[f.__topIdx] = { ...arr[f.__topIdx], opts };
-        if(!cfg.filterOpt && cfg.skipNextRender) cfg.skipNextRender();
-        cfg.saveItems(arr); // 응답을 기다리지 않고 바로 진행(느려 보이는 원인이었음)
-        // openItemOptEditModal이 저장 직후 자기 모달을 닫으므로, 그보다 한 틱 뒤에 다시 열어야
-        // 방금 연 라이트박스가 그 closeModal()에 같이 지워지지 않음
-        setTimeout(()=> openGalleryFlatLightbox({ ...cfg, startTopIdx: f.__topIdx, startImgIdx: f.__imgIdx }), 0);
-      });
-    } : null,
-    onDelete: cfg.editable ? (pos)=>{
-      const f = flat[pos];
-      const arr = cfg.getItems();
-      const top = arr[f.__topIdx];
-      let removedRef;
-      if(top.group){
-        removedRef = top.images[f.__imgIdx];
-        const newImages = top.images.slice();
-        newImages.splice(f.__imgIdx, 1);
-        if(newImages.length === 0){
-          // 묶음은 원래 2장 이상이라 사실상 일어나지 않지만, 혹시 몰라 낱장 삭제와
-          // 같은 방식(뒤 항목들의 최상위 인덱스를 하나씩 당김)으로 안전하게 처리
-          arr.splice(f.__topIdx, 1);
-          flat.forEach(x=>{ if(x.__topIdx > f.__topIdx) x.__topIdx--; });
-        } else if(newImages.length === 1){
-          // 한 장만 남으면 더 이상 묶음이 아니므로 낱장 항목으로 바뀜 — 같은 자리에
-          // 남아있는 flat 항목의 __imgIdx도 null로 맞춰서 다음 조작이 어긋나지 않게 함
-          arr[f.__topIdx] = { ...newImages[0], blur: top.blur, opts: top.opts };
-          flat.forEach(x=>{ if(x.__topIdx === f.__topIdx) x.__imgIdx = null; });
-        } else {
-          arr[f.__topIdx] = { ...top, images: newImages };
-          flat.forEach(x=>{ if(x.__topIdx === f.__topIdx && x.__imgIdx > f.__imgIdx) x.__imgIdx--; });
-        }
-      } else {
-        removedRef = top;
-        arr.splice(f.__topIdx, 1);
-        flat.forEach(x=>{ if(x.__topIdx > f.__topIdx) x.__topIdx--; });
-      }
-      cfg.saveItems(arr); // 응답을 기다리지 않고 바로 진행
-      deleteGalleryImageIfChunked(removedRef);
-      // openImageLightbox가 자기 쪽 items 사본에서 pos 위치를 스스로 지워주므로,
-      // 이 flat 배열도 같은 자리를 지워서 다음 삭제 때도 pos가 서로 어긋나지 않게 함
-      flat.splice(pos, 1);
     } : null
   });
 }
@@ -3684,6 +3607,72 @@ function openDayModal(dateStr){
 
 docRef('calendar').onSnapshot(doc=>{ calendarData = doc.exists ? doc.data() : {events:{}}; renderCalendar(); });
 
+/* ---------------- 6-0. 기존 사진들을 나중에 골라 "모아올리기" 묶음으로 합치기
+   (갤러리1/갤러리2/레퍼런스 갤러리 3곳이 공용으로 씀) ----------------
+   업로드할 때 체크박스로 묶는 것과 달리, 이미 낱장으로 올라와 있는 사진들을
+   나중에 여러 장 골라서 하나의 묶음(라이트박스에서 겹쳐 넘겨보는 그 묶음)으로
+   합치는 기능. 그리드 DOM/저장 방식은 갤러리마다 다르지만 "선택 → 합치기"
+   로직 자체는 동일해서 여기 하나로 모아둠. 한 번에 한 갤러리에서만 선택
+   모드를 쓸 수 있음(key로 구분) */
+let galleryGroupPick = { key: null, selected: new Set() };
+function isGalleryGroupPicking(key){ return galleryGroupPick.key === key; }
+function galleryGroupPickCount(){ return galleryGroupPick.selected.size; }
+function toggleGalleryGroupPickMode(key, renderFn){
+  galleryGroupPick = { key: (galleryGroupPick.key === key ? null : key), selected: new Set() };
+  renderFn();
+}
+function toggleGalleryGroupPickItem(key, idx, it, renderFn){
+  if(galleryGroupPick.key !== key) return;
+  if(it && it.group){ toast('이미 묶음인 사진은 함께 묶을 수 없어요'); return; }
+  if(galleryGroupPick.selected.has(idx)) galleryGroupPick.selected.delete(idx);
+  else galleryGroupPick.selected.add(idx);
+  renderFn();
+}
+// items: 지금 화면에 쓰인(정규화된) 전체 배열, saveFn(newArr): 저장 함수, renderFn: 다시 그리기.
+// 선택된 사진들을 배열에서 빼내고, 그중 가장 앞자리(첫 선택 위치)에 묶음 하나로 끼워 넣음
+// — 나머지 사진들의 순서는 그대로 유지됨
+function confirmGalleryGroupPick(key, items, saveFn, renderFn){
+  const idxs = Array.from(galleryGroupPick.selected).sort((a,b)=> a-b);
+  if(idxs.length < 2){ toast('2장 이상 선택해주세요'); return; }
+  const idxSet = new Set(idxs);
+  const picked = idxs.map(i=> items[i]);
+  const images = picked.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url});
+  const groupItem = { group:true, images, blur:false, opts:[] };
+  const firstIdx = idxs[0];
+  let insertAt = 0;
+  for(let i=0;i<firstIdx;i++){ if(!idxSet.has(i)) insertAt++; }
+  const rest = items.filter((_,i)=> !idxSet.has(i));
+  rest.splice(insertAt, 0, groupItem);
+  galleryGroupPick = { key: null, selected: new Set() };
+  saveFn(rest);
+  renderFn();
+}
+function cancelGalleryGroupPick(renderFn){
+  galleryGroupPick = { key: null, selected: new Set() };
+  renderFn();
+}
+// 타일 위에 얹는 선택 체크 표시(선택 모드가 아니면 빈 문자열)
+function galleryPickOverlayHtml(key, idx){
+  if(galleryGroupPick.key !== key) return '';
+  const picked = galleryGroupPick.selected.has(idx);
+  return `<div class="pin-pick-check ${picked ? 'picked' : ''}"></div>`;
+}
+// 선택 모드 툴바 버튼 + 확정/취소 바(선택 모드가 아니면 버튼만)
+function galleryGroupPickToggleBtnHtml(key, idLabel){
+  return `<button class="btn small ghost" id="${idLabel}">${isGalleryGroupPicking(key) ? '묶기 모드 종료' : '🖼 사진 묶기'}</button>`;
+}
+function galleryGroupPickBarHtml(key){
+  if(!isGalleryGroupPicking(key)) return '';
+  const n = galleryGroupPickCount();
+  return `
+    <div class="gallery-pick-bar">
+      <span>${n}장 선택됨</span>
+      <button class="btn small ghost" id="galPickCancel">취소</button>
+      <button class="btn small primary" id="galPickConfirm" ${n < 2 ? 'disabled' : ''}>선택한 사진 묶기</button>
+    </div>
+  `;
+}
+
 /* ---------------- 6. 갤러리 (핀터레스트형 매스너리) ---------------- */
 
 /* 예전엔 items가 그냥 URL 문자열 배열이었어서, 새로 추가된 블러 옵션과 호환되도록
@@ -3894,54 +3883,15 @@ function deleteGalleryImageIfChunked(item){
   if(item.chunked){ deleteFileChunked(item.fileId, item.chunkTotal).catch(()=>{}); }
 }
 
-/* 이미 따로따로 올라가 있던 낱장 사진들(+이미 묶여있던 묶음들까지)을 골라서 하나의
-   모아올리기 묶음으로 합쳐주는 공용 함수. 업로드할 때 "모아올리기" 체크박스로 만드는
-   묶음과 똑같은 { group:true, images:[...] } 형태로 만듦 — 이미 묶음이었던 항목을
-   선택에 포함하면 그 안의 사진들도 낱장처럼 풀어서 새 묶음에 그대로 합쳐짐(묶음 안에
-   묶음이 생기진 않음). 태그(옵션)는 선택된 항목들의 태그를 전부 합집합으로 모으고,
-   블러는 선택된 것 중 하나라도 블러 처리돼 있었으면 합쳐진 묶음도 블러로 둠.
-   결과 묶음은 선택된 항목 중 가장 앞(원래 배열에서 가장 작은 인덱스)에 있던 자리에 놓임 */
-function buildMergedGalleryItems(items, selectedIdxs){
-  const idxs = Array.from(selectedIdxs).sort((a,b)=> a-b);
-  if(idxs.length < 2) return items;
-  const images = [];
-  let blur = false;
-  const optsSet = new Set();
-  idxs.forEach(i=>{
-    const it = items[i];
-    if(!it) return;
-    if(it.group && Array.isArray(it.images)) it.images.forEach(img=> images.push(img));
-    else images.push(it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url});
-    if(it.blur) blur = true;
-    (it.opts||[]).forEach(o=> optsSet.add(o));
-  });
-  const merged = { group:true, images, blur, opts: Array.from(optsSet) };
-  const idxSet = new Set(idxs);
-  const rest = items.filter((_,i)=> !idxSet.has(i));
-  rest.splice(idxs[0], 0, merged);
-  return rest;
-}
-
 let galleryData = { items: [] };
 let sharedGalleryOptionsData = { options: [] };
 let galleryFilterOpt = null;
-// 기존에 낱장으로 올라가 있던 사진들을 나중에 골라서 묶을 수 있게 하는 "선택 모드"
-// 상태. 켜져 있는 동안엔 타일을 눌러도 라이트박스 대신 선택만 토글됨
-let gallerySelectMode = false;
-let gallerySelectedIdxs = new Set();
 let galleryObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
 /* 블러 토글/태그 변경처럼 "보이는 사진 구성/순서"는 그대로인 채 특정 사진의 속성만
    바뀌는 편집은, 사진이 많아질수록 무거워지는 전체 그리드 재렌더링(캐시된 사진들을
    전부 다시 그려서 브라우저가 다시 디코딩하게 됨) 없이 해당 타일만 즉시 바로 바꿔주고
    이 플래그로 뒤이어 오는 스냅샷의 재렌더링을 건너뜀 */
 let skipNextGalleryRender = false;
-
-/* 선택 모드일 때 타일 위에 얹는 체크 마크. 편집용 버튼(삭제/블러/옵션)과 자리가 겹치므로
-   선택 모드에서는 그 버튼들 대신 이것만 보이게 함(각 갤러리 마크업에서 서로 배타적으로 사용) */
-function pinSelectMarkHtml(idx, selectedSet){
-  const on = selectedSet.has(idx);
-  return `<span class="pin-select-mark ${on ? 'checked' : ''}" data-select="${idx}">${on ? '✓' : ''}</span>`;
-}
 
 /* 이미 이번 세션에서 한 번 불러와 캐시된 사진(또는 애초에 다운로드가 필요 없는 외부 URL)은
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
@@ -3953,30 +3903,30 @@ function galleryTileHtml(it, i){
   return `<div class="pin-item pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
 }
 function galleryTileMarkup(it, url, i){
+  const picking = isGalleryGroupPicking('gallery');
   return `
-    <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${gallerySelectMode ? 'pin-select-mode' : ''}" data-idx="${i}">
+    <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
       ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-      ${gallerySelectMode ? pinSelectMarkHtml(i, gallerySelectedIdxs) : `
-        ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-        ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-        ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
-      `}
+      ${galleryPickOverlayHtml('gallery', i)}
+      ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
     </div>`;
 }
 function fillGalleryTile(tile, idx, url, it){
   if(!tile.isConnected) return; // 그사이 그리드가 다시 그려져서 이 타일이 이미 화면에서 빠졌으면 무시
+  const picking = isGalleryGroupPicking('gallery');
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!it.group);
-  tile.classList.toggle('pin-select-mode', gallerySelectMode);
+  tile.classList.toggle('pin-item-picking', picking);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
     ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-    ${gallerySelectMode ? pinSelectMarkHtml(idx, gallerySelectedIdxs) : `
-      ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-      ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
-    `}
+    ${galleryPickOverlayHtml('gallery', idx)}
+    ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+    ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
   `;
   if(it.blur) tile.classList.add('blurred');
   const img = tile.querySelector('img');
@@ -4028,16 +3978,10 @@ function renderGallery(){
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="galleryFilterChips" style="display:none;"></div>
-      ${editMode && !gallerySelectMode ? `<button class="btn small ghost" id="galSelectBtn">🖼 여러 장 묶기</button>` : ''}
       ${editMode ? `<button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${editMode ? galleryGroupPickToggleBtnHtml('gallery', 'galGroupPickBtn') : ''}
     </div>
-    ${gallerySelectMode ? `
-      <div class="pin-select-bar">
-        <span>${gallerySelectedIdxs.size}장 선택됨 (2장 이상 골라주세요)</span>
-        <button class="btn small ghost" id="galSelectCancelBtn">취소</button>
-        <button class="btn small primary" id="galSelectMergeBtn" ${gallerySelectedIdxs.size < 2 ? 'disabled' : ''}>묶기</button>
-      </div>
-    ` : ''}
+    ${galleryGroupPickBarHtml('gallery')}
     <div class="pin-grid-scroll" id="galleryGrid">
       <div class="pin-grid">
         ${pairs.map(({it,i})=> galleryTileHtml(it, i)).join('')}
@@ -4045,7 +3989,7 @@ function renderGallery(){
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
     ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
-    ${editMode && !gallerySelectMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
+    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#galleryGrid');
   restoreScrollPos(gridEl, savedScroll);
@@ -4058,12 +4002,9 @@ function renderGallery(){
   // 이렇게 하면 나중에 낱장 사진이 지연 로딩으로 채워져도(pin-loading → 실제 이미지)
   // 다시 걸어줄 필요가 없음 (레퍼런스 갤러리와 동일한 방식)
   gridEl.addEventListener('click', (e)=>{
-    if(gallerySelectMode){
-      const tile = e.target.closest('.pin-item:not(.pin-loading)');
-      if(!tile) return;
-      const idx = Number(tile.dataset.idx);
-      if(gallerySelectedIdxs.has(idx)) gallerySelectedIdxs.delete(idx); else gallerySelectedIdxs.add(idx);
-      renderGallery();
+    const tile = e.target.closest('.pin-item:not(.pin-loading)');
+    if(isGalleryGroupPicking('gallery')){
+      if(tile) toggleGalleryGroupPickItem('gallery', Number(tile.dataset.idx), items[Number(tile.dataset.idx)], renderGallery);
       return;
     }
     const delBtn = e.target.closest('[data-del]');
@@ -4072,7 +4013,6 @@ function renderGallery(){
     if(blurBtn){ e.stopPropagation(); handleGalleryBlurToggle(Number(blurBtn.dataset.blur)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGalleryOptEdit(Number(optBtn.dataset.optEdit)); return; }
-    const tile = e.target.closest('.pin-item:not(.pin-loading)');
     if(tile) openGalleryViewModal(Number(tile.dataset.idx));
   });
 
@@ -4080,20 +4020,15 @@ function renderGallery(){
   if(addBtn) addBtn.onclick = openGalleryAddModal;
   const optsBtn = box.querySelector('#galOptsBtn');
   if(optsBtn) optsBtn.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery(); });
-  const selectBtn = box.querySelector('#galSelectBtn');
-  if(selectBtn) selectBtn.onclick = ()=>{ gallerySelectMode = true; gallerySelectedIdxs = new Set(); renderGallery(); };
-  const selectCancelBtn = box.querySelector('#galSelectCancelBtn');
-  if(selectCancelBtn) selectCancelBtn.onclick = ()=>{ gallerySelectMode = false; gallerySelectedIdxs = new Set(); renderGallery(); };
-  const selectMergeBtn = box.querySelector('#galSelectMergeBtn');
-  if(selectMergeBtn) selectMergeBtn.onclick = async ()=>{
-    if(gallerySelectedIdxs.size < 2) return;
-    const merged = buildMergedGalleryItems(items, gallerySelectedIdxs);
-    gallerySelectMode = false; gallerySelectedIdxs = new Set();
-    await docRef('gallery').set({ items: merged }, {merge:true});
-  };
+  const groupPickBtn = box.querySelector('#galGroupPickBtn');
+  if(groupPickBtn) groupPickBtn.onclick = ()=> toggleGalleryGroupPickMode('gallery', renderGallery);
+  const pickCancelBtn = box.querySelector('#galPickCancel');
+  if(pickCancelBtn) pickCancelBtn.onclick = ()=> cancelGalleryGroupPick(renderGallery);
+  const pickConfirmBtn = box.querySelector('#galPickConfirm');
+  if(pickConfirmBtn) pickConfirmBtn.onclick = ()=> confirmGalleryGroupPick('gallery', items, (arr)=> docRef('gallery').set({items:arr}, {merge:true}), renderGallery);
   // 드래그 순서 변경은 로딩 중인 타일까지 포함해서 한 번만 걸어둠. 타일 엘리먼트 자체는
   // 사진이 나중에 채워져도 같은 노드를 그대로 재사용하기 때문에 다시 걸 필요가 없음
-  if(!gallerySelectMode) bindPinDragReorder(
+  if(!isGalleryGroupPicking('gallery')) bindPinDragReorder(
     gridEl, '.pin-item',
     ()=> items.slice(),
     async (arr)=> docRef('gallery').set({items:arr}, {merge:true})
@@ -4104,16 +4039,56 @@ function renderGallery(){
 
 function openGalleryViewModal(idx){
   const allItems = (galleryData.items || []).map(normalizeGalleryItem);
-  const clicked = allItems[idx];
-  if(!clicked) return;
-  openGalleryFlatLightbox({
-    getItems: ()=> (galleryData.items || []).map(normalizeGalleryItem),
-    saveItems: (arr)=> docRef('gallery').set({items:arr}, {merge:true}),
-    filterOpt: galleryFilterOpt,
-    startTopIdx: idx,
-    startImgIdx: clicked.group ? 0 : null,
-    editable: editMode,
-    skipNextRender: ()=>{ skipNextGalleryRender = true; }
+  if(allItems[idx] && allItems[idx].group){
+    openGalleryGroupLightbox(allItems[idx], {
+      onEditTag: editMode ? (opts)=>{
+        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+        arr[idx] = { ...arr[idx], opts };
+        if(!galleryFilterOpt) skipNextGalleryRender = true;
+        docRef('gallery').set({items:arr}, {merge:true});
+      } : null,
+      onChange: editMode ? (updated)=>{
+        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
+        docRef('gallery').set({items:arr}, {merge:true});
+      } : null
+    });
+    return;
+  }
+  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
+  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
+  const idxMap = allItems.map((it,i)=> i).filter(i=> !galleryFilterOpt || (allItems[i].opts||[]).includes(galleryFilterOpt));
+  const items = idxMap.map(i=> allItems[i]);
+  const startPos = Math.max(0, idxMap.indexOf(idx));
+  openImageLightbox({
+    items,
+    index: startPos,
+    resolve: resolveGalleryItemUrl,
+    tag: (item)=> item.opts,
+    onEditTag: editMode ? (pos)=>{
+      const i = idxMap[pos];
+      closeModal();
+      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
+        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+        arr[i] = { ...arr[i], opts };
+        if(!galleryFilterOpt) skipNextGalleryRender = true;
+        docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행(느려 보이는 원인이었음)
+        // openItemOptEditModal이 저장 직후 자기 모달을 닫으므로, 그보다 한 틱 뒤에 다시 열어야
+        // 방금 연 라이트박스가 그 closeModal()에 같이 지워지지 않음(네트워크는 더 이상 안 기다림)
+        setTimeout(()=> openGalleryViewModal(i), 0);
+      });
+    } : null,
+    onDelete: editMode ? (pos)=>{
+      const i = idxMap[pos];
+      const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+      const [removed] = arr.splice(i,1);
+      docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
+      deleteGalleryImageIfChunked(removed);
+      // 같은 라이트박스 안에서 연달아 삭제해도 인덱스가 어긋나지 않게, 방금 지운 자리를
+      // 빼고 그 뒤 항목들의 원본 인덱스도 하나씩 당겨줌
+      idxMap.splice(pos,1);
+      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
+    } : null
   });
 }
 
@@ -4211,8 +4186,6 @@ docRef('gallery').onSnapshot(doc=>{
 
 let gallery2Data = { items: [] };
 let gallery2FilterOpt = null;
-let gallery2SelectMode = false;
-let gallery2SelectedIdxs = new Set();
 let gallery2ObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
 let skipNextGallery2Render = false;
 let gallery2LastColCount = null; // 마지막으로 렌더링한 열 개수(폭이 바뀌어 열 개수가 달라질 때만 다시 그리기 위함)
@@ -4262,30 +4235,30 @@ function gallery2TileHtml(it, i){
   return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
 }
 function gallery2TileMarkup(it, url, i){
+  const picking = isGalleryGroupPicking('gallery2');
   return `
-    <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${gallery2SelectMode ? 'pin-select-mode' : ''}" data-idx="${i}">
+    <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
       ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-      ${gallery2SelectMode ? pinSelectMarkHtml(i, gallery2SelectedIdxs) : `
-        ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-        ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-        ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
-      `}
+      ${galleryPickOverlayHtml('gallery2', i)}
+      ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
     </div>`;
 }
 function fillGallery2Tile(tile, idx, url, it){
   if(!tile.isConnected) return;
+  const picking = isGalleryGroupPicking('gallery2');
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!it.group);
-  tile.classList.toggle('pin-select-mode', gallery2SelectMode);
+  tile.classList.toggle('pin-item-picking', picking);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
     ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-    ${gallery2SelectMode ? pinSelectMarkHtml(idx, gallery2SelectedIdxs) : `
-      ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-      ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
-    `}
+    ${galleryPickOverlayHtml('gallery2', idx)}
+    ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+    ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
   `;
   if(it.blur) tile.classList.add('blurred');
   attachImgFallback(tile.querySelector('img'));
@@ -4339,22 +4312,16 @@ function renderGallery2(){
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="gallery2FilterChips" style="display:none;"></div>
-      ${editMode && !gallery2SelectMode ? `<button class="btn small ghost" id="gal2SelectBtn">🖼 여러 장 묶기</button>` : ''}
       ${editMode ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${editMode ? galleryGroupPickToggleBtnHtml('gallery2', 'gal2GroupPickBtn') : ''}
     </div>
-    ${gallery2SelectMode ? `
-      <div class="pin-select-bar">
-        <span>${gallery2SelectedIdxs.size}장 선택됨 (2장 이상 골라주세요)</span>
-        <button class="btn small ghost" id="gal2SelectCancelBtn">취소</button>
-        <button class="btn small primary" id="gal2SelectMergeBtn" ${gallery2SelectedIdxs.size < 2 ? 'disabled' : ''}>묶기</button>
-      </div>
-    ` : ''}
+    ${galleryGroupPickBarHtml('gallery2')}
     <div class="gallery2-grid" id="gallery2Grid">
       ${colsHtml}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${editMode && !gallery2SelectMode ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
+    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#gallery2Grid');
   restoreScrollPos(gridEl, savedScroll);
@@ -4365,12 +4332,9 @@ function renderGallery2(){
   // 열기/삭제/블러/옵션 지정 클릭을 그리드 전체에 한 번만 위임(지연 로딩으로 타일이
   // 나중에 채워져도 다시 걸어줄 필요 없음)
   gridEl.addEventListener('click', (e)=>{
-    if(gallery2SelectMode){
-      const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
-      if(!tile) return;
-      const idx = Number(tile.dataset.idx);
-      if(gallery2SelectedIdxs.has(idx)) gallery2SelectedIdxs.delete(idx); else gallery2SelectedIdxs.add(idx);
-      renderGallery2();
+    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
+    if(isGalleryGroupPicking('gallery2')){
+      if(tile) toggleGalleryGroupPickItem('gallery2', Number(tile.dataset.idx), items[Number(tile.dataset.idx)], renderGallery2);
       return;
     }
     const delBtn = e.target.closest('[data-del]');
@@ -4379,7 +4343,6 @@ function renderGallery2(){
     if(blurBtn){ e.stopPropagation(); handleGallery2BlurToggle(Number(blurBtn.dataset.blur)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGallery2OptEdit(Number(optBtn.dataset.optEdit)); return; }
-    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
     if(tile) openGallery2ViewModal(Number(tile.dataset.idx));
   });
 
@@ -4387,18 +4350,13 @@ function renderGallery2(){
   if(addBtn) addBtn.onclick = openGallery2AddModal;
   const optsBtn2 = box.querySelector('#gal2OptsBtn');
   if(optsBtn2) optsBtn2.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery2(); });
-  const selectBtn2 = box.querySelector('#gal2SelectBtn');
-  if(selectBtn2) selectBtn2.onclick = ()=>{ gallery2SelectMode = true; gallery2SelectedIdxs = new Set(); renderGallery2(); };
-  const selectCancelBtn2 = box.querySelector('#gal2SelectCancelBtn');
-  if(selectCancelBtn2) selectCancelBtn2.onclick = ()=>{ gallery2SelectMode = false; gallery2SelectedIdxs = new Set(); renderGallery2(); };
-  const selectMergeBtn2 = box.querySelector('#gal2SelectMergeBtn');
-  if(selectMergeBtn2) selectMergeBtn2.onclick = async ()=>{
-    if(gallery2SelectedIdxs.size < 2) return;
-    const merged = buildMergedGalleryItems(items, gallery2SelectedIdxs);
-    gallery2SelectMode = false; gallery2SelectedIdxs = new Set();
-    await docRef('gallery2').set({ items: merged }, {merge:true});
-  };
-  if(!gallery2SelectMode) bindPinDragReorder(
+  const groupPickBtn2 = box.querySelector('#gal2GroupPickBtn');
+  if(groupPickBtn2) groupPickBtn2.onclick = ()=> toggleGalleryGroupPickMode('gallery2', renderGallery2);
+  const pickCancelBtn2 = box.querySelector('#galPickCancel');
+  if(pickCancelBtn2) pickCancelBtn2.onclick = ()=> cancelGalleryGroupPick(renderGallery2);
+  const pickConfirmBtn2 = box.querySelector('#galPickConfirm');
+  if(pickConfirmBtn2) pickConfirmBtn2.onclick = ()=> confirmGalleryGroupPick('gallery2', items, (arr)=> docRef('gallery2').set({items:arr}, {merge:true}), renderGallery2);
+  if(!isGalleryGroupPicking('gallery2')) bindPinDragReorder(
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('gallery2').set({items:arr}, {merge:true})
@@ -4409,16 +4367,52 @@ function renderGallery2(){
 
 function openGallery2ViewModal(idx){
   const allItems = (gallery2Data.items || []).map(normalizeGalleryItem);
-  const clicked = allItems[idx];
-  if(!clicked) return;
-  openGalleryFlatLightbox({
-    getItems: ()=> (gallery2Data.items || []).map(normalizeGalleryItem),
-    saveItems: (arr)=> docRef('gallery2').set({items:arr}, {merge:true}),
-    filterOpt: gallery2FilterOpt,
-    startTopIdx: idx,
-    startImgIdx: clicked.group ? 0 : null,
-    editable: editMode,
-    skipNextRender: ()=>{ skipNextGallery2Render = true; }
+  if(allItems[idx] && allItems[idx].group){
+    openGalleryGroupLightbox(allItems[idx], {
+      onEditTag: editMode ? (opts)=>{
+        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+        arr[idx] = { ...arr[idx], opts };
+        if(!gallery2FilterOpt) skipNextGallery2Render = true;
+        docRef('gallery2').set({items:arr}, {merge:true});
+      } : null,
+      onChange: editMode ? (updated)=>{
+        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
+        docRef('gallery2').set({items:arr}, {merge:true});
+      } : null
+    });
+    return;
+  }
+  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
+  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
+  const idxMap = allItems.map((it,i)=> i).filter(i=> !gallery2FilterOpt || (allItems[i].opts||[]).includes(gallery2FilterOpt));
+  const items = idxMap.map(i=> allItems[i]);
+  const startPos = Math.max(0, idxMap.indexOf(idx));
+  openImageLightbox({
+    items,
+    index: startPos,
+    resolve: resolveGalleryItemUrl,
+    tag: (item)=> item.opts,
+    onEditTag: editMode ? (pos)=>{
+      const i = idxMap[pos];
+      closeModal();
+      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
+        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+        arr[i] = { ...arr[i], opts };
+        if(!gallery2FilterOpt) skipNextGallery2Render = true;
+        docRef('gallery2').set({items:arr}, {merge:true});
+        setTimeout(()=> openGallery2ViewModal(i), 0);
+      });
+    } : null,
+    onDelete: editMode ? (pos)=>{
+      const i = idxMap[pos];
+      const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+      const [removed] = arr.splice(i,1);
+      docRef('gallery2').set({items:arr}, {merge:true});
+      deleteGalleryImageIfChunked(removed);
+      idxMap.splice(pos,1);
+      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
+    } : null
   });
 }
 
@@ -4619,7 +4613,9 @@ function renderRefGallery(){
     <div class="pin-toolbar">
       <div class="tag-filter" id="refGalleryFilterChips" style="display:none;"></div>
       ${editMode ? `<button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${editMode ? galleryGroupPickToggleBtnHtml('refgallery', 'refGalGroupPickBtn') : ''}
     </div>
+    ${galleryGroupPickBarHtml('refgallery')}
     <div class="ref-gallery-grid" id="refGalleryGrid">
       ${colsHtml}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
@@ -4641,11 +4637,15 @@ function renderRefGallery(){
   // 이렇게 하면 나중에 낱장 사진이 지연 로딩으로 채워져도(pin-loading → 실제 이미지)
   // 다시 걸어줄 필요가 없음
   gridEl.addEventListener('click', (e)=>{
+    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
+    if(isGalleryGroupPicking('refgallery')){
+      if(tile) toggleGalleryGroupPickItem('refgallery', Number(tile.dataset.idx), items[Number(tile.dataset.idx)], renderRefGallery);
+      return;
+    }
     const delBtn = e.target.closest('[data-del]');
     if(delBtn){ e.stopPropagation(); handleRefGalleryDelete(Number(delBtn.dataset.del)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleRefGalleryOptEdit(Number(optBtn.dataset.optEdit)); return; }
-    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
     if(tile) openRefGalleryViewModal(Number(tile.dataset.idx));
   });
 
@@ -4653,10 +4653,16 @@ function renderRefGallery(){
   if(addBtn) addBtn.onclick = openRefGalleryAddModal;
   const optsBtn = box.querySelector('#refGalOptsBtn');
   if(optsBtn) optsBtn.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderRefGallery(); });
+  const groupPickBtnRef = box.querySelector('#refGalGroupPickBtn');
+  if(groupPickBtnRef) groupPickBtnRef.onclick = ()=> toggleGalleryGroupPickMode('refgallery', renderRefGallery);
+  const pickCancelBtnRef = box.querySelector('#galPickCancel');
+  if(pickCancelBtnRef) pickCancelBtnRef.onclick = ()=> cancelGalleryGroupPick(renderRefGallery);
+  const pickConfirmBtnRef = box.querySelector('#galPickConfirm');
+  if(pickConfirmBtnRef) pickConfirmBtnRef.onclick = ()=> confirmGalleryGroupPick('refgallery', items, (arr)=> docRef('refgallery').set({items:arr}, {merge:true}), renderRefGallery);
 
   // 드래그 순서 변경은 로딩 중인 타일까지 포함해서 한 번만 걸어둠. 타일 엘리먼트 자체는
   // 사진이 나중에 채워져도 같은 노드를 그대로 재사용하기 때문에 다시 걸 필요가 없음
-  bindPinDragReorder(
+  if(!isGalleryGroupPicking('refgallery')) bindPinDragReorder(
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('refgallery').set({items:arr}, {merge:true})
@@ -4676,12 +4682,14 @@ function renderRefGalleryTileHtml(it, i){
 }
 
 function refGalleryTileMarkup(it, url, i){
+  const picking = isGalleryGroupPicking('refgallery');
   return `
-    <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''}" data-idx="${i}">
+    <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
       ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-      ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+      ${galleryPickOverlayHtml('refgallery', i)}
+      ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
     </div>`;
 }
 
@@ -4694,13 +4702,16 @@ function setupRefGalleryLazyLoad(gridEl, pairs){
 
 function fillRefGalleryTile(tile, idx, url, it){
   if(!tile.isConnected) return; // 그사이 그리드가 다시 그려져서 이 타일이 이미 화면에서 빠졌으면 무시
+  const picking = isGalleryGroupPicking('refgallery');
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!(it && it.group));
+  tile.classList.toggle('pin-item-picking', picking);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
     ${it && it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-    ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+    ${galleryPickOverlayHtml('refgallery', idx)}
+    ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
   `;
   attachImgFallback(tile.querySelector('img'));
 }
@@ -4726,16 +4737,53 @@ function handleRefGalleryOptEdit(idx){
 
 function openRefGalleryViewModal(idx){
   const allItems = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  const clicked = allItems[idx];
-  if(!clicked) return;
-  openGalleryFlatLightbox({
-    getItems: ()=> (refGalleryData.items || []).map(normalizeRefGalleryItem),
-    saveItems: (arr)=> docRef('refgallery').set({items:arr}, {merge:true}),
-    filterOpt: refGalleryFilterOpt,
-    startTopIdx: idx,
-    startImgIdx: clicked.group ? 0 : null,
-    editable: editMode,
-    skipNextRender: ()=>{ skipNextRefGalleryRender = true; }
+  if(allItems[idx] && allItems[idx].group){
+    openGalleryGroupLightbox(allItems[idx], {
+      onEditTag: editMode ? (opts)=>{
+        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+        arr[idx] = { ...arr[idx], opts };
+        if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
+        docRef('refgallery').set({items:arr}, {merge:true});
+      } : null,
+      onChange: editMode ? (updated)=>{
+        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
+        docRef('refgallery').set({items:arr}, {merge:true});
+      } : null
+    });
+    return;
+  }
+  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
+  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
+  const idxMap = allItems.map((it,i)=> i).filter(i=> !refGalleryFilterOpt || (allItems[i].opts||[]).includes(refGalleryFilterOpt));
+  const items = idxMap.map(i=> allItems[i]);
+  const startPos = Math.max(0, idxMap.indexOf(idx));
+  openImageLightbox({
+    items,
+    index: startPos,
+    resolve: resolveGalleryItemUrl,
+    tag: (item)=> item.opts,
+    onEditTag: editMode ? (pos)=>{
+      const i = idxMap[pos];
+      closeModal();
+      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
+        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+        arr[i] = { ...arr[i], opts };
+        // 필터가 꺼져 있으면 태그만 바꿔선 화면에 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
+        if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
+        docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
+        setTimeout(()=> openRefGalleryViewModal(i), 0);
+      });
+    } : null,
+    onDelete: editMode ? (pos)=>{
+      const i = idxMap[pos];
+      const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+      const [removed] = arr.splice(i,1);
+      docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
+      deleteGalleryImageIfChunked(removed);
+      idxMap.splice(pos,1);
+      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
+    } : null
   });
 }
 
