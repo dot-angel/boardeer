@@ -475,39 +475,7 @@ function openImageLightbox(cfg){
   render();
 }
 
-/* 묶음(여러 장을 하나로 올린 항목) 안의 사진들만 따로 넘겨보는 라이트박스.
-   기존 openImageLightbox를 "묶음 안 사진 배열" 하나로만 다시 호출하는 것뿐이라
-   좌우 넘기기/스와이프/키보드 등은 전부 그대로 재사용됨(인스타그램에서 여러 장
-   게시물을 열면 그 게시물 사진끼리만 넘겨지는 것과 같은 방식).
-   groupItem: normalizeGalleryItem이 돌려주는 { group:true, images:[...], blur, opts } 형태
-   onChange(updatedOrNull): 묶음 안 사진이 삭제되어 구성이 바뀔 때마다 호출됨
-     - 사진이 2장 이상 남으면 갱신된 그룹 항목을
-     - 1장만 남으면 더 이상 묶음이 아니므로 일반 낱장 항목을
-     - 0장이 되면 null을 넘겨줌(호출한 쪽에서 항목 자체를 목록에서 제거하면 됨)
-   onEditTag(newOpts=>void)|null: 태그(옵션) 수정 버튼 — 묶음 전체에 적용되는 태그를 고침 */
-function openGalleryGroupLightbox(groupItem, { onChange, onEditTag } = {}){
-  const images = groupItem.images.slice();
-  openImageLightbox({
-    items: images,
-    index: 0,
-    resolve: resolveGalleryItemUrl,
-    tag: onEditTag ? ()=> groupItem.opts : null,
-    onEditTag: onEditTag ? ()=>{
-      closeModal();
-      openItemOptEditModal(groupItem.opts, sharedGalleryOptionsData.options, (opts)=> onEditTag(opts));
-    } : null,
-    onDelete: onChange ? (pos)=>{
-      const removed = images[pos];
-      deleteGalleryImageIfChunked(removed);
-      images.splice(pos, 1);
-      if(images.length === 0) onChange(null);
-      else if(images.length === 1) onChange({ ...images[0], blur: groupItem.blur, opts: groupItem.opts });
-      else onChange({ group:true, images: images.slice(), blur: groupItem.blur, opts: groupItem.opts });
-    } : null
-  });
-}
-
-
+/* 갤러리 사진 타일을 드래그로 끌어서 순서 바꾸기 (편집모드에서만 동작) */
 function bindPinDragReorder(container, tileSelector, getItems, saveItems){
   if(!editMode) return;
   let dragIdx = null;
@@ -3434,19 +3402,14 @@ function ddayMilestonesForDate(dateStr){
 // 특정 연/월 한 달치 캘린더 블록의 HTML을 만들어줌.
 // kind: 'prev' | 'current' | 'next'. 이동 버튼은 더 이상 각 달의 head에 붙이지 않고
 // (아래 renderCalendar에서 전체 캘린더 위/아래에 상하 버튼으로 따로 배치함),
-// 이전/다음 달은 요일(dow) 줄 없이 흐리게(opacity) 표시해서 이번 달과 구분함.
-// refYear: 이번 달의 연도. 이전/다음 달도 거의 항상 같은 연도라서 매번 "2026. 1" 식으로
-// 셋 다 연도를 반복하면 지저분해 보임 — 이번 달과 연도가 같으면 월만 표시하고,
-// 연말/연초라 실제로 연도가 달라지는 경우에만 그 달에 연도를 같이 보여줌
-function buildCalMonthHTML(y, m, kind, refYear){
+// 이전/다음 달은 요일(dow) 줄 없이 흐리게 표시하고 절반만 보이도록 나중에 높이를 잘라냄.
+function buildCalMonthHTML(y, m, kind){
   const events = calendarData.events || {};
   const first = new Date(y, m, 1);
   const startDow = first.getDay();
   const daysInMonth = new Date(y, m+1, 0).getDate();
   const todayStr = new Date().toISOString().slice(0,10);
   const isCurrent = kind === 'current';
-  const showYear = isCurrent || refYear === undefined || y !== refYear;
-  const headLabel = showYear ? `${y}. ${m+1}` : `${m+1}`;
   let cells = '';
   for(let i=0;i<startDow;i++) cells += `<div class="cal-day empty"></div>`;
   for(let d=1; d<=daysInMonth; d++){
@@ -3464,7 +3427,7 @@ function buildCalMonthHTML(y, m, kind, refYear){
   return `
     <div class="cal-month cal-month-${kind} ${isCurrent ? 'cal-month-current' : 'cal-month-side'}">
       <div class="cal-head">
-        <strong>${headLabel}</strong>
+        <strong>${y}. ${m+1}</strong>
       </div>
       <div class="cal-clip">
         <div class="cal-grid">
@@ -3546,15 +3509,18 @@ function renderCalendar(){
   box.innerHTML = `
     <div class="cal-nav cal-nav-prev"><span class="cal-nav-btn" id="calPrev">▲</span></div>
     <div class="cal-months">
-      ${buildCalMonthHTML(prevY, prevM, 'prev', calState.y)}
+      ${buildCalMonthHTML(prevY, prevM, 'prev')}
       ${buildCalMonthHTML(calState.y, calState.m, 'current')}
-      ${buildCalMonthHTML(nextY, nextM, 'next', calState.y)}
+      ${buildCalMonthHTML(nextY, nextM, 'next')}
     </div>
     <div class="cal-nav cal-nav-next"><span class="cal-nav-btn" id="calNext">▼</span></div>
   `;
   box.querySelector('#calPrev').onclick = ()=>{ calState.m--; if(calState.m<0){calState.m=11; calState.y--;} renderCalendar(); };
   box.querySelector('#calNext').onclick = ()=>{ calState.m++; if(calState.m>11){calState.m=0; calState.y++;} renderCalendar(); };
   box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
+
+  applyCalMonthClipHeights(box);
+  ensureCalClipResizeWatch(box);
 
   fitRefGalleryToCalendarHeight();
 }
@@ -3564,6 +3530,37 @@ window.addEventListener('resize', debounce(()=>{
   if(calViewWasMobile === null) return;
   if(isMobileCalView() !== calViewWasMobile) renderCalendar();
 }, 150));
+
+// 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이게 잘라냄.
+// prev는 아래쪽 절반(이번 달과 맞닿는 쪽)이 보이도록 위로 밀어 올리고,
+// next는 위쪽 절반(이번 달과 맞닿는 쪽)이 자연스럽게 보이도록 둠.
+// (예전엔 renderCalendar() 안에서 딱 한 번만 계산했는데, 모바일에서 카드 폭이
+// 아직 0으로 잡히는 순간(탭이 화면에 보이기 전, 레이아웃/폰트가 자리잡기 전 등)에
+// 이 계산이 실행되면 fullH가 0이 되어 이전/다음 달이 통째로 높이 0px로 접혀
+// 안 보이는 문제가 있었음 — 이 파일의 layoutPinMasonry/ensurePinMasonryResizeWatch와
+// 같은 종류의 버그라 같은 방식(ResizeObserver)으로 고침. 폭을 못 구한 경우엔
+// 억지로 0으로 확정 짓지 않고 넘어가고, 아래 ResizeObserver가 카드가 실제
+// 크기를 갖는 순간(=모바일에서도) 다시 계산해줌. */
+function applyCalMonthClipHeights(box){
+  const curGrid = box.querySelector('.cal-month-current .cal-grid');
+  const prevClip = box.querySelector('.cal-month-prev .cal-clip');
+  const prevGrid = box.querySelector('.cal-month-prev .cal-grid');
+  const nextClip = box.querySelector('.cal-month-next .cal-clip');
+  if(!(curGrid && prevClip && prevGrid && nextClip)) return;
+  const fullH = curGrid.getBoundingClientRect().height;
+  if(!fullH) return;
+  const halfH = fullH / 2;
+  prevClip.style.height = `${halfH}px`;
+  prevGrid.style.marginTop = `-${halfH}px`;
+  nextClip.style.height = `${halfH}px`;
+}
+let calClipResizeObserver = null;
+function ensureCalClipResizeWatch(box){
+  if(typeof ResizeObserver === 'undefined') return;
+  if(calClipResizeObserver) calClipResizeObserver.disconnect();
+  calClipResizeObserver = new ResizeObserver(()=> applyCalMonthClipHeights(box));
+  calClipResizeObserver.observe(box);
+}
 
 function openDayModal(dateStr){
   const events = calendarData.events || {};
@@ -3601,22 +3598,11 @@ docRef('calendar').onSnapshot(doc=>{ calendarData = doc.exists ? doc.data() : {e
 
 /* 예전엔 items가 그냥 URL 문자열 배열이었어서, 새로 추가된 블러 옵션과 호환되도록
    문자열이면 {url, blur:false}로, 객체면 그대로 정규화해줌 */
-// 사진 여러 장을 인스타그램 여러 장 게시물처럼 "하나로 묶어서" 올릴 때 쓰는 항목 모양.
-// 낱장 항목은 그대로 두고, 묶음만 { group:true, images:[...] } 형태로 별도 표시함
-function normalizeGalleryImageRef(img){
-  if(!img) return { url:'' };
-  if(img.chunked) return { chunked:true, fileId: img.fileId, chunkTotal: img.chunkTotal };
-  return { url: img.url };
-}
 function normalizeGalleryItem(it){
   if(typeof it === 'string') return { url: it, blur: false, opts: [] };
-  if(it.group && Array.isArray(it.images)) return { group:true, images: it.images.map(normalizeGalleryImageRef), blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
   if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
   return { url: it.url, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
 }
-// 묶음이면 대표(첫 번째) 사진을, 낱장이면 자기 자신을 돌려줌 — 썸네일/지연로딩은
-// 항상 이 대표 사진 기준으로 동작하면 됨
-function galleryItemCover(it){ return (it && it.group) ? (it.images[0] || {url:''}) : it; }
 
 /* 갤러리는 사진 여러 장이 문서 하나(gallery/gallery2)에 배열로 함께 저장되는데,
    사진을 그대로 base64로 박아넣으면 Firestore 문서 1MB 한도를 여러 장이
@@ -3761,7 +3747,6 @@ function runChunkLoad(fileId, chunkTotal, priority){
    진행 중인 로딩을 pendingChunkedLoads에 캐시해뒀다가 재사용함 */
 const pendingChunkedLoads = new Map(); // fileId -> 로딩 중인 Promise
 function resolveGalleryItemUrl(item, onReady, priority){
-  if(item && item.group) return resolveGalleryItemUrl(galleryItemCover(item), onReady, priority);
   if(!item.chunked) return item.url;
   if(chunkedImageCache.has(item.fileId)) return chunkedImageCache.get(item.fileId);
   if(!pendingChunkedLoads.has(item.fileId)){
@@ -3802,14 +3787,16 @@ function setupPinGalleryLazyLoad(gridEl, pairs, observerHolder, loadingSelector,
 }
 
 function deleteGalleryImageIfChunked(item){
-  if(!item) return;
-  if(item.group && Array.isArray(item.images)){ item.images.forEach(deleteGalleryImageIfChunked); return; }
-  if(item.chunked){ deleteFileChunked(item.fileId, item.chunkTotal).catch(()=>{}); }
+  if(item && item.chunked){ deleteFileChunked(item.fileId, item.chunkTotal).catch(()=>{}); }
 }
 
 let galleryData = { items: [] };
 let sharedGalleryOptionsData = { options: [] };
 let galleryFilterOpt = null;
+// 이미 올라와 있는 사진들을 여러 장 골라서 한꺼번에 옵션(그룹)을 지정할 수 있게 하는
+// "선택 모드" 상태. 켜져 있는 동안은 타일을 눌러도 라이트박스가 안 열리고 선택만 됨
+let gallerySelectMode = false;
+let gallerySelected = new Set();
 let galleryObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
 /* 블러 토글/태그 변경처럼 "보이는 사진 구성/순서"는 그대로인 채 특정 사진의 속성만
    바뀌는 편집은, 사진이 많아질수록 무거워지는 전체 그리드 재렌더링(캐시된 사진들을
@@ -3821,33 +3808,36 @@ let skipNextGalleryRender = false;
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
    setupPinGalleryLazyLoad가 화면 근처로 스크롤됐을 때 시작함 */
 function galleryTileHtml(it, i){
-  const cover = galleryItemCover(it);
-  if(cover.chunked && chunkedImageCache.has(cover.fileId)) return galleryTileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
-  if(!cover.chunked) return galleryTileMarkup(it, cover.url, i);
+  if(it.chunked && chunkedImageCache.has(it.fileId)) return galleryTileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
+  if(!it.chunked) return galleryTileMarkup(it, it.url, i);
   return `<div class="pin-item pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
 }
 function galleryTileMarkup(it, url, i){
+  const selected = gallerySelectMode && gallerySelected.has(i);
   return `
-    <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''}" data-idx="${i}">
+    <div class="pin-item ${it.blur ? 'blurred' : ''} ${selected ? 'selected' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-      ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+      ${gallerySelectMode ? `<div class="pin-select-badge">${selected ? '✓' : ''}</div>` : `
+        ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+        ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+        ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+      `}
     </div>`;
 }
 function fillGalleryTile(tile, idx, url, it){
   if(!tile.isConnected) return; // 그사이 그리드가 다시 그려져서 이 타일이 이미 화면에서 빠졌으면 무시
   tile.classList.remove('pin-loading');
-  tile.classList.toggle('pin-item-group', !!it.group);
+  const selected = gallerySelectMode && gallerySelected.has(idx);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-    ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+    ${gallerySelectMode ? `<div class="pin-select-badge">${selected ? '✓' : ''}</div>` : `
+      ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+      ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+    `}
   `;
   if(it.blur) tile.classList.add('blurred');
+  tile.classList.toggle('selected', selected);
   const img = tile.querySelector('img');
   attachImgFallback(img);
   const grid = tile.closest('#galleryGrid');
@@ -3856,6 +3846,26 @@ function fillGalleryTile(tile, idx, url, it){
     else relayoutPinMasonryDebounced(grid);
   }
 }
+// 이미 올라와 있는 사진 여러 장을 골라서 한꺼번에 옵션(그룹)을 지정하는 모달.
+// 골라서 켠 옵션은 각 사진이 이미 갖고 있던 옵션에 "추가"됨(기존 태그는 안 지워짐)
+function openGalleryGroupApplyModal(idxList, saveArr){
+  openModal(`
+    <h3>선택한 ${idxList.length}장에 옵션(그룹) 적용</h3>
+    <p class="hint">여기서 고른 옵션이 선택한 사진들의 기존 옵션에 더해져요(기존 태그는 그대로 남아요).</p>
+    <div id="galGroupOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
+    <p class="hint">옵션 목록 자체를 늘리려면 "⚙ 옵션 관리"를 먼저 이용해주세요.</p>
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">적용</button></div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const chosen = getCheckedOptionValues(m.querySelector('#galGroupOptBox'));
+      if(!chosen.length){ toast('적용할 옵션을 선택해주세요'); return; }
+      await saveArr(chosen);
+      closeModal();
+    };
+  });
+}
+
 function handleGalleryDelete(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
   const arr = items.slice();
@@ -3897,16 +3907,22 @@ function renderGallery(){
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="galleryFilterChips" style="display:none;"></div>
-      ${editMode ? `<button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${editMode ? (gallerySelectMode ? `
+        <button class="btn small ghost" id="galSelectCancelBtn">선택 취소</button>
+        <button class="btn small primary" id="galSelectDoneBtn">그룹 지정 (${gallerySelected.size})</button>
+      ` : `
+        <button class="btn small ghost" id="galSelectModeBtn">✓ 그룹 지정</button>
+        <button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>
+      `) : ''}
     </div>
-    <div class="pin-grid-scroll" id="galleryGrid">
+    <div class="pin-grid-scroll ${gallerySelectMode ? 'select-mode' : ''}" id="galleryGrid">
       <div class="pin-grid">
         ${pairs.map(({it,i})=> galleryTileHtml(it, i)).join('')}
       </div>
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
     ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
-    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
+    ${editMode && !gallerySelectMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#galleryGrid');
   restoreScrollPos(gridEl, savedScroll);
@@ -3919,13 +3935,24 @@ function renderGallery(){
   // 이렇게 하면 나중에 낱장 사진이 지연 로딩으로 채워져도(pin-loading → 실제 이미지)
   // 다시 걸어줄 필요가 없음 (레퍼런스 갤러리와 동일한 방식)
   gridEl.addEventListener('click', (e)=>{
+    const tile = e.target.closest('.pin-item:not(.pin-loading)');
+    if(gallerySelectMode){
+      if(!tile) return;
+      const idx = Number(tile.dataset.idx);
+      if(gallerySelected.has(idx)) gallerySelected.delete(idx); else gallerySelected.add(idx);
+      tile.classList.toggle('selected', gallerySelected.has(idx));
+      const badge = tile.querySelector('.pin-select-badge');
+      if(badge) badge.textContent = gallerySelected.has(idx) ? '✓' : '';
+      const doneBtn = box.querySelector('#galSelectDoneBtn');
+      if(doneBtn) doneBtn.textContent = `그룹 지정 (${gallerySelected.size})`;
+      return;
+    }
     const delBtn = e.target.closest('[data-del]');
     if(delBtn){ e.stopPropagation(); handleGalleryDelete(Number(delBtn.dataset.del)); return; }
     const blurBtn = e.target.closest('[data-blur]');
     if(blurBtn){ e.stopPropagation(); handleGalleryBlurToggle(Number(blurBtn.dataset.blur)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGalleryOptEdit(Number(optBtn.dataset.optEdit)); return; }
-    const tile = e.target.closest('.pin-item:not(.pin-loading)');
     if(tile) openGalleryViewModal(Number(tile.dataset.idx));
   });
 
@@ -3933,6 +3960,25 @@ function renderGallery(){
   if(addBtn) addBtn.onclick = openGalleryAddModal;
   const optsBtn = box.querySelector('#galOptsBtn');
   if(optsBtn) optsBtn.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery(); });
+  const selectModeBtn = box.querySelector('#galSelectModeBtn');
+  if(selectModeBtn) selectModeBtn.onclick = ()=>{ gallerySelectMode = true; gallerySelected = new Set(); renderGallery(); };
+  const selectCancelBtn = box.querySelector('#galSelectCancelBtn');
+  if(selectCancelBtn) selectCancelBtn.onclick = ()=>{ gallerySelectMode = false; gallerySelected = new Set(); renderGallery(); };
+  const selectDoneBtn = box.querySelector('#galSelectDoneBtn');
+  if(selectDoneBtn) selectDoneBtn.onclick = ()=>{
+    if(!gallerySelected.size){ toast('사진을 먼저 선택해주세요'); return; }
+    const idxList = Array.from(gallerySelected);
+    openGalleryGroupApplyModal(idxList, async (chosen)=>{
+      const arr = (galleryData.items||[]).map(normalizeGalleryItem);
+      idxList.forEach(i=>{
+        const cur = arr[i].opts || [];
+        arr[i] = { ...arr[i], opts: Array.from(new Set([...cur, ...chosen])) };
+      });
+      await docRef('gallery').set({items:arr}, {merge:true});
+      gallerySelectMode = false; gallerySelected = new Set();
+      renderGallery();
+    });
+  };
   // 드래그 순서 변경은 로딩 중인 타일까지 포함해서 한 번만 걸어둠. 타일 엘리먼트 자체는
   // 사진이 나중에 채워져도 같은 노드를 그대로 재사용하기 때문에 다시 걸 필요가 없음
   bindPinDragReorder(
@@ -3946,25 +3992,10 @@ function renderGallery(){
 
 function openGalleryViewModal(idx){
   const allItems = (galleryData.items || []).map(normalizeGalleryItem);
-  if(allItems[idx] && allItems[idx].group){
-    openGalleryGroupLightbox(allItems[idx], {
-      onEditTag: editMode ? (opts)=>{
-        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
-        arr[idx] = { ...arr[idx], opts };
-        if(!galleryFilterOpt) skipNextGalleryRender = true;
-        docRef('gallery').set({items:arr}, {merge:true});
-      } : null,
-      onChange: editMode ? (updated)=>{
-        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
-        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
-        docRef('gallery').set({items:arr}, {merge:true});
-      } : null
-    });
-    return;
-  }
-  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
-  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
-  const idxMap = allItems.map((it,i)=> i).filter(i=> !galleryFilterOpt || (allItems[i].opts||[]).includes(galleryFilterOpt));
+  // 그리드에 옵션 필터가 걸려 있어도, 라이트박스를 연 다음부터는 그 필터와 상관없이
+  // 항상 전체 사진 안에서 이전/다음으로 넘길 수 있게 함(필터는 그리드에 뭘 보여줄지만
+  // 정하고, 일단 열어본 다음엔 전체를 넘겨보는 게 더 편하다는 요청)
+  const idxMap = allItems.map((it,i)=> i);
   const items = idxMap.map(i=> allItems[i]);
   const startPos = Math.max(0, idxMap.indexOf(idx));
   openImageLightbox({
@@ -4008,15 +4039,11 @@ function openGalleryAddModal(){
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="galUrl" placeholder="https://...">
     <label>옵션 (분류, 여러 개 선택 가능)</label>
-    <div id="galOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
+    <div id="galOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, galleryFilterOpt ? [galleryFilterOpt] : [])}</div>
+    <p class="hint">${galleryFilterOpt ? `지금 "${escapeHtml(galleryFilterOpt)}" 옵션으로 보고 있어서 그 옵션이 기본으로 체크돼 있어요. ` : ''}여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="galBlur" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">미리보기 방지</span>
-    </label>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-      <input type="checkbox" id="galGroup" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">모아올리기</span>
+      <span style="font-size:.82rem;color:var(--ink);">썸네일 블러 처리 (눌러야만 원본이 보여요)</span>
     </label>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
@@ -4026,7 +4053,6 @@ function openGalleryAddModal(){
       const files = Array.from(m.querySelector('#galFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#galUrl').value.trim());
       const blur = m.querySelector('#galBlur').checked;
-      const asGroup = m.querySelector('#galGroup').checked;
       const opts = getCheckedOptionValues(m.querySelector('#galOptBox'));
       const newItems = [];
       if(files.length){
@@ -4045,13 +4071,9 @@ function openGalleryAddModal(){
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
       }
-      // 두 장 이상이고 "묶어서 올리기"를 체크했으면, 낱장 여러 개 대신 묶음 하나로 합침
-      const finalNewItems = (asGroup && newItems.length > 1)
-        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), blur, opts }]
-        : newItems;
       try{
         const existing = (galleryData.items||[]).map(normalizeGalleryItem);
-        await docRef('gallery').set({ items: [...finalNewItems, ...existing] }, {merge:true});
+        await docRef('gallery').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -4093,6 +4115,8 @@ docRef('gallery').onSnapshot(doc=>{
 
 let gallery2Data = { items: [] };
 let gallery2FilterOpt = null;
+let gallery2SelectMode = false;
+let gallery2Selected = new Set();
 let gallery2ObserverHolder = { current: null }; // 지연 로딩 관찰자(재렌더링 때마다 새로 등록)
 let skipNextGallery2Render = false;
 let gallery2LastColCount = null; // 마지막으로 렌더링한 열 개수(폭이 바뀌어 열 개수가 달라질 때만 다시 그리기 위함)
@@ -4136,33 +4160,36 @@ window.addEventListener('resize', refreshGallery2LayoutDebounced);
 
 
 function gallery2TileHtml(it, i){
-  const cover = galleryItemCover(it);
-  if(cover.chunked && chunkedImageCache.has(cover.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
-  if(!cover.chunked) return gallery2TileMarkup(it, cover.url, i);
+  if(it.chunked && chunkedImageCache.has(it.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(it.fileId) || '', i);
+  if(!it.chunked) return gallery2TileMarkup(it, it.url, i);
   return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>불러오는 중…</span></div>`;
 }
 function gallery2TileMarkup(it, url, i){
+  const selected = gallery2SelectMode && gallery2Selected.has(i);
   return `
-    <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''}" data-idx="${i}">
+    <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${selected ? 'selected' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-      ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+      ${gallery2SelectMode ? `<div class="pin-select-badge">${selected ? '✓' : ''}</div>` : `
+        ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+        ${editMode ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+        ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+      `}
     </div>`;
 }
 function fillGallery2Tile(tile, idx, url, it){
   if(!tile.isConnected) return;
   tile.classList.remove('pin-loading');
-  tile.classList.toggle('pin-item-group', !!it.group);
+  const selected = gallery2SelectMode && gallery2Selected.has(idx);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-    ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+    ${gallery2SelectMode ? `<div class="pin-select-badge">${selected ? '✓' : ''}</div>` : `
+      ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+      ${editMode ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+    `}
   `;
   if(it.blur) tile.classList.add('blurred');
+  tile.classList.toggle('selected', selected);
   attachImgFallback(tile.querySelector('img'));
 }
 function handleGallery2Delete(idx){
@@ -4214,14 +4241,20 @@ function renderGallery2(){
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="gallery2FilterChips" style="display:none;"></div>
-      ${editMode ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${editMode ? (gallery2SelectMode ? `
+        <button class="btn small ghost" id="gal2SelectCancelBtn">선택 취소</button>
+        <button class="btn small primary" id="gal2SelectDoneBtn">그룹 지정 (${gallery2Selected.size})</button>
+      ` : `
+        <button class="btn small ghost" id="gal2SelectModeBtn">✓ 그룹 지정</button>
+        <button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>
+      `) : ''}
     </div>
-    <div class="gallery2-grid" id="gallery2Grid">
+    <div class="gallery2-grid ${gallery2SelectMode ? 'select-mode' : ''}" id="gallery2Grid">
       ${colsHtml}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
+    ${editMode && !gallery2SelectMode ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#gallery2Grid');
   restoreScrollPos(gridEl, savedScroll);
@@ -4232,13 +4265,24 @@ function renderGallery2(){
   // 열기/삭제/블러/옵션 지정 클릭을 그리드 전체에 한 번만 위임(지연 로딩으로 타일이
   // 나중에 채워져도 다시 걸어줄 필요 없음)
   gridEl.addEventListener('click', (e)=>{
+    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
+    if(gallery2SelectMode){
+      if(!tile) return;
+      const idx = Number(tile.dataset.idx);
+      if(gallery2Selected.has(idx)) gallery2Selected.delete(idx); else gallery2Selected.add(idx);
+      tile.classList.toggle('selected', gallery2Selected.has(idx));
+      const badge = tile.querySelector('.pin-select-badge');
+      if(badge) badge.textContent = gallery2Selected.has(idx) ? '✓' : '';
+      const doneBtn = box.querySelector('#gal2SelectDoneBtn');
+      if(doneBtn) doneBtn.textContent = `그룹 지정 (${gallery2Selected.size})`;
+      return;
+    }
     const delBtn = e.target.closest('[data-del]');
     if(delBtn){ e.stopPropagation(); handleGallery2Delete(Number(delBtn.dataset.del)); return; }
     const blurBtn = e.target.closest('[data-blur]');
     if(blurBtn){ e.stopPropagation(); handleGallery2BlurToggle(Number(blurBtn.dataset.blur)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGallery2OptEdit(Number(optBtn.dataset.optEdit)); return; }
-    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
     if(tile) openGallery2ViewModal(Number(tile.dataset.idx));
   });
 
@@ -4246,6 +4290,25 @@ function renderGallery2(){
   if(addBtn) addBtn.onclick = openGallery2AddModal;
   const optsBtn2 = box.querySelector('#gal2OptsBtn');
   if(optsBtn2) optsBtn2.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderGallery2(); });
+  const selectModeBtn2 = box.querySelector('#gal2SelectModeBtn');
+  if(selectModeBtn2) selectModeBtn2.onclick = ()=>{ gallery2SelectMode = true; gallery2Selected = new Set(); renderGallery2(); };
+  const selectCancelBtn2 = box.querySelector('#gal2SelectCancelBtn');
+  if(selectCancelBtn2) selectCancelBtn2.onclick = ()=>{ gallery2SelectMode = false; gallery2Selected = new Set(); renderGallery2(); };
+  const selectDoneBtn2 = box.querySelector('#gal2SelectDoneBtn');
+  if(selectDoneBtn2) selectDoneBtn2.onclick = ()=>{
+    if(!gallery2Selected.size){ toast('사진을 먼저 선택해주세요'); return; }
+    const idxList = Array.from(gallery2Selected);
+    openGalleryGroupApplyModal(idxList, async (chosen)=>{
+      const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
+      idxList.forEach(i=>{
+        const cur = arr[i].opts || [];
+        arr[i] = { ...arr[i], opts: Array.from(new Set([...cur, ...chosen])) };
+      });
+      await docRef('gallery2').set({items:arr}, {merge:true});
+      gallery2SelectMode = false; gallery2Selected = new Set();
+      renderGallery2();
+    });
+  };
   bindPinDragReorder(
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
@@ -4257,25 +4320,8 @@ function renderGallery2(){
 
 function openGallery2ViewModal(idx){
   const allItems = (gallery2Data.items || []).map(normalizeGalleryItem);
-  if(allItems[idx] && allItems[idx].group){
-    openGalleryGroupLightbox(allItems[idx], {
-      onEditTag: editMode ? (opts)=>{
-        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        arr[idx] = { ...arr[idx], opts };
-        if(!gallery2FilterOpt) skipNextGallery2Render = true;
-        docRef('gallery2').set({items:arr}, {merge:true});
-      } : null,
-      onChange: editMode ? (updated)=>{
-        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
-        docRef('gallery2').set({items:arr}, {merge:true});
-      } : null
-    });
-    return;
-  }
-  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
-  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
-  const idxMap = allItems.map((it,i)=> i).filter(i=> !gallery2FilterOpt || (allItems[i].opts||[]).includes(gallery2FilterOpt));
+  // 그리드 필터와 상관없이 라이트박스는 항상 전체 사진 안에서 이전/다음 이동
+  const idxMap = allItems.map((it,i)=> i);
   const items = idxMap.map(i=> allItems[i]);
   const startPos = Math.max(0, idxMap.indexOf(idx));
   openImageLightbox({
@@ -4315,15 +4361,11 @@ function openGallery2AddModal(){
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="gal2Url" placeholder="https://...">
     <label>옵션 (분류, 여러 개 선택 가능)</label>
-    <div id="gal2OptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
+    <div id="gal2OptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, gallery2FilterOpt ? [gallery2FilterOpt] : [])}</div>
+    <p class="hint">${gallery2FilterOpt ? `지금 "${escapeHtml(gallery2FilterOpt)}" 옵션으로 보고 있어서 그 옵션이 기본으로 체크돼 있어요. ` : ''}여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="gal2Blur" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">썸네일 블러 처리 (눌러야만 원본이 보여요)</span>
-    </label>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-      <input type="checkbox" id="gal2Group" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(카드 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
     </label>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
@@ -4333,7 +4375,6 @@ function openGallery2AddModal(){
       const files = Array.from(m.querySelector('#gal2Files').files || []);
       const url = normalizeImageUrl(m.querySelector('#gal2Url').value.trim());
       const blur = m.querySelector('#gal2Blur').checked;
-      const asGroup = m.querySelector('#gal2Group').checked;
       const opts = getCheckedOptionValues(m.querySelector('#gal2OptBox'));
       const newItems = [];
       if(files.length){
@@ -4352,12 +4393,9 @@ function openGallery2AddModal(){
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
       }
-      const finalNewItems = (asGroup && newItems.length > 1)
-        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), blur, opts }]
-        : newItems;
       try{
         const existing = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        await docRef('gallery2').set({ items: [...finalNewItems, ...existing] }, {merge:true});
+        await docRef('gallery2').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -4380,13 +4418,14 @@ docRef('gallery2').onSnapshot(doc=>{
 
 function normalizeRefGalleryItem(it){
   if(typeof it === 'string') return { url: it, opts: [] };
-  if(it.group && Array.isArray(it.images)) return { group:true, images: it.images.map(normalizeGalleryImageRef), opts: it.opts || (it.opt ? [it.opt] : []) };
   if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, opts: it.opts || (it.opt ? [it.opt] : []) };
   return { url: it.url, opts: it.opts || (it.opt ? [it.opt] : []) };
 }
 
 let refGalleryData = { items: [] };
 let refGalleryFilterOpt = null;
+let refGallerySelectMode = false;
+let refGallerySelected = new Set();
 // 레퍼런스 갤러리 열 개수: PC에서는 2열, 모바일(폭이 좁아지는 구간)에서는 3열로
 // 더 촘촘하게 보이도록 함. 다른 반응형 기준과 동일하게 900px을 모바일 경계로 씀
 function refGalleryColumnCount(){
@@ -4502,14 +4541,20 @@ function renderRefGallery(){
   box.innerHTML = `
     <div class="pin-toolbar">
       <div class="tag-filter" id="refGalleryFilterChips" style="display:none;"></div>
-      ${editMode ? `<button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${editMode ? (refGallerySelectMode ? `
+        <button class="btn small ghost" id="refGalSelectCancelBtn">선택 취소</button>
+        <button class="btn small primary" id="refGalSelectDoneBtn">그룹 지정 (${refGallerySelected.size})</button>
+      ` : `
+        <button class="btn small ghost" id="refGalSelectModeBtn">✓ 그룹 지정</button>
+        <button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>
+      `) : ''}
     </div>
-    <div class="ref-gallery-grid" id="refGalleryGrid">
+    <div class="ref-gallery-grid ${refGallerySelectMode ? 'select-mode' : ''}" id="refGalleryGrid">
       ${colsHtml}
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
+    ${editMode && !refGallerySelectMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(gridEl, savedScroll);
@@ -4525,11 +4570,22 @@ function renderRefGallery(){
   // 이렇게 하면 나중에 낱장 사진이 지연 로딩으로 채워져도(pin-loading → 실제 이미지)
   // 다시 걸어줄 필요가 없음
   gridEl.addEventListener('click', (e)=>{
+    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
+    if(refGallerySelectMode){
+      if(!tile) return;
+      const idx = Number(tile.dataset.idx);
+      if(refGallerySelected.has(idx)) refGallerySelected.delete(idx); else refGallerySelected.add(idx);
+      tile.classList.toggle('selected', refGallerySelected.has(idx));
+      const badge = tile.querySelector('.pin-select-badge');
+      if(badge) badge.textContent = refGallerySelected.has(idx) ? '✓' : '';
+      const doneBtn = box.querySelector('#refGalSelectDoneBtn');
+      if(doneBtn) doneBtn.textContent = `그룹 지정 (${refGallerySelected.size})`;
+      return;
+    }
     const delBtn = e.target.closest('[data-del]');
     if(delBtn){ e.stopPropagation(); handleRefGalleryDelete(Number(delBtn.dataset.del)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleRefGalleryOptEdit(Number(optBtn.dataset.optEdit)); return; }
-    const tile = e.target.closest('.pin-item-dense:not(.pin-loading)');
     if(tile) openRefGalleryViewModal(Number(tile.dataset.idx));
   });
 
@@ -4537,6 +4593,25 @@ function renderRefGallery(){
   if(addBtn) addBtn.onclick = openRefGalleryAddModal;
   const optsBtn = box.querySelector('#refGalOptsBtn');
   if(optsBtn) optsBtn.onclick = ()=> openOptionsManagerModal('sharedGalleryOptions', sharedGalleryOptionsData.options, (options)=>{ sharedGalleryOptionsData = {options}; renderRefGallery(); });
+  const selectModeBtnR = box.querySelector('#refGalSelectModeBtn');
+  if(selectModeBtnR) selectModeBtnR.onclick = ()=>{ refGallerySelectMode = true; refGallerySelected = new Set(); renderRefGallery(); };
+  const selectCancelBtnR = box.querySelector('#refGalSelectCancelBtn');
+  if(selectCancelBtnR) selectCancelBtnR.onclick = ()=>{ refGallerySelectMode = false; refGallerySelected = new Set(); renderRefGallery(); };
+  const selectDoneBtnR = box.querySelector('#refGalSelectDoneBtn');
+  if(selectDoneBtnR) selectDoneBtnR.onclick = ()=>{
+    if(!refGallerySelected.size){ toast('사진을 먼저 선택해주세요'); return; }
+    const idxList = Array.from(refGallerySelected);
+    openGalleryGroupApplyModal(idxList, async (chosen)=>{
+      const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
+      idxList.forEach(i=>{
+        const cur = arr[i].opts || [];
+        arr[i] = { ...arr[i], opts: Array.from(new Set([...cur, ...chosen])) };
+      });
+      await docRef('refgallery').set({items:arr}, {merge:true});
+      refGallerySelectMode = false; refGallerySelected = new Set();
+      renderRefGallery();
+    });
+  };
 
   // 드래그 순서 변경은 로딩 중인 타일까지 포함해서 한 번만 걸어둠. 타일 엘리먼트 자체는
   // 사진이 나중에 채워져도 같은 노드를 그대로 재사용하기 때문에 다시 걸 필요가 없음
@@ -4553,19 +4628,20 @@ function renderRefGallery(){
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
    setupRefGalleryLazyLoad가 화면 근처로 스크롤됐을 때 시작함 */
 function renderRefGalleryTileHtml(it, i){
-  const cover = galleryItemCover(it);
-  if(cover.chunked && chunkedImageCache.has(cover.fileId)) return refGalleryTileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
-  if(!cover.chunked) return refGalleryTileMarkup(it, cover.url, i);
+  if(it.chunked && chunkedImageCache.has(it.fileId)) return refGalleryTileMarkup(chunkedImageCache.get(it.fileId) || '', i);
+  if(!it.chunked) return refGalleryTileMarkup(it.url, i);
   return `<div class="pin-item-dense pin-loading" data-idx="${i}"><span>...</span></div>`;
 }
 
-function refGalleryTileMarkup(it, url, i){
+function refGalleryTileMarkup(url, i){
+  const selected = refGallerySelectMode && refGallerySelected.has(i);
   return `
-    <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''}" data-idx="${i}">
+    <div class="pin-item-dense ${selected ? 'selected' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-      ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+      ${refGallerySelectMode ? `<div class="pin-select-badge">${selected ? '✓' : ''}</div>` : `
+        ${editMode ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+        ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+      `}
     </div>`;
 }
 
@@ -4573,19 +4649,21 @@ function refGalleryTileMarkup(it, url, i){
 let refGalleryObserverHolder = { current: null };
 function setupRefGalleryLazyLoad(gridEl, pairs){
   setupPinGalleryLazyLoad(gridEl, pairs, refGalleryObserverHolder, '.pin-item-dense.pin-loading',
-    (tile, idx, url, it)=> fillRefGalleryTile(tile, idx, url, it));
+    (tile, idx, url)=> fillRefGalleryTile(tile, idx, url));
 }
 
-function fillRefGalleryTile(tile, idx, url, it){
+function fillRefGalleryTile(tile, idx, url){
   if(!tile.isConnected) return; // 그사이 그리드가 다시 그려져서 이 타일이 이미 화면에서 빠졌으면 무시
   tile.classList.remove('pin-loading');
-  tile.classList.toggle('pin-item-group', !!(it && it.group));
+  const selected = refGallerySelectMode && refGallerySelected.has(idx);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it && it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
-    ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+    ${refGallerySelectMode ? `<div class="pin-select-badge">${selected ? '✓' : ''}</div>` : `
+      ${editMode ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+      ${editMode ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+    `}
   `;
+  tile.classList.toggle('selected', selected);
   attachImgFallback(tile.querySelector('img'));
 }
 
@@ -4610,25 +4688,8 @@ function handleRefGalleryOptEdit(idx){
 
 function openRefGalleryViewModal(idx){
   const allItems = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  if(allItems[idx] && allItems[idx].group){
-    openGalleryGroupLightbox(allItems[idx], {
-      onEditTag: editMode ? (opts)=>{
-        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        arr[idx] = { ...arr[idx], opts };
-        if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
-        docRef('refgallery').set({items:arr}, {merge:true});
-      } : null,
-      onChange: editMode ? (updated)=>{
-        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
-        docRef('refgallery').set({items:arr}, {merge:true});
-      } : null
-    });
-    return;
-  }
-  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
-  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
-  const idxMap = allItems.map((it,i)=> i).filter(i=> !refGalleryFilterOpt || (allItems[i].opts||[]).includes(refGalleryFilterOpt));
+  // 그리드 필터와 상관없이 라이트박스는 항상 전체 사진 안에서 이전/다음 이동
+  const idxMap = allItems.map((it,i)=> i);
   const items = idxMap.map(i=> allItems[i]);
   const startPos = Math.max(0, idxMap.indexOf(idx));
   openImageLightbox({
@@ -4669,12 +4730,8 @@ function openRefGalleryAddModal(){
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="refGalUrl" placeholder="https://...">
     <label>옵션 (분류, 여러 개 선택 가능)</label>
-    <div id="refGalOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
-      <input type="checkbox" id="refGalGroup" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(칸 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
-    </label>
+    <div id="refGalOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, refGalleryFilterOpt ? [refGalleryFilterOpt] : [])}</div>
+    <p class="hint">${refGalleryFilterOpt ? `지금 "${escapeHtml(refGalleryFilterOpt)}" 옵션으로 보고 있어서 그 옵션이 기본으로 체크돼 있어요. ` : ''}여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -4682,7 +4739,6 @@ function openRefGalleryAddModal(){
       const saveBtn = m.querySelector('#s');
       const files = Array.from(m.querySelector('#refGalFiles').files || []);
       const url = normalizeImageUrl(m.querySelector('#refGalUrl').value.trim());
-      const asGroup = m.querySelector('#refGalGroup').checked;
       const opts = getCheckedOptionValues(m.querySelector('#refGalOptBox'));
       const newItems = [];
       if(files.length){
@@ -4701,12 +4757,9 @@ function openRefGalleryAddModal(){
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
       }
-      const finalNewItems = (asGroup && newItems.length > 1)
-        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), opts }]
-        : newItems;
       try{
         const existing = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        await docRef('refgallery').set({ items: [...finalNewItems, ...existing] }, {merge:true});
+        await docRef('refgallery').set({ items: [...newItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -5341,15 +5394,17 @@ function renderChecklist(){
     `;
   }
 
-  // 미완료/완료를 좌우로 나눠서 별도 칸에 담던 방식에서, 하나의 2열 그리드로
-  // 합쳐서 순서대로(미완료 먼저, 완료 나중) 흘려보내는 방식으로 바꿈 — 그리드가
-  // 왼쪽→오른쪽, 위→아래 순으로 채워지므로, 배열 끝에 몰아둔 완료 항목들이
-  // 자연히 그리드의 마지막 줄(맨 아래)에 두 칸을 걸쳐 깔리게 됨
-  const sortedAll = [...unchecked, ...checked];
-  if(!sortedAll.length){
+  // 할 일/완료를 위아래로 쌓아 가로선으로 나누던 것에서, 좌우로 나란히 두고
+  // 세로선으로 구분하는 2단 레이아웃으로 바꿈
+  if(!unchecked.length && !checked.length){
     body.innerHTML = `<div class="w-empty">등록된 항목이 없어요</div>`;
+  } else if(unchecked.length && checked.length){
+    body.innerHTML =
+      `<div class="check-col">${unchecked.map(row).join('')}</div>` +
+      `<div class="check-divider"></div>` +
+      `<div class="check-col">${checked.map(row).join('')}</div>`;
   } else {
-    body.innerHTML = sortedAll.map(row).join('');
+    body.innerHTML = `<div class="check-col check-col-full">${(unchecked.map(row).join('') || checked.map(row).join(''))}</div>`;
   }
 
   body.querySelectorAll('.check-item').forEach(el=>{
@@ -5471,9 +5526,8 @@ function openChecklistLinkModal(idx){
    맞춰줌(모두 이미 내부 스크롤 처리가 되어 있어서, 높이가 줄어들면 안에서
    스크롤됨). 세션 위젯은 캘린더 옆(나란히)이라 캘린더와 같은 높이를 그대로
    가지고, 문서·체크리스트 위젯은 캘린더 아래로 쌓여 있으므로 둘을 합친 높이가
-   캘린더 높이와 같아지도록 반씩 나눠 가짐(문서/체크리스트 동일 면적). 900px
-   이하(row-2가 1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자 자연스러운
-   높이로 둠. */
+   캘린더 높이와 같아지도록 나눠 가짐(문서 위젯이 더 크게). 900px 이하(row-2가
+   1열로 쌓이는 모바일 레이아웃)에서는 보정을 끄고 각자 자연스러운 높이로 둠. */
 function syncRow2Height(){
   const cal = document.getElementById('cardCalendar');
   const docsCard = document.getElementById('cardDocs');
@@ -5490,7 +5544,7 @@ function syncRow2Height(){
   if(h > 0){
     sessionsCard.style.height = h + 'px';
     const gap = 20;
-    const checklistH = Math.max(120, Math.round((h - gap) * 0.5));
+    const checklistH = Math.max(120, Math.round((h - gap) * 0.35));
     const docsH = h - gap - checklistH;
     docsCard.style.height = docsH + 'px';
     checklistCard.style.height = checklistH + 'px';
@@ -5500,16 +5554,7 @@ function initRow2HeightSync(){
   const cal = document.getElementById('cardCalendar');
   if(!cal) return;
   if(typeof ResizeObserver !== 'undefined'){
-    // 캘린더는 이제 align-self:start라 자기 콘텐츠 높이만 갖지만, 혹시 모를
-    // 반올림 오차 등으로 값이 미세하게 계속 흔들려 행이 서서히 부풀어오르는
-    // 걸 막기 위해 실제로 높이가 바뀐 경우에만 다시 계산하도록 이중 안전장치를 둠
-    let lastH = -1;
-    new ResizeObserver(()=>{
-      const h = Math.round(cal.getBoundingClientRect().height);
-      if(h === lastH) return;
-      lastH = h;
-      syncRow2Height();
-    }).observe(cal);
+    new ResizeObserver(()=> syncRow2Height()).observe(cal);
   }
   window.addEventListener('resize', syncRow2Height);
   syncRow2Height();
