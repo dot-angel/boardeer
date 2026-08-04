@@ -544,16 +544,33 @@ function openImageLightbox(cfg){
         el.onclick = ()=> goToIndex(Number(el.dataset.jumpIdx));
       });
 
-      // 모바일 스와이프: 이미지 영역을 좌우로 밀면 이전/다음 사진으로 이동
+      // 모바일 스와이프: 이미지 영역을 좌우(넓은 화면)/위아래(좁은 화면)로 밀면 이전/다음 사진으로 이동
       const imgWrap = m.querySelector('#lbImgWrap');
       if(imgWrap && items.length > 1){
-        let touchStartX = 0, touchStartY = 0, touchTracking = false;
+        let touchStartX = 0, touchStartY = 0, touchTracking = false, touchLocked = false;
         imgWrap.addEventListener('touchstart', e=>{
           if(e.touches.length !== 1) return;
           touchStartX = e.touches[0].clientX;
           touchStartY = e.touches[0].clientY;
           touchTracking = true;
+          touchLocked = false;
         }, { passive:true });
+        // touchend에서만 preventDefault를 걸면 그땐 이미 브라우저가 배경 페이지를
+        // 스크롤시켜버린 뒤라 늦음. 드래그 중(touchmove)에 방향이 스와이프 축(모바일=세로,
+        // PC=가로)으로 확정되는 즉시 여기서 막아야 배경이 안 딸려 움직임(touch-action
+        // CSS가 1차 방어, 이건 2차 방어) */
+        imgWrap.addEventListener('touchmove', e=>{
+          if(!touchTracking || touchLocked || e.touches.length !== 1) return;
+          const dx = e.touches[0].clientX - touchStartX;
+          const dy = e.touches[0].clientY - touchStartY;
+          const vertical = window.matchMedia('(max-width: 640px)').matches;
+          const swipeAxisDist = vertical ? Math.abs(dy) : Math.abs(dx);
+          const otherAxisDist = vertical ? Math.abs(dx) : Math.abs(dy);
+          if(swipeAxisDist > 10 && swipeAxisDist > otherAxisDist * 1.2){
+            touchLocked = true; // 한 번 스와이프 축으로 확정되면 손을 뗄 때까지 계속 막음
+          }
+          if(touchLocked) e.preventDefault();
+        }, { passive:false });
         imgWrap.addEventListener('touchend', e=>{
           if(!touchTracking) return;
           touchTracking = false;
