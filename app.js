@@ -5238,17 +5238,15 @@ function renderChecklist(){
     `;
   }
 
-  // 할 일/완료를 위아래로 쌓아 가로선으로 나누던 것에서, 좌우로 나란히 두고
-  // 세로선으로 구분하는 2단 레이아웃으로 바꿈
-  if(!unchecked.length && !checked.length){
+  // 미완료/완료를 좌우로 나눠서 별도 칸에 담던 방식에서, 하나의 2열 그리드로
+  // 합쳐서 순서대로(미완료 먼저, 완료 나중) 흘려보내는 방식으로 바꿈 — 그리드가
+  // 왼쪽→오른쪽, 위→아래 순으로 채워지므로, 배열 끝에 몰아둔 완료 항목들이
+  // 자연히 그리드의 마지막 줄(맨 아래)에 두 칸을 걸쳐 깔리게 됨
+  const sortedAll = [...unchecked, ...checked];
+  if(!sortedAll.length){
     body.innerHTML = `<div class="w-empty">등록된 항목이 없어요</div>`;
-  } else if(unchecked.length && checked.length){
-    body.innerHTML =
-      `<div class="check-col">${unchecked.map(row).join('')}</div>` +
-      `<div class="check-divider"></div>` +
-      `<div class="check-col">${checked.map(row).join('')}</div>`;
   } else {
-    body.innerHTML = `<div class="check-col check-col-full">${(unchecked.map(row).join('') || checked.map(row).join(''))}</div>`;
+    body.innerHTML = sortedAll.map(row).join('');
   }
 
   body.querySelectorAll('.check-item').forEach(el=>{
