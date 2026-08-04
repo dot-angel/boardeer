@@ -4097,10 +4097,10 @@ function galleryTileHtml(it, i){
 }
 function galleryTileMarkup(it, url, i){
   const picking = isGalleryGroupPicking('gallery');
+  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   return `
     <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
-      <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+      ${mediaHtml}
       ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery', i)}
       ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
@@ -4114,9 +4114,9 @@ function fillGalleryTile(tile, idx, url, it){
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!it.group);
   tile.classList.toggle('pin-item-picking', picking);
+  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
-    <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+    ${mediaHtml}
     ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery', idx)}
     ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
@@ -4124,12 +4124,19 @@ function fillGalleryTile(tile, idx, url, it){
     ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
   `;
   if(it.blur) tile.classList.add('blurred');
-  const img = tile.querySelector('img');
-  attachImgFallback(img);
   const grid = tile.closest('#galleryGrid');
-  if(grid){
-    if(img && !img.complete) img.addEventListener('load', ()=> relayoutPinMasonryDebounced(grid), { once:true });
-    else relayoutPinMasonryDebounced(grid);
+  if(it.group){
+    // 묶음 사진 칸은 가상의 정사각형(CSS aspect-ratio)으로 높이가 이미 정해져 있어서
+    // 사진 로딩을 기다릴 필요 없이 바로 재배치하면 됨
+    loadGalleryGroupStrips(tile, it);
+    if(grid) relayoutPinMasonryDebounced(grid);
+  } else {
+    const img = tile.querySelector('img');
+    attachImgFallback(img);
+    if(grid){
+      if(img && !img.complete) img.addEventListener('load', ()=> relayoutPinMasonryDebounced(grid), { once:true });
+      else relayoutPinMasonryDebounced(grid);
+    }
   }
 }
 function handleGalleryDelete(idx){
@@ -4205,6 +4212,7 @@ function renderGallery(){
   restoreScrollPos(gridEl, savedScroll);
   renderOptionFilterChips(box.querySelector('#galleryFilterChips'), sharedGalleryOptionsData.options, galleryFilterOpt, (opt)=>{ galleryFilterOpt = opt; renderGallery(); });
   gridEl.querySelectorAll('.pin-item:not(.pin-loading) img').forEach(attachImgFallback);
+  gridEl.querySelectorAll('.pin-item.pin-item-group').forEach(tile=> loadGalleryGroupStrips(tile, items[Number(tile.dataset.idx)]));
   requestAnimationFrame(()=> layoutPinMasonry(gridEl));
   watchPinTileImagesForRelayout(gridEl);
 

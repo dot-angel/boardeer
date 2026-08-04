@@ -1193,6 +1193,11 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 .pin-item.img-broken img, .pin-item-dense.img-broken img{ display:none; }
 .pin-item img{ width:100%; display:block; transition: transform .2s ease, filter .2s ease; }
+/* 첫 번째(메인) 갤러리는 원래 사진 비율 그대로 핀터레스트식 배치를 쓰지만, 모아올리기
+   묶음 칸만은 옆에 다음 사진들을 나눠 붙여야 하므로 "가상의 정사각형" 한 칸으로 고정함
+   (실제 사진 비율과 무관하게 항상 1:1) — 나머지 낱장 사진들은 그대로 자기 비율 유지 */
+.pin-item.pin-item-group{ aspect-ratio: 1/1; }
+.pin-item.pin-item-group .dense-strip:not(:first-child){ border-left-color: rgba(255,255,255,0.16); }
 .pin-item:hover img{ transform: scale(1.03); }
 .pin-item.blurred img{ filter: blur(22px) saturate(1.1); transform: scale(1.12); }
 .pin-item.blurred:hover img{ transform: scale(1.16); }
