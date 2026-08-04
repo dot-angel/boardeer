@@ -1735,6 +1735,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#fff;
   font-size:.72rem; padding:3px 10px; border-radius:999px;
 }
+/* 묶음(모아올리기) 안에서 지금 몇 번째 사진인지는 전체 장수 카운터(하단, 위)와
+   합치지 않고 사진 위쪽에 따로 띄워서 "이 사진들이 한 묶음이다"라는 게 더 뚜렷하게 보이게 함 */
+.lightbox-group-count{
+  position:absolute; left:10px; top:10px; z-index:3;
+  background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#fff;
+  font-size:.72rem; padding:3px 10px; border-radius:999px;
+}
 /* 모아올리기(묶음) 라이트박스 전용: 지금 보는 사진은 가운데에 그대로 크게 두고,
    같은 묶음 안의 이전/다음 사진들을 좌우에 세로로 가늘게 크롭해 이어 붙여 "옆에
    더 있다"는 걸 캐러셀처럼 보여줌. 가운데와 가까운 사진일수록 넓고 진하게, 멀수록
