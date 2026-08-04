@@ -1701,8 +1701,18 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .lightbox-x:hover{ background: rgba(196,66,95,0.6); }
 .lightbox-body{ position:relative; text-align:center; }
 /* 이미지 실제 렌더링 크기에 딱 맞는 래퍼. 이 래퍼 안에 좌/우 클릭·스와이프 존을 깔아서
-   화살표 버튼이 아니라 사진 자체의 왼쪽/오른쪽을 눌러 이동하게 함 */
+   화살표 버튼이 아니라 사진 자체의 왼쪽/오른쪽을 눌러 이동하게 함.
+   touch-action은 JS가 스와이프로 직접 처리하는 축만 브라우저 기본 동작(네이티브 스크롤/팬)에서
+   빼주는 용도 — PC 폭에서는 좌우로 사진을 넘기므로 세로만 브라우저에 맡기고(pan-y),
+   640px 이하(app.js의 vertical 판정과 동일한 기준)에서는 위아래로 넘기므로 반대로
+   가로만 맡김(pan-x). 이걸 안 맞추면 모바일에서 위/아래로 사진을 넘기려 밀 때
+   브라우저가 그 동작을 먼저 "페이지 세로 스크롤"로 채가서, 라이트박스 뒤 배경
+   페이지가 같이 스크롤되어 버림(JS의 touchend preventDefault는 이미 스크롤이
+   끝난 뒤라 소용없음) */
 .lightbox-imgwrap{ position:relative; display:inline-block; max-width:100%; touch-action: pan-y; }
+@media (max-width: 640px){
+  .lightbox-imgwrap{ touch-action: pan-x; }
+}
 .modal.modal-lightbox .lightbox-img{
   display:block; max-width:90vw; max-height:80vh; width:auto; height:auto;
   border-radius:16px; object-fit:contain; -webkit-user-select:none; user-select:none;
