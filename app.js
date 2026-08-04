@@ -4197,8 +4197,12 @@ async function migrateOversizedProfileAvatars(){
    "화면 근처"로 잡혀서 한꺼번에 불러와지면, 그 순간에 몰린 Firestore 요청과 이미지
    디코딩 작업이 메인 스레드를 잠깐 막아서 렉으로 느껴질 수 있음. 그래서 실제로
    동시에 진행되는 청크 로딩 개수를 CHUNK_LOAD_CONCURRENCY로 제한하고, 그 이상은
-   줄을 세워서 하나 끝나면 다음 게 시작되도록 함(모든 갤러리가 이 큐를 공유함) */
-const CHUNK_LOAD_CONCURRENCY = 4;
+   줄을 세워서 하나 끝나면 다음 게 시작되도록 함(모든 갤러리가 이 큐를 공유함)
+   원래 4였는데, 사진이 쌓일수록(그룹 해체로 낱장이 늘어난 경우 포함) 이 대기줄이
+   여러 바퀴 돌면서 첫 화면 전체가 다 뜨는 데 걸리는 시간이 눈에 띄게 늘어난다는
+   피드백으로 6으로 올림 — 사진 대부분이 압축돼 청크 1개(문서 1개)짜리라 요청
+   자체는 가벼워서, 6 정도는 메인 스레드를 막을 정도의 부담 없이 대기줄만 줄여줌 */
+const CHUNK_LOAD_CONCURRENCY = 6;
 let activeChunkLoads = 0;
 const chunkLoadQueue = [];
 function runChunkLoad(fileId, chunkTotal, priority){
