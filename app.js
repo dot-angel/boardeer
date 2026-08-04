@@ -503,7 +503,7 @@ function openImageLightbox(cfg){
           ${isStack ? `<div class="lightbox-carousel-side side-prev">${prevMore>0?moreCellHtml:''}${prevSideHtml}</div>` : ''}
           <div class="lightbox-imgwrap" id="lbImgWrap">
             ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
-            ${isStack ? `<div class="lightbox-group-count">묶음 ${item.__groupPos+1}/${item.__groupLen}</div>` : ''}
+            ${isStack ? `<div class="lightbox-group-count"> ${item.__groupPos+1}/${item.__groupLen}</div>` : ''}
             ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
           </div>
           ${isStack ? `<div class="lightbox-carousel-side side-next">${nextSideHtml}${nextMore>0?moreCellHtml:''}</div>` : ''}
