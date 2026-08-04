@@ -751,6 +751,9 @@ function openGalleryLightboxCore(clickedSrcIdx, { getItems, normalize, save, get
 function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts = {}){
   if(!editMode) return;
   const pointerLine = !!opts.pointerLine;
+  // axis 'x': 사진 그리드처럼 칸이 가로로 늘어서 있어 왼쪽/오른쪽을 나눠 세로선을 그림.
+  // axis 'y': 음악 재생목록처럼 항목이 세로로 쌓여 있어 위/아래를 나눠 가로선을 그림
+  const axis = opts.axis || 'x';
   let dragIdx = null;
   // 핀터레스트식 매스너리 그리드는 실제 타일이 container의 직계 자식이 아니라 안쪽
   // .pin-grid(타일들의 좌표 기준이 되는 position:relative 요소)의 자식일 수 있음
@@ -759,9 +762,9 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
   const posRoot = pointerLine
     ? (container.classList.contains('pin-grid') ? container : (container.querySelector(':scope > .pin-grid') || container))
     : null;
-  // 갤러리2/레퍼런스 갤러리는 (매스너리처럼 절대좌표가 아니라) 그냥 flex 열로 짜여 있어서
-  // 기준 요소에 position이 안 걸려있을 수 있음 — 표시선이 엉뚱한 조상 기준으로
-  // 어긋나 그려지지 않도록, 정적(static)이면 여기서 relative로 만들어줌
+  // 갤러리2/레퍼런스 갤러리, 음악 재생목록은 (매스너리처럼 절대좌표가 아니라) 그냥
+  // flex로 짜여 있어서 기준 요소에 position이 안 걸려있을 수 있음 — 표시선이
+  // 엉뚱한 조상 기준으로 어긋나 그려지지 않도록, 정적(static)이면 여기서 relative로 만들어줌
   if(posRoot && getComputedStyle(posRoot).position === 'static'){
     posRoot.style.position = 'relative';
   }
@@ -775,18 +778,32 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
     }
   }
   const hideDropLine = ()=>{ if(dropLine) dropLine.style.opacity = '0'; };
-  // el(지금 커서가 올라간 타일) 기준으로, before(왼쪽 절반=이 사진 앞)면 그 타일의
-  // 왼쪽 틈 한가운데에, 아니면 오른쪽 틈 한가운데에 타일 높이만큼 세로선을 그려줌
+  // el(지금 커서가 올라간 항목) 기준으로, before(=이 항목의 앞자리)면 그 항목의 앞쪽
+  // 틈 한가운데에, 아니면 뒤쪽 틈 한가운데에 항목 크기만큼 선을 그려줌(가로 배치면
+  // 세로선, 세로 배치면 가로선)
   const showDropLineAt = (el, before)=>{
     const cRect = posRoot.getBoundingClientRect();
     const tRect = el.getBoundingClientRect();
-    // 그리드마다 칸 사이 간격이 달라서(매스너리 12px, 갤러리2/레퍼런스는 flex gap 6px 등)
-    // 하드코딩하지 않고 실제 CSS gap 값을 읽어서 그 간격 한가운데에 선이 오게 함
-    const gapVal = parseFloat(getComputedStyle(posRoot).columnGap) || parseFloat(getComputedStyle(posRoot).gap) || PIN_MASONRY_GAP;
-    const centerX = before ? (tRect.left - cRect.left - gapVal/2) : (tRect.right - cRect.left + gapVal/2);
-    dropLine.style.left = (centerX - 1.5) + 'px';
-    dropLine.style.top = (tRect.top - cRect.top) + 'px';
-    dropLine.style.height = tRect.height + 'px';
+    // 그리드/목록마다 칸 사이 간격이 달라서(매스너리 12px, 갤러리2/레퍼런스 6px,
+    // 재생목록 2px 등) 하드코딩하지 않고 실제 CSS gap 값을 읽어서 그 간격
+    // 한가운데에 선이 오게 함
+    const gapVal = parseFloat(getComputedStyle(posRoot).rowGap)
+      || parseFloat(getComputedStyle(posRoot).columnGap)
+      || parseFloat(getComputedStyle(posRoot).gap)
+      || PIN_MASONRY_GAP;
+    if(axis === 'y'){
+      const centerY = before ? (tRect.top - cRect.top - gapVal/2) : (tRect.bottom - cRect.top + gapVal/2);
+      dropLine.style.left = (tRect.left - cRect.left) + 'px';
+      dropLine.style.width = tRect.width + 'px';
+      dropLine.style.height = '3px';
+      dropLine.style.top = (centerY - 1.5) + 'px';
+    } else {
+      const centerX = before ? (tRect.left - cRect.left - gapVal/2) : (tRect.right - cRect.left + gapVal/2);
+      dropLine.style.top = (tRect.top - cRect.top) + 'px';
+      dropLine.style.height = tRect.height + 'px';
+      dropLine.style.width = '3px';
+      dropLine.style.left = (centerX - 1.5) + 'px';
+    }
     dropLine.style.opacity = '1';
   };
   container.querySelectorAll(tileSelector).forEach(el=>{
@@ -810,7 +827,9 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
       e.dataTransfer.dropEffect = 'move';
       if(pointerLine){
         const rect = el.getBoundingClientRect();
-        const before = (e.clientX - rect.left) < rect.width / 2;
+        const before = axis === 'y'
+          ? (e.clientY - rect.top) < rect.height / 2
+          : (e.clientX - rect.left) < rect.width / 2;
         el.dataset.dropBefore = before ? '1' : '0';
         showDropLineAt(el, before);
       } else {
@@ -3188,7 +3207,8 @@ function renderMusicList(){
   bindPinDragReorder(
     listEl, '.mp-track-row',
     ()=> (musicData.tracks || []).slice(),
-    async (arr)=> docRef('music').set({tracks:arr}, {merge:true})
+    async (arr)=> docRef('music').set({tracks:arr}, {merge:true}),
+    { pointerLine: true, axis: 'y' }
   );
 }
 
