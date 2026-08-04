@@ -1691,7 +1691,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal.modal-lightbox .lightbox-img{
   display:block; max-width:90vw; max-height:80vh; width:auto; height:auto;
   border-radius:16px; object-fit:contain; -webkit-user-select:none; user-select:none;
+  animation: lbFadeIn .18s ease;
 }
+@keyframes lbFadeIn{ from{ opacity:0; } to{ opacity:1; } }
 .lightbox-loading{
   min-width:240px; min-height:180px; display:flex; align-items:center; justify-content:center;
   color: var(--ink-soft); font-size:.85rem;
@@ -1742,7 +1744,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   position:relative; overflow:hidden; border-radius:16px; cursor:pointer;
   border:1px solid var(--card-border); background: var(--card-bg2);
   flex:0 0 auto; transition: opacity .15s ease;
+  animation: lbPeekIn .22s ease both;
 }
+@keyframes lbPeekIn{ from{ transform:scale(.82); } to{ transform:scale(1); } }
 .lightbox-carousel-peek img{
   position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;
   -webkit-user-select:none; user-select:none;

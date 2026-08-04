@@ -58,6 +58,33 @@ function openModal(innerHtml, onMount, extraClass){
 }
 function closeModal(){ modalRoot.innerHTML = ''; }
 
+/* FLIP(First-Last-Invert-Play) 방식의 간단한 자리바꿈 애니메이션. el은 이미 최종
+   위치/크기로 그려져 있는 상태 — 거기서 시작하는 대신, 우선 fromRect(트랜지션
+   전 다른 자리에 있던 사각형) 크기/위치로 보이도록 transform만 걸어뒀다가
+   (Invert), 강제 리플로우 후 그 transform을 없애며 트랜지션시킴(Play) — 그러면
+   fromRect 자리에 있던 게 자연스럽게 지금 자리로 자라나거나 줄어드는 것처럼 보임 */
+function flipAnimateElement(el, fromRect){
+  const toRect = el.getBoundingClientRect();
+  if(!toRect.width || !toRect.height) return;
+  const scaleX = fromRect.width / toRect.width;
+  const scaleY = fromRect.height / toRect.height;
+  const dx = (fromRect.left + fromRect.width/2) - (toRect.left + toRect.width/2);
+  const dy = (fromRect.top + fromRect.height/2) - (toRect.top + toRect.height/2);
+  el.style.animation = 'none'; // 기본으로 걸려있는 등장 애니메이션과 겹치지 않게 끔
+  el.style.transition = 'none';
+  el.style.transformOrigin = 'center center';
+  el.style.transform = `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY})`;
+  el.getBoundingClientRect(); // 강제 리플로우: 위 transform이 트랜지션 없이 먼저 반영되게 함
+  requestAnimationFrame(()=>{
+    el.style.transition = 'transform .32s cubic-bezier(.22,.68,.32,1)';
+    el.style.transform = '';
+    el.addEventListener('transitionend', function done(){
+      el.style.transition = ''; el.style.transformOrigin = '';
+      el.removeEventListener('transitionend', done);
+    });
+  });
+}
+
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -391,6 +418,38 @@ function openImageLightbox(cfg){
   let index = cfg.index || 0;
   let opened = false; // 첫 렌더는 항상 진행하고, 그 다음부터는 모달이 실제로 열려있을 때만 다시 그림
 
+  /* 묶음(모아올리기) 안에서 옆으로 이동할 때는, 다시 그리기 전/후의 DOM에서
+     "지금 큰 사진이 어디 있었는지"와 "다음에 큰 사진이 될 조각이 어디 있었는지"를
+     각각 좌표로 기록해뒀다가, 다시 그린 뒤 그 좌표를 시작점 삼아 원래 크기로
+     트랜지션시킴(FLIP 기법) — 그러면 눌렀던 옆 조각이 실제로 넓어지면서 가운데로
+     들어오고, 있던 사진은 옆으로 줄어들며 빠지는 것처럼 자연스럽게 보임 */
+  function goToIndex(newIndex){
+    if(items.length === 0) return;
+    const norm = ((newIndex % items.length) + items.length) % items.length;
+    if(norm === index) return;
+    const oldIndex = index;
+    const oldItem = items[oldIndex];
+    const newItem = items[norm];
+    const sameGroup = !!(oldItem && newItem && oldItem.__srcIdx === newItem.__srcIdx && oldItem.__groupLen > 1 && newItem.__groupLen > 1);
+    const modalElBefore = modalRoot.querySelector('.modal-lightbox');
+    let beforeMainRect = null, beforeTargetRect = null;
+    if(sameGroup && modalElBefore){
+      const beforeMain = modalElBefore.querySelector('#lbImgWrap .lightbox-img, #lbImgWrap .lightbox-loading');
+      const beforeTarget = modalElBefore.querySelector(`[data-jump-idx="${norm}"]`);
+      if(beforeMain) beforeMainRect = beforeMain.getBoundingClientRect();
+      if(beforeTarget) beforeTargetRect = beforeTarget.getBoundingClientRect();
+    }
+    index = norm;
+    render();
+    if(!sameGroup || !beforeMainRect || !beforeTargetRect || !beforeMainRect.width || !beforeTargetRect.width) return;
+    const modalElAfter = modalRoot.querySelector('.modal-lightbox');
+    if(!modalElAfter) return;
+    const afterMain = modalElAfter.querySelector('#lbImgWrap .lightbox-img, #lbImgWrap .lightbox-loading');
+    const afterPeek = modalElAfter.querySelector(`[data-jump-idx="${oldIndex}"]`);
+    if(afterMain) flipAnimateElement(afterMain, beforeTargetRect);
+    if(afterPeek) flipAnimateElement(afterPeek, beforeMainRect);
+  }
+
   function render(){
     // 사진이 늦게 로딩 완료돼서 onReady가 불릴 때, 그 사이에 사용자가 이미 라이트박스를
     // 닫아버렸다면 다시 열어버리지 않도록 함 (닫은 뒤 갑자기 다시 뜨는 현상 방지)
@@ -475,11 +534,11 @@ function openImageLightbox(cfg){
       if(cfg.onUngroup){ const ub = m.querySelector('#ungroupBtn'); if(ub) ub.onclick = ()=> cfg.onUngroup(index); }
       const prevZone = m.querySelector('#lbPrev');
       const nextZone = m.querySelector('#lbNext');
-      if(prevZone) prevZone.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
-      if(nextZone) nextZone.onclick = ()=>{ index = (index + 1) % items.length; render(); };
+      if(prevZone) prevZone.onclick = ()=> goToIndex(index - 1);
+      if(nextZone) nextZone.onclick = ()=> goToIndex(index + 1);
       // 좌우로 살짝 보이는 이웃 사진(캐러셀 조각)을 눌러도 바로 그 사진으로 넘어감
       m.querySelectorAll('[data-jump-idx]').forEach(el=>{
-        el.onclick = ()=>{ index = Number(el.dataset.jumpIdx); render(); };
+        el.onclick = ()=> goToIndex(Number(el.dataset.jumpIdx));
       });
 
       // 모바일 스와이프: 이미지 영역을 좌우로 밀면 이전/다음 사진으로 이동
@@ -501,8 +560,7 @@ function openImageLightbox(cfg){
           // 가로로 충분히(40px 이상) 움직였고, 세로 움직임보다 뚜렷하게 가로 움직임이 클 때만 스와이프로 인식
           if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
             e.preventDefault(); // 스와이프 뒤에 이어지는 합성 클릭이 새로 그려진 화면을 또 눌러버리는 것 방지
-            index = dx > 0 ? (index - 1 + items.length) % items.length : (index + 1) % items.length;
-            render();
+            goToIndex(dx > 0 ? index - 1 : index + 1);
           }
         });
       }
@@ -513,8 +571,8 @@ function openImageLightbox(cfg){
 
   const onKey = (e)=>{
     if(!modalRoot.querySelector('.modal-lightbox')) return;
-    if(e.key === 'ArrowLeft' && items.length > 1){ index = (index - 1 + items.length) % items.length; render(); }
-    else if(e.key === 'ArrowRight' && items.length > 1){ index = (index + 1) % items.length; render(); }
+    if(e.key === 'ArrowLeft' && items.length > 1){ goToIndex(index - 1); }
+    else if(e.key === 'ArrowRight' && items.length > 1){ goToIndex(index + 1); }
     else if(e.key === 'Escape'){ closeModal(); }
   };
   document.addEventListener('keydown', onKey);
