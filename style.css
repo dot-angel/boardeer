@@ -246,7 +246,7 @@ body::before{
    세션 0.7fr, 문서/체크리스트 1.4fr, 캘린더 0.5fr (0.7+0.5 = 기존 1.2fr과 동일) */
 .row-2{ grid-template-columns: 0.7fr 1.4fr 0.5fr; }
 .row-2 > .w-card, .row-2 > .row-2-right{ min-width:0; min-height:0; }
-.row-2-right{ display:grid; grid-template-rows: 1fr 1fr; gap:20px; min-width:0; }
+.row-2-right{ display:grid; grid-template-rows: auto auto; gap:20px; min-width:0; }
 .row-2-right > .w-card{ min-height:0; }
 /* 두번째 갤러리 + 레퍼런스 갤러리 + 영상목록: 한 행에 나란히. 평소엔 영상목록이
    좁은 세로 줄로 옆에 붙어있다가, 영상을 재생하면(#refpairRow.video-open) 그
@@ -1067,12 +1067,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   font-size:9px; color: var(--sage);
 }
 .cal-head{ display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
-/* 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이도록 JS(renderCalendar)에서
-   .cal-clip에 height를, .cal-grid에 marginTop을 직접 지정함. 여기서는 넘치는 부분을
-   잘라내고(overflow:hidden) 잘린 경계가 자연스럽게 흐려지도록 마스크만 지정. */
 .cal-clip{ overflow:hidden; }
-.cal-month-prev .cal-clip{ mask-image: linear-gradient(to bottom, transparent, black 45%); -webkit-mask-image: linear-gradient(to bottom, transparent, black 45%); }
-.cal-month-next .cal-clip{ mask-image: linear-gradient(to bottom, black 55%, transparent); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent); }
 .cal-nav{ display:flex; justify-content:center; }
 .cal-nav-prev{ margin-bottom:6px; }
 .cal-nav-next{ margin-top:6px; }
@@ -1173,16 +1168,17 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   background: var(--card-bg2); color: var(--ink-soft); font-size:.72rem; text-align:center; padding:8px;
 }
 .pin-item.pin-loading{ min-height:150px; }
-/* 그룹 지정(선택 모드) — 선택된 타일은 테두리로 강조하고, 우상단에 체크 배지를 보여줌.
-   선택 모드 중엔 삭제/블러/옵션 같은 개별 버튼 대신 이 배지 하나만 뜸 */
-.pin-select-badge{
-  position:absolute; top:6px; right:6px; z-index:2; width:22px; height:22px; border-radius:50%;
-  background: rgba(15,4,6,0.55); border:1.5px solid rgba(255,255,255,0.55);
-  display:flex; align-items:center; justify-content:center; font-size:.72rem; color:#fff; font-weight:700;
+/* 여러 장을 하나로 묶어 올린 카드는 대표(첫 장) 사진만 썸네일로 보이므로,
+   왼쪽 아래에 작은 배지로 "총 몇 장"인지 알려줌 — 세 갤러리 모두 이 자리는
+   다른 버튼(삭제/블러/옵션)이 안 쓰는 빈 자리라 겹치지 않음 */
+.pin-group-badge{
+  position:absolute; left:8px; bottom:8px; z-index:2;
+  background: rgba(15,4,6,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  border:1px solid var(--card-border); color:#fff; font-size:.68rem; font-weight:700;
+  padding:2px 8px; border-radius:999px; display:flex; align-items:center; gap:3px;
   pointer-events:none;
 }
-.pin-item.selected, .pin-item-dense.selected{ outline:3px solid var(--rose); outline-offset:-3px; }
-.pin-item.selected .pin-select-badge, .pin-item-dense.selected .pin-select-badge{ background: var(--rose-solid); border-color: var(--rose-solid); }
+.pin-item-dense .pin-group-badge{ left:4px; bottom:4px; font-size:.6rem; padding:1px 6px; }
 /* 열 개수는 이제 app.js의 layoutPinMasonry()가 그리드 실제 폭을 보고 정하므로
    여기서 별도 반응형 규칙이 필요 없음(창 폭이 아니라 그리드 자체 폭 기준이라 더 정확함) */
 @media (max-width: 600px){ .doc-list{ grid-template-columns: 1fr; } }
@@ -1309,17 +1305,15 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .w-video .w-edit-row button{ width:100%; white-space:normal; line-height:1.3; }
 /* ---------- 문서 정리 (갤러리와 세션카드 사이) ---------- */
 /* checklist(.checklist{ max-height:420px })와 같은 높이 상한을 줌 — 이게 없으면
-   문서가 많을 때 카드가 내용 길이만큼 한없이 늘어나고(모바일은 이미 별도로
-   막아뒀었지만 PC는 안 막혀 있었음), row-2-right가 이 늘어난 높이를 기준으로
-   같이 늘어나 버려서 행 전체가 무한정 길어짐. 체크리스트와 "같은 면적"으로
-   맞추려면 애초에 둘 다 자체적으로 높이가 정해져 있어야 함 */
+   문서가 많을 때 카드가 내용 길이만큼 한없이 늘어나고, row-2-right가 이 늘어난
+   높이를 기준으로 같이 늘어나 버려서 행 전체가 무한정 길어짐. 체크리스트와
+   "같은 면적"으로 맞추려면 애초에 둘 다 자체적으로 높이가 정해져 있어야 함 */
 .doc-list{ flex:1; min-height:0; min-width:0; max-height:420px; display:grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); align-content:start; gap:8px; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 /* PC 환경에서는 문서 위젯을 2열이 아니라 3열로 고정 표시 */
 @media (min-width: 901px){
   .doc-list{ grid-template-columns: repeat(3, 1fr); }
 }
-/* 모바일에서는 문서 위젯이 들어있는 그리드(.row-2-right 등)의 행 높이가 auto라서
-   카드 자체가 내용 길이만큼 계속 늘어나 버림 → 카드 안에서 스크롤되도록 높이 상한을 둠 */
+/* 모바일에서는 카드 안 여백이 더 좁아서 데스크톱보다 살짝 낮은 상한을 씀 */
 @media (max-width: 900px){
   .doc-list{ max-height: 320px; }
 }
@@ -1394,6 +1388,16 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 #refGalleryFilterChips .tag-chip{ padding:4px 11px; font-size:.68rem; flex:0 0 auto; }
 #refGalleryFilterChips.tag-filter::-webkit-scrollbar{ height:4px; }
 #refGalleryFilterChips.tag-filter::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+/* 문서 위젯 필터 칩도 옵션(태그) 종류가 많아지면 줄바꿈되면서 세로 공간을 계속
+   차지해 카드가 늘어나는 원인이 될 수 있어서, 레퍼런스 갤러리와 같은 방식으로
+   한 줄만 두고 옆으로 스크롤하게 함 */
+#docFilter.tag-filter{
+  flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+  padding-bottom:4px;
+}
+#docFilter .tag-chip{ flex:0 0 auto; }
+#docFilter.tag-filter::-webkit-scrollbar{ height:4px; }
+#docFilter.tag-filter::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
 .pin-toolbar{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .pin-toolbar .tag-filter{ flex:1; margin-bottom:10px; }
 .pin-opt-btn{
@@ -1432,13 +1436,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 .session-add{ margin-top:10px; align-self:flex-start; }
 /* ---------- 체크보드 ---------- */
-.checklist{ max-height:420px; overflow-y:auto; display:flex; flex-direction:row; align-items:stretch; gap:0; }
-.check-col{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding:0 10px; }
-.check-col:first-child{ padding-left:0; }
-.check-col:last-child{ padding-right:0; }
-.check-col-full{ flex:1; padding:0; }
+/* 미완료/완료를 좌우로 나눠 담던 두 칸(.check-col) 대신, 하나의 2열 그리드로
+   합쳐서 순서대로 흘려보냄(app.js: 미완료 먼저, 완료는 배열 끝으로 몰아둠).
+   그리드는 왼쪽→오른쪽, 위→아래 순으로 채워지므로 완료 항목들이 자연히
+   그리드의 마지막 줄(맨 아래)에 깔리게 됨 */
+.checklist{ max-height:420px; overflow-y:auto; overflow-x:hidden; display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-auto-flow:row; align-content:start; gap:2px 14px; }
 .check-item{
-  display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem;
+  display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem; min-width:0;
 }
 .check-item:hover{ background: rgba(255,255,255,0.07); }
 .check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
@@ -1459,14 +1463,11 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .check-item .del:hover{ color:#ff8f9e; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
-/* 폭이 좁은 폰에서는 할 일/완료를 좌우로 나누면 각 칸이 너무 좁아져서 글자가
-   답답하게 접힘. 이 폭에서는 위/아래로 쌓고, 구분선도 세로→가로로 되돌림 */
+/* 폭이 좁은 폰에서는 2열로 나누면 각 칸이 너무 좁아져서 글자가 답답하게 접힘.
+   이 폭에서는 1열로 위/아래로 쌓음 */
 @media (max-width: 520px){
-  .checklist{ flex-direction:column; }
-  .check-col{ padding:0; }
-  .check-divider{ width:auto; height:1px; align-self:stretch; margin:6px 0; }
+  .checklist{ grid-template-columns: minmax(0,1fr); }
 }
-.check-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; margin:0 2px; }
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
