@@ -603,6 +603,24 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 /* ---------- 프로필 위젯 (두 사람 프로필, 슬라이드로 여러 장(예: 본편/AU) 전환, AU별 시점/IF 세분화) ---------- */
 .w-profile{ align-items:stretch; }
+@media (min-width: 901px){
+  /* 사진(.profile-avatar)은 위젯 폭을 꽉 채우게 두고(사진 크기 자체는 원인이 아님),
+     그 대신 row-strip이 align-items:stretch라서 이 위젯이 커지면 음악/방명록
+     위젯까지 같이 늘어나 버리던 문제를 막기 위해, 프로필 위젯만 그 stretch에서
+     빠져나와(align-self:start) 높이를 못박음. max-height가 아니라 height로
+     고정해서 내용이 적을 때도(하한) 많을 때도(상한) 항상 같은 크기를 유지함 —
+     시점/IF를 넘나들거나 사진 유무가 달라져도 위젯 크기 자체는 절대 안 바뀜.
+     값(820px)은 사진이 꽉 찬 상태 기준으로 잘리지 않을 정도로 넉넉하게 잡음.
+     해시태그 아래 항목(.profile-fields-scroll, 위에서 170px로 캡)이 넘치면 그
+     구역에서 먼저 스크롤되고, 그래도 못 담을 만큼 극단적인 경우(초광폭 화면이라
+     사진이 엄청 커지는 등)에만 profile-viewport 전체가 스크롤되는 안전장치로
+     동작함. 간략보기(.profile-compact)는 이 크기 고정과 무관하게 항상 원래
+     크기 그대로 보임.
+     모바일(900px 이하)은 카드가 grid-area로 각자 한 행을 차지해서 stretch
+     문제 자체가 없고, "자세히 보기"로 펼쳤을 때 내용이 잘리면 안 되므로
+     이 규칙을 적용하지 않음 */
+  .w-profile{ align-self:start; height:820px; }
+}
 @media (max-width: 900px){
   /* 카드 기본 패딩(18px)이 모바일에서 좁은 폭을 더 잡아먹으므로 프로필 카드만 줄임 */
   .w-profile{ padding:10px; }
@@ -972,15 +990,6 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 body:not(.edit-mode) .w-profile .profile-viewport{
   justify-content:flex-start;
 }
-/* 위젯 전체 높이도 (한마디가 유독 길어지는 등) 항목 개수/길이와 무관하게 항상
-   똑같이 고정되도록 상한을 둠. 대부분의 경우 아래 .profile-fields-scroll이
-   170px 안에서 먼저 스크롤을 흡수하지만, 그 위쪽(사진·한마디·이름·소개)까지
-   합쳐 이 상한을 넘는 드문 경우엔 profile-viewport에 이미 있는
-   overflow-y:auto가 안전하게 전체를 스크롤 처리함. 편집모드에선 profile-fields-scroll과
-   같은 이유로(전체 내용을 보며 고쳐야 하니) 제한을 풀어둠 */
-body:not(.edit-mode) .w-profile .profile-viewport{
-  max-height: 460px;
-}
 /* 나이/생년월일, 키몸무게/BWH, 성격, 기타설명 등(app.js fieldsHtml)은 값이 없어도
    항상 렌더링되게 바꿔서, 사람/시점마다 이 줄이 있었다 없었다 하며 그 아래
    커스텀 항목들 위치가 들쭉날쭉해지지 않고 표처럼 고정된 자리를 갖게 함.
@@ -994,7 +1003,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 @media (max-width:900px){
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-viewport{
     justify-content:center;
-    max-height:none;
   }
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-field-empty{
     display:none;
@@ -1189,6 +1197,36 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   pointer-events:none;
 }
 .pin-item-dense .pin-group-badge{ left:4px; bottom:4px; font-size:.6rem; padding:1px 6px; }
+/* 기존에 낱장으로 올라와 있던 사진들을 나중에 골라 하나의 묶음으로 합치는
+   "사진 묶기" 선택 모드. 선택 모드인 동안엔 타일을 눌러도 라이트박스가 열리는
+   대신 체크 표시가 토글되고, 삭제/블러/옵션 버튼은 헷갈리지 않도록 숨겨둠
+   (JS에서 editMode && !picking일 때만 그 버튼들을 그림) */
+.pin-item-picking{ cursor:pointer; }
+.pin-item-picking img{ transition: opacity .15s ease; }
+.pin-pick-check{
+  position:absolute; top:8px; right:8px; z-index:2;
+  width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,0.85);
+  background: rgba(15,4,6,0.35); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  pointer-events:none; transition: background .15s ease, border-color .15s ease;
+}
+.pin-item-dense .pin-pick-check{ width:18px; height:18px; top:4px; right:4px; border-width:2px; }
+.pin-pick-check.picked{
+  background: var(--rose-solid); border-color: var(--rose-solid);
+}
+.pin-pick-check.picked::after{
+  content:'✓'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:.72rem; font-weight:700;
+}
+.pin-item-dense .pin-pick-check.picked::after{ font-size:.6rem; }
+.pin-item-picking:not(:has(.pin-pick-check.picked)) img{ opacity:.92; }
+/* 선택 개수/확정·취소 버튼을 보여주는 바 — 툴바 바로 아래, 그리드 위에 얹힘 */
+.gallery-pick-bar{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:8px 10px; margin-bottom:10px; border-radius:12px;
+  background: rgba(196,66,95,0.12); border:1px solid rgba(196,66,95,0.35);
+  font-size:.78rem; color: var(--ink);
+}
+.gallery-pick-bar span{ flex:1; min-width:0; font-weight:600; }
 /* 열 개수는 이제 app.js의 layoutPinMasonry()가 그리드 실제 폭을 보고 정하므로
    여기서 별도 반응형 규칙이 필요 없음(창 폭이 아니라 그리드 자체 폭 기준이라 더 정확함) */
 @media (max-width: 600px){ .doc-list{ grid-template-columns: 1fr; } }
@@ -1604,6 +1642,30 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#fff;
   font-size:.72rem; padding:3px 10px; border-radius:999px;
 }
+/* 모아올리기(묶음) 라이트박스 전용: 낱장을 하나씩 넘겨보는 일반 라이트박스와 달리
+   "여러 장이 겹쳐진 뭉치를 넘겨본다"는 느낌을 주기 위해, 지금 보는 사진 뒤로
+   남은 장수만큼(최대 3장) 모서리가 살짝 어긋난 카드를 겹쳐 그림. 사진을 넘길
+   때마다(openGalleryGroupLightbox → openImageLightbox의 stack 옵션) 남은 장수가
+   줄어드는 만큼 뒤에 삐져나온 카드 수도 함께 줄어들어서, 실제 종이 뭉치를 한 장씩
+   넘기는 것처럼 보임(마지막 장에선 아예 안 보임) */
+.lightbox-imgwrap.is-stack .lightbox-img,
+.lightbox-imgwrap.is-stack .lightbox-loading{ position:relative; z-index:3; }
+.lightbox-stack-peek{
+  display:none; position:absolute; inset:0; border-radius:16px;
+  background: var(--card-bg2); border:1px solid var(--card-border);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.3); pointer-events:none;
+}
+.lightbox-imgwrap.is-stack[data-remaining="1"] .lightbox-stack-peek.l1,
+.lightbox-imgwrap.is-stack[data-remaining="2"] .lightbox-stack-peek.l1,
+.lightbox-imgwrap.is-stack[data-remaining="2"] .lightbox-stack-peek.l2,
+.lightbox-imgwrap.is-stack[data-remaining="3"] .lightbox-stack-peek.l1,
+.lightbox-imgwrap.is-stack[data-remaining="3"] .lightbox-stack-peek.l2,
+.lightbox-imgwrap.is-stack[data-remaining="3"] .lightbox-stack-peek.l3{
+  display:block;
+}
+.lightbox-stack-peek.l1{ transform: translate(7px,-7px) rotate(2.5deg); z-index:2; }
+.lightbox-stack-peek.l2{ transform: translate(13px,-13px) rotate(-3.5deg); z-index:1; opacity:.85; }
+.lightbox-stack-peek.l3{ transform: translate(18px,-18px) rotate(4.5deg); z-index:0; opacity:.7; }
 .lightbox-meta{ margin-top:12px; padding:0 4px; }
 .lightbox-meta-title{ font-family: var(--font-display); font-size:1rem; color: var(--ink); font-weight:600; }
 .lightbox-meta-desc{ font-size:.82rem; color: var(--ink-soft); margin-top:4px; white-space:pre-wrap; line-height:1.5; }
