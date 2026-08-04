@@ -405,22 +405,22 @@ function openImageLightbox(cfg){
     const metaInfo = cfg.meta ? cfg.meta(item) : null;
     const tagInfo = cfg.tag ? cfg.tag(item) : null;
     const showNav = items.length > 1;
-    // 묶음(모아올리기) 사진일 때만, 지금 사진 뒤로 "같은 묶음 안에" 남은 장수만큼
-    // (최대 3장) 모서리가 어긋난 카드를 겹쳐 그려서 "겹쳐진 사진 뭉치"라는 걸
-    // 시각적으로 보여줌. 묶음 여부/장수는 항목마다(item.__groupLen) 다르므로
-    // cfg 전체가 아니라 "지금 보고 있는 사진" 기준으로 매번 다시 판단함 —
-    // 그래야 묶음 사진 앞뒤로 묶이지 않은 다른 사진도 같은 라이트박스 안에서
-    // 자연스럽게 이어서 넘겨볼 수 있음(묶음 안에서만 갇혀 보이지 않게)
+    // 묶음(모아올리기) 사진일 때만, 지금 사진 뒤로 "같은 묶음 안에" 남은 사진들을
+    // (최대 3장) 장식용 빈 도형이 아니라 실제 그 사진 그대로 모서리를 살짝 어긋나게
+    // 겹쳐 그려서 "겹쳐진 사진 뭉치"라는 걸 시각적으로 보여줌. 지금 넘겨보고 있는
+    // 위치(item.__groupPos) 다음 순서의 사진들을 flat 배열(items)에서 그대로
+    // 찾아와 resolve하므로, 사진을 넘길 때마다 실제 다음 사진들로 다시 계산됨
     const isStack = !!(item.__groupLen && item.__groupLen > 1);
-    const stackRemaining = isStack ? Math.min(3, item.__groupLen - 1 - item.__groupPos) : 0;
-    const stackPeekHtml = isStack ? `
-      <div class="lightbox-stack-peek l3"></div>
-      <div class="lightbox-stack-peek l2"></div>
-      <div class="lightbox-stack-peek l1"></div>
-    ` : '';
+    const peekItems = isStack
+      ? items.filter(it2=> it2.__srcIdx === item.__srcIdx && it2.__groupPos > item.__groupPos).slice(0,3)
+      : [];
+    const stackPeekHtml = peekItems.map((peekIt, i)=>{
+      const peekUrl = cfg.resolve(peekIt, render);
+      return `<div class="lightbox-stack-peek l${i+1}">${peekUrl ? `<img src="${escapeHtml(peekUrl)}">` : ''}</div>`;
+    }).join('');
     openModal(`
       <div class="lightbox-body">
-        <div class="lightbox-imgwrap ${isStack ? 'is-stack' : ''}" id="lbImgWrap" ${isStack ? `data-remaining="${stackRemaining}"` : ''}>
+        <div class="lightbox-imgwrap ${isStack ? 'is-stack' : ''}" id="lbImgWrap">
           ${stackPeekHtml}
           ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
           ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
@@ -442,7 +442,7 @@ function openImageLightbox(cfg){
       </div>
     `, m=>{
       m.querySelector('#c').onclick = closeModal;
-      if(url) attachImgFallback(m.querySelector('img'));
+      if(url) attachImgFallback(m.querySelector('.lightbox-img'));
       if(cfg.onDelete) m.querySelector('#del').onclick = async ()=>{
         await cfg.onDelete(index);
         items.splice(index,1);

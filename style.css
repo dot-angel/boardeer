@@ -1258,25 +1258,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   pointer-events:none;
 }
 .pin-item-dense .pin-group-badge{ left:4px; bottom:4px; font-size:.6rem; padding:1px 6px; }
-/* 여러 장을 하나로 묶은 카드는 대표 사진 한 장만 보여서 자칫 낱장처럼 보일 수 있어서,
-   레퍼런스 자료 보낼 때처럼 뒤에 사진 몇 장이 더 겹쳐 있는 실루엣을 얹어 "여러 장"이란
-   티가 나게 함. .pin-item/.pin-item-dense는 둥근 모서리 때문에 overflow:hidden이 걸려
-   있어서 box-shadow는 그 밖으로 못 나가고 잘려버리므로, 대신 요소 자체의 overflow와
-   무관하게 밖으로 그려지는 filter:drop-shadow를 씀. drop-shadow는 여러 개를 이어 쓰면
-   앞 결과물(원본+앞선 그림자) 전체를 다시 offset해서 그림자를 얹는 식이라, 매번 같은
-   간격만큼 누적 이동한 사진 두 장이 뒤로 계단식으로 비껴 겹쳐 보이는 스택 효과가 남 */
-.pin-item-group{
-  filter:
-    drop-shadow(5px 6px 0 #efe6e8)
-    drop-shadow(5px 6px 0 #d3c8cc)
-    drop-shadow(0 3px 6px rgba(0,0,0,0.35));
-}
-.pin-item-dense.pin-item-group{
-  filter:
-    drop-shadow(3px 4px 0 #efe6e8)
-    drop-shadow(3px 4px 0 #d3c8cc)
-    drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-}
 /* 기존에 낱장으로 올라와 있던 사진들을 나중에 골라 하나의 묶음으로 합치는
    "사진 묶기" 선택 모드. 선택 모드인 동안엔 타일을 눌러도 라이트박스가 열리는
    대신 체크 표시가 토글되고, 삭제/블러/옵션 버튼은 헷갈리지 않도록 숨겨둠
@@ -1721,25 +1702,20 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   font-size:.72rem; padding:3px 10px; border-radius:999px;
 }
 /* 모아올리기(묶음) 라이트박스 전용: 낱장을 하나씩 넘겨보는 일반 라이트박스와 달리
-   "여러 장이 겹쳐진 뭉치를 넘겨본다"는 느낌을 주기 위해, 지금 보는 사진 뒤로
-   남은 장수만큼(최대 3장) 모서리가 살짝 어긋난 카드를 겹쳐 그림. 사진을 넘길
-   때마다(openGalleryGroupLightbox → openImageLightbox의 stack 옵션) 남은 장수가
-   줄어드는 만큼 뒤에 삐져나온 카드 수도 함께 줄어들어서, 실제 종이 뭉치를 한 장씩
-   넘기는 것처럼 보임(마지막 장에선 아예 안 보임) */
+   "여러 장이 겹쳐진 뭉치를 넘겨본다"는 느낌을 주기 위해, 지금 보는 사진 뒤로 같은
+   묶음의 다음 사진들(최대 3장)을 실제 그 사진 그대로 살짝 어긋나게 겹쳐 그림(장식용
+   빈 도형이 아니라 진짜 그 안에 있는 사진들). 넘길 때마다(openImageLightbox의 render)
+   다음 사진들로 다시 계산되므로, 실제 종이 뭉치를 한 장씩 넘기는 것처럼 보임(마지막
+   장에선 안 보임). 필요한 장수만큼만 DOM에 생기므로 별도의 표시/숨김 처리가 필요 없음 */
 .lightbox-imgwrap.is-stack .lightbox-img,
 .lightbox-imgwrap.is-stack .lightbox-loading{ position:relative; z-index:3; }
 .lightbox-stack-peek{
-  display:none; position:absolute; inset:0; border-radius:16px;
+  position:absolute; inset:0; border-radius:16px; overflow:hidden;
   background: var(--card-bg2); border:1px solid var(--card-border);
   box-shadow: 0 6px 16px rgba(0,0,0,0.3); pointer-events:none;
 }
-.lightbox-imgwrap.is-stack[data-remaining="1"] .lightbox-stack-peek.l1,
-.lightbox-imgwrap.is-stack[data-remaining="2"] .lightbox-stack-peek.l1,
-.lightbox-imgwrap.is-stack[data-remaining="2"] .lightbox-stack-peek.l2,
-.lightbox-imgwrap.is-stack[data-remaining="3"] .lightbox-stack-peek.l1,
-.lightbox-imgwrap.is-stack[data-remaining="3"] .lightbox-stack-peek.l2,
-.lightbox-imgwrap.is-stack[data-remaining="3"] .lightbox-stack-peek.l3{
-  display:block;
+.lightbox-stack-peek img{
+  width:100%; height:100%; object-fit:cover; display:block; -webkit-user-select:none; user-select:none;
 }
 .lightbox-stack-peek.l1{ transform: translate(7px,-7px) rotate(2.5deg); z-index:2; }
 .lightbox-stack-peek.l2{ transform: translate(13px,-13px) rotate(-3.5deg); z-index:1; opacity:.85; }
