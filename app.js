@@ -496,7 +496,7 @@ function openImageLightbox(cfg){
     const prevSideHtml = prevPeek.map((entry,i)=> peekCellHtml(entry, prevPeek.length - i)).join('');
     const nextSideHtml = nextPeek.map((entry,i)=> peekCellHtml(entry, i+1)).join('');
     const moreCellHtml = `<div class="lightbox-carousel-more">···</div>`;
-    openModal(`
+    const bodyHtml = `
       <div class="lightbox-body">
         <div class="lightbox-carousel ${isStack ? 'is-stack' : ''}">
           ${isStack ? `<div class="lightbox-carousel-side side-prev">${prevMore>0?moreCellHtml:''}${prevSideHtml}</div>` : ''}
@@ -521,7 +521,8 @@ function openImageLightbox(cfg){
         ${cfg.onDelete ? `<button class="btn danger" id="del">삭제</button>` : ''}
         <button class="btn ghost" id="c">닫기</button>
       </div>
-    `, m=>{
+    `;
+    const mountLightbox = m=>{
       m.querySelector('#c').onclick = closeModal;
       if(url) attachImgFallback(m.querySelector('.lightbox-img'));
       if(cfg.onDelete) m.querySelector('#del').onclick = async ()=>{
@@ -565,15 +566,31 @@ function openImageLightbox(cfg){
         });
       }
       updateLightboxBlurFrame(m);
-    }, 'modal-lightbox');
+    };
+    // 묶음(모아올리기) 안에서 사진을 넘길 때 매번 openModal로 오버레이(배경 어둡게+블러
+    // 프레임) 전체를 지우고 새로 만들면, 그 순간 오버레이/블러 프레임이 통째로
+    // 사라졌다가 다시 그려지면서 라이트박스 박스 자체가 깜빡여 보임. 이미 라이트박스가
+    // 열려있는 상태라면 오버레이는 그대로 두고 그 안의 내용(.modal-lightbox)만 갈아
+    // 끼워서, FLIP 애니메이션 대상 사진 외의 나머지(배경 블러/테두리)는 안 흔들리게 함.
+    const existingModal = modalRoot.querySelector('.modal-lightbox');
+    if(existingModal){
+      existingModal.innerHTML = bodyHtml;
+      mountLightbox(existingModal);
+    } else {
+      openModal(bodyHtml, mountLightbox, 'modal-lightbox');
+    }
     opened = true;
   }
 
   const onKey = (e)=>{
     if(!modalRoot.querySelector('.modal-lightbox')) return;
-    if(e.key === 'ArrowLeft' && items.length > 1){ goToIndex(index - 1); }
-    else if(e.key === 'ArrowRight' && items.length > 1){ goToIndex(index + 1); }
-    else if(e.key === 'Escape'){ closeModal(); }
+    // ArrowLeft/Right를 막지 않으면, 브라우저가 이 키를 "배경의 가로 스크롤 영역"
+    // (보드 탭 뷰포트)에도 기본 스크롤 동작으로 전달해서 라이트박스로 사진을 넘길 때마다
+    // 뒤에 있는 위젯/갤러리 탭 페이지가 같이 좌우로 슬라이드되어 버림. preventDefault로
+    // 그 기본 동작을 막아서, 라이트박스가 열려있는 동안은 화살표키가 사진 넘기기에만 쓰이게 함.
+    if(e.key === 'ArrowLeft' && items.length > 1){ e.preventDefault(); goToIndex(index - 1); }
+    else if(e.key === 'ArrowRight' && items.length > 1){ e.preventDefault(); goToIndex(index + 1); }
+    else if(e.key === 'Escape'){ e.preventDefault(); closeModal(); }
   };
   document.addEventListener('keydown', onKey);
   // 창 크기가 바뀌면(가로/세로 회전 포함) 모달 박스 크기도 바뀌므로 블러 프레임도 다시 맞춰줌
@@ -859,6 +876,11 @@ function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=70000
       reader.readAsDataURL(file);
       return;
     }
+    // 원본이 PNG면(투명한 부분이 있을 수 있음) JPEG로 인코딩하지 않고 PNG로 그대로
+    // 인코딩함 — JPEG는 투명도를 지원하지 않아서 투명했던 부분이 검게 덮여버림.
+    // PNG는 화질(quality) 옵션이 없으므로, 용량이 목표치를 넘으면 화질을 낮추는 대신
+    // 해상도를 단계적으로 줄여가며 목표 용량에 맞춤.
+    const isPng = file.type === 'image/png';
     const reader = new FileReader();
     reader.onload = ()=>{
       const img = new Image();
@@ -866,16 +888,32 @@ function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=70000
         let { width, height } = img;
         if(width > height && width > maxDim){ height = Math.round(height * (maxDim/width)); width = maxDim; }
         else if(height >= width && height > maxDim){ width = Math.round(width * (maxDim/height)); height = maxDim; }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        let quality = 0.85;
-        let dataUrl = canvas.toDataURL('image/jpeg', quality);
-        while(dataUrl.length > maxBytes * 1.37 && quality > 0.25){
-          quality -= 0.1;
-          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const drawAt = (w, h)=>{
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          return canvas;
+        };
+        if(isPng){
+          let w = width, h = height, dim = maxDim;
+          let dataUrl = drawAt(w, h).toDataURL('image/png');
+          while(dataUrl.length > maxBytes * 1.37 && dim > 200){
+            dim = Math.round(dim * 0.8);
+            if(w > h){ h = Math.round(h * (dim/w)); w = dim; }
+            else{ w = Math.round(w * (dim/h)); h = dim; }
+            dataUrl = drawAt(w, h).toDataURL('image/png');
+          }
+          resolve(dataUrl);
+        } else {
+          const canvas = drawAt(width, height);
+          let quality = 0.85;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          while(dataUrl.length > maxBytes * 1.37 && quality > 0.25){
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(dataUrl);
         }
-        resolve(dataUrl);
       };
       img.onerror = ()=> reject(new Error('이미지를 불러오지 못했어요'));
       img.src = reader.result;
