@@ -411,19 +411,41 @@ function openImageLightbox(cfg){
     // 위치(item.__groupPos) 다음 순서의 사진들을 flat 배열(items)에서 그대로
     // 찾아와 resolve하므로, 사진을 넘길 때마다 실제 다음 사진들로 다시 계산됨
     const isStack = !!(item.__groupLen && item.__groupLen > 1);
-    const peekItems = isStack
-      ? items.filter(it2=> it2.__srcIdx === item.__srcIdx && it2.__groupPos > item.__groupPos).slice(0,3)
-      : [];
-    const stackPeekHtml = peekItems.map((peekIt, i)=>{
-      const peekUrl = cfg.resolve(peekIt, render);
-      return `<div class="lightbox-stack-peek l${i+1}">${peekUrl ? `<img src="${escapeHtml(peekUrl)}">` : ''}</div>`;
-    }).join('');
+    // 묶음(모아올리기) 사진일 때, 지금 보는 사진 좌우로 "같은 묶음 안에서" 이전/다음
+    // 순서의 사진들을 캐러셀처럼 가늘게 크롭해 보여줌. 한쪽 방향엔 최대 2장까지만
+    // 놓고(가까운 사진일수록 안쪽/넓게, 먼 사진일수록 바깥쪽/좁게), 그보다 더 있으면
+    // 그 바깥쪽 자리를 "···" 생략 표시로 채움. 매번 items(flat 배열) 안에서 groupPos
+    // 기준으로 다시 계산하므로, 사진을 넘길 때마다 실제 이웃 사진들로 자동 갱신됨
+    let prevPeek = [], nextPeek = [], prevMore = 0, nextMore = 0;
+    if(isStack){
+      const groupEntries = items
+        .map((it2, idx2)=> ({ it: it2, idx: idx2 }))
+        .filter(x=> x.it.__srcIdx === item.__srcIdx)
+        .sort((a,b)=> a.it.__groupPos - b.it.__groupPos);
+      const curPos = groupEntries.findIndex(x=> x.it.__groupPos === item.__groupPos);
+      const prevAll = groupEntries.slice(0, curPos);
+      const nextAll = groupEntries.slice(curPos+1);
+      prevMore = Math.max(0, prevAll.length - 2);
+      nextMore = Math.max(0, nextAll.length - 2);
+      prevPeek = prevAll.slice(-2); // [먼 사진, 가까운 사진] 순 (바깥→안쪽)
+      nextPeek = nextAll.slice(0,2); // [가까운 사진, 먼 사진] 순 (안쪽→바깥)
+    }
+    const peekCellHtml = (entry, distFromCenter)=>{
+      const peekUrl = cfg.resolve(entry.it, render);
+      return `<div class="lightbox-carousel-peek pk-${distFromCenter}" data-jump-idx="${entry.idx}">${peekUrl ? `<img src="${escapeHtml(peekUrl)}">` : ''}</div>`;
+    };
+    const prevSideHtml = prevPeek.map((entry,i)=> peekCellHtml(entry, prevPeek.length - i)).join('');
+    const nextSideHtml = nextPeek.map((entry,i)=> peekCellHtml(entry, i+1)).join('');
+    const moreCellHtml = `<div class="lightbox-carousel-more">···</div>`;
     openModal(`
       <div class="lightbox-body">
-        <div class="lightbox-imgwrap ${isStack ? 'is-stack' : ''}" id="lbImgWrap">
-          ${stackPeekHtml}
-          ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
-          ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
+        <div class="lightbox-carousel ${isStack ? 'is-stack' : ''}">
+          ${isStack ? `<div class="lightbox-carousel-side side-prev">${prevMore>0?moreCellHtml:''}${prevSideHtml}</div>` : ''}
+          <div class="lightbox-imgwrap" id="lbImgWrap">
+            ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
+            ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
+          </div>
+          ${isStack ? `<div class="lightbox-carousel-side side-next">${nextSideHtml}${nextMore>0?moreCellHtml:''}</div>` : ''}
         </div>
         ${showNav ? `<div class="lightbox-count">${isStack ? `묶음 ${item.__groupPos+1}/${item.__groupLen} · ` : ''}${index+1} / ${items.length}</div>` : ''}
       </div>
@@ -455,6 +477,10 @@ function openImageLightbox(cfg){
       const nextZone = m.querySelector('#lbNext');
       if(prevZone) prevZone.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
       if(nextZone) nextZone.onclick = ()=>{ index = (index + 1) % items.length; render(); };
+      // 좌우로 살짝 보이는 이웃 사진(캐러셀 조각)을 눌러도 바로 그 사진으로 넘어감
+      m.querySelectorAll('[data-jump-idx]').forEach(el=>{
+        el.onclick = ()=>{ index = Number(el.dataset.jumpIdx); render(); };
+      });
 
       // 모바일 스와이프: 이미지 영역을 좌우로 밀면 이전/다음 사진으로 이동
       const imgWrap = m.querySelector('#lbImgWrap');
@@ -3811,6 +3837,50 @@ function normalizeGalleryItem(it){
 // 항상 이 대표 사진 기준으로 동작하면 됨
 function galleryItemCover(it){ return (it && it.group) ? (it.images[0] || {url:''}) : it; }
 
+/* 정사각형(빽빽한) 그리드에서 모아올리기 묶음 사진이 한 칸을 채울 때, 대표 사진 위에
+   "N장" 글자 배지를 얹던 방식 대신 세로로 가늘게 크롭한 다음 사진들을 옆으로 이어
+   붙여서 몇 장이 더 있는지 한눈에 보이게 함. 한 칸 안에는 최대 3장까지만 나눠 보여주고,
+   그보다 많으면 마지막 칸을 "···" 생략 표시로 채움 */
+function galleryGroupStripHtml(it){
+  const imgs = it.images || [];
+  const n = imgs.length;
+  const showMore = n > 3;
+  const shownCount = showMore ? 2 : Math.min(n, 3);
+  const totalCols = shownCount + (showMore ? 1 : 0);
+  const widths = totalCols <= 1 ? [100] : totalCols === 2 ? [64, 36] : [50, 30, 20];
+  let html = '';
+  for(let i = 0; i < shownCount; i++){
+    const img = imgs[i];
+    const cached = img.chunked ? chunkedImageCache.get(img.fileId) : img.url;
+    html += `<div class="dense-strip" style="flex:${widths[i]} 1 0;">${cached ? `<img src="${escapeHtml(cached)}" loading="lazy" decoding="async">` : ''}</div>`;
+  }
+  if(showMore){
+    html += `<div class="dense-strip dense-strip-more" style="flex:${widths[totalCols-1]} 1 0;"><span>···</span></div>`;
+  }
+  return `<div class="dense-stack">${html}</div>`;
+}
+/* 위 HTML 중 아직 캐시에 없어서 비어있던 칸(청크 사진이라 바로 못 채웠던 칸)만 골라
+   그때부터 불러오기 시작함 — 대표 사진과 같은 지연 로딩 방식(resolveGalleryItemUrl)을
+   그대로 재사용하고, 다 불러오면 그 칸 하나만 바꿔 끼워서 나머지는 건드리지 않음 */
+function loadGalleryGroupStrips(tileEl, it){
+  if(!tileEl || !it || !it.group) return;
+  const imgs = it.images || [];
+  const n = imgs.length;
+  const shownCount = n > 3 ? 2 : Math.min(n, 3);
+  const cells = tileEl.querySelectorAll('.dense-strip:not(.dense-strip-more)');
+  for(let i = 0; i < shownCount; i++){
+    const cell = cells[i];
+    const img = imgs[i];
+    if(!cell || !img || !img.chunked || cell.querySelector('img')) continue;
+    resolveGalleryItemUrl(img, (url)=>{
+      if(!tileEl.isConnected || cell.querySelector('img')) return;
+      const finalUrl = url || chunkedImageCache.get(img.fileId) || '';
+      cell.innerHTML = `<img src="${escapeHtml(finalUrl)}" loading="lazy" decoding="async">`;
+      attachImgFallback(cell.querySelector('img'));
+    }, false);
+  }
+}
+
 /* 갤러리는 사진 여러 장이 문서 하나(gallery/gallery2)에 배열로 함께 저장되는데,
    사진을 그대로 base64로 박아넣으면 Firestore 문서 1MB 한도를 여러 장이
    나눠 써야 해서, 사진이 늘어날수록(특히 용량 큰 GIF는 몇 장만 있어도) 저장이
@@ -4334,10 +4404,10 @@ function gallery2TileHtml(it, i){
 }
 function gallery2TileMarkup(it, url, i){
   const picking = isGalleryGroupPicking('gallery2');
+  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   return `
     <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
-      <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+      ${mediaHtml}
       ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery2', i)}
       ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
@@ -4351,9 +4421,9 @@ function fillGallery2Tile(tile, idx, url, it){
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!it.group);
   tile.classList.toggle('pin-item-picking', picking);
+  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
-    <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+    ${mediaHtml}
     ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery2', idx)}
     ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
@@ -4361,7 +4431,8 @@ function fillGallery2Tile(tile, idx, url, it){
     ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
   `;
   if(it.blur) tile.classList.add('blurred');
-  attachImgFallback(tile.querySelector('img'));
+  if(it.group) loadGalleryGroupStrips(tile, it);
+  else attachImgFallback(tile.querySelector('img'));
 }
 function handleGallery2Delete(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
@@ -4443,6 +4514,7 @@ function renderGallery2(){
   applyGallery2Overlap(gridEl, pairs.length, colCount);
   renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
+  gridEl.querySelectorAll('.pin-item-dense.pin-item-group').forEach(tile=> loadGalleryGroupStrips(tile, items[Number(tile.dataset.idx)]));
 
   // 열기/삭제/블러/옵션 지정 클릭을 그리드 전체에 한 번만 위임(지연 로딩으로 타일이
   // 나중에 채워져도 다시 걸어줄 필요 없음)
@@ -4709,6 +4781,7 @@ function renderRefGallery(){
   if(chipsEl) chipsEl.scrollLeft = savedChipsScroll;
 
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
+  gridEl.querySelectorAll('.pin-item-dense.pin-item-group').forEach(tile=> loadGalleryGroupStrips(tile, items[Number(tile.dataset.idx)]));
 
   // 열기/삭제/옵션 지정 클릭을 그리드 전체에 한 번만 위임해서 걸어둠.
   // 이렇게 하면 나중에 낱장 사진이 지연 로딩으로 채워져도(pin-loading → 실제 이미지)
@@ -4760,10 +4833,10 @@ function renderRefGalleryTileHtml(it, i){
 
 function refGalleryTileMarkup(it, url, i){
   const picking = isGalleryGroupPicking('refgallery');
+  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   return `
     <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
-      <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+      ${mediaHtml}
       ${galleryPickOverlayHtml('refgallery', i)}
       ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
@@ -4783,14 +4856,15 @@ function fillRefGalleryTile(tile, idx, url, it){
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!(it && it.group));
   tile.classList.toggle('pin-item-picking', picking);
+  const mediaHtml = (it && it.group) ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
-    <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it && it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+    ${mediaHtml}
     ${galleryPickOverlayHtml('refgallery', idx)}
     ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
   `;
-  attachImgFallback(tile.querySelector('img'));
+  if(it && it.group) loadGalleryGroupStrips(tile, it);
+  else attachImgFallback(tile.querySelector('img'));
 }
 
 function handleRefGalleryDelete(idx){

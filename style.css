@@ -1258,6 +1258,18 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   pointer-events:none;
 }
 .pin-item-dense .pin-group-badge{ left:4px; bottom:4px; font-size:.6rem; padding:1px 6px; }
+/* 정사각형(빽빽한) 그리드에서 모아올리기 묶음은 "N장" 배지 대신, 대표 사진 옆에
+   다음 사진들을 세로로 가늘게 잘라 이어 붙여서 한 칸을 나눠 채움(최대 3장, 그
+   이상은 마지막 칸이 "···" 생략 표시). 칸 전체(.pin-item-dense)는 그대로 정사각형을
+   유지하고, 그 안에서 가로로만 나눠 각 조각이 칸 높이를 100% 채우도록 크롭함 */
+.dense-stack{ display:flex; width:100%; height:100%; }
+.dense-strip{ overflow:hidden; min-width:0; }
+.dense-strip img{ width:100%; height:100%; object-fit:cover; display:block; }
+.dense-strip:not(:first-child){ border-left:1px solid rgba(255,255,255,0.12); }
+.dense-strip-more{
+  display:flex; align-items:center; justify-content:center;
+  background: var(--card-bg2); color: var(--ink-soft); font-size:.7rem; letter-spacing:1px;
+}
 /* 기존에 낱장으로 올라와 있던 사진들을 나중에 골라 하나의 묶음으로 합치는
    "사진 묶기" 선택 모드. 선택 모드인 동안엔 타일을 눌러도 라이트박스가 열리는
    대신 체크 표시가 토글되고, 삭제/블러/옵션 버튼은 헷갈리지 않도록 숨겨둠
@@ -1701,25 +1713,51 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#fff;
   font-size:.72rem; padding:3px 10px; border-radius:999px;
 }
-/* 모아올리기(묶음) 라이트박스 전용: 낱장을 하나씩 넘겨보는 일반 라이트박스와 달리
-   "여러 장이 겹쳐진 뭉치를 넘겨본다"는 느낌을 주기 위해, 지금 보는 사진 뒤로 같은
-   묶음의 다음 사진들(최대 3장)을 실제 그 사진 그대로 살짝 어긋나게 겹쳐 그림(장식용
-   빈 도형이 아니라 진짜 그 안에 있는 사진들). 넘길 때마다(openImageLightbox의 render)
-   다음 사진들로 다시 계산되므로, 실제 종이 뭉치를 한 장씩 넘기는 것처럼 보임(마지막
-   장에선 안 보임). 필요한 장수만큼만 DOM에 생기므로 별도의 표시/숨김 처리가 필요 없음 */
-.lightbox-imgwrap.is-stack .lightbox-img,
-.lightbox-imgwrap.is-stack .lightbox-loading{ position:relative; z-index:3; }
-.lightbox-stack-peek{
-  position:absolute; inset:0; border-radius:16px; overflow:hidden;
-  background: var(--card-bg2); border:1px solid var(--card-border);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.3); pointer-events:none;
+/* 모아올리기(묶음) 라이트박스 전용: 지금 보는 사진은 가운데에 그대로 크게 두고,
+   같은 묶음 안의 이전/다음 사진들을 좌우에 세로로 가늘게 크롭해 이어 붙여 "옆에
+   더 있다"는 걸 캐러셀처럼 보여줌. 가운데와 가까운 사진일수록 넓고 진하게, 멀수록
+   좁고 흐리게 둬서 원근감을 주고, 한쪽에 2장을 넘는 사진이 있으면 그 바깥쪽 자리를
+   "···" 생략 표시로 채움. 다른 항목(align-items 기본값 stretch)이 없어도 되도록,
+   가운데 이미지가 실제 렌더링 높이를 만들고 옆 조각들은 그 높이에 맞춰 늘어남 */
+.lightbox-carousel{
+  display:flex; align-items:stretch; justify-content:center; gap:8px;
 }
-.lightbox-stack-peek img{
-  width:100%; height:100%; object-fit:cover; display:block; -webkit-user-select:none; user-select:none;
+.lightbox-carousel-side{
+  display:flex; align-items:stretch; gap:6px; flex:0 0 auto;
 }
-.lightbox-stack-peek.l1{ transform: translate(7px,-7px) rotate(2.5deg); z-index:2; }
-.lightbox-stack-peek.l2{ transform: translate(13px,-13px) rotate(-3.5deg); z-index:1; opacity:.85; }
-.lightbox-stack-peek.l3{ transform: translate(18px,-18px) rotate(4.5deg); z-index:0; opacity:.7; }
+.lightbox-carousel-side.side-prev{
+  mask-image: linear-gradient(to right, transparent, black 92%);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 92%);
+}
+.lightbox-carousel-side.side-next{
+  mask-image: linear-gradient(to left, transparent, black 92%);
+  -webkit-mask-image: linear-gradient(to left, transparent, black 92%);
+}
+.lightbox-carousel-peek{
+  position:relative; overflow:hidden; border-radius:16px; cursor:pointer;
+  border:1px solid var(--card-border); background: var(--card-bg2);
+  flex:0 0 auto; transition: opacity .15s ease;
+}
+.lightbox-carousel-peek img{
+  position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block;
+  -webkit-user-select:none; user-select:none;
+}
+.lightbox-carousel-peek.pk-1{ width:72px; opacity:.9; }
+.lightbox-carousel-peek.pk-2{ width:42px; opacity:.6; }
+.lightbox-carousel-peek:hover{ opacity:1; }
+.lightbox-carousel-more{
+  flex:0 0 auto; width:28px; display:flex; align-items:center; justify-content:center;
+  color: rgba(255,255,255,0.65); font-size:1.2rem; letter-spacing:1px;
+}
+/* 캐러셀 조각들이 놓일 자리를 옆으로 확보하기 위해, 묶음 사진일 때는 가운데 사진
+   자체를 조금 좁혀서 보여줌(사진이 잘리는 게 아니라 화면에서 차지하는 폭만 줄어듦) */
+.modal.modal-lightbox .lightbox-carousel.is-stack .lightbox-img{ max-width: min(76vw, 620px); }
+@media (max-width: 640px){
+  .lightbox-carousel-peek.pk-1{ width:38px; }
+  .lightbox-carousel-peek.pk-2{ width:22px; }
+  .lightbox-carousel-more{ width:16px; font-size:1rem; }
+  .modal.modal-lightbox .lightbox-carousel.is-stack .lightbox-img{ max-width: 58vw; }
+}
 .lightbox-meta{ margin-top:12px; padding:0 4px; }
 .lightbox-meta-title{ font-family: var(--font-display); font-size:1rem; color: var(--ink); font-weight:600; }
 .lightbox-meta-desc{ font-size:.82rem; color: var(--ink-soft); margin-top:4px; white-space:pre-wrap; line-height:1.5; }
