@@ -1067,12 +1067,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   font-size:9px; color: var(--sage);
 }
 .cal-head{ display:flex; align-items:center; justify-content:center; margin-bottom:8px; }
-/* 이전/다음 달 미리보기는 이번 달 그리드 높이의 절반만 보이도록 JS(renderCalendar)에서
-   .cal-clip에 height를, .cal-grid에 marginTop을 직접 지정함. 여기서는 넘치는 부분을
-   잘라내고(overflow:hidden) 잘린 경계가 자연스럽게 흐려지도록 마스크만 지정. */
 .cal-clip{ overflow:hidden; }
-.cal-month-prev .cal-clip{ mask-image: linear-gradient(to bottom, transparent, black 45%); -webkit-mask-image: linear-gradient(to bottom, transparent, black 45%); }
-.cal-month-next .cal-clip{ mask-image: linear-gradient(to bottom, black 55%, transparent); -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent); }
 .cal-nav{ display:flex; justify-content:center; }
 .cal-nav-prev{ margin-bottom:6px; }
 .cal-nav-next{ margin-top:6px; }
