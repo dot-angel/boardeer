@@ -325,6 +325,25 @@ function openItemOptEditModal(currentOpts, optionsList, onSave){
   });
 }
 
+/* 블러 처리된 썸네일 위에 (기본 눈 이모지 문구 대신) 원하는 문구를 직접 넣을 수 있게
+   하는 작은 편집 모달. 비워두고 저장하면 기본 문구("눌러서 보기")로 표시됨 */
+function openBlurTextEditModal(currentText, onSave){
+  openModal(`
+    <h3>블러 문구 편집</h3>
+    <p class="hint">블러 처리된 썸네일 위에 보여줄 문구예요. 비워두면 기본 문구가 표시돼요.</p>
+    <input type="text" id="blurTextInput" placeholder="예: 나중에 공개!" maxlength="40" value="${escapeHtml(currentText || '')}">
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
+  `, m=>{
+    const input = m.querySelector('#blurTextInput');
+    input.focus();
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = ()=>{
+      onSave(input.value.trim());
+      closeModal();
+    };
+  });
+}
+
 /* 이미지 슬라이드/갤러리에서 공통으로 쓰는 확대보기 팝업.
    cfg = {
      items,             // 정규화된 아이템 배열 (이 팝업 안에서 좌우로 넘겨볼 목록)
@@ -3724,7 +3743,7 @@ function confirmGalleryGroupPick(key, items, saveFn, renderFn){
   const idxSet = new Set(idxs);
   const picked = idxs.map(i=> items[i]);
   const images = picked.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url});
-  const groupItem = { group:true, images, blur:false, opts:[] };
+  const groupItem = { group:true, images, blur:false, opts:[], blurText:'' };
   const firstIdx = idxs[0];
   let insertAt = 0;
   for(let i=0;i<firstIdx;i++){ if(!idxSet.has(i)) insertAt++; }
@@ -3743,6 +3762,17 @@ function galleryPickOverlayHtml(key, idx){
   if(galleryGroupPick.key !== key) return '';
   const picked = galleryGroupPick.selected.has(idx);
   return `<div class="pin-pick-check ${picked ? 'picked' : ''}"></div>`;
+}
+// 블러 처리된 썸네일 위에 얹는 문구(기본 문구 또는 직접 입력한 문구) + 편집모드일 때만
+// 보이는 문구 편집 버튼. blur가 아니면 빈 문자열
+function pinBlurLabelHtml(it, picking, idx){
+  if(!it.blur) return '';
+  const label = it.blurText ? escapeHtml(it.blurText) : '눌러서 보기';
+  return `
+    <div class="pin-blur-label">
+      <span class="pin-blur-label-text">${label}</span>
+      ${(editMode && !picking) ? `<button class="pin-blur-edit-btn" data-blur-text-edit="${idx}" title="문구 편집">✎</button>` : ''}
+    </div>`;
 }
 // 선택 모드 툴바 버튼 + 확정/취소 바(선택 모드가 아니면 버튼만)
 function galleryGroupPickToggleBtnHtml(key, idLabel){
@@ -3772,10 +3802,10 @@ function normalizeGalleryImageRef(img){
   return { url: img.url };
 }
 function normalizeGalleryItem(it){
-  if(typeof it === 'string') return { url: it, blur: false, opts: [] };
-  if(it.group && Array.isArray(it.images)) return { group:true, images: it.images.map(normalizeGalleryImageRef), blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
-  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
-  return { url: it.url, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []) };
+  if(typeof it === 'string') return { url: it, blur: false, opts: [], blurText: '' };
+  if(it.group && Array.isArray(it.images)) return { group:true, images: it.images.map(normalizeGalleryImageRef), blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []), blurText: it.blurText || '' };
+  if(it.chunked) return { chunked:true, fileId: it.fileId, chunkTotal: it.chunkTotal, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []), blurText: it.blurText || '' };
+  return { url: it.url, blur: !!it.blur, opts: it.opts || (it.opt ? [it.opt] : []), blurText: it.blurText || '' };
 }
 // 묶음이면 대표(첫 번째) 사진을, 낱장이면 자기 자신을 돌려줌 — 썸네일/지연로딩은
 // 항상 이 대표 사진 기준으로 동작하면 됨
@@ -3812,7 +3842,7 @@ async function migrateInlineGalleryImages(docName, getItems){
       try{
         const { fileId, total } = await saveFileChunked(raw.url);
         chunkedImageCache.set(fileId, raw.url);
-        newItems.push({ chunked:true, fileId, chunkTotal: total, blur: !!raw.blur, opts: raw.opts || (raw.opt ? [raw.opt] : []) });
+        newItems.push({ chunked:true, fileId, chunkTotal: total, blur: !!raw.blur, opts: raw.opts || (raw.opt ? [raw.opt] : []), blurText: raw.blurText || '' });
         changed = true;
       }catch(err){ newItems.push(raw); }
     } else {
@@ -4000,7 +4030,8 @@ function galleryTileMarkup(it, url, i){
   return `
     <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
+      ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+      ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery', i)}
       ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -4015,7 +4046,8 @@ function fillGalleryTile(tile, idx, url, it){
   tile.classList.toggle('pin-item-picking', picking);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
+    ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+    ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery', idx)}
     ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -4047,9 +4079,24 @@ function handleGalleryBlurToggle(idx){
     tile.classList.toggle('blurred', arr[idx].blur);
     const blurBtn = tile.querySelector('[data-blur]');
     if(blurBtn){ blurBtn.textContent = arr[idx].blur ? '🙈' : '👁'; blurBtn.title = arr[idx].blur ? '블러 해제' : '블러 처리'; }
+    const oldLabel = tile.querySelector('.pin-blur-label');
+    if(oldLabel) oldLabel.remove();
+    if(arr[idx].blur) tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery'), idx));
   }
   skipNextGalleryRender = true;
   docRef('gallery').set({ items: arr }, {merge:true});
+}
+function handleGalleryBlurTextEdit(idx){
+  const items = (galleryData.items || []).map(normalizeGalleryItem);
+  openBlurTextEditModal(items[idx].blurText, (blurText)=>{
+    const arr = items.slice();
+    arr[idx] = { ...arr[idx], blurText };
+    skipNextGalleryRender = true;
+    docRef('gallery').set({ items: arr }, {merge:true});
+    const tile = document.querySelector(`#galleryGrid .pin-item[data-idx="${idx}"]`);
+    const labelText = tile && tile.querySelector('.pin-blur-label-text');
+    if(labelText) labelText.textContent = blurText || '눌러서 보기';
+  });
 }
 function handleGalleryOptEdit(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
@@ -4104,6 +4151,8 @@ function renderGallery(){
     if(delBtn){ e.stopPropagation(); handleGalleryDelete(Number(delBtn.dataset.del)); return; }
     const blurBtn = e.target.closest('[data-blur]');
     if(blurBtn){ e.stopPropagation(); handleGalleryBlurToggle(Number(blurBtn.dataset.blur)); return; }
+    const blurTextBtn = e.target.closest('[data-blur-text-edit]');
+    if(blurTextBtn){ e.stopPropagation(); handleGalleryBlurTextEdit(Number(blurTextBtn.dataset.blurTextEdit)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGalleryOptEdit(Number(optBtn.dataset.optEdit)); return; }
     if(tile) openGalleryViewModal(Number(tile.dataset.idx));
@@ -4288,7 +4337,8 @@ function gallery2TileMarkup(it, url, i){
   return `
     <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
+      ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+      ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery2', i)}
       ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -4303,7 +4353,8 @@ function fillGallery2Tile(tile, idx, url, it){
   tile.classList.toggle('pin-item-picking', picking);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
+    ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
+    ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery2', idx)}
     ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -4328,9 +4379,24 @@ function handleGallery2BlurToggle(idx){
     tile.classList.toggle('blurred', arr[idx].blur);
     const blurBtn = tile.querySelector('[data-blur]');
     if(blurBtn){ blurBtn.textContent = arr[idx].blur ? '🙈' : '👁'; blurBtn.title = arr[idx].blur ? '블러 해제' : '블러 처리'; }
+    const oldLabel = tile.querySelector('.pin-blur-label');
+    if(oldLabel) oldLabel.remove();
+    if(arr[idx].blur) tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery2'), idx));
   }
   skipNextGallery2Render = true;
   docRef('gallery2').set({ items: arr }, {merge:true});
+}
+function handleGallery2BlurTextEdit(idx){
+  const items = (gallery2Data.items || []).map(normalizeGalleryItem);
+  openBlurTextEditModal(items[idx].blurText, (blurText)=>{
+    const arr = items.slice();
+    arr[idx] = { ...arr[idx], blurText };
+    skipNextGallery2Render = true;
+    docRef('gallery2').set({ items: arr }, {merge:true});
+    const tile = document.querySelector(`#gallery2Grid .pin-item-dense[data-idx="${idx}"]`);
+    const labelText = tile && tile.querySelector('.pin-blur-label-text');
+    if(labelText) labelText.textContent = blurText || '눌러서 보기';
+  });
 }
 function handleGallery2OptEdit(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
@@ -4390,6 +4456,8 @@ function renderGallery2(){
     if(delBtn){ e.stopPropagation(); handleGallery2Delete(Number(delBtn.dataset.del)); return; }
     const blurBtn = e.target.closest('[data-blur]');
     if(blurBtn){ e.stopPropagation(); handleGallery2BlurToggle(Number(blurBtn.dataset.blur)); return; }
+    const blurTextBtn = e.target.closest('[data-blur-text-edit]');
+    if(blurTextBtn){ e.stopPropagation(); handleGallery2BlurTextEdit(Number(blurTextBtn.dataset.blurTextEdit)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGallery2OptEdit(Number(optBtn.dataset.optEdit)); return; }
     if(tile) openGallery2ViewModal(Number(tile.dataset.idx));
@@ -4695,7 +4763,7 @@ function refGalleryTileMarkup(it, url, i){
   return `
     <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-      ${it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
+      ${it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
       ${galleryPickOverlayHtml('refgallery', i)}
       ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
@@ -4717,7 +4785,7 @@ function fillRefGalleryTile(tile, idx, url, it){
   tile.classList.toggle('pin-item-picking', picking);
   tile.innerHTML = `
     <img src="${escapeHtml(url)}" loading="lazy" decoding="async">
-    ${it && it.group ? `<span class="pin-group-badge">🖼 ${it.images.length}</span>` : ''}
+    ${it && it.group ? `<span class="pin-group-badge">${it.images.length}장</span>` : ''}
     ${galleryPickOverlayHtml('refgallery', idx)}
     ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
