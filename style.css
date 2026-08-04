@@ -1787,7 +1787,33 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .lightbox-carousel-peek.pk-1{ width:38px; }
   .lightbox-carousel-peek.pk-2{ width:22px; }
   .lightbox-carousel-more{ width:16px; font-size:1rem; }
-  .modal.modal-lightbox .lightbox-carousel.is-stack .lightbox-img{ max-width: 58vw; }
+  /* 모바일에서는 화면 폭이 좁아 좌우로 캐러셀을 펼치기 어려우니, 묶음 사진 캐러셀을
+     세로 방향으로 눕혀서(위: 이전 사진들, 가운데: 지금 사진, 아래: 다음 사진들) 위아래로
+     넘겨보게 함 — DOM 순서(prev → 가운데 → next)는 그대로 두고 방향만 column으로 바꾸면
+     자연스럽게 위/아래 배치가 됨. 조각들도 가로로 가늘게 자르던 걸 세로로 가늘게(폭은
+     가운데 사진과 비슷하게, 높이만 줄여서) 자르는 방향으로 바꿔서 "위/아래에 더 있다"는
+     느낌을 줌 */
+  .lightbox-carousel.is-stack{ flex-direction:column; align-items:center; gap:6px; }
+  .lightbox-carousel.is-stack .lightbox-carousel-side{ flex-direction:column; align-items:center; width:100%; gap:5px; }
+  .lightbox-carousel.is-stack .lightbox-carousel-side.side-prev{
+    mask-image: linear-gradient(to bottom, transparent, black 92%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 92%);
+  }
+  .lightbox-carousel.is-stack .lightbox-carousel-side.side-next{
+    mask-image: linear-gradient(to top, transparent, black 92%);
+    -webkit-mask-image: linear-gradient(to top, transparent, black 92%);
+  }
+  .lightbox-carousel.is-stack .lightbox-carousel-peek{ width:min(84vw, 420px); }
+  .lightbox-carousel.is-stack .lightbox-carousel-peek.pk-1{ height:34px; }
+  .lightbox-carousel.is-stack .lightbox-carousel-peek.pk-2{ height:18px; }
+  .lightbox-carousel.is-stack .lightbox-carousel-more{ width:min(84vw, 420px); height:14px; }
+  .modal.modal-lightbox .lightbox-carousel.is-stack .lightbox-img{ max-width:88vw; max-height:46vh; }
+  /* 좌우 절반을 눌러 넘기던 탭 영역도 위/아래 절반으로 바꿔서, 스와이프 방향과 손으로
+     누르는 위치가 서로 어긋나지 않게 맞춤 */
+  .lightbox-carousel.is-stack .lightbox-zone{ left:0; right:0; width:auto; height:38%; }
+  .lightbox-carousel.is-stack .lightbox-zone.prev{ top:0; bottom:auto; align-items:flex-start; justify-content:center; }
+  .lightbox-carousel.is-stack .lightbox-zone.next{ bottom:0; top:auto; align-items:flex-end; justify-content:center; }
+  .lightbox-carousel.is-stack .lightbox-zone-arrow{ margin:14px 0; transform:rotate(90deg); }
 }
 .lightbox-meta{ margin-top:12px; padding:0 4px; }
 .lightbox-meta-title{ font-family: var(--font-display); font-size:1rem; color: var(--ink); font-weight:600; }

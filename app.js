@@ -560,8 +560,17 @@ function openImageLightbox(cfg){
           const touch = e.changedTouches[0];
           const dx = touch.clientX - touchStartX;
           const dy = touch.clientY - touchStartY;
-          // 가로로 충분히(40px 이상) 움직였고, 세로 움직임보다 뚜렷하게 가로 움직임이 클 때만 스와이프로 인식
-          if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
+          // 모바일 화면 폭에서는 캐러셀도 세로로 눕혀 보여주므로, 스와이프도 위/아래로
+          // 받아야 손가락 방향과 화면에 보이는 방향이 서로 맞음(넓은 화면에서는 계속 좌우로)
+          const vertical = window.matchMedia('(max-width: 640px)').matches;
+          if(vertical){
+            // 세로로 충분히(40px 이상) 움직였고, 가로 움직임보다 뚜렷하게 세로 움직임이 클 때만 스와이프로 인식
+            if(Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx) * 1.5){
+              e.preventDefault();
+              goToIndex(dy > 0 ? index - 1 : index + 1); // 아래로 쓸면 이전, 위로 쓸면 다음
+            }
+          } else if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
+            // 가로로 충분히(40px 이상) 움직였고, 세로 움직임보다 뚜렷하게 가로 움직임이 클 때만 스와이프로 인식
             e.preventDefault(); // 스와이프 뒤에 이어지는 합성 클릭이 새로 그려진 화면을 또 눌러버리는 것 방지
             goToIndex(dx > 0 ? index - 1 : index + 1);
           }
