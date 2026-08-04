@@ -1246,6 +1246,15 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pin-item[draggable="true"], .pin-item-dense[draggable="true"]{ cursor: grab; }
 .pin-item.dragging, .pin-item-dense.dragging{ opacity:.4; cursor: grabbing; }
 .pin-item.drag-over, .pin-item-dense.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; }
+/* 사진을 드래그해서 옮길 때, 사각 테두리 대신 "정확히 어느 사진과 어느 사진 사이로
+   들어가는지"를 세로선 하나로 보여줌(bindPinDragReorder의 pointerLine 모드) */
+.pin-drop-line{
+  position:absolute; width:3px; border-radius:3px;
+  background: var(--rose);
+  box-shadow: 0 0 6px 1px rgba(196,66,95,0.7);
+  opacity:0; pointer-events:none; z-index:5;
+  transition: left .08s ease, top .08s ease, height .08s ease, opacity .12s ease;
+}
 .pin-item.pin-loading, .pin-item-dense.pin-loading{
   display:flex; align-items:center; justify-content:center;
   background: var(--card-bg2); color: var(--ink-soft); font-size:.72rem; text-align:center; padding:8px;

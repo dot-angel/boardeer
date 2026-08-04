@@ -759,6 +759,12 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
   const posRoot = pointerLine
     ? (container.classList.contains('pin-grid') ? container : (container.querySelector(':scope > .pin-grid') || container))
     : null;
+  // 갤러리2/레퍼런스 갤러리는 (매스너리처럼 절대좌표가 아니라) 그냥 flex 열로 짜여 있어서
+  // 기준 요소에 position이 안 걸려있을 수 있음 — 표시선이 엉뚱한 조상 기준으로
+  // 어긋나 그려지지 않도록, 정적(static)이면 여기서 relative로 만들어줌
+  if(posRoot && getComputedStyle(posRoot).position === 'static'){
+    posRoot.style.position = 'relative';
+  }
   let dropLine = null;
   if(pointerLine){
     dropLine = posRoot.querySelector(':scope > .pin-drop-line');
@@ -774,8 +780,10 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
   const showDropLineAt = (el, before)=>{
     const cRect = posRoot.getBoundingClientRect();
     const tRect = el.getBoundingClientRect();
-    const gap = PIN_MASONRY_GAP;
-    const centerX = before ? (tRect.left - cRect.left - gap/2) : (tRect.right - cRect.left + gap/2);
+    // 그리드마다 칸 사이 간격이 달라서(매스너리 12px, 갤러리2/레퍼런스는 flex gap 6px 등)
+    // 하드코딩하지 않고 실제 CSS gap 값을 읽어서 그 간격 한가운데에 선이 오게 함
+    const gapVal = parseFloat(getComputedStyle(posRoot).columnGap) || parseFloat(getComputedStyle(posRoot).gap) || PIN_MASONRY_GAP;
+    const centerX = before ? (tRect.left - cRect.left - gapVal/2) : (tRect.right - cRect.left + gapVal/2);
     dropLine.style.left = (centerX - 1.5) + 'px';
     dropLine.style.top = (tRect.top - cRect.top) + 'px';
     dropLine.style.height = tRect.height + 'px';
@@ -4431,7 +4439,8 @@ function renderGallery(){
   if(!isGalleryGroupPicking('gallery')) bindPinDragReorder(
     gridEl, '.pin-item',
     ()=> items.slice(),
-    async (arr)=> docRef('gallery').set({items:arr}, {merge:true})
+    async (arr)=> docRef('gallery').set({items:arr}, {merge:true}),
+    { pointerLine: true }
   );
   setupPinGalleryLazyLoad(gridEl, pairs, galleryObserverHolder, '.pin-item.pin-loading',
     (tile, idx, url, it)=> fillGalleryTile(tile, idx, url, it));
@@ -4739,7 +4748,8 @@ function renderGallery2(){
   if(!isGalleryGroupPicking('gallery2')) bindPinDragReorder(
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
-    async (arr)=> docRef('gallery2').set({items:arr}, {merge:true})
+    async (arr)=> docRef('gallery2').set({items:arr}, {merge:true}),
+    { pointerLine: true }
   );
   setupPinGalleryLazyLoad(gridEl, pairs, gallery2ObserverHolder, '.pin-item-dense.pin-loading',
     (tile, idx, url, it)=> fillGallery2Tile(tile, idx, url, it));
@@ -5006,7 +5016,8 @@ function renderRefGallery(){
   if(!isGalleryGroupPicking('refgallery')) bindPinDragReorder(
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
-    async (arr)=> docRef('refgallery').set({items:arr}, {merge:true})
+    async (arr)=> docRef('refgallery').set({items:arr}, {merge:true}),
+    { pointerLine: true }
   );
 
   setupRefGalleryLazyLoad(gridEl, pairs);
