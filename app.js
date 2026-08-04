@@ -386,22 +386,27 @@ function openImageLightbox(cfg){
     const metaInfo = cfg.meta ? cfg.meta(item) : null;
     const tagInfo = cfg.tag ? cfg.tag(item) : null;
     const showNav = items.length > 1;
-    // 묶음(모아올리기) 라이트박스일 때만, 지금 사진 뒤로 남은 장수만큼(최대 3장)
-    // 모서리가 어긋난 카드를 겹쳐 그려서 "겹쳐진 사진 뭉치"라는 걸 시각적으로 보여줌
-    const stackRemaining = cfg.stack ? Math.min(3, items.length - 1 - index) : 0;
-    const stackPeekHtml = cfg.stack ? `
+    // 묶음(모아올리기) 사진일 때만, 지금 사진 뒤로 "같은 묶음 안에" 남은 장수만큼
+    // (최대 3장) 모서리가 어긋난 카드를 겹쳐 그려서 "겹쳐진 사진 뭉치"라는 걸
+    // 시각적으로 보여줌. 묶음 여부/장수는 항목마다(item.__groupLen) 다르므로
+    // cfg 전체가 아니라 "지금 보고 있는 사진" 기준으로 매번 다시 판단함 —
+    // 그래야 묶음 사진 앞뒤로 묶이지 않은 다른 사진도 같은 라이트박스 안에서
+    // 자연스럽게 이어서 넘겨볼 수 있음(묶음 안에서만 갇혀 보이지 않게)
+    const isStack = !!(item.__groupLen && item.__groupLen > 1);
+    const stackRemaining = isStack ? Math.min(3, item.__groupLen - 1 - item.__groupPos) : 0;
+    const stackPeekHtml = isStack ? `
       <div class="lightbox-stack-peek l3"></div>
       <div class="lightbox-stack-peek l2"></div>
       <div class="lightbox-stack-peek l1"></div>
     ` : '';
     openModal(`
       <div class="lightbox-body">
-        <div class="lightbox-imgwrap ${cfg.stack ? 'is-stack' : ''}" id="lbImgWrap" ${cfg.stack ? `data-remaining="${stackRemaining}"` : ''}>
+        <div class="lightbox-imgwrap ${isStack ? 'is-stack' : ''}" id="lbImgWrap" ${isStack ? `data-remaining="${stackRemaining}"` : ''}>
           ${stackPeekHtml}
           ${url ? `<img src="${escapeHtml(url)}" class="lightbox-img">` : `<div class="lightbox-loading">불러오는 중…</div>`}
           ${showNav ? `<div class="lightbox-zone prev" id="lbPrev" title="이전 사진"><span class="lightbox-zone-arrow">‹</span></div><div class="lightbox-zone next" id="lbNext" title="다음 사진"><span class="lightbox-zone-arrow">›</span></div>` : ''}
         </div>
-        ${showNav ? `<div class="lightbox-count">${index+1} / ${items.length}</div>` : ''}
+        ${showNav ? `<div class="lightbox-count">${isStack ? `묶음 ${item.__groupPos+1}/${item.__groupLen} · ` : ''}${index+1} / ${items.length}</div>` : ''}
       </div>
       ${metaInfo && (metaInfo.title || metaInfo.desc) ? `
         <div class="lightbox-meta">
@@ -412,6 +417,7 @@ function openImageLightbox(cfg){
       <div class="modal-actions">
         ${cfg.onEditMeta ? `<button class="btn ghost" id="editMeta">${metaInfo && (metaInfo.title || metaInfo.desc) ? '정보 수정' : '정보 추가'}</button>` : ''}
         ${cfg.onEditTag ? `<button class="btn ghost" id="editTag">태그 수정</button>` : ''}
+        ${cfg.onUngroup && isStack ? `<button class="btn ghost" id="ungroupBtn" title="묶음을 풀어 낱장 사진으로 나눠요">묶음 해체</button>` : ''}
         ${cfg.onDelete ? `<button class="btn danger" id="del">삭제</button>` : ''}
         <button class="btn ghost" id="c">닫기</button>
       </div>
@@ -425,6 +431,7 @@ function openImageLightbox(cfg){
       };
       if(cfg.onEditMeta) m.querySelector('#editMeta').onclick = ()=> cfg.onEditMeta(index);
       if(cfg.onEditTag) m.querySelector('#editTag').onclick = ()=> cfg.onEditTag(index);
+      if(cfg.onUngroup){ const ub = m.querySelector('#ungroupBtn'); if(ub) ub.onclick = ()=> cfg.onUngroup(index); }
       const prevZone = m.querySelector('#lbPrev');
       const nextZone = m.querySelector('#lbNext');
       if(prevZone) prevZone.onclick = ()=>{ index = (index - 1 + items.length) % items.length; render(); };
@@ -484,35 +491,107 @@ function openImageLightbox(cfg){
   render();
 }
 
-/* 묶음(여러 장을 하나로 올린 항목) 안의 사진들만 따로 넘겨보는 라이트박스.
-   기존 openImageLightbox를 "묶음 안 사진 배열" 하나로만 다시 호출하는 것뿐이라
-   좌우 넘기기/스와이프/키보드 등은 전부 그대로 재사용됨(인스타그램에서 여러 장
-   게시물을 열면 그 게시물 사진끼리만 넘겨지는 것과 같은 방식).
-   groupItem: normalizeGalleryItem이 돌려주는 { group:true, images:[...], blur, opts } 형태
-   onChange(updatedOrNull): 묶음 안 사진이 삭제되어 구성이 바뀔 때마다 호출됨
-     - 사진이 2장 이상 남으면 갱신된 그룹 항목을
-     - 1장만 남으면 더 이상 묶음이 아니므로 일반 낱장 항목을
-     - 0장이 되면 null을 넘겨줌(호출한 쪽에서 항목 자체를 목록에서 제거하면 됨)
-   onEditTag(newOpts=>void)|null: 태그(옵션) 수정 버튼 — 묶음 전체에 적용되는 태그를 고침 */
-function openGalleryGroupLightbox(groupItem, { onChange, onEditTag } = {}){
-  const images = groupItem.images.slice();
+/* 그리드에 보이는 항목들(낱장+묶음)을 "낱장 사진 하나하나" 기준으로 펼친
+   배열로 만들어줌. 묶음(모아올리기)에 속한 사진은 겹쳐진 카드(스택) 모양으로
+   보이돼, 그 앞뒤로 자연스럽게 다른(묶음 밖) 사진으로도 넘어감 — 묶음 안에서만
+   갇혀서 보이던 예전 방식과 다른 점. 각 낱장에는 원래 배열에서 자기 자리
+   (__srcIdx), 같은 묶음 안에서의 순서(__groupPos)/총 장수(__groupLen), 태그
+   (__tags, 묶음이면 묶음 전체 태그)를 함께 붙여서 돌려줌 */
+function buildFlatGalleryLightboxItems(allItems, filterOpt){
+  const flat = [];
+  allItems.forEach((it, srcIdx)=>{
+    const tags = it.opts || [];
+    if(filterOpt && !tags.includes(filterOpt)) return;
+    if(it.group && Array.isArray(it.images)){
+      it.images.forEach((img, groupPos)=>{
+        flat.push({ ...img, __srcIdx: srcIdx, __groupPos: groupPos, __groupLen: it.images.length, __tags: tags });
+      });
+    } else {
+      flat.push({ ...it, __srcIdx: srcIdx, __groupPos: 0, __groupLen: 1, __tags: tags });
+    }
+  });
+  return flat;
+}
+
+/* 갤러리1/갤러리2/레퍼런스갤러리 3곳이 공용으로 쓰는 라이트박스 열기 로직.
+   clickedSrcIdx: 그리드에서 누른 타일의 원본 배열(items) 인덱스.
+   getItems: 지금 저장된 원본 배열을 돌려주는 함수, normalize: 그 갤러리의
+   정규화 함수, save: 새 배열을 저장하는 함수, getFilterOpt: 지금 걸린 옵션
+   필터, markSkipRender: 필터가 없을 때 태그만 바뀐 재렌더링을 생략시키는
+   함수, reopen: 태그 수정 후 같은 항목을 다시 여는 함수(원본 인덱스 하나 받음) */
+function openGalleryLightboxCore(clickedSrcIdx, { getItems, normalize, save, getFilterOpt, markSkipRender, reopen }){
+  const allItems = (getItems() || []).map(normalize);
+  const filterOpt = getFilterOpt();
+  const flat = buildFlatGalleryLightboxItems(allItems, filterOpt);
+  let startPos = flat.findIndex(f=> f.__srcIdx === clickedSrcIdx && f.__groupPos === 0);
+  if(startPos === -1) startPos = flat.findIndex(f=> f.__srcIdx === clickedSrcIdx);
+  if(startPos === -1) startPos = 0;
   openImageLightbox({
-    items: images,
-    index: 0,
-    stack: true,
+    items: flat,
+    index: startPos,
     resolve: resolveGalleryItemUrl,
-    tag: onEditTag ? ()=> groupItem.opts : null,
-    onEditTag: onEditTag ? ()=>{
+    tag: (item)=> item.__tags,
+    onEditTag: editMode ? (pos)=>{
+      const it = flat[pos];
+      const srcIdx = it.__srcIdx;
       closeModal();
-      openItemOptEditModal(groupItem.opts, sharedGalleryOptionsData.options, (opts)=> onEditTag(opts));
+      openItemOptEditModal(it.__tags, sharedGalleryOptionsData.options, (opts)=>{
+        const arr = (getItems()||[]).map(normalize);
+        arr[srcIdx] = { ...arr[srcIdx], opts };
+        markSkipRender();
+        save(arr);
+        // openItemOptEditModal이 저장 직후 자기 모달을 닫으므로, 그보다 한 틱 뒤에
+        // 다시 열어야 방금 연 라이트박스가 그 closeModal()에 같이 지워지지 않음
+        setTimeout(()=> reopen(srcIdx), 0);
+      });
     } : null,
-    onDelete: onChange ? (pos)=>{
-      const removed = images[pos];
-      deleteGalleryImageIfChunked(removed);
-      images.splice(pos, 1);
-      if(images.length === 0) onChange(null);
-      else if(images.length === 1) onChange({ ...images[0], blur: groupItem.blur, opts: groupItem.opts });
-      else onChange({ group:true, images: images.slice(), blur: groupItem.blur, opts: groupItem.opts });
+    // 묶음(모아올리기) 해체 — 지금 보고 있는 묶음을 풀어서 낱장 사진들로
+    // 되돌림(순서/자리는 그대로 유지). 더 이상 스택으로 안 묶이므로 라이트박스는
+    // 닫고 그리드로 돌아가서 결과(낱장으로 나뉜 그리드)를 바로 보게 함
+    onUngroup: editMode ? (pos)=>{
+      const it = flat[pos];
+      if(!it.__groupLen || it.__groupLen <= 1) return;
+      const srcIdx = it.__srcIdx;
+      const arr = (getItems()||[]).map(normalize);
+      const grp = arr[srcIdx];
+      if(!grp || !grp.group) return;
+      const singles = grp.images.map(img=> ({ ...img, blur: !!grp.blur, opts: grp.opts||[] }));
+      arr.splice(srcIdx, 1, ...singles);
+      save(arr);
+      closeModal();
+    } : null,
+    onDelete: editMode ? (pos)=>{
+      const it = flat[pos];
+      const srcIdx = it.__srcIdx, groupLen = it.__groupLen, groupPos = it.__groupPos;
+      const arr = (getItems()||[]).map(normalize);
+      if(groupLen <= 1){
+        const [removed] = arr.splice(srcIdx,1);
+        deleteGalleryImageIfChunked(removed);
+        // 이 라이트박스 세션 안에서 이어서 또 삭제해도 자리가 안 어긋나게,
+        // 방금 지운 자리를 flat에서도 빼고 그 뒤 항목들의 원본 인덱스를 당겨줌
+        flat.splice(pos,1);
+        flat.forEach(f=>{ if(f.__srcIdx > srcIdx) f.__srcIdx--; });
+      } else {
+        const grp = arr[srcIdx];
+        const removedImg = grp.images[groupPos];
+        deleteGalleryImageIfChunked(removedImg);
+        const newImages = grp.images.slice();
+        newImages.splice(groupPos, 1);
+        // 묶음에 한 장만 남으면 더 이상 묶음이 아니므로 낱장 항목으로 되돌림
+        // (레퍼런스 갤러리처럼 blur 필드가 아예 없는 경우 undefined가 그대로
+        // Firestore에 저장 시도되지 않도록 항상 boolean으로 넣어줌)
+        arr[srcIdx] = newImages.length === 1
+          ? { ...newImages[0], blur: !!grp.blur, opts: grp.opts }
+          : { ...grp, images: newImages };
+        flat.splice(pos,1);
+        flat.forEach(f=>{
+          if(f.__srcIdx === srcIdx){
+            f.__groupLen = newImages.length;
+            if(f.__groupPos > groupPos) f.__groupPos--;
+          }
+        });
+      }
+      save(arr);
     } : null
   });
 }
@@ -4038,57 +4117,13 @@ function renderGallery(){
 }
 
 function openGalleryViewModal(idx){
-  const allItems = (galleryData.items || []).map(normalizeGalleryItem);
-  if(allItems[idx] && allItems[idx].group){
-    openGalleryGroupLightbox(allItems[idx], {
-      onEditTag: editMode ? (opts)=>{
-        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
-        arr[idx] = { ...arr[idx], opts };
-        if(!galleryFilterOpt) skipNextGalleryRender = true;
-        docRef('gallery').set({items:arr}, {merge:true});
-      } : null,
-      onChange: editMode ? (updated)=>{
-        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
-        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
-        docRef('gallery').set({items:arr}, {merge:true});
-      } : null
-    });
-    return;
-  }
-  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
-  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
-  const idxMap = allItems.map((it,i)=> i).filter(i=> !galleryFilterOpt || (allItems[i].opts||[]).includes(galleryFilterOpt));
-  const items = idxMap.map(i=> allItems[i]);
-  const startPos = Math.max(0, idxMap.indexOf(idx));
-  openImageLightbox({
-    items,
-    index: startPos,
-    resolve: resolveGalleryItemUrl,
-    tag: (item)=> item.opts,
-    onEditTag: editMode ? (pos)=>{
-      const i = idxMap[pos];
-      closeModal();
-      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
-        const arr = (galleryData.items||[]).map(normalizeGalleryItem);
-        arr[i] = { ...arr[i], opts };
-        if(!galleryFilterOpt) skipNextGalleryRender = true;
-        docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행(느려 보이는 원인이었음)
-        // openItemOptEditModal이 저장 직후 자기 모달을 닫으므로, 그보다 한 틱 뒤에 다시 열어야
-        // 방금 연 라이트박스가 그 closeModal()에 같이 지워지지 않음(네트워크는 더 이상 안 기다림)
-        setTimeout(()=> openGalleryViewModal(i), 0);
-      });
-    } : null,
-    onDelete: editMode ? (pos)=>{
-      const i = idxMap[pos];
-      const arr = (galleryData.items||[]).map(normalizeGalleryItem);
-      const [removed] = arr.splice(i,1);
-      docRef('gallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
-      deleteGalleryImageIfChunked(removed);
-      // 같은 라이트박스 안에서 연달아 삭제해도 인덱스가 어긋나지 않게, 방금 지운 자리를
-      // 빼고 그 뒤 항목들의 원본 인덱스도 하나씩 당겨줌
-      idxMap.splice(pos,1);
-      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
-    } : null
+  openGalleryLightboxCore(idx, {
+    getItems: ()=> galleryData.items,
+    normalize: normalizeGalleryItem,
+    save: (arr)=> docRef('gallery').set({items:arr}, {merge:true}),
+    getFilterOpt: ()=> galleryFilterOpt,
+    markSkipRender: ()=>{ if(!galleryFilterOpt) skipNextGalleryRender = true; },
+    reopen: (i)=> openGalleryViewModal(i)
   });
 }
 
@@ -4366,53 +4401,13 @@ function renderGallery2(){
 }
 
 function openGallery2ViewModal(idx){
-  const allItems = (gallery2Data.items || []).map(normalizeGalleryItem);
-  if(allItems[idx] && allItems[idx].group){
-    openGalleryGroupLightbox(allItems[idx], {
-      onEditTag: editMode ? (opts)=>{
-        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        arr[idx] = { ...arr[idx], opts };
-        if(!gallery2FilterOpt) skipNextGallery2Render = true;
-        docRef('gallery2').set({items:arr}, {merge:true});
-      } : null,
-      onChange: editMode ? (updated)=>{
-        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
-        docRef('gallery2').set({items:arr}, {merge:true});
-      } : null
-    });
-    return;
-  }
-  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
-  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
-  const idxMap = allItems.map((it,i)=> i).filter(i=> !gallery2FilterOpt || (allItems[i].opts||[]).includes(gallery2FilterOpt));
-  const items = idxMap.map(i=> allItems[i]);
-  const startPos = Math.max(0, idxMap.indexOf(idx));
-  openImageLightbox({
-    items,
-    index: startPos,
-    resolve: resolveGalleryItemUrl,
-    tag: (item)=> item.opts,
-    onEditTag: editMode ? (pos)=>{
-      const i = idxMap[pos];
-      closeModal();
-      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
-        const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        arr[i] = { ...arr[i], opts };
-        if(!gallery2FilterOpt) skipNextGallery2Render = true;
-        docRef('gallery2').set({items:arr}, {merge:true});
-        setTimeout(()=> openGallery2ViewModal(i), 0);
-      });
-    } : null,
-    onDelete: editMode ? (pos)=>{
-      const i = idxMap[pos];
-      const arr = (gallery2Data.items||[]).map(normalizeGalleryItem);
-      const [removed] = arr.splice(i,1);
-      docRef('gallery2').set({items:arr}, {merge:true});
-      deleteGalleryImageIfChunked(removed);
-      idxMap.splice(pos,1);
-      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
-    } : null
+  openGalleryLightboxCore(idx, {
+    getItems: ()=> gallery2Data.items,
+    normalize: normalizeGalleryItem,
+    save: (arr)=> docRef('gallery2').set({items:arr}, {merge:true}),
+    getFilterOpt: ()=> gallery2FilterOpt,
+    markSkipRender: ()=>{ if(!gallery2FilterOpt) skipNextGallery2Render = true; },
+    reopen: (i)=> openGallery2ViewModal(i)
   });
 }
 
@@ -4736,54 +4731,13 @@ function handleRefGalleryOptEdit(idx){
 }
 
 function openRefGalleryViewModal(idx){
-  const allItems = (refGalleryData.items || []).map(normalizeRefGalleryItem);
-  if(allItems[idx] && allItems[idx].group){
-    openGalleryGroupLightbox(allItems[idx], {
-      onEditTag: editMode ? (opts)=>{
-        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        arr[idx] = { ...arr[idx], opts };
-        if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
-        docRef('refgallery').set({items:arr}, {merge:true});
-      } : null,
-      onChange: editMode ? (updated)=>{
-        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        if(updated === null) arr.splice(idx,1); else arr[idx] = updated;
-        docRef('refgallery').set({items:arr}, {merge:true});
-      } : null
-    });
-    return;
-  }
-  // 지금 선택된 옵션 칩에 해당하는 사진들끼리만 라이트박스에서 이전/다음으로 넘어가도록,
-  // 원본 배열 인덱스(idxMap)를 따로 들고 필터링된 목록만 넘겨줌
-  const idxMap = allItems.map((it,i)=> i).filter(i=> !refGalleryFilterOpt || (allItems[i].opts||[]).includes(refGalleryFilterOpt));
-  const items = idxMap.map(i=> allItems[i]);
-  const startPos = Math.max(0, idxMap.indexOf(idx));
-  openImageLightbox({
-    items,
-    index: startPos,
-    resolve: resolveGalleryItemUrl,
-    tag: (item)=> item.opts,
-    onEditTag: editMode ? (pos)=>{
-      const i = idxMap[pos];
-      closeModal();
-      openItemOptEditModal(items[pos].opts, sharedGalleryOptionsData.options, (opts)=>{
-        const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        arr[i] = { ...arr[i], opts };
-        // 필터가 꺼져 있으면 태그만 바꿔선 화면에 보이는 사진 구성이 안 바뀌므로 재렌더링 생략
-        if(!refGalleryFilterOpt) skipNextRefGalleryRender = true;
-        docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
-        setTimeout(()=> openRefGalleryViewModal(i), 0);
-      });
-    } : null,
-    onDelete: editMode ? (pos)=>{
-      const i = idxMap[pos];
-      const arr = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-      const [removed] = arr.splice(i,1);
-      docRef('refgallery').set({items:arr}, {merge:true}); // 응답을 기다리지 않고 바로 진행
-      deleteGalleryImageIfChunked(removed);
-      idxMap.splice(pos,1);
-      for(let k=0;k<idxMap.length;k++){ if(idxMap[k] > i) idxMap[k]--; }
-    } : null
+  openGalleryLightboxCore(idx, {
+    getItems: ()=> refGalleryData.items,
+    normalize: normalizeRefGalleryItem,
+    save: (arr)=> docRef('refgallery').set({items:arr}, {merge:true}),
+    getFilterOpt: ()=> refGalleryFilterOpt,
+    markSkipRender: ()=>{ if(!refGalleryFilterOpt) skipNextRefGalleryRender = true; },
+    reopen: (i)=> openRefGalleryViewModal(i)
   });
 }
 

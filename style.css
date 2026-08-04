@@ -628,6 +628,24 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-viewport{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:6px 4px; min-height:0; overflow-y:auto; }
 .profile-viewport::-webkit-scrollbar{ width:5px; }
 .profile-viewport::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+/* 요청: 세로 스크롤은 해시태그(성격) 아래부터만 생기게. 데스크톱(카드 높이가
+   820px로 고정된 상태)에서는 사진/이름/나이/성격까지의 위쪽 고정 영역
+   (.profile-basic)은 원래 크기 그대로 두고, 그 아래 항목 영역
+   (.profile-person-fields)이 카드 안에 남는 세로 공간을 전부 차지하도록
+   flex로 늘려서, 그 안의 .profile-fields-scroll이 실제 남는 공간만큼 커지거나
+   (내용이 적을 때) 그 자리에서 스크롤(내용이 많을 때)되게 함. 이러면
+   .profile-viewport 자체가 스크롤될 상황이 사실상 없어져서, 스크롤이 항상
+   해시태그 아래 영역에서만 일어남 */
+@media (min-width: 901px){
+  body:not(.edit-mode) .w-profile .profile-pair{ flex:1; min-height:0; }
+  body:not(.edit-mode) .w-profile .profile-person{ flex:1; min-height:0; }
+  body:not(.edit-mode) .w-profile .profile-basic{ flex:0 0 auto; }
+  body:not(.edit-mode) .w-profile .profile-person-fields{
+    flex:1; min-height:0; display:flex; flex-direction:column;
+  }
+  body:not(.edit-mode) .w-profile .profile-fields{ flex:0 0 auto; }
+  body:not(.edit-mode) .w-profile .profile-fields-scroll{ flex:1; min-height:0; max-height:none; }
+}
 /* AU 이름은 위젯 맨 위에, 시점/IF 이름과는 뚜렷이 다른 모양(작은 대문자 라벨 느낌)으로 둠 */
 .profile-au-name{
   font-family: var(--font-body); font-weight:700; font-size:.72rem; letter-spacing:.08em;
