@@ -972,6 +972,15 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 body:not(.edit-mode) .w-profile .profile-viewport{
   justify-content:flex-start;
 }
+/* 위젯 전체 높이도 (한마디가 유독 길어지는 등) 항목 개수/길이와 무관하게 항상
+   똑같이 고정되도록 상한을 둠. 대부분의 경우 아래 .profile-fields-scroll이
+   170px 안에서 먼저 스크롤을 흡수하지만, 그 위쪽(사진·한마디·이름·소개)까지
+   합쳐 이 상한을 넘는 드문 경우엔 profile-viewport에 이미 있는
+   overflow-y:auto가 안전하게 전체를 스크롤 처리함. 편집모드에선 profile-fields-scroll과
+   같은 이유로(전체 내용을 보며 고쳐야 하니) 제한을 풀어둠 */
+body:not(.edit-mode) .w-profile .profile-viewport{
+  max-height: 460px;
+}
 /* 나이/생년월일, 키몸무게/BWH, 성격, 기타설명 등(app.js fieldsHtml)은 값이 없어도
    항상 렌더링되게 바꿔서, 사람/시점마다 이 줄이 있었다 없었다 하며 그 아래
    커스텀 항목들 위치가 들쭉날쭉해지지 않고 표처럼 고정된 자리를 갖게 함.
@@ -985,6 +994,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 @media (max-width:900px){
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-viewport{
     justify-content:center;
+    max-height:none;
   }
   body:not(.edit-mode) .w-profile:not(.profile-mobile-expanded) .profile-field-empty{
     display:none;
