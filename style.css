@@ -1584,7 +1584,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    합쳐서 순서대로 흘려보냄(app.js: 미완료 먼저, 완료는 배열 끝으로 몰아둠).
    그리드는 왼쪽→오른쪽, 위→아래 순으로 채워지므로 완료 항목들이 자연히
    그리드의 마지막 줄(맨 아래)에 깔리게 됨 */
-.checklist{ max-height:420px; overflow-y:auto; overflow-x:hidden; display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-auto-flow:row; align-content:start; gap:2px 14px; }
+.checklist{ max-height:420px; overflow-y:auto; overflow-x:hidden; display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-auto-flow:row; align-content:start; gap:2px 14px; flex:1; min-height:0; }
 .check-item{
   display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem; min-width:0;
 }

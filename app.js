@@ -3638,6 +3638,40 @@ function ddayDateText(dateStr){
   return `${y}.${m}.${d}`;
 }
 
+/* 모바일(폭 900px 이하)에서는 캘린더가 디데이+체크리스트와 세로 한 줄을 나눠 쓰는데,
+   캘린더가 이 둘의 행을 함께 걸쳐 차지하는 구조라 CSS만으로는 "걸친 항목(캘린더)의
+   내용 크기만큼 행이 늘어나는 것"만 막을 수 있을 뿐, 반대로 디데이+체크리스트 쪽이
+   커져서 행이 늘어나는 건 못 막음 — 체크리스트에 항목이 쌓일수록 캘린더 칸도 실제
+   필요한 것보다 훨씬 길게 늘어나 보이는 문제가 있었음.
+   그래서 순서를 뒤집어서: 캘린더 자신의 원래(내용 그대로의) 높이를 먼저 재고,
+   체크리스트는 디데이를 뺀 나머지 공간에 맞춰 들어가도록(넘치면 .checklist 안에서만
+   스크롤) 캘린더 쪽에서 체크리스트 높이를 거꾸로 정해줌 */
+function fitMobileCalendarPairHeight(){
+  const checklistCard = document.getElementById('cardChecklist');
+  if(!checklistCard) return;
+  if(window.innerWidth > 900){
+    checklistCard.style.height = '';
+    return;
+  }
+  const calCard = document.getElementById('cardCalendar');
+  const ddayCard = document.getElementById('cardDday');
+  if(!calCard || !ddayCard) return;
+  // 캘린더의 "진짜"(디데이/체크리스트 영향 없는) 높이를 재려면, 같이 행을 나눠 쓰는
+  // 디데이/체크리스트를 잠깐 완전히 빼야 함 — 안 그러면 이 둘의 지금 크기 때문에
+  // 캘린더 칸이 그만큼 늘어난 상태로 측정돼서, 늘어난 크기를 그대로 다시 돌려주는
+  // 순환에 빠짐(레퍼런스 갤러리 쪽 fitRefGalleryToCalendarHeight와 같은 방식)
+  const prevDdayDisplay = ddayCard.style.display;
+  const prevChecklistDisplay = checklistCard.style.display;
+  ddayCard.style.display = 'none';
+  checklistCard.style.display = 'none';
+  const calH = calCard.getBoundingClientRect().height;
+  ddayCard.style.display = prevDdayDisplay;
+  checklistCard.style.display = prevChecklistDisplay;
+  if(!calH) return;
+  const ddayH = ddayCard.getBoundingClientRect().height;
+  const gap = 20; // .board { gap:20px }와 맞춤(디데이 행 ↔ 체크리스트 행 사이 간격)
+  checklistCard.style.height = Math.max(80, Math.round(calH - ddayH - gap)) + 'px';
+}
 function renderDday(){
   const items = (ddayData.items || []).map((it,i)=>({...it, _i:i})).sort((a,b)=> a.date.localeCompare(b.date));
   const body = document.getElementById('ddayBody');
@@ -3884,6 +3918,7 @@ function renderCalendar(){
     box.querySelector('#calNext').onclick = ()=>{ calWeekStart.setDate(calWeekStart.getDate() + 7); renderCalendar(); };
     box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
     fitRefGalleryToCalendarHeight();
+    fitMobileCalendarPairHeight();
     return;
   }
 
@@ -3909,6 +3944,7 @@ function renderCalendar(){
   box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
 
   fitRefGalleryToCalendarHeight();
+  fitMobileCalendarPairHeight();
 }
 // 창 폭이 900px 경계를 넘나들 때(주간뷰 ↔ 월간뷰) 캘린더를 다시 그려줌
 // (리사이즈/기기 회전 등으로 모바일·PC 전환이 생겨도 항상 알맞은 뷰로 유지됨)
@@ -4950,6 +4986,7 @@ window.addEventListener('resize', debounce(()=>{
     return;
   }
   fitRefGalleryToCalendarHeight();
+  fitMobileCalendarPairHeight();
   applyRefGalleryOverlap(document.getElementById('refGalleryGrid'), currentRefGalleryVisibleCount());
 }, 150));
 
