@@ -4742,6 +4742,14 @@ function renderGallery2(){
   `;
   const gridEl = box.querySelector('#gallery2Grid');
   restoreScrollPos(gridEl, savedScroll);
+  // 레퍼런스 갤러리는 자기 렌더링 안에서 fitRefGalleryToCalendarHeight()를 직접 불러서
+  // 카드 높이를 먼저 확정한 뒤에 지연 로딩을 걸었는데, 갤러리2는 이 호출이 빠져 있어서
+  // 캘린더 쪽 렌더링이 끝나기 전엔 카드 높이가 "내용물 크기만큼" 그대로 늘어나 있었음.
+  // 이 상태에서 지연 로딩 관찰자를 걸면(root가 그리드 자기 자신이라) 관찰자 입장에서는
+  // 이미 모든 사진이 "보이는 중"인 셈이 되어, 화면에 없는 사진까지 전부 한꺼번에 불러와
+  // 버림(사진이 많을수록 초기 로딩이 크게 느려지는 원인). 레퍼런스 갤러리와 똑같이
+  // 여기서도 직접 호출해서, 어느 쪽 스냅샷이 먼저 도착하든 항상 높이가 먼저 확정되게 함
+  fitRefGalleryToCalendarHeight();
   applyGallery2Overlap(gridEl, pairs.length, colCount);
   renderOptionFilterChips(box.querySelector('#gallery2FilterChips'), sharedGalleryOptionsData.options, gallery2FilterOpt, (opt)=>{ gallery2FilterOpt = opt; renderGallery2(); });
   gridEl.querySelectorAll('.pin-item-dense:not(.pin-loading) img').forEach(attachImgFallback);
