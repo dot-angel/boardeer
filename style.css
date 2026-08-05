@@ -1618,10 +1618,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 @media (max-width: 520px){
   .checklist{ grid-template-columns: minmax(0,1fr); }
 }
-/* PC에서는 카드 폭이 넉넉해서 2열보다 3열이 더 잘 어울림 */
-@media (min-width: 901px){
-  .checklist{ grid-template-columns: minmax(0,1fr) minmax(0,1fr) minmax(0,1fr); }
-}
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
