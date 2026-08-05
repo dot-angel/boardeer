@@ -262,6 +262,12 @@ body::before{
 }
 @media (max-width: 900px){
   .row-refpair{ grid-template-columns: 1fr; }
+  /* 체크리스트가 있는 칸(row6)은 캘린더가 이전/다음 달까지 온전히 다 보이게
+     되면서 훨씬 커진 높이에 맞춰 카드(#cardChecklist) 자체는 이미 늘어나
+     있는데, 안쪽 .checklist는 max-height:420px로 막혀 있어서 카드 아래쪽에
+     빈 공간이 남았음. 모바일에서는 그 상한을 풀어서 flex:1로 카드 높이만큼
+     그대로 채우게 함(내용이 그보다 많으면 기존처럼 자체 스크롤) */
+  .checklist{ max-height:none; }
   /* 모바일에서 캘린더+세션리스트, 문서+체크리스트를 각각 한 줄에 두기 위해,
      위젯 탭(페이지0)의 중첩된 row/row-images/row-strip-right/row-2-right
      박스들을 display:contents로 다 투명하게 만들어서 그 안의 위젯 카드들이
