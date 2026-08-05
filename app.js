@@ -3646,13 +3646,20 @@ function ddayDateText(dateStr){
    그래서 순서를 뒤집어서: 캘린더 자신의 원래(내용 그대로의) 높이를 먼저 재고,
    체크리스트는 디데이를 뺀 나머지 공간에 맞춰 들어가도록(넘치면 .checklist 안에서만
    스크롤) 캘린더 쪽에서 체크리스트 높이를 거꾸로 정해줌 */
+let lastMobileCalPairWidth = null; // 세로 스크롤 때 모바일 브라우저 주소창이 접히면서
+// 폭은 그대로인데 높이만 바뀌는 resize가 발생함 — 그때마다 다시 재는 건 불필요하고,
+// 하필 스크롤 중간에 측정하면 잠깐 어긋난 값을 그대로 굳혀버릴 수 있어 오히려 더
+// 불안정해짐. 그래서 실제로 "폭"이 바뀐 경우에만 다시 계산함
 function fitMobileCalendarPairHeight(){
   const checklistCard = document.getElementById('cardChecklist');
   if(!checklistCard) return;
   if(window.innerWidth > 900){
-    checklistCard.style.height = '';
+    checklistCard.style.maxHeight = '';
+    lastMobileCalPairWidth = window.innerWidth;
     return;
   }
+  if(lastMobileCalPairWidth === window.innerWidth) return;
+  lastMobileCalPairWidth = window.innerWidth;
   const calCard = document.getElementById('cardCalendar');
   const ddayCard = document.getElementById('cardDday');
   if(!calCard || !ddayCard) return;
@@ -3670,7 +3677,12 @@ function fitMobileCalendarPairHeight(){
   if(!calH) return;
   const ddayH = ddayCard.getBoundingClientRect().height;
   const gap = 20; // .board { gap:20px }와 맞춤(디데이 행 ↔ 체크리스트 행 사이 간격)
-  checklistCard.style.height = Math.max(80, Math.round(calH - ddayH - gap)) + 'px';
+  // height(고정값)로 주면 체크리스트 항목이 몇 개 안 될 때도 카드가 그 높이만큼
+  // 억지로 늘어나면서, 안쪽 리스트(.checklist, align-content:start)가 위쪽에만
+  // 붙고 그 아래가 텅 빈 부자연스러운 공간으로 남아버림. max-height(상한)로 주면
+  // 항목이 적을 땐 카드가 원래 필요한 만큼만 자연스럽게 작아지고, 항목이 많아서
+  // 캘린더보다 커지려 할 때만 이 값에서 멈추고 내부 스크롤로 넘어감
+  checklistCard.style.maxHeight = Math.max(80, Math.round(calH - ddayH - gap)) + 'px';
 }
 function renderDday(){
   const items = (ddayData.items || []).map((it,i)=>({...it, _i:i})).sort((a,b)=> a.date.localeCompare(b.date));
