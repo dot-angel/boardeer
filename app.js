@@ -3663,6 +3663,14 @@ function fitMobileCalendarPairHeight(){
   const calCard = document.getElementById('cardCalendar');
   const ddayCard = document.getElementById('cardDday');
   if(!calCard || !ddayCard) return;
+  // 디데이의 "진짜"(캘린더가 두 행을 걸쳐 누르는 영향 없는) 높이부터 잼 — 캘린더를
+  // 안 빼고 재면, 캘린더가 그 행에 필요로 하는 몫만큼 디데이 칸도 같이 늘어난
+  // 상태로 측정돼서 디데이 높이가 실제보다 부풀려짐(그 부풀려진 값을 아래에서
+  // 캘린더 높이만큼 빼버리면, 체크리스트 몫이 필요 이상으로 줄어드는 원인이 됨)
+  const prevCalDisplay = calCard.style.display;
+  calCard.style.display = 'none';
+  const ddayH = ddayCard.getBoundingClientRect().height;
+  calCard.style.display = prevCalDisplay;
   // 캘린더의 "진짜"(디데이/체크리스트 영향 없는) 높이를 재려면, 같이 행을 나눠 쓰는
   // 디데이/체크리스트를 잠깐 완전히 빼야 함 — 안 그러면 이 둘의 지금 크기 때문에
   // 캘린더 칸이 그만큼 늘어난 상태로 측정돼서, 늘어난 크기를 그대로 다시 돌려주는
@@ -3675,7 +3683,6 @@ function fitMobileCalendarPairHeight(){
   ddayCard.style.display = prevDdayDisplay;
   checklistCard.style.display = prevChecklistDisplay;
   if(!calH) return;
-  const ddayH = ddayCard.getBoundingClientRect().height;
   const gap = 20; // .board { gap:20px }와 맞춤(디데이 행 ↔ 체크리스트 행 사이 간격)
   // height(고정값)로 주면 체크리스트 항목이 몇 개 안 될 때도 카드가 그 높이만큼
   // 억지로 늘어나면서, 안쪽 리스트(.checklist, align-content:start)가 위쪽에만
