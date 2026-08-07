@@ -6410,6 +6410,7 @@ function normalizeSpeechTab(t){
     }),
     regions: Array.isArray(t.regions) ? t.regions.map(r=> ({
       id: r.id || uid(),
+      character: r.character === 1 ? 1 : 0,   // 이 영역이 캐릭터1/캐릭터2 이미지 중 어디 위에 있는지
       shape: r.shape === 'lasso' ? 'lasso' : 'box',
       points: r.points,
       textOther: r.textOther || '',
@@ -6542,28 +6543,36 @@ function openSpeechOverlay(initialTabId){
       if(bubbleEl){ bubbleEl.remove(); bubbleEl = null; }
       const tab = tabs.find(t=> t.id === activeId);
       if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
-      const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
-      const regionsSvg = tab.regions.map(r=> speechRegionSvgShape(r, 'speech-region')).join('');
-      stage.innerHTML = `
-        ${url0 ? `<img src="${url0}" alt="">` : ''}
-        ${url1 ? `<img src="${url1}" alt="">` : ''}
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none">${regionsSvg}</svg>
-      `;
-      stage.querySelectorAll('[data-region]').forEach(el=>{
-        el.addEventListener('click', (e)=>{
-          const region = tab.regions.find(r=> r.id === el.dataset.region);
-          if(!region) return;
-          const text = mode === 'other' ? region.textOther : region.textCharacter;
-          if(!text) return;
-          if(bubbleEl) bubbleEl.remove();
-          bubbleEl = document.createElement('div');
-          bubbleEl.className = 'speech-bubble';
-          bubbleEl.textContent = text;
-          const rect = stage.getBoundingClientRect();
-          const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
-          bubbleEl.style.left = cx + 'px';
-          bubbleEl.style.top = cy + 'px';
-          stage.appendChild(bubbleEl);
+      const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+      stage.innerHTML = urls.map((url, idx)=> url
+        ? `<div class="speech-charbox" data-char="${idx}"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`
+        : ''
+      ).join('');
+
+      stage.querySelectorAll('.speech-charbox').forEach(box=>{
+        const idx = Number(box.dataset.char);
+        const svg = box.querySelector('svg');
+        const regions = tab.regions.filter(r=> r.character === idx);
+        svg.innerHTML = regions.map(r=> speechRegionSvgShape(r, 'speech-region')).join('');
+        svg.querySelectorAll('[data-region]').forEach(el=>{
+          el.addEventListener('click', (e)=>{
+            const region = regions.find(r=> r.id === el.dataset.region);
+            if(!region) return;
+            const text = mode === 'other' ? region.textOther : region.textCharacter;
+            if(!text) return;
+            if(bubbleEl) bubbleEl.remove();
+            bubbleEl = document.createElement('div');
+            bubbleEl.className = 'speech-bubble';
+            bubbleEl.textContent = text;
+            // 말풍선 위치는 눌린 지점 기준으로, 바깥 스테이지(캐릭터 두 명을 함께 담는 틀)
+            // 좌표로 환산해서 붙임 — 클릭 영역 판정 자체는 각 캐릭터 이미지 자신의 좌표계를
+            // 쓰지만(그래야 화면 크기가 달라도 항상 같은 위치를 가리킴), 말풍선은 화면에
+            // 실제로 보이는 픽셀 위치에 뜨면 되므로 여기서만 스테이지 기준으로 다시 잼.
+            const stageRect = stage.getBoundingClientRect();
+            bubbleEl.style.left = (e.clientX - stageRect.left) + 'px';
+            bubbleEl.style.top = (e.clientY - stageRect.top) + 'px';
+            stage.appendChild(bubbleEl);
+          });
         });
       });
     };
@@ -6712,68 +6721,72 @@ function renderTabActions(modal, tab, confirmingDelete){
 
 async function renderEditorStage(modal, tab){
   const stage = modal.querySelector('#seStage');
-  const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
-  const regionsSvg = tab.regions.map(r=> speechRegionSvgShape(r, 'speech-editor-region')).join('');
-  stage.innerHTML = `
-    ${url0 ? `<img src="${url0}" alt="">` : ''}
-    ${url1 ? `<img src="${url1}" alt="">` : ''}
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" id="seSvg">${regionsSvg}</svg>
-  `;
-  const svg = stage.querySelector('#seSvg');
+  const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+  stage.innerHTML = urls.map((url, idx)=> url
+    ? `<div class="speech-charbox" data-char="${idx}"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`
+    : `<div class="speech-charbox-empty">캐릭터${idx+1} 이미지를 먼저 올려주세요</div>`
+  ).join('');
 
-  const toPercent = (e)=>{
-    const rect = stage.getBoundingClientRect();
-    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-    return { x, y };
-  };
+  stage.querySelectorAll('.speech-charbox').forEach(box=>{
+    const idx = Number(box.dataset.char);
+    const svg = box.querySelector('svg');
+    const regions = tab.regions.filter(r=> r.character === idx);
+    svg.innerHTML = regions.map(r=> speechRegionSvgShape(r, 'speech-editor-region')).join('');
 
-  let drawing = false, startPt = null, lassoPts = [], liveEl = null;
+    const toPercent = (e)=>{
+      const rect = svg.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      return { x, y };
+    };
 
-  svg.addEventListener('mousedown', (e)=>{
-    if(e.target.dataset && e.target.dataset.region) return; // 기존 영역 클릭은 새로 그리기로 안 이어짐
-    drawing = true;
-    startPt = toPercent(e);
-    lassoPts = [startPt];
-    liveEl = document.createElementNS('http://www.w3.org/2000/svg', speechDrawShape === 'box' ? 'rect' : 'polygon');
-    liveEl.setAttribute('class', 'speech-editor-region');
-    svg.appendChild(liveEl);
+    let drawing = false, startPt = null, lassoPts = [], liveEl = null;
+
+    svg.addEventListener('mousedown', (e)=>{
+      if(e.target.dataset && e.target.dataset.region) return; // 기존 영역 클릭은 새로 그리기로 안 이어짐
+      drawing = true;
+      startPt = toPercent(e);
+      lassoPts = [startPt];
+      liveEl = document.createElementNS('http://www.w3.org/2000/svg', speechDrawShape === 'box' ? 'rect' : 'polygon');
+      liveEl.setAttribute('class', 'speech-editor-region');
+      svg.appendChild(liveEl);
+    });
+    svg.addEventListener('mousemove', (e)=>{
+      if(!drawing) return;
+      const pt = toPercent(e);
+      if(speechDrawShape === 'box'){
+        const x = Math.min(startPt.x, pt.x), y = Math.min(startPt.y, pt.y);
+        const w = Math.abs(pt.x - startPt.x), h = Math.abs(pt.y - startPt.y);
+        liveEl.setAttribute('x', x + '%'); liveEl.setAttribute('y', y + '%');
+        liveEl.setAttribute('width', w + '%'); liveEl.setAttribute('height', h + '%');
+      } else {
+        lassoPts.push(pt);
+        liveEl.setAttribute('points', lassoPts.map(p=> `${p.x},${p.y}`).join(' '));
+      }
+    });
+    const finishDrawing = async ()=>{
+      if(!drawing) return;
+      drawing = false;
+      if(liveEl) liveEl.remove();
+      let region;
+      if(speechDrawShape === 'box'){
+        const endPt = lassoPts[lassoPts.length-1] || startPt;
+        const x = Math.min(startPt.x, endPt.x), y = Math.min(startPt.y, endPt.y);
+        const w = Math.abs(endPt.x - startPt.x), h = Math.abs(endPt.y - startPt.y);
+        if(w < 1 || h < 1) return; // 너무 작게 클릭만 한 경우는 무시
+        region = { id: uid(), character: idx, shape:'box', points:{x,y,w,h}, textOther:'', textCharacter:'' };
+      } else {
+        if(lassoPts.length < 3) return;
+        region = { id: uid(), character: idx, shape:'lasso', points: lassoPts, textOther:'', textCharacter:'' };
+      }
+      tab.regions.push(region);
+      await saveSpeechWidget();
+      renderEditorStage(modal, tab);
+      renderEditorRegionList(modal, tab);
+    };
+    svg.addEventListener('mouseup', finishDrawing);
+    svg.addEventListener('mouseleave', ()=>{ if(drawing){ drawing = false; if(liveEl) liveEl.remove(); } });
   });
-  svg.addEventListener('mousemove', (e)=>{
-    if(!drawing) return;
-    const pt = toPercent(e);
-    if(speechDrawShape === 'box'){
-      const x = Math.min(startPt.x, pt.x), y = Math.min(startPt.y, pt.y);
-      const w = Math.abs(pt.x - startPt.x), h = Math.abs(pt.y - startPt.y);
-      liveEl.setAttribute('x', x + '%'); liveEl.setAttribute('y', y + '%');
-      liveEl.setAttribute('width', w + '%'); liveEl.setAttribute('height', h + '%');
-    } else {
-      lassoPts.push(pt);
-      liveEl.setAttribute('points', lassoPts.map(p=> `${p.x},${p.y}`).join(' '));
-    }
-  });
-  const finishDrawing = async ()=>{
-    if(!drawing) return;
-    drawing = false;
-    if(liveEl) liveEl.remove();
-    let region;
-    if(speechDrawShape === 'box'){
-      const endPt = lassoPts[lassoPts.length-1] || startPt;
-      const x = Math.min(startPt.x, endPt.x), y = Math.min(startPt.y, endPt.y);
-      const w = Math.abs(endPt.x - startPt.x), h = Math.abs(endPt.y - startPt.y);
-      if(w < 1 || h < 1) return; // 너무 작게 클릭만 한 경우는 무시
-      region = { id: uid(), shape:'box', points:{x,y,w,h}, textOther:'', textCharacter:'' };
-    } else {
-      if(lassoPts.length < 3) return;
-      region = { id: uid(), shape:'lasso', points: lassoPts, textOther:'', textCharacter:'' };
-    }
-    tab.regions.push(region);
-    await saveSpeechWidget();
-    renderEditorStage(modal, tab);
-    renderEditorRegionList(modal, tab);
-  };
-  svg.addEventListener('mouseup', finishDrawing);
-  svg.addEventListener('mouseleave', ()=>{ if(drawing){ drawing = false; if(liveEl) liveEl.remove(); } });
 }
 
 function renderEditorRegionList(modal, tab){
@@ -6782,7 +6795,7 @@ function renderEditorRegionList(modal, tab){
   list.innerHTML = tab.regions.map((r,i)=> `
     <div class="speech-region-row" data-region="${r.id}">
       <div class="speech-region-row-top">
-        <span>영역 ${i+1} (${r.shape === 'box' ? '박스' : '올가미'})</span>
+        <span>캐릭터${r.character+1} · 영역 ${i+1} (${r.shape === 'box' ? '박스' : '올가미'})</span>
         <button class="btn small" data-del="${r.id}">삭제</button>
       </div>
       <label>타인용 대사</label>
