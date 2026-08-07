@@ -7,6 +7,26 @@
    ========================================================= */
 
 let editMode = sessionStorage.getItem('gh_edit') === '1';
+// 편집 비밀번호(해시)를 기억해뒀다가, 실제로 DB에 쓸 때마다 자동으로 같이 실어 보냄.
+// Firestore 보안 규칙이 이 값을 meta/lock에 저장된 해시와 대조해서, 비밀번호를 아는
+// 사람이 보낸 요청만 통과시킴. sessionStorage에 저장해 새로고침해도 편집 상태 유지.
+let currentPwHash = sessionStorage.getItem('gh_pw') || null;
+
+// ▼ 모든 Firestore 쓰기(set)에 비밀번호 해시(_pw)를 자동으로 끼워 넣는 패치.
+//   앱 코드 곳곳의 .set(...) 호출을 일일이 고치지 않아도, 여기 한 곳만 고치면
+//   editMode일 때의 모든 쓰기 요청에 _pw가 실려서 나감.
+(function patchFirestoreWritesWithPassword(){
+  const origDocSet = firebase.firestore.DocumentReference.prototype.set;
+  firebase.firestore.DocumentReference.prototype.set = function(data, options){
+    const payload = currentPwHash ? Object.assign({}, data, { _pw: currentPwHash }) : data;
+    return origDocSet.call(this, payload, options);
+  };
+  const origBatchSet = firebase.firestore.WriteBatch.prototype.set;
+  firebase.firestore.WriteBatch.prototype.set = function(ref, data, options){
+    const payload = currentPwHash ? Object.assign({}, data, { _pw: currentPwHash }) : data;
+    return origBatchSet.call(this, ref, payload, options);
+  };
+})();
 
 const lockBtn = document.getElementById('lockBtn');
 const lockBadge = document.getElementById('lockBadge');
@@ -1247,7 +1267,9 @@ function renderAllModules(){
 lockBtn.addEventListener('click', async ()=>{
   if(editMode){
     editMode = false;
+    currentPwHash = null;
     sessionStorage.removeItem('gh_edit');
+    sessionStorage.removeItem('gh_pw');
     refreshLockUI();
     renderAllModules();
     return;
@@ -1280,9 +1302,11 @@ lockBtn.addEventListener('click', async ()=>{
         if(!p1 || p1.length < 4){ toast('4자 이상 입력해주세요'); return; }
         if(p1 !== p2){ toast('비밀번호가 서로 달라요'); return; }
         const hash = await sha256(p1);
+        currentPwHash = hash;
         await db.collection('meta').doc('lock').set({ passwordHash: hash });
         editMode = true;
         sessionStorage.setItem('gh_edit','1');
+        sessionStorage.setItem('gh_pw', hash);
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드가 시작됐어요');
         migrateOversizedGalleries();
@@ -1304,8 +1328,10 @@ lockBtn.addEventListener('click', async ()=>{
     const submit = async ()=>{
       const hash = await sha256(input.value);
       if(hash === lockDoc.data().passwordHash){
+        currentPwHash = hash;
         editMode = true;
         sessionStorage.setItem('gh_edit','1');
+        sessionStorage.setItem('gh_pw', hash);
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드로 전환됐어요');
         migrateOversizedGalleries();
