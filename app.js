@@ -1262,6 +1262,7 @@ function refreshLockUI(){
 function renderAllModules(){
   renderImages(); renderProfile(); renderMusic(); renderDday(); renderGuestbook();
   renderCalendar(); renderGallery(); renderGallery2(); renderRefGallery(); renderVideos(); renderDocs(); renderSessions(); renderChecklist();
+  renderSpeechCard();
 }
 
 lockBtn.addEventListener('click', async ()=>{
@@ -2291,6 +2292,7 @@ function renderProfile(){
     ` : ''}
   `;
   bindProfile(slides);
+  if(typeof renderSpeechCard === 'function') renderSpeechCard();
 }
 
 function bindProfile(slides){
@@ -6385,6 +6387,409 @@ function renderStickers(){
     scheduleBothStickerBubbles();
   }
 }
+
+/* ================================================================
+   말풍선 위젯 — 캐릭터 이미지의 특정 부위를 누르면 말풍선이 뜨는 부가 기능.
+   기본은 항상 꺼진 채(타인모드) 시작하고, 방문자가 오버레이 안에서만 토글함.
+   탭 = "버전"(같은 캐릭터의 다른 이미지/대사 세트) 하나가 이미지 2장(캐릭터1/2)과
+   그 위에 그려진 클릭 영역들을 통째로 갖고 있음.
+   ================================================================ */
+
+let speechWidgetData = { tabs: [] };
+let speechEditorTabId = null;   // 편집기에서 지금 열려있는 탭
+let speechDrawShape = 'box';    // 편집기의 현재 그리기 모드: box | lasso
+
+function normalizeSpeechTab(t){
+  t = t || {};
+  return {
+    id: t.id || uid(),
+    name: t.name || '탭',
+    characters: [0,1].map(i=>{
+      const c = (t.characters && t.characters[i]) || {};
+      return { avatar: c.avatar || '', avatarChunked: !!c.avatarChunked, avatarFileId: c.avatarFileId || '', avatarChunkTotal: c.avatarChunkTotal || 0 };
+    }),
+    regions: Array.isArray(t.regions) ? t.regions.map(r=> ({
+      id: r.id || uid(),
+      shape: r.shape === 'lasso' ? 'lasso' : 'box',
+      points: r.points,
+      textOther: r.textOther || '',
+      textCharacter: r.textCharacter || ''
+    })) : []
+  };
+}
+
+async function saveSpeechWidget(){
+  await docRef('speechWidget').set({ tabs: speechWidgetData.tabs });
+}
+
+// px, py는 스테이지 기준 0~100 퍼센트 좌표
+function speechPointInRegion(region, px, py){
+  if(region.shape === 'box'){
+    const p = region.points || {};
+    return px >= p.x && px <= p.x + p.w && py >= p.y && py <= p.y + p.h;
+  }
+  const pts = region.points || [];
+  let inside = false;
+  for(let i=0, j=pts.length-1; i<pts.length; j=i++){
+    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
+    const hit = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi || 0.0001) + xi);
+    if(hit) inside = !inside;
+  }
+  return inside;
+}
+
+function speechRegionSvgShape(region, className){
+  if(region.shape === 'box'){
+    const p = region.points;
+    return `<rect class="${className}" x="${p.x}%" y="${p.y}%" width="${p.w}%" height="${p.h}%" data-region="${region.id}"></rect>`;
+  }
+  const pts = (region.points||[]).map(p=> `${p.x},${p.y}`).join(' ');
+  return `<polygon class="${className}" points="${pts}" data-region="${region.id}"></polygon>`;
+}
+
+async function speechResolveCharacterUrl(character){
+  if(!character) return '';
+  if(character.avatarChunked && character.avatarFileId){
+    const cached = chunkedImageCache.get(character.avatarFileId);
+    if(cached) return cached;
+    try{
+      const dataUrl = await loadFileChunked(character.avatarFileId, character.avatarChunkTotal || 0);
+      chunkedImageCache.set(character.avatarFileId, dataUrl);
+      return dataUrl;
+    }catch(e){ return ''; }
+  }
+  return character.avatar || '';
+}
+
+// 프로필 카드가 지금 보여주고 있는 AU 이름과 같은 이름의 탭을 찾아 연동함.
+// 못 찾으면 첫 번째 탭으로 시작함(단, 프로필/말풍선 위젯 데이터는 서로 저장 형식이
+// 완전히 분리돼 있어서, 이 매칭이 실패해도 서로에게 영향 없음).
+function speechPickLinkedTabId(){
+  const tabs = speechWidgetData.tabs || [];
+  if(tabs.length === 0) return null;
+  const slides = (profileData.slides || []);
+  const currentLabel = slides[profileSlideIndex] && slides[profileSlideIndex].label;
+  const matched = currentLabel && tabs.find(t=> t.name === currentLabel);
+  return (matched || tabs[0]).id;
+}
+
+/* ---------------- 카드(평소 화면) ---------------- */
+
+async function renderSpeechCard(){
+  const box = document.getElementById('cardSpeech');
+  if(!box) return;
+  const tabs = speechWidgetData.tabs || [];
+  const linkedId = speechPickLinkedTabId();
+  const tab = tabs.find(t=> t.id === linkedId);
+
+  if(!tab){
+    box.innerHTML = `
+      <div class="speech-card-empty">${editMode ? '편집 버튼을 눌러 탭과 이미지를 추가해보세요' : '아직 준비 중이에요'}</div>
+      ${editMode ? `<button class="speech-card-edit-btn" id="speechEditBtn" aria-label="말풍선 위젯 편집">✎</button>` : ''}
+    `;
+    const editBtn = document.getElementById('speechEditBtn');
+    if(editBtn) editBtn.onclick = (e)=>{ e.stopPropagation(); openSpeechEditor(); };
+    return;
+  }
+
+  const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+  box.innerHTML = `
+    <div class="speech-card-thumbs">
+      ${url0 ? `<img src="${url0}" alt="">` : ''}
+      ${url1 ? `<img src="${url1}" alt="">` : ''}
+    </div>
+    <div class="speech-card-label">눌러서 반응 보기</div>
+    ${editMode ? `<button class="speech-card-edit-btn" id="speechEditBtn" aria-label="말풍선 위젯 편집">✎</button>` : ''}
+  `;
+  box.onclick = ()=> openSpeechOverlay(linkedId);
+  const editBtn = document.getElementById('speechEditBtn');
+  if(editBtn) editBtn.onclick = (e)=>{ e.stopPropagation(); openSpeechEditor(); };
+}
+
+/* ---------------- 방문자용 오버레이 ---------------- */
+
+function openSpeechOverlay(initialTabId){
+  const tabs = speechWidgetData.tabs || [];
+  if(tabs.length === 0) return;
+  let activeId = initialTabId || tabs[0].id;
+  let mode = 'other'; // 오버레이를 열 때마다 항상 타인모드로 시작함(기본값 off 유지)
+
+  openModal(`
+    <button class="lightbox-x" id="speechCloseBtn" aria-label="닫기">✕</button>
+    <button class="speech-mode-toggle" id="speechModeBtn"></button>
+    <div class="speech-tabs" id="speechTabs"></div>
+    <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
+  `, async (modal)=>{
+    modal.querySelector('#speechCloseBtn').onclick = closeModal;
+
+    const tabsEl = modal.querySelector('#speechTabs');
+    const modeBtn = modal.querySelector('#speechModeBtn');
+    const stage = modal.querySelector('#speechStage');
+    let bubbleEl = null;
+
+    const renderModeBtn = ()=>{
+      modeBtn.textContent = mode === 'other' ? '타인모드' : '캐릭터모드';
+    };
+
+    const renderTabs = ()=>{
+      tabsEl.innerHTML = tabs.map(t=> `<button class="speech-tab-btn ${t.id===activeId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('');
+      tabsEl.querySelectorAll('.speech-tab-btn').forEach(btn=>{
+        btn.onclick = ()=>{ activeId = btn.dataset.tab; renderTabs(); renderStage(); };
+      });
+    };
+
+    const renderStage = async ()=>{
+      if(bubbleEl){ bubbleEl.remove(); bubbleEl = null; }
+      const tab = tabs.find(t=> t.id === activeId);
+      if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
+      const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+      const regionsSvg = tab.regions.map(r=> speechRegionSvgShape(r, 'speech-region')).join('');
+      stage.innerHTML = `
+        ${url0 ? `<img src="${url0}" alt="">` : ''}
+        ${url1 ? `<img src="${url1}" alt="">` : ''}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">${regionsSvg}</svg>
+      `;
+      stage.querySelectorAll('[data-region]').forEach(el=>{
+        el.addEventListener('click', (e)=>{
+          const region = tab.regions.find(r=> r.id === el.dataset.region);
+          if(!region) return;
+          const text = mode === 'other' ? region.textOther : region.textCharacter;
+          if(!text) return;
+          if(bubbleEl) bubbleEl.remove();
+          bubbleEl = document.createElement('div');
+          bubbleEl.className = 'speech-bubble';
+          bubbleEl.textContent = text;
+          const rect = stage.getBoundingClientRect();
+          const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+          bubbleEl.style.left = cx + 'px';
+          bubbleEl.style.top = cy + 'px';
+          stage.appendChild(bubbleEl);
+        });
+      });
+    };
+
+    modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.remove(); bubbleEl = null; } };
+
+    renderModeBtn();
+    renderTabs();
+    await renderStage();
+  }, 'modal-speech');
+}
+
+/* ---------------- 편집기(편집모드 전용) ---------------- */
+
+function openSpeechEditor(){
+  const tabs = speechWidgetData.tabs || [];
+  speechEditorTabId = tabs[0] ? tabs[0].id : null;
+
+  openModal(`
+    <h3>말풍선 위젯 편집</h3>
+    <div class="speech-editor-tabbar" id="seTabbar"></div>
+    <div id="seTabBody"></div>
+    <div class="modal-actions"><button class="btn ghost" id="seCloseBtn">닫기</button></div>
+  `, (modal)=>{
+    modal.querySelector('#seCloseBtn').onclick = closeModal;
+    renderEditorTabbar(modal);
+    renderEditorTabBody(modal);
+  }, 'modal-speech-editor');
+}
+
+function renderEditorTabbar(modal){
+  const tabs = speechWidgetData.tabs || [];
+  const bar = modal.querySelector('#seTabbar');
+  bar.innerHTML = `
+    ${tabs.map(t=> `<button class="speech-tab-btn ${t.id===speechEditorTabId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('')}
+    <button class="btn small" id="seAddTabBtn">+ 탭 추가</button>
+  `;
+  bar.querySelectorAll('[data-tab]').forEach(btn=>{
+    btn.onclick = ()=>{ speechEditorTabId = btn.dataset.tab; renderEditorTabbar(modal); renderEditorTabBody(modal); };
+  });
+  bar.querySelector('#seAddTabBtn').onclick = async ()=>{
+    const name = prompt('탭 이름을 입력해주세요 (예: 이노스케)');
+    if(!name) return;
+    const t = normalizeSpeechTab({ name });
+    speechWidgetData.tabs = [...tabs, t];
+    speechEditorTabId = t.id;
+    await saveSpeechWidget();
+    renderEditorTabbar(modal); renderEditorTabBody(modal);
+  };
+}
+
+function renderEditorTabBody(modal){
+  const body = modal.querySelector('#seTabBody');
+  const tabs = speechWidgetData.tabs || [];
+  const tab = tabs.find(t=> t.id === speechEditorTabId);
+  if(!tab){ body.innerHTML = `<p class="hint">왼쪽 위에서 탭을 추가해주세요.</p>`; return; }
+
+  body.innerHTML = `
+    <div class="modal-actions" style="justify-content:flex-start; margin-top:0;">
+      <button class="btn small" id="seRenameBtn">이름 변경</button>
+      <button class="btn small" id="seDeleteTabBtn">이 탭 삭제</button>
+    </div>
+    <div class="speech-editor-slots">
+      <div class="speech-editor-slot" id="seSlot0">
+        ${tab.characters[0].avatar || tab.characters[0].avatarChunked ? '' : '캐릭터1 이미지'}
+        <input type="file" accept="image/png,image/jpeg,image/gif" id="seFile0">
+      </div>
+      <div class="speech-editor-slot" id="seSlot1">
+        ${tab.characters[1].avatar || tab.characters[1].avatarChunked ? '' : '캐릭터2 이미지'}
+        <input type="file" accept="image/png,image/jpeg,image/gif" id="seFile1">
+      </div>
+    </div>
+    <div class="speech-editor-tools">
+      <label style="margin:0;"><input type="radio" name="seShape" value="box" checked> 박스로 그리기</label>
+      <label style="margin:0;"><input type="radio" name="seShape" value="lasso"> 올가미로 그리기</label>
+      <span class="hint" style="margin:0;">이미지 위에서 드래그해서 영역을 그려주세요</span>
+    </div>
+    <div class="speech-editor-stage" id="seStage"></div>
+    <div class="speech-region-list" id="seRegionList"></div>
+  `;
+
+  modal.querySelectorAll('input[name="seShape"]').forEach(r=> r.onchange = ()=>{ speechDrawShape = r.value; });
+
+  modal.querySelector('#seRenameBtn').onclick = async ()=>{
+    const name = prompt('새 탭 이름', tab.name);
+    if(!name) return;
+    tab.name = name;
+    await saveSpeechWidget();
+    renderEditorTabbar(modal); renderEditorTabBody(modal);
+  };
+  modal.querySelector('#seDeleteTabBtn').onclick = async ()=>{
+    if(!confirm('이 탭을 삭제할까요? 안의 이미지와 대사도 함께 사라져요.')) return;
+    tab.characters.forEach(c=>{ if(c.avatarChunked && c.avatarFileId) deleteFileChunked(c.avatarFileId, c.avatarChunkTotal).catch(()=>{}); });
+    speechWidgetData.tabs = (speechWidgetData.tabs || []).filter(t=> t.id !== tab.id);
+    speechEditorTabId = speechWidgetData.tabs[0] ? speechWidgetData.tabs[0].id : null;
+    await saveSpeechWidget();
+    renderEditorTabbar(modal); renderEditorTabBody(modal);
+  };
+
+  [0,1].forEach(slot=>{
+    const input = modal.querySelector(`#seFile${slot}`);
+    input.onchange = async ()=>{
+      const file = input.files[0];
+      if(!file) return;
+      try{
+        const dataUrl = await compressAvatarImageFile(file);
+        const old = tab.characters[slot];
+        if(old.avatarChunked && old.avatarFileId) deleteFileChunked(old.avatarFileId, old.avatarChunkTotal).catch(()=>{});
+        const chunkInfo = await saveFileChunked(dataUrl);
+        chunkedImageCache.set(chunkInfo.fileId, dataUrl);
+        tab.characters[slot] = { avatar:'', avatarChunked:true, avatarFileId: chunkInfo.fileId, avatarChunkTotal: chunkInfo.total };
+        await saveSpeechWidget();
+        renderEditorTabBody(modal);
+      }catch(err){ toast(err.message || '이미지를 올리지 못했어요'); }
+    };
+  });
+
+  renderEditorStage(modal, tab);
+  renderEditorRegionList(modal, tab);
+}
+
+async function renderEditorStage(modal, tab){
+  const stage = modal.querySelector('#seStage');
+  const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+  const regionsSvg = tab.regions.map(r=> speechRegionSvgShape(r, 'speech-editor-region')).join('');
+  stage.innerHTML = `
+    ${url0 ? `<img src="${url0}" alt="">` : ''}
+    ${url1 ? `<img src="${url1}" alt="">` : ''}
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" id="seSvg">${regionsSvg}</svg>
+  `;
+  const svg = stage.querySelector('#seSvg');
+
+  const toPercent = (e)=>{
+    const rect = stage.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    return { x, y };
+  };
+
+  let drawing = false, startPt = null, lassoPts = [], liveEl = null;
+
+  svg.addEventListener('mousedown', (e)=>{
+    if(e.target.dataset && e.target.dataset.region) return; // 기존 영역 클릭은 새로 그리기로 안 이어짐
+    drawing = true;
+    startPt = toPercent(e);
+    lassoPts = [startPt];
+    liveEl = document.createElementNS('http://www.w3.org/2000/svg', speechDrawShape === 'box' ? 'rect' : 'polygon');
+    liveEl.setAttribute('class', 'speech-editor-region');
+    svg.appendChild(liveEl);
+  });
+  svg.addEventListener('mousemove', (e)=>{
+    if(!drawing) return;
+    const pt = toPercent(e);
+    if(speechDrawShape === 'box'){
+      const x = Math.min(startPt.x, pt.x), y = Math.min(startPt.y, pt.y);
+      const w = Math.abs(pt.x - startPt.x), h = Math.abs(pt.y - startPt.y);
+      liveEl.setAttribute('x', x + '%'); liveEl.setAttribute('y', y + '%');
+      liveEl.setAttribute('width', w + '%'); liveEl.setAttribute('height', h + '%');
+    } else {
+      lassoPts.push(pt);
+      liveEl.setAttribute('points', lassoPts.map(p=> `${p.x},${p.y}`).join(' '));
+    }
+  });
+  const finishDrawing = async ()=>{
+    if(!drawing) return;
+    drawing = false;
+    if(liveEl) liveEl.remove();
+    let region;
+    if(speechDrawShape === 'box'){
+      const endPt = lassoPts[lassoPts.length-1] || startPt;
+      const x = Math.min(startPt.x, endPt.x), y = Math.min(startPt.y, endPt.y);
+      const w = Math.abs(endPt.x - startPt.x), h = Math.abs(endPt.y - startPt.y);
+      if(w < 1 || h < 1) return; // 너무 작게 클릭만 한 경우는 무시
+      region = { id: uid(), shape:'box', points:{x,y,w,h}, textOther:'', textCharacter:'' };
+    } else {
+      if(lassoPts.length < 3) return;
+      region = { id: uid(), shape:'lasso', points: lassoPts, textOther:'', textCharacter:'' };
+    }
+    tab.regions.push(region);
+    await saveSpeechWidget();
+    renderEditorStage(modal, tab);
+    renderEditorRegionList(modal, tab);
+  };
+  svg.addEventListener('mouseup', finishDrawing);
+  svg.addEventListener('mouseleave', ()=>{ if(drawing){ drawing = false; if(liveEl) liveEl.remove(); } });
+}
+
+function renderEditorRegionList(modal, tab){
+  const list = modal.querySelector('#seRegionList');
+  if(tab.regions.length === 0){ list.innerHTML = `<p class="hint">아직 그려진 영역이 없어요.</p>`; return; }
+  list.innerHTML = tab.regions.map((r,i)=> `
+    <div class="speech-region-row" data-region="${r.id}">
+      <div class="speech-region-row-top">
+        <span>영역 ${i+1} (${r.shape === 'box' ? '박스' : '올가미'})</span>
+        <button class="btn small" data-del="${r.id}">삭제</button>
+      </div>
+      <label>타인용 대사</label>
+      <textarea data-field="textOther">${escapeHtml(r.textOther)}</textarea>
+      <label>캐릭터용 대사</label>
+      <textarea data-field="textCharacter">${escapeHtml(r.textCharacter)}</textarea>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      tab.regions = tab.regions.filter(r=> r.id !== btn.dataset.del);
+      await saveSpeechWidget();
+      renderEditorStage(modal, tab);
+      renderEditorRegionList(modal, tab);
+    };
+  });
+  list.querySelectorAll('.speech-region-row textarea').forEach(ta=>{
+    ta.onblur = async ()=>{
+      const row = ta.closest('.speech-region-row');
+      const region = tab.regions.find(r=> r.id === row.dataset.region);
+      if(!region) return;
+      region[ta.dataset.field] = ta.value;
+      await saveSpeechWidget();
+    };
+  });
+}
+
+docRef('speechWidget').onSnapshot(doc=>{
+  speechWidgetData = { tabs: doc.exists ? (doc.data().tabs || []).map(normalizeSpeechTab) : [] };
+  renderSpeechCard();
+});
 
 docRef('stickers').onSnapshot(doc=>{ stickerPosData = doc.exists ? doc.data() : { positions:{} }; renderStickers(); });
 

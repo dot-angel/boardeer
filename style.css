@@ -310,6 +310,81 @@ body::before{
     font-size: 16px;
   }
 }
+/* ---------- 말풍선 위젯: 캐릭터를 눌러 대사를 보는 부가 기능 ---------- */
+.w-speech{ padding:12px; flex-direction:row; align-items:center; gap:14px; cursor:pointer; min-height:96px; }
+.speech-card-thumbs{ display:flex; gap:6px; flex:0 0 auto; }
+.speech-card-thumbs img{ width:56px; height:72px; object-fit:contain; border-radius:10px; background: rgba(255,255,255,0.03); }
+.speech-card-label{ font-size:.78rem; color: var(--ink-soft); }
+.speech-card-empty{ font-size:.78rem; color: var(--ink-soft); }
+.speech-card-edit-btn{
+  position:absolute; top:8px; right:8px; width:28px; height:28px; border-radius:50%;
+  border:1px solid var(--card-border); background: rgba(15,4,6,0.55);
+  color: var(--ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.speech-card-edit-btn:hover{ background: rgba(196,66,95,0.5); }
+
+/* 방문자용 오버레이 — 라이트박스처럼 블러가 가볍게, 이미지 위주로 크게 보여줌 */
+.modal.modal-speech{
+  width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.55);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+}
+.speech-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.speech-tab-btn{
+  padding:6px 14px; border-radius:20px; border:1px solid var(--card-border);
+  background: rgba(255,255,255,0.05); color: var(--ink-soft); font-size:.78rem; cursor:pointer;
+}
+.speech-tab-btn.active{ background: var(--rose-soft); color: var(--ink); border-color: rgba(196,66,95,0.5); }
+.speech-mode-toggle{
+  position:absolute; top:16px; right:16px; padding:5px 12px; border-radius:20px;
+  border:1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink);
+  font-size:.72rem; cursor:pointer; z-index:3;
+}
+.speech-stage-wrap{ position:relative; }
+.speech-stage{
+  position:relative; display:flex; justify-content:center; align-items:flex-end; gap:4px;
+  min-height:200px; max-height:64vh;
+}
+.speech-stage img{ max-height:64vh; max-width:44vw; object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
+.speech-stage svg{ position:absolute; inset:0; width:100%; height:100%; }
+.speech-region{ fill: rgba(255,255,255,0); cursor:pointer; pointer-events:all; }
+.speech-region:hover{ fill: rgba(196,66,95,0.14); }
+.speech-bubble{
+  position:absolute; max-width:220px; background: rgba(24,11,14,0.92); color: var(--ink);
+  border:1px solid var(--card-border); border-radius:14px; padding:10px 14px; font-size:.82rem;
+  box-shadow: var(--shadow); z-index:4; transform: translate(-50%, -100%); margin-top:-10px;
+  animation: popIn .15s ease;
+}
+.speech-empty-hint{ text-align:center; color: var(--ink-soft); font-size:.85rem; padding:40px 0; }
+
+/* 편집기 — 프로필 편집 모달과 같은 이유로(입력 잦음) 블러 대신 불투명도로 대체 */
+.modal.modal-speech-editor{
+  width:min(760px, 96vw); backdrop-filter:none; -webkit-backdrop-filter:none;
+  background: rgba(20,9,11,0.95);
+}
+.speech-editor-tabbar{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.speech-editor-tools{ display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap; }
+.speech-editor-slots{ display:flex; gap:10px; margin-bottom:10px; }
+.speech-editor-slot{
+  flex:1; border:1px dashed var(--card-border); border-radius:12px; padding:8px;
+  text-align:center; font-size:.75rem; color: var(--ink-soft);
+}
+.speech-editor-slot img{ max-width:100%; max-height:160px; object-fit:contain; display:block; margin:0 auto 6px; }
+.speech-editor-stage{
+  position:relative; background: rgba(0,0,0,0.2); border-radius:12px; min-height:220px;
+  display:flex; justify-content:center; align-items:flex-end; gap:4px; overflow:hidden;
+}
+.speech-editor-stage img{ max-height:50vh; max-width:44%; object-fit:contain; pointer-events:none; -webkit-user-select:none; user-select:none; }
+.speech-editor-stage svg{ position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; }
+.speech-editor-region{ fill: rgba(196,66,95,0.18); stroke: var(--rose); stroke-width:1; cursor:pointer; }
+.speech-editor-region.selected{ fill: rgba(196,66,95,0.35); }
+.speech-region-list{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+.speech-region-row{
+  border:1px solid var(--card-border); border-radius:12px; padding:8px 10px;
+  display:flex; flex-direction:column; gap:6px;
+}
+.speech-region-row-top{ display:flex; justify-content:space-between; align-items:center; font-size:.75rem; color: var(--ink-soft); }
+.speech-region-row textarea{ min-height:44px; }
+
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
 .w-card{
   position: relative;
