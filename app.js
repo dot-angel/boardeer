@@ -6599,20 +6599,24 @@ function renderEditorTabbar(modal){
   const bar = modal.querySelector('#seTabbar');
   bar.innerHTML = `
     ${tabs.map(t=> `<button class="speech-tab-btn ${t.id===speechEditorTabId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('')}
+    <input type="text" id="seNewTabInput" placeholder="새 탭 이름" style="width:120px;">
     <button class="btn small" id="seAddTabBtn">+ 탭 추가</button>
   `;
   bar.querySelectorAll('[data-tab]').forEach(btn=>{
     btn.onclick = ()=>{ speechEditorTabId = btn.dataset.tab; renderEditorTabbar(modal); renderEditorTabBody(modal); };
   });
-  bar.querySelector('#seAddTabBtn').onclick = async ()=>{
-    const name = prompt('탭 이름을 입력해주세요 (예: 이노스케)');
-    if(!name) return;
+  const newInput = bar.querySelector('#seNewTabInput');
+  const addTab = async ()=>{
+    const name = newInput.value.trim();
+    if(!name){ newInput.focus(); return; }
     const t = normalizeSpeechTab({ name });
     speechWidgetData.tabs = [...tabs, t];
     speechEditorTabId = t.id;
     await saveSpeechWidget();
     renderEditorTabbar(modal); renderEditorTabBody(modal);
   };
+  bar.querySelector('#seAddTabBtn').onclick = addTab;
+  newInput.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); addTab(); } });
 }
 
 function renderEditorTabBody(modal){
@@ -6622,10 +6626,7 @@ function renderEditorTabBody(modal){
   if(!tab){ body.innerHTML = `<p class="hint">왼쪽 위에서 탭을 추가해주세요.</p>`; return; }
 
   body.innerHTML = `
-    <div class="modal-actions" style="justify-content:flex-start; margin-top:0;">
-      <button class="btn small" id="seRenameBtn">이름 변경</button>
-      <button class="btn small" id="seDeleteTabBtn">이 탭 삭제</button>
-    </div>
+    <div class="modal-actions" id="seTabActions" style="justify-content:flex-start; margin-top:0; gap:8px; flex-wrap:wrap;"></div>
     <div class="speech-editor-slots">
       <div class="speech-editor-slot" id="seSlot0">
         ${tab.characters[0].avatar || tab.characters[0].avatarChunked ? '' : '캐릭터1 이미지'}
@@ -6645,23 +6646,9 @@ function renderEditorTabBody(modal){
     <div class="speech-region-list" id="seRegionList"></div>
   `;
 
-  modal.querySelectorAll('input[name="seShape"]').forEach(r=> r.onchange = ()=>{ speechDrawShape = r.value; });
+  renderTabActions(modal, tab, false);
 
-  modal.querySelector('#seRenameBtn').onclick = async ()=>{
-    const name = prompt('새 탭 이름', tab.name);
-    if(!name) return;
-    tab.name = name;
-    await saveSpeechWidget();
-    renderEditorTabbar(modal); renderEditorTabBody(modal);
-  };
-  modal.querySelector('#seDeleteTabBtn').onclick = async ()=>{
-    if(!confirm('이 탭을 삭제할까요? 안의 이미지와 대사도 함께 사라져요.')) return;
-    tab.characters.forEach(c=>{ if(c.avatarChunked && c.avatarFileId) deleteFileChunked(c.avatarFileId, c.avatarChunkTotal).catch(()=>{}); });
-    speechWidgetData.tabs = (speechWidgetData.tabs || []).filter(t=> t.id !== tab.id);
-    speechEditorTabId = speechWidgetData.tabs[0] ? speechWidgetData.tabs[0].id : null;
-    await saveSpeechWidget();
-    renderEditorTabbar(modal); renderEditorTabBody(modal);
-  };
+  modal.querySelectorAll('input[name="seShape"]').forEach(r=> r.onchange = ()=>{ speechDrawShape = r.value; });
 
   [0,1].forEach(slot=>{
     const input = modal.querySelector(`#seFile${slot}`);
@@ -6683,6 +6670,44 @@ function renderEditorTabBody(modal){
 
   renderEditorStage(modal, tab);
   renderEditorRegionList(modal, tab);
+}
+
+// 탭 이름변경/삭제 액션 줄 — 브라우저 기본 prompt()/confirm() 대신, 사이트 톤에 맞는
+// 인라인 입력창과 2단계 확인(먼저 눌렀을 때만 "정말요?"로 바뀜)으로 대체함.
+function renderTabActions(modal, tab, confirmingDelete){
+  const wrap = modal.querySelector('#seTabActions');
+  if(confirmingDelete){
+    wrap.innerHTML = `
+      <span class="hint" style="margin:0;">이 탭을 정말 삭제할까요? 안의 이미지와 대사도 함께 사라져요.</span>
+      <button class="btn small danger" id="seDeleteConfirmBtn">삭제</button>
+      <button class="btn small ghost" id="seDeleteCancelBtn">취소</button>
+    `;
+    wrap.querySelector('#seDeleteConfirmBtn').onclick = async ()=>{
+      tab.characters.forEach(c=>{ if(c.avatarChunked && c.avatarFileId) deleteFileChunked(c.avatarFileId, c.avatarChunkTotal).catch(()=>{}); });
+      speechWidgetData.tabs = (speechWidgetData.tabs || []).filter(t=> t.id !== tab.id);
+      speechEditorTabId = speechWidgetData.tabs[0] ? speechWidgetData.tabs[0].id : null;
+      await saveSpeechWidget();
+      renderEditorTabbar(modal); renderEditorTabBody(modal);
+    };
+    wrap.querySelector('#seDeleteCancelBtn').onclick = ()=> renderTabActions(modal, tab, false);
+    return;
+  }
+  wrap.innerHTML = `
+    <input type="text" id="seNameInput" value="${escapeHtml(tab.name)}" style="width:140px;">
+    <button class="btn small" id="seRenameBtn">이름 저장</button>
+    <button class="btn small danger" id="seDeleteTabBtn">이 탭 삭제</button>
+  `;
+  const nameInput = wrap.querySelector('#seNameInput');
+  const saveName = async ()=>{
+    const name = nameInput.value.trim();
+    if(!name || name === tab.name) return;
+    tab.name = name;
+    await saveSpeechWidget();
+    renderEditorTabbar(modal);
+  };
+  wrap.querySelector('#seRenameBtn').onclick = saveName;
+  nameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); saveName(); } });
+  wrap.querySelector('#seDeleteTabBtn').onclick = ()=> renderTabActions(modal, tab, true);
 }
 
 async function renderEditorStage(modal, tab){
