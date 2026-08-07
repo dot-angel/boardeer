@@ -6509,80 +6509,101 @@ async function renderSpeechCard(){
 
 /* ---------------- 방문자용 오버레이 ---------------- */
 
+function closeSpeechOverlay(){
+  const el = document.getElementById('speechOverlayRoot');
+  if(el){ el.remove(); }
+  if(window.__speechEscHandler){ document.removeEventListener('keydown', window.__speechEscHandler); window.__speechEscHandler = null; }
+}
+
 function openSpeechOverlay(initialTabId){
   const tabs = speechWidgetData.tabs || [];
   if(tabs.length === 0) return;
   let activeId = initialTabId || tabs[0].id;
-  let mode = 'other'; // 오버레이를 열 때마다 항상 타인모드로 시작함(기본값 off 유지)
+  let mode = 'other'; // 오버레이를 열 때마다 항상 타인모드(=off)로 시작함
 
-  openModal(`
-    <button class="lightbox-x" id="speechCloseBtn" aria-label="닫기">✕</button>
-    <button class="speech-mode-toggle" id="speechModeBtn"></button>
+  closeSpeechOverlay();
+  const el = document.createElement('div');
+  el.className = 'speech-overlay';
+  el.id = 'speechOverlayRoot';
+  el.innerHTML = `
+    <button class="speech-overlay-close" id="speechCloseBtn" aria-label="닫기">✕</button>
     <div class="speech-tabs" id="speechTabs"></div>
     <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
-  `, async (modal)=>{
-    modal.querySelector('#speechCloseBtn').onclick = closeModal;
+    <button class="speech-toggle" id="speechModeBtn" aria-pressed="false">
+      <span class="speech-toggle-knob"></span>
+      <span class="speech-toggle-text"></span>
+    </button>
+  `;
+  document.body.appendChild(el);
 
-    const tabsEl = modal.querySelector('#speechTabs');
-    const modeBtn = modal.querySelector('#speechModeBtn');
-    const stage = modal.querySelector('#speechStage');
-    let bubbleEl = null;
+  el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
+  window.__speechEscHandler = (e)=>{ if(e.key === 'Escape') closeSpeechOverlay(); };
+  document.addEventListener('keydown', window.__speechEscHandler);
+  el.querySelector('#speechCloseBtn').onclick = closeSpeechOverlay;
 
-    const renderModeBtn = ()=>{
-      modeBtn.textContent = mode === 'other' ? '타인모드' : '캐릭터모드';
-    };
+  const tabsEl = el.querySelector('#speechTabs');
+  const modeBtn = el.querySelector('#speechModeBtn');
+  const stage = el.querySelector('#speechStage');
+  let bubbleEl = null;
 
-    const renderTabs = ()=>{
-      tabsEl.innerHTML = tabs.map(t=> `<button class="speech-tab-btn ${t.id===activeId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('');
-      tabsEl.querySelectorAll('.speech-tab-btn').forEach(btn=>{
-        btn.onclick = ()=>{ activeId = btn.dataset.tab; renderTabs(); renderStage(); };
-      });
-    };
+  const renderModeBtn = ()=>{
+    const isOn = mode === 'character';
+    modeBtn.classList.toggle('is-on', isOn);
+    modeBtn.setAttribute('aria-pressed', String(isOn));
+    modeBtn.querySelector('.speech-toggle-text').textContent = isOn ? '캐릭터' : '타인';
+    el.classList.toggle('is-on', isOn); // 켜졌을 때 배경에 은은한 핑크빛
+  };
 
-    const renderStage = async ()=>{
-      if(bubbleEl){ bubbleEl.remove(); bubbleEl = null; }
-      const tab = tabs.find(t=> t.id === activeId);
-      if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
-      const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
-      stage.innerHTML = urls.map((url, idx)=> url
-        ? `<div class="speech-charbox" data-char="${idx}"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`
-        : ''
-      ).join('');
+  const renderTabs = ()=>{
+    tabsEl.innerHTML = tabs.map(t=> `<button class="speech-tab-btn ${t.id===activeId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('');
+    tabsEl.querySelectorAll('.speech-tab-btn').forEach(btn=>{
+      btn.onclick = ()=>{ activeId = btn.dataset.tab; renderTabs(); renderStage(); };
+    });
+  };
 
-      stage.querySelectorAll('.speech-charbox').forEach(box=>{
-        const idx = Number(box.dataset.char);
-        const svg = box.querySelector('svg');
-        const regions = tab.regions.filter(r=> r.character === idx);
-        svg.innerHTML = regions.map(r=> speechRegionSvgShape(r, 'speech-region')).join('');
-        svg.querySelectorAll('[data-region]').forEach(el=>{
-          el.addEventListener('click', (e)=>{
-            const region = regions.find(r=> r.id === el.dataset.region);
-            if(!region) return;
-            const text = mode === 'other' ? region.textOther : region.textCharacter;
-            if(!text) return;
-            if(bubbleEl) bubbleEl.remove();
-            bubbleEl = document.createElement('div');
-            bubbleEl.className = 'speech-bubble';
-            bubbleEl.textContent = text;
-            // 말풍선 위치는 눌린 지점 기준으로, 바깥 스테이지(캐릭터 두 명을 함께 담는 틀)
-            // 좌표로 환산해서 붙임 — 클릭 영역 판정 자체는 각 캐릭터 이미지 자신의 좌표계를
-            // 쓰지만(그래야 화면 크기가 달라도 항상 같은 위치를 가리킴), 말풍선은 화면에
-            // 실제로 보이는 픽셀 위치에 뜨면 되므로 여기서만 스테이지 기준으로 다시 잼.
-            const stageRect = stage.getBoundingClientRect();
-            bubbleEl.style.left = (e.clientX - stageRect.left) + 'px';
-            bubbleEl.style.top = (e.clientY - stageRect.top) + 'px';
-            stage.appendChild(bubbleEl);
-          });
+  const renderStage = async ()=>{
+    if(bubbleEl){ bubbleEl.remove(); bubbleEl = null; }
+    const tab = tabs.find(t=> t.id === activeId);
+    if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
+    const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+    stage.innerHTML = urls.map((url, idx)=> url
+      ? `<div class="speech-charbox" data-char="${idx}"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`
+      : ''
+    ).join('');
+
+    stage.querySelectorAll('.speech-charbox').forEach(box=>{
+      const idx = Number(box.dataset.char);
+      const svg = box.querySelector('svg');
+      const regions = tab.regions.filter(r=> r.character === idx);
+      svg.innerHTML = regions.map(r=> speechRegionSvgShape(r, 'speech-region')).join('');
+      svg.querySelectorAll('[data-region]').forEach(regionEl=>{
+        regionEl.addEventListener('click', (e)=>{
+          const region = regions.find(r=> r.id === regionEl.dataset.region);
+          if(!region) return;
+          const text = mode === 'other' ? region.textOther : region.textCharacter;
+          if(!text) return;
+          if(bubbleEl) bubbleEl.remove();
+          bubbleEl = document.createElement('div');
+          bubbleEl.className = 'speech-bubble';
+          bubbleEl.textContent = text;
+          // 말풍선 위치는 눌린 지점 기준으로, 바깥 스테이지(캐릭터 두 명을 함께 담는 틀)
+          // 좌표로 환산해서 붙임 — 클릭 영역 판정 자체는 각 캐릭터 이미지 자신의 좌표계를
+          // 쓰지만(그래야 화면 크기가 달라도 항상 같은 위치를 가리킴), 말풍선은 화면에
+          // 실제로 보이는 픽셀 위치에 뜨면 되므로 여기서만 스테이지 기준으로 다시 잼.
+          const stageRect = stage.getBoundingClientRect();
+          bubbleEl.style.left = (e.clientX - stageRect.left) + 'px';
+          bubbleEl.style.top = (e.clientY - stageRect.top) + 'px';
+          stage.appendChild(bubbleEl);
         });
       });
-    };
+    });
+  };
 
-    modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.remove(); bubbleEl = null; } };
+  modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.remove(); bubbleEl = null; } };
 
-    renderModeBtn();
-    renderTabs();
-    await renderStage();
-  }, 'modal-speech');
+  renderModeBtn();
+  renderTabs();
+  renderStage();
 }
 
 /* ---------------- 편집기(편집모드 전용) ---------------- */

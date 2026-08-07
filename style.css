@@ -323,22 +323,50 @@ body::before{
 }
 .speech-card-edit-btn:hover{ background: rgba(196,66,95,0.5); }
 
-/* 방문자용 오버레이 — 라이트박스처럼 블러가 가볍게, 이미지 위주로 크게 보여줌 */
-.modal.modal-speech{
-  width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.55);
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+/* 방문자용 오버레이 — openModal의 .modal 박스(테두리/배경/그림자)를 안 쓰고, 블러 배경
+   위에 이미지·토글·탭 이름만 떠 있는 형태. 전체화면 블러는 라이트박스와 같은 이유로
+   가장 가벼운 값(glass-blur-thin)만 씀 — 화면 전체를 매 프레임 블러 계산하는 무거운
+   효과를 여기서도 피해야 렉이 안 생김. */
+.speech-overlay{
+  position:fixed; inset:0; z-index:250; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:22px; padding:20px;
+  background: rgba(6,2,3,0.6);
+  backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
+  animation: fadeIn .15s ease;
+  transition: background .35s ease;
 }
-.speech-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+/* 캐릭터모드(on)일 때만 은은한 핑크 톤이 배경에 번지도록 */
+.speech-overlay.is-on{
+  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(6,2,3,0.6) 68%);
+}
+.speech-overlay-close{
+  position:absolute; top:18px; right:18px; width:34px; height:34px; border-radius:50%; border:none;
+  background: rgba(255,255,255,0.08); color:#fff; font-size:.85rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.speech-overlay-close:hover{ background: rgba(196,66,95,0.5); }
+.speech-tabs{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
 .speech-tab-btn{
-  padding:6px 14px; border-radius:20px; border:1px solid var(--card-border);
-  background: rgba(255,255,255,0.05); color: var(--ink-soft); font-size:.78rem; cursor:pointer;
+  padding:5px 14px; border-radius:20px; border:none;
+  background:none; color: rgba(255,255,255,0.5); font-size:.8rem; cursor:pointer;
 }
-.speech-tab-btn.active{ background: var(--rose-soft); color: var(--ink); border-color: rgba(196,66,95,0.5); }
-.speech-mode-toggle{
-  position:absolute; top:16px; right:16px; padding:5px 12px; border-radius:20px;
-  border:1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink);
-  font-size:.72rem; cursor:pointer; z-index:3;
+.speech-tab-btn.active{ color:#fff; font-weight:600; }
+/* 슬라이딩 토글 — 알약 모양 틀 안에서 동그란 손잡이가 좌(off)/우(on)로 움직이고,
+   손잡이가 없는 쪽 여백에 지금 상태 글자가 뜸 */
+.speech-toggle{
+  position:relative; width:112px; height:44px; border-radius:999px;
+  border:2px solid rgba(255,255,255,0.85); background:transparent; cursor:pointer; flex:0 0 auto;
 }
+.speech-toggle-knob{
+  position:absolute; top:3px; left:3px; width:34px; height:34px; border-radius:50%;
+  background:#fff; transition: transform .2s ease;
+}
+.speech-toggle.is-on .speech-toggle-knob{ transform: translateX(64px); }
+.speech-toggle-text{
+  position:absolute; top:50%; right:14px; transform: translateY(-50%);
+  font-size:.78rem; font-weight:700; color:#fff; letter-spacing:.02em;
+}
+.speech-toggle.is-on .speech-toggle-text{ right:auto; left:14px; }
 .speech-stage-wrap{ position:relative; }
 .speech-stage{
   position:relative; display:flex; justify-content:center; align-items:flex-end; gap:4px;
@@ -348,8 +376,8 @@ body::before{
    렌더링 크기에 딱 맞게 줄어들어서, svg(inset:0)가 항상 "이 이미지 자신의 박스"와
    정확히 겹침 — 그래서 영역 좌표(%)가 바깥 틀(모달) 크기와 무관하게 항상 같은 위치를
    가리킴(편집화면과 방문화면의 모달 크기가 달라도 어긋나지 않음) */
-.speech-charbox{ position:relative; display:inline-block; max-height:64vh; }
-.speech-charbox img{ display:block; max-height:64vh; max-width:44vw; object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
+.speech-charbox{ position:relative; display:inline-block; max-height:56vh; }
+.speech-charbox img{ display:block; max-height:56vh; max-width:44vw; object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
 .speech-charbox svg{ position:absolute; inset:0; width:100%; height:100%; }
 .speech-charbox-empty{ font-size:.75rem; color: var(--ink-soft); padding:20px; }
 .speech-region{ fill: rgba(255,255,255,0); cursor:pointer; pointer-events:all; }
