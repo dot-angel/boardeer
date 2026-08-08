@@ -6825,19 +6825,100 @@ function renderEditorTabBody(modal){
     <div class="speech-editor-tools">
       <label style="margin:0;"><input type="radio" name="seShape" value="box" checked> 박스로 그리기</label>
       <label style="margin:0;"><input type="radio" name="seShape" value="lasso"> 올가미로 그리기</label>
-      <span class="hint" style="margin:0;">이미지 위에서 드래그해서 영역을 그려주세요. 다 그리면 아래에서 대사를 입력하고 저장해주세요.</span>
+      <span class="hint" style="margin:0;">가운데 이미지 위에서 드래그해서 영역을 그려주세요. 다 그리면 양옆에서 대사를 입력하고 저장해주세요.</span>
     </div>
-    <div class="profile-edit-cols" id="seCharCols">
-      <div class="profile-edit-col" data-char="0"><h4>캐릭터1</h4></div>
-      <div class="profile-edit-divider"></div>
-      <div class="profile-edit-col" data-char="1"><h4>캐릭터2</h4></div>
+    <div class="speech-editor-layout" id="seLayout">
+      <div class="speech-editor-side" data-char="0"><h4>캐릭터1</h4></div>
+      <div class="speech-editor-center">
+        <div class="speech-editor-uploads">
+          <div class="speech-editor-slot" id="seSlot0"><input type="file" accept="image/png,image/jpeg,image/gif" id="seFile0"></div>
+          <div class="speech-editor-slot" id="seSlot1"><input type="file" accept="image/png,image/jpeg,image/gif" id="seFile1"></div>
+        </div>
+        <div class="speech-editor-stage-dual" id="seStageDual"></div>
+      </div>
+      <div class="speech-editor-side" data-char="1"><h4>캐릭터2</h4></div>
     </div>
   `;
 
   renderTabActions(modal, tab, false);
   modal.querySelectorAll('input[name="seShape"]').forEach(r=> r.onchange = ()=>{ speechDrawShape = r.value; });
 
-  [0,1].forEach(idx=> renderEditorCharColumn(modal, tab, idx));
+  [0,1].forEach(idx=> renderEditorUploadSlot(modal, tab, idx));
+  [0,1].forEach(idx=> renderEditorSide(modal, tab, idx));
+  renderEditorDualStage(modal, tab);
+}
+
+// 가운데 업로드 칸(캐릭터1/2 사진) — 양옆 문구 패널과는 별개라 여기 따로 둠
+function renderEditorUploadSlot(modal, tab, idx){
+  const slot = modal.querySelector(`#seSlot${idx}`);
+  const ch = tab.characters[idx];
+  const hasImage = !!(ch.avatar || ch.avatarChunked);
+  slot.innerHTML = `
+    ${hasImage ? '' : `캐릭터${idx+1} 이미지`}
+    <input type="file" accept="image/png,image/jpeg,image/gif" id="seFile${idx}">
+  `;
+  slot.querySelector(`#seFile${idx}`).onchange = async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    try{
+      const dataUrl = await compressAvatarImageFile(file);
+      const old = tab.characters[idx];
+      if(old.avatarChunked && old.avatarFileId) deleteFileChunked(old.avatarFileId, old.avatarChunkTotal).catch(()=>{});
+      const chunkInfo = await saveFileChunked(dataUrl);
+      chunkedImageCache.set(chunkInfo.fileId, dataUrl);
+      // 이미지만 바꾸는 거니까 기본 문구(defaultTextOther/Character) 등 나머지 필드는 그대로 유지
+      tab.characters[idx] = { ...old, avatar:'', avatarChunked:true, avatarFileId: chunkInfo.fileId, avatarChunkTotal: chunkInfo.total };
+      await saveSpeechWidget();
+      renderEditorUploadSlot(modal, tab, idx);
+      renderEditorDualStage(modal, tab);
+    }catch(err){ toast(err.message || '이미지를 올리지 못했어요'); }
+  };
+}
+
+// 양옆 문구 패널 — 이 캐릭터의 기본 문구 + 저장된 영역 목록만 담당(이미지/그리기는
+// 가운데(renderEditorDualStage)가 담당)
+function renderEditorSide(modal, tab, idx){
+  const side = modal.querySelector(`.speech-editor-side[data-char="${idx}"]`);
+  const ch = tab.characters[idx];
+  side.innerHTML = `
+    <h4>캐릭터${idx+1}</h4>
+    <div class="speech-region-row" id="seDefaultTextRow${idx}">
+      <div class="speech-region-row-top"><span>영역 밖(빈 곳)을 눌렀을 때 뜨는 기본 문구</span></div>
+      <label>모브용</label>
+      <textarea id="seDefaultOther${idx}">${escapeHtml(ch.defaultTextOther)}</textarea>
+      <label>서로용</label>
+      <textarea id="seDefaultCharacter${idx}">${escapeHtml(ch.defaultTextCharacter)}</textarea>
+      <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
+        <button class="btn small primary" id="seDefaultSaveBtn${idx}">저장</button>
+        <button class="btn small ghost" id="seDefaultCancelBtn${idx}">취소</button>
+      </div>
+    </div>
+    <div class="speech-region-list" id="seRegionList${idx}"></div>
+  `;
+
+  const defaultRow = side.querySelector(`#seDefaultTextRow${idx}`);
+  defaultRow.querySelector(`#seDefaultSaveBtn${idx}`).onclick = async ()=>{
+    ch.defaultTextOther = defaultRow.querySelector(`#seDefaultOther${idx}`).value;
+    ch.defaultTextCharacter = defaultRow.querySelector(`#seDefaultCharacter${idx}`).value;
+    await saveSpeechWidget();
+    toast('저장했어요');
+  };
+  defaultRow.querySelector(`#seDefaultCancelBtn${idx}`).onclick = ()=>{
+    defaultRow.querySelector(`#seDefaultOther${idx}`).value = ch.defaultTextOther;
+    defaultRow.querySelector(`#seDefaultCharacter${idx}`).value = ch.defaultTextCharacter;
+  };
+
+  renderEditorRegionList(modal, tab, idx);
+}
+
+// 가운데: 캐릭터 둘을 나란히(방문자가 실제로 보는 모습과 같게) 놓고 그 위에서 그리게 함.
+// 캐릭터별 좌표계는 여전히 독립적으로 유지함(renderEditorCharStage 내부 로직은 그대로,
+// 붙는 자리만 전용 mount로 바뀜)
+function renderEditorDualStage(modal, tab){
+  const wrap = modal.querySelector('#seStageDual');
+  wrap.innerHTML = `<div class="speech-editor-mount" id="seCharBox0"></div><div class="speech-editor-mount" id="seCharBox1"></div>`;
+  renderEditorCharStage(modal, tab, 0, null);
+  renderEditorCharStage(modal, tab, 1, null);
 }
 
 // 탭 이름변경/삭제 액션 줄 — 브라우저 기본 prompt()/confirm() 대신, 사이트 톤에 맞는
@@ -6880,71 +6961,13 @@ function renderTabActions(modal, tab, confirmingDelete){
 
 // 캐릭터 한 명 분(이미지 업로드 + 그리기 스테이지 + 대사 목록)을 통째로 그리고 관리함.
 // 프로필 편집창의 "인물별 컬럼" 구성을 그대로 가져와서, 캐릭터1/캐릭터2 항목이 서로
-// 절대 안 섞이고 시각적으로도 뚜렷하게 나뉘도록 함.
-function renderEditorCharColumn(modal, tab, idx){
-  const col = modal.querySelector(`.profile-edit-col[data-char="${idx}"]`);
-  const ch = tab.characters[idx];
-  const hasImage = !!(ch.avatar || ch.avatarChunked);
-  col.innerHTML = `
-    <h4>캐릭터${idx+1}</h4>
-    <div class="speech-editor-slot" id="seSlot${idx}">
-      ${hasImage ? '' : '이미지를 올려주세요'}
-      <input type="file" accept="image/png,image/jpeg,image/gif" id="seFile${idx}">
-    </div>
-    <div class="speech-editor-stage-single" id="seStage${idx}"></div>
-    <div class="speech-region-row" id="seDefaultTextRow${idx}">
-      <div class="speech-region-row-top"><span>이 캐릭터의 영역 밖(빈 곳)을 눌렀을 때 뜨는 기본 문구</span></div>
-      <label>모브용 기본 문구</label>
-      <textarea id="seDefaultOther${idx}">${escapeHtml(ch.defaultTextOther)}</textarea>
-      <label>서로용 기본 문구</label>
-      <textarea id="seDefaultCharacter${idx}">${escapeHtml(ch.defaultTextCharacter)}</textarea>
-      <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
-        <button class="btn small primary" id="seDefaultSaveBtn${idx}">저장</button>
-        <button class="btn small ghost" id="seDefaultCancelBtn${idx}">취소</button>
-      </div>
-    </div>
-    <div class="speech-region-list" id="seRegionList${idx}"></div>
-  `;
-
-  const input = col.querySelector(`#seFile${idx}`);
-  input.onchange = async ()=>{
-    const file = input.files[0];
-    if(!file) return;
-    try{
-      const dataUrl = await compressAvatarImageFile(file);
-      const old = tab.characters[idx];
-      if(old.avatarChunked && old.avatarFileId) deleteFileChunked(old.avatarFileId, old.avatarChunkTotal).catch(()=>{});
-      const chunkInfo = await saveFileChunked(dataUrl);
-      chunkedImageCache.set(chunkInfo.fileId, dataUrl);
-      // 이미지만 바꾸는 거니까 기본 문구(defaultTextOther/Character) 등 나머지 필드는 그대로 유지
-      tab.characters[idx] = { ...old, avatar:'', avatarChunked:true, avatarFileId: chunkInfo.fileId, avatarChunkTotal: chunkInfo.total };
-      await saveSpeechWidget();
-      renderEditorCharColumn(modal, tab, idx);
-    }catch(err){ toast(err.message || '이미지를 올리지 못했어요'); }
-  };
-
-  const defaultRow = col.querySelector(`#seDefaultTextRow${idx}`);
-  defaultRow.querySelector(`#seDefaultSaveBtn${idx}`).onclick = async ()=>{
-    ch.defaultTextOther = defaultRow.querySelector(`#seDefaultOther${idx}`).value;
-    ch.defaultTextCharacter = defaultRow.querySelector(`#seDefaultCharacter${idx}`).value;
-    await saveSpeechWidget();
-    toast('저장했어요');
-  };
-  defaultRow.querySelector(`#seDefaultCancelBtn${idx}`).onclick = ()=>{
-    defaultRow.querySelector(`#seDefaultOther${idx}`).value = ch.defaultTextOther;
-    defaultRow.querySelector(`#seDefaultCharacter${idx}`).value = ch.defaultTextCharacter;
-  };
-
-  renderEditorCharStage(modal, tab, idx, null);
-  renderEditorRegionList(modal, tab, idx);
-}
-
-// 이 캐릭터의 그리기 스테이지. pendingRegion이 있으면(방금 그려서 아직 저장 전) 점선으로
-// 같이 보여줌 — 저장을 눌러야 진짜 데이터에 들어가고, 취소하면 흔적도 없이 사라짐.
+// 이 캐릭터의 그리기 영역(가운데 공유 스테이지 안의 자기 자신 자리). pendingRegion이
+// 있으면(방금 그려서 아직 저장 전) 점선으로 같이 보여줌 — 저장을 눌러야 진짜 데이터에
+// 들어가고, 취소하면 흔적도 없이 사라짐.
 async function renderEditorCharStage(modal, tab, idx, pendingRegion){
-  const stage = modal.querySelector(`#seStage${idx}`);
+  const stage = modal.querySelector(`#seCharBox${idx}`);
   const url = await speechResolveCharacterUrl(tab.characters[idx]);
-  if(!url){ stage.innerHTML = `<div class="speech-charbox-empty">이미지를 먼저 올려주세요</div>`; return; }
+  if(!url){ stage.innerHTML = `<div class="speech-charbox-empty">캐릭터${idx+1} 이미지를 먼저 올려주세요</div>`; return; }
 
   stage.innerHTML = `<div class="speech-charbox"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`;
   const svg = stage.querySelector('svg');
@@ -7020,10 +7043,16 @@ function renderPendingRegionForm(modal, tab, idx, pendingRegion){
     <div class="speech-region-row-top">
       <span>새 영역 (${pendingRegion.shape === 'box' ? '박스' : '올가미'}) · 아직 저장 전이에요</span>
     </div>
-    <label>모브용 대사</label>
-    <textarea id="sePendingOther"></textarea>
-    <label>서로용 대사</label>
-    <textarea id="sePendingCharacter"></textarea>
+    <div class="speech-text-pair">
+      <div class="speech-text-pair-col">
+        <label>모브용 대사</label>
+        <textarea id="sePendingOther"></textarea>
+      </div>
+      <div class="speech-text-pair-col">
+        <label>서로용 대사</label>
+        <textarea id="sePendingCharacter"></textarea>
+      </div>
+    </div>
     <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
       <button class="btn small primary" id="sePendingSave">저장</button>
       <button class="btn small ghost" id="sePendingCancel">취소</button>
@@ -7056,10 +7085,16 @@ function renderEditorRegionList(modal, tab, idx){
         <span>영역 ${i+1} (${r.shape === 'box' ? '박스' : '올가미'})</span>
         <button class="btn small danger" data-del="${r.id}">삭제</button>
       </div>
-      <label>모브용 대사</label>
-      <textarea data-field="textOther">${escapeHtml(r.textOther)}</textarea>
-      <label>서로용 대사</label>
-      <textarea data-field="textCharacter">${escapeHtml(r.textCharacter)}</textarea>
+      <div class="speech-text-pair">
+        <div class="speech-text-pair-col">
+          <label>모브용 대사</label>
+          <textarea data-field="textOther">${escapeHtml(r.textOther)}</textarea>
+        </div>
+        <div class="speech-text-pair-col">
+          <label>서로용 대사</label>
+          <textarea data-field="textCharacter">${escapeHtml(r.textCharacter)}</textarea>
+        </div>
+      </div>
       <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
         <button class="btn small primary" data-save="${r.id}">저장</button>
         <button class="btn small ghost" data-cancel="${r.id}">취소</button>
