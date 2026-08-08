@@ -344,19 +344,35 @@ body::before{
 .w-speech:not(.has-cover):hover{
   background: linear-gradient(160deg, rgba(196,66,95,0.3), rgba(196,66,95,0.1));
 }
-/* 커버를 안 정해뒀을 땐 캐릭터도, 문구도 미리 안 보여줌 — 그냥 은은하게 계속
-   숨쉬듯 커졌다 작아지는 아이콘만. 가만히 있지 않아야 "여기 눌러볼 수 있다"는 게
-   시선을 끔(알림 배지가 계속 살아있는 것과 같은 원리) */
-.speech-card-placeholder{
-  font-size:1.7rem; color: var(--rose); filter: drop-shadow(0 0 10px rgba(196,66,95,0.5));
-  animation: speechPulse 2.4s ease-in-out infinite;
+/* 아이콘은 (여러 번 시도해봤는데) 뭘 그려 넣어도 어색하거나 경고 배지처럼 보여서
+   빼버림. 대신 커서를 올리면(모바일은 누르면) 가운데서 동그랗게 번져나가는 리플로
+   "눌러볼 수 있다"는 걸 알려줌 — 계속 깜빡이지 않고 반응했을 때만 움직이니 훨씬
+   차분하고, 경고/알림보다는 물결/조명 스위치 켜지는 느낌에 가까움 */
+.w-speech:not(.has-cover)::before{
+  content:""; position:absolute; left:50%; top:50%; width:64px; height:64px; border-radius:50%;
+  background: radial-gradient(circle, rgba(196,66,95,0.5), transparent 72%);
+  transform: translate(-50%,-50%) scale(1);
+  opacity:.6;
+  animation: speechGlowBreathe 5s ease-in-out infinite;
 }
-@keyframes speechPulse{
-  0%, 100%{ transform: scale(1); opacity:.75; }
-  50%{ transform: scale(1.18); opacity:1; }
+@keyframes speechGlowBreathe{
+  0%, 100%{ opacity:.4; transform: translate(-50%,-50%) scale(0.9); }
+  50%{ opacity:.7; transform: translate(-50%,-50%) scale(1.08); }
+}
+.w-speech:not(.has-cover)::after{
+  content:""; position:absolute; left:50%; top:50%; width:16px; height:16px; border-radius:50%;
+  background: rgba(255,255,255,0.45);
+  transform: translate(-50%,-50%) scale(0);
+  opacity:.5;
+  transition: transform .55s ease, opacity .55s ease;
+}
+.w-speech:not(.has-cover):hover::after,
+.w-speech:not(.has-cover):active::after{
+  transform: translate(-50%,-50%) scale(8);
+  opacity:0;
 }
 @media (prefers-reduced-motion: reduce){
-  .speech-card-placeholder{ animation:none; }
+  .w-speech:not(.has-cover)::before{ animation:none; }
 }
 /* 이미지 위젯처럼 칸을 꽉 채우는 커버 사진 모드 */
 .w-speech.has-cover{ padding:0; overflow:hidden; align-items:stretch; }
