@@ -198,14 +198,19 @@ body::before{
 @media (hover:none){
   .board-tab-arrow{ opacity:.55; pointer-events:auto; }
 }
-/* 모바일에선 화살표가 화면 전체 높이(56px 폭)를 다 차지해서 그 자리에 겹치는
-   위젯 안 아이콘/버튼들(이미지 넘기기, 편집 아이콘 등)까지 같이 눌리는 문제가 있었음
-   → 화살표 클릭영역을 화면 세로 중앙의 작은 원형 버튼 크기로 확 줄여서 겹치지 않게 함 */
 @media (max-width: 900px){
   .board-tab-arrow{
     top:50%; height:44px; width:38px;
     transform: translateY(-50%);
   }
+}
+/* 화살표가 화면 세로 전체(56px 폭)를 차지하는 건 의도된 디자인이라 그대로 둠.
+   대신 그 폭 안에 위젯 아이콘이 겹치는 경우, 아이콘 쪽이 항상 클릭에서 이기도록
+   z-index로 우선순위만 화살표보다 높여둠(위치/크기는 전혀 안 건드림) */
+.board-viewport button,
+.board-viewport .btn,
+.board-viewport a{
+  z-index: 17;
 }
 /* 실제 슬라이드 영역: 가로 스크롤 + 스냅으로 좌우 스와이프(트랙패드/터치 모두 자연스럽게 동작) */
 .board-viewport{
@@ -215,6 +220,18 @@ body::before{
   scrollbar-width: none;
 }
 .board-viewport::-webkit-scrollbar{ display:none; }
+/* 탭 전환이 순수 네이티브 가로 스크롤(스와이프)이다 보니, 위젯 안의 버튼을 누를 때
+   손가락이 아주 살짝만 옆으로 쏠려도 브라우저가 "스와이프"로 판단해서 클릭을
+   가로채가는 문제가 있었음. 이 안의 버튼/입력 요소들에는 touch-action:manipulation을
+   줘서, 스와이프보다 그 요소 자신의 탭(클릭)이 우선되도록 함. */
+.board-viewport button,
+.board-viewport .btn,
+.board-viewport input,
+.board-viewport textarea,
+.board-viewport select,
+.board-viewport a{
+  touch-action: manipulation;
+}
 .board-page{ flex:0 0 100%; min-width:100%; scroll-snap-align:start; scroll-snap-stop:always; }
 /* 렉의 큰 원인 중 하나: 탭이 옆으로 스크롤돼서 안 보이는 페이지도(위젯 카드마다 걸린
    backdrop-filter 블러 + 갤러리 사진 전부 포함) DOM에는 그대로 남아있어서 브라우저가
