@@ -6416,6 +6416,8 @@ function normalizeSpeechTab(t){
   return {
     id: t.id || uid(),
     name: t.name || '탭',
+    defaultTextOther: t.defaultTextOther || '',       // 영역이 없는 곳을 눌렀을 때(타인모드) 뜨는 기본 문구
+    defaultTextCharacter: t.defaultTextCharacter || '', // 영역이 없는 곳을 눌렀을 때(캐릭터모드) 뜨는 기본 문구
     characters: [0,1].map(i=>{
       const c = (t.characters && t.characters[i]) || {};
       return { avatar: c.avatar || '', avatarChunked: !!c.avatarChunked, avatarFileId: c.avatarFileId || '', avatarChunkTotal: c.avatarChunkTotal || 0 };
@@ -6621,6 +6623,34 @@ function openSpeechOverlay(initialTabId){
     });
   };
 
+  // 말풍선을 띄우는 공통 로직 — 영역을 눌렀을 때와, 영역 밖(빈 공간)을 눌러 기본 문구를
+  // 보여줄 때 둘 다에서 씀
+  const showBubbleAt = (box, e, text)=>{
+    box.classList.remove('jump');
+    void box.offsetWidth; // 강제 리플로우 — 연속으로 눌러도 매번 애니메이션이 다시 시작되게 함
+    box.classList.add('jump');
+    if(!text) return;
+    if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
+    // anchor(위치 고정용) 안에 실제 말풍선(팝인 애니메이션용)을 넣는 이중 구조.
+    // 하나의 요소에 "위치 이동 transform"과 "팝인 transform"을 같이 걸면 서로
+    // 덮어써서 말풍선이 떴다가 제자리로 툭 튀는 문제가 있었음 — 그래서 위치는
+    // anchor(top/left, transform 없음)가, 팝인 애니메이션은 그 안의 본체가 각자 맡게 함.
+    const anchor = document.createElement('div');
+    anchor.className = 'speech-bubble-anchor';
+    const stageRect = stage.getBoundingClientRect();
+    anchor.style.left = (e.clientX - stageRect.left) + 'px';
+    anchor.style.top = (e.clientY - stageRect.top) + 'px';
+    bubbleEl = document.createElement('div');
+    bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
+    bubbleEl.textContent = text;
+    anchor.appendChild(bubbleEl);
+    stage.appendChild(anchor);
+    requestAnimationFrame(()=>{
+      shapeSpeechBubble(bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
+      bubbleEl.classList.add('show');
+    });
+  };
+
   const renderStage = async ()=>{
     if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
     const tab = tabs.find(t=> t.id === activeId);
@@ -6640,33 +6670,17 @@ function openSpeechOverlay(initialTabId){
         regionEl.addEventListener('click', (e)=>{
           const region = regions.find(r=> r.id === regionEl.dataset.region);
           if(!region) return;
-          // 눌렀다는 반응(살짝 튀는 애니메이션)은 대사가 있든 없든 항상 보여줌 —
-          // 스티커가 말풍선 뜰 때 살짝 떠오르는 것과 같은 애니메이션을 재사용함
-          box.classList.remove('jump');
-          void box.offsetWidth; // 강제로 리플로우를 일으켜서 연속으로 눌러도 매번 애니메이션이 다시 시작되게 함
-          box.classList.add('jump');
           const text = mode === 'other' ? region.textOther : region.textCharacter;
-          if(!text) return;
-          if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
-          // anchor(위치 고정용) 안에 실제 말풍선(팝인 애니메이션용)을 넣는 이중 구조.
-          // 하나의 요소에 "위치 이동 transform"과 "팝인 transform"을 같이 걸면 서로
-          // 덮어써서 말풍선이 떴다가 제자리로 툭 튀는 문제가 있었음 — 그래서 위치는
-          // anchor(top/left, transform 없음)가, 팝인 애니메이션은 그 안의 본체가 각자 맡게 함.
-          const anchor = document.createElement('div');
-          anchor.className = 'speech-bubble-anchor';
-          const stageRect = stage.getBoundingClientRect();
-          anchor.style.left = (e.clientX - stageRect.left) + 'px';
-          anchor.style.top = (e.clientY - stageRect.top) + 'px';
-          bubbleEl = document.createElement('div');
-          bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
-          bubbleEl.textContent = text;
-          anchor.appendChild(bubbleEl);
-          stage.appendChild(anchor);
-          requestAnimationFrame(()=>{
-            shapeSpeechBubble(bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
-            bubbleEl.classList.add('show');
-          });
+          showBubbleAt(box, e, text);
         });
+      });
+      // 영역이 아닌 빈 곳(캐릭터 몸 어디든 지정 안 해둔 자리)을 눌렀을 때는 탭에 설정해둔
+      // 기본 문구를 보여줌. e.target === svg일 때만(=영역 위가 아니라 배경 자체를 눌렀을
+      // 때만) 걸리도록 해서 영역 클릭과 안 겹치게 함.
+      svg.addEventListener('click', (e)=>{
+        if(e.target !== svg) return;
+        const text = mode === 'other' ? tab.defaultTextOther : tab.defaultTextCharacter;
+        showBubbleAt(box, e, text);
       });
     });
   };
@@ -6806,6 +6820,17 @@ function renderEditorTabBody(modal){
 
   body.innerHTML = `
     <div class="modal-actions" id="seTabActions" style="justify-content:flex-start; margin-top:0; gap:8px; flex-wrap:wrap;"></div>
+    <div class="speech-region-row" id="seDefaultTextRow">
+      <div class="speech-region-row-top"><span>영역 밖(빈 곳)을 눌렀을 때 뜨는 기본 문구</span></div>
+      <label>타인용 기본 문구</label>
+      <textarea id="seDefaultOther">${escapeHtml(tab.defaultTextOther)}</textarea>
+      <label>캐릭터용 기본 문구</label>
+      <textarea id="seDefaultCharacter">${escapeHtml(tab.defaultTextCharacter)}</textarea>
+      <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
+        <button class="btn small primary" id="seDefaultSaveBtn">저장</button>
+        <button class="btn small ghost" id="seDefaultCancelBtn">취소</button>
+      </div>
+    </div>
     <div class="speech-editor-tools">
       <label style="margin:0;"><input type="radio" name="seShape" value="box" checked> 박스로 그리기</label>
       <label style="margin:0;"><input type="radio" name="seShape" value="lasso"> 올가미로 그리기</label>
@@ -6820,6 +6845,18 @@ function renderEditorTabBody(modal){
 
   renderTabActions(modal, tab, false);
   modal.querySelectorAll('input[name="seShape"]').forEach(r=> r.onchange = ()=>{ speechDrawShape = r.value; });
+
+  const defaultRow = modal.querySelector('#seDefaultTextRow');
+  defaultRow.querySelector('#seDefaultSaveBtn').onclick = async ()=>{
+    tab.defaultTextOther = defaultRow.querySelector('#seDefaultOther').value;
+    tab.defaultTextCharacter = defaultRow.querySelector('#seDefaultCharacter').value;
+    await saveSpeechWidget();
+    toast('저장했어요');
+  };
+  defaultRow.querySelector('#seDefaultCancelBtn').onclick = ()=>{
+    defaultRow.querySelector('#seDefaultOther').value = tab.defaultTextOther;
+    defaultRow.querySelector('#seDefaultCharacter').value = tab.defaultTextCharacter;
+  };
 
   [0,1].forEach(idx=> renderEditorCharColumn(modal, tab, idx));
 }
@@ -6918,13 +6955,14 @@ async function renderEditorCharStage(modal, tab, idx, pendingRegion){
     return { x, y };
   };
 
-  let drawing = false, startPt = null, lassoPts = [], liveEl = null;
+  let drawing = false, startPt = null, currentPt = null, lassoPts = [], liveEl = null;
 
   svg.addEventListener('mousedown', (e)=>{
     if(pendingRegion) return; // 저장 전인 그리기가 이미 있으면, 그거부터 저장/취소해야 새로 그릴 수 있음
     if(e.target.dataset && e.target.dataset.region) return; // 기존 영역 클릭은 새로 그리기로 안 이어짐
     drawing = true;
     startPt = toPercent(e);
+    currentPt = startPt;
     lassoPts = [startPt];
     liveEl = document.createElementNS('http://www.w3.org/2000/svg', speechDrawShape === 'box' ? 'rect' : 'polygon');
     liveEl.setAttribute('class', 'speech-editor-region speech-editor-region-pending');
@@ -6933,6 +6971,7 @@ async function renderEditorCharStage(modal, tab, idx, pendingRegion){
   svg.addEventListener('mousemove', (e)=>{
     if(!drawing) return;
     const pt = toPercent(e);
+    currentPt = pt; // 박스 모드는 이 값으로 끝점을 잡음(올가미처럼 lassoPts에만 의존하면 박스는 항상 시작점=끝점이 되어버림)
     if(speechDrawShape === 'box'){
       const x = Math.min(startPt.x, pt.x), y = Math.min(startPt.y, pt.y);
       const w = Math.abs(pt.x - startPt.x), h = Math.abs(pt.y - startPt.y);
@@ -6949,7 +6988,7 @@ async function renderEditorCharStage(modal, tab, idx, pendingRegion){
     if(liveEl) liveEl.remove();
     let region;
     if(speechDrawShape === 'box'){
-      const endPt = lassoPts[lassoPts.length-1] || startPt;
+      const endPt = currentPt || startPt;
       const x = Math.min(startPt.x, endPt.x), y = Math.min(startPt.y, endPt.y);
       const w = Math.abs(endPt.x - startPt.x), h = Math.abs(endPt.y - startPt.y);
       if(w < 1 || h < 1) return; // 너무 작게 클릭만 한 경우는 무시
