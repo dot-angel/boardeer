@@ -6416,11 +6416,13 @@ function normalizeSpeechTab(t){
   return {
     id: t.id || uid(),
     name: t.name || '탭',
-    defaultTextOther: t.defaultTextOther || '',       // 영역이 없는 곳을 눌렀을 때(타인모드) 뜨는 기본 문구
-    defaultTextCharacter: t.defaultTextCharacter || '', // 영역이 없는 곳을 눌렀을 때(캐릭터모드) 뜨는 기본 문구
     characters: [0,1].map(i=>{
       const c = (t.characters && t.characters[i]) || {};
-      return { avatar: c.avatar || '', avatarChunked: !!c.avatarChunked, avatarFileId: c.avatarFileId || '', avatarChunkTotal: c.avatarChunkTotal || 0 };
+      return {
+        avatar: c.avatar || '', avatarChunked: !!c.avatarChunked, avatarFileId: c.avatarFileId || '', avatarChunkTotal: c.avatarChunkTotal || 0,
+        defaultTextOther: c.defaultTextOther || '',       // 이 캐릭터의 영역 밖(빈 곳)을 눌렀을 때(모브) 뜨는 기본 문구
+        defaultTextCharacter: c.defaultTextCharacter || '' // 이 캐릭터의 영역 밖을 눌렀을 때(서로) 뜨는 기본 문구
+      };
     }),
     regions: Array.isArray(t.regions) ? t.regions.map(r=> ({
       id: r.id || uid(),
@@ -6612,7 +6614,7 @@ function openSpeechOverlay(initialTabId){
     const isOn = mode === 'character';
     modeBtn.classList.toggle('is-on', isOn);
     modeBtn.setAttribute('aria-pressed', String(isOn));
-    modeBtn.querySelector('.speech-toggle-text').textContent = isOn ? '캐릭터' : '타인';
+    modeBtn.querySelector('.speech-toggle-text').textContent = isOn ? '서로' : '모브';
     el.classList.toggle('is-on', isOn); // 켜졌을 때 배경에 은은한 핑크빛
   };
 
@@ -6679,7 +6681,7 @@ function openSpeechOverlay(initialTabId){
       // 때만) 걸리도록 해서 영역 클릭과 안 겹치게 함.
       svg.addEventListener('click', (e)=>{
         if(e.target !== svg) return;
-        const text = mode === 'other' ? tab.defaultTextOther : tab.defaultTextCharacter;
+        const text = mode === 'other' ? tab.characters[idx].defaultTextOther : tab.characters[idx].defaultTextCharacter;
         showBubbleAt(box, e, text);
       });
     });
@@ -6820,17 +6822,6 @@ function renderEditorTabBody(modal){
 
   body.innerHTML = `
     <div class="modal-actions" id="seTabActions" style="justify-content:flex-start; margin-top:0; gap:8px; flex-wrap:wrap;"></div>
-    <div class="speech-region-row" id="seDefaultTextRow">
-      <div class="speech-region-row-top"><span>영역 밖(빈 곳)을 눌렀을 때 뜨는 기본 문구</span></div>
-      <label>타인용 기본 문구</label>
-      <textarea id="seDefaultOther">${escapeHtml(tab.defaultTextOther)}</textarea>
-      <label>캐릭터용 기본 문구</label>
-      <textarea id="seDefaultCharacter">${escapeHtml(tab.defaultTextCharacter)}</textarea>
-      <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
-        <button class="btn small primary" id="seDefaultSaveBtn">저장</button>
-        <button class="btn small ghost" id="seDefaultCancelBtn">취소</button>
-      </div>
-    </div>
     <div class="speech-editor-tools">
       <label style="margin:0;"><input type="radio" name="seShape" value="box" checked> 박스로 그리기</label>
       <label style="margin:0;"><input type="radio" name="seShape" value="lasso"> 올가미로 그리기</label>
@@ -6845,18 +6836,6 @@ function renderEditorTabBody(modal){
 
   renderTabActions(modal, tab, false);
   modal.querySelectorAll('input[name="seShape"]').forEach(r=> r.onchange = ()=>{ speechDrawShape = r.value; });
-
-  const defaultRow = modal.querySelector('#seDefaultTextRow');
-  defaultRow.querySelector('#seDefaultSaveBtn').onclick = async ()=>{
-    tab.defaultTextOther = defaultRow.querySelector('#seDefaultOther').value;
-    tab.defaultTextCharacter = defaultRow.querySelector('#seDefaultCharacter').value;
-    await saveSpeechWidget();
-    toast('저장했어요');
-  };
-  defaultRow.querySelector('#seDefaultCancelBtn').onclick = ()=>{
-    defaultRow.querySelector('#seDefaultOther').value = tab.defaultTextOther;
-    defaultRow.querySelector('#seDefaultCharacter').value = tab.defaultTextCharacter;
-  };
 
   [0,1].forEach(idx=> renderEditorCharColumn(modal, tab, idx));
 }
@@ -6904,7 +6883,8 @@ function renderTabActions(modal, tab, confirmingDelete){
 // 절대 안 섞이고 시각적으로도 뚜렷하게 나뉘도록 함.
 function renderEditorCharColumn(modal, tab, idx){
   const col = modal.querySelector(`.profile-edit-col[data-char="${idx}"]`);
-  const hasImage = !!(tab.characters[idx].avatar || tab.characters[idx].avatarChunked);
+  const ch = tab.characters[idx];
+  const hasImage = !!(ch.avatar || ch.avatarChunked);
   col.innerHTML = `
     <h4>캐릭터${idx+1}</h4>
     <div class="speech-editor-slot" id="seSlot${idx}">
@@ -6912,6 +6892,17 @@ function renderEditorCharColumn(modal, tab, idx){
       <input type="file" accept="image/png,image/jpeg,image/gif" id="seFile${idx}">
     </div>
     <div class="speech-editor-stage-single" id="seStage${idx}"></div>
+    <div class="speech-region-row" id="seDefaultTextRow${idx}">
+      <div class="speech-region-row-top"><span>이 캐릭터의 영역 밖(빈 곳)을 눌렀을 때 뜨는 기본 문구</span></div>
+      <label>모브용 기본 문구</label>
+      <textarea id="seDefaultOther${idx}">${escapeHtml(ch.defaultTextOther)}</textarea>
+      <label>서로용 기본 문구</label>
+      <textarea id="seDefaultCharacter${idx}">${escapeHtml(ch.defaultTextCharacter)}</textarea>
+      <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
+        <button class="btn small primary" id="seDefaultSaveBtn${idx}">저장</button>
+        <button class="btn small ghost" id="seDefaultCancelBtn${idx}">취소</button>
+      </div>
+    </div>
     <div class="speech-region-list" id="seRegionList${idx}"></div>
   `;
 
@@ -6925,10 +6916,23 @@ function renderEditorCharColumn(modal, tab, idx){
       if(old.avatarChunked && old.avatarFileId) deleteFileChunked(old.avatarFileId, old.avatarChunkTotal).catch(()=>{});
       const chunkInfo = await saveFileChunked(dataUrl);
       chunkedImageCache.set(chunkInfo.fileId, dataUrl);
-      tab.characters[idx] = { avatar:'', avatarChunked:true, avatarFileId: chunkInfo.fileId, avatarChunkTotal: chunkInfo.total };
+      // 이미지만 바꾸는 거니까 기본 문구(defaultTextOther/Character) 등 나머지 필드는 그대로 유지
+      tab.characters[idx] = { ...old, avatar:'', avatarChunked:true, avatarFileId: chunkInfo.fileId, avatarChunkTotal: chunkInfo.total };
       await saveSpeechWidget();
       renderEditorCharColumn(modal, tab, idx);
     }catch(err){ toast(err.message || '이미지를 올리지 못했어요'); }
+  };
+
+  const defaultRow = col.querySelector(`#seDefaultTextRow${idx}`);
+  defaultRow.querySelector(`#seDefaultSaveBtn${idx}`).onclick = async ()=>{
+    ch.defaultTextOther = defaultRow.querySelector(`#seDefaultOther${idx}`).value;
+    ch.defaultTextCharacter = defaultRow.querySelector(`#seDefaultCharacter${idx}`).value;
+    await saveSpeechWidget();
+    toast('저장했어요');
+  };
+  defaultRow.querySelector(`#seDefaultCancelBtn${idx}`).onclick = ()=>{
+    defaultRow.querySelector(`#seDefaultOther${idx}`).value = ch.defaultTextOther;
+    defaultRow.querySelector(`#seDefaultCharacter${idx}`).value = ch.defaultTextCharacter;
   };
 
   renderEditorCharStage(modal, tab, idx, null);
@@ -7016,9 +7020,9 @@ function renderPendingRegionForm(modal, tab, idx, pendingRegion){
     <div class="speech-region-row-top">
       <span>새 영역 (${pendingRegion.shape === 'box' ? '박스' : '올가미'}) · 아직 저장 전이에요</span>
     </div>
-    <label>타인용 대사</label>
+    <label>모브용 대사</label>
     <textarea id="sePendingOther"></textarea>
-    <label>캐릭터용 대사</label>
+    <label>서로용 대사</label>
     <textarea id="sePendingCharacter"></textarea>
     <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
       <button class="btn small primary" id="sePendingSave">저장</button>
@@ -7052,9 +7056,9 @@ function renderEditorRegionList(modal, tab, idx){
         <span>영역 ${i+1} (${r.shape === 'box' ? '박스' : '올가미'})</span>
         <button class="btn small danger" data-del="${r.id}">삭제</button>
       </div>
-      <label>타인용 대사</label>
+      <label>모브용 대사</label>
       <textarea data-field="textOther">${escapeHtml(r.textOther)}</textarea>
-      <label>캐릭터용 대사</label>
+      <label>서로용 대사</label>
       <textarea data-field="textCharacter">${escapeHtml(r.textCharacter)}</textarea>
       <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
         <button class="btn small primary" data-save="${r.id}">저장</button>
