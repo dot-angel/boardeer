@@ -6526,6 +6526,7 @@ function openSpeechOverlay(initialTabId){
   el.className = 'speech-overlay';
   el.id = 'speechOverlayRoot';
   el.innerHTML = `
+    <div class="speech-overlay-tint"></div>
     <button class="speech-overlay-close" id="speechCloseBtn" aria-label="닫기">✕</button>
     <div class="speech-tabs" id="speechTabs"></div>
     <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
@@ -6535,6 +6536,31 @@ function openSpeechOverlay(initialTabId){
     </button>
   `;
   document.body.appendChild(el);
+
+  // 열리는 그 순간의 화면을 사진처럼 한 장 찍어서(html2canvas), 그 "정적인" 결과물에만
+  // blur를 먹임. backdrop-filter처럼 열려있는 내내 매 프레임 뒤를 실시간으로 다시
+  // 그리는 게 아니라 딱 한 번만 계산해두고 그대로 재사용하는 방식이라, 위젯 탭이나
+  // 스크롤이 바뀌지 않는 이 화면 특성상 실시간 블러와 눈으로는 구분이 안 되면서도
+  // 훨씬 가벼움. html2canvas 로드가 안 됐거나 캡쳐가 실패해도(네트워크 문제 등)
+  // 조용히 무시하고 어두운 틴트만 남도록 처리함.
+  if(typeof html2canvas === 'function'){
+    // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이 되는
+    // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
+    el.style.visibility = 'hidden';
+    html2canvas(document.body, {
+      x: window.scrollX, y: window.scrollY,
+      width: window.innerWidth, height: window.innerHeight,
+      scale: Math.min(1, window.devicePixelRatio || 1) * 0.6, // 어차피 블러 처리되니 살짝 낮은 해상도로도 충분하고 캡쳐 속도도 빨라짐
+      useCORS: true, backgroundColor: null, logging: false
+    }).then(canvas=>{
+      el.style.visibility = '';
+      if(!document.body.contains(el)) return; // 캡쳐가 끝나기 전에 이미 닫혔으면 아무것도 안 함
+      const bg = document.createElement('div');
+      bg.className = 'speech-overlay-bg';
+      bg.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.72)})`;
+      el.prepend(bg);
+    }).catch(()=>{ el.style.visibility = ''; });
+  }
 
   el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
   window.__speechEscHandler = (e)=>{ if(e.key === 'Escape') closeSpeechOverlay(); };
