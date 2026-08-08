@@ -6517,21 +6517,12 @@ async function renderSpeechCard(){
       ${cover.text ? `<div class="speech-card-cover-text">${escapeHtml(cover.text)}</div>` : ''}
       ${editButtons}
     `;
-  } else if(tab){
-    box.className = 'w-card w-speech';
-    const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
-    box.innerHTML = `
-      <div class="speech-card-thumbs">
-        ${url0 ? `<img src="${url0}" alt="">` : ''}
-        ${url1 ? `<img src="${url1}" alt="">` : ''}
-      </div>
-      <div class="speech-card-label">눌러서 반응 보기</div>
-      ${editButtons}
-    `;
   } else {
+    // 커버 사진을 안 정해뒀을 땐, 안에 담긴 캐릭터 이미지나 문구를 카드에서
+    // 미리 드러내지 않음 — 그냥 중립적인 아이콘만 표시(캡션 텍스트도 없음)
     box.className = 'w-card w-speech';
     box.innerHTML = `
-      <div class="speech-card-empty">${editMode ? '편집 버튼을 눌러 탭과 이미지를 추가해보세요' : '아직 준비 중이에요'}</div>
+      <div class="speech-card-placeholder">💬</div>
       ${editButtons}
     `;
   }
