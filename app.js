@@ -6521,10 +6521,7 @@ async function renderSpeechCard(){
     // 커버 사진을 안 정해뒀을 땐, 안에 담긴 캐릭터 이미지나 문구를 카드에서
     // 미리 드러내지 않음 — 그냥 중립적인 아이콘만 표시(캡션 텍스트도 없음)
     box.className = 'w-card w-speech';
-    box.innerHTML = `
-      <div class="speech-card-placeholder">💬</div>
-      ${editButtons}
-    `;
+    box.innerHTML = editButtons;
   }
 
   if(tab || coverUrl) box.onclick = ()=> openSpeechOverlay(linkedId);
