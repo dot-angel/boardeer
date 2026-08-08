@@ -297,7 +297,7 @@ body::before{
       "images images images images images images images images images images"
       "music music music music music music music music music music"
       "profile profile profile profile profile profile profile profile profile profile"
-      "gb gb gb gb gb gb gb gb gb gb"
+      "gb gb gb gb gb speech speech speech speech speech"
       "cal cal cal dday dday dday dday dday dday dday"
       "cal cal cal checklist checklist checklist checklist checklist checklist checklist"
       "docs docs docs docs docs docs sessions sessions sessions sessions";
@@ -315,6 +315,7 @@ body::before{
   #cardProfile{ grid-area: profile; }
   #cardCalendar{ grid-area: cal; min-width:0; }
   #cardGuestbook{ grid-area: gb; min-width:0; }
+  #cardSpeech{ grid-area: speech; min-width:0; }
   #cardSessions{ grid-area: sessions; }
   #cardDocs{ grid-area: docs; }
   #cardChecklist{ grid-area: checklist; }
@@ -328,11 +329,35 @@ body::before{
   }
 }
 /* ---------- 말풍선 위젯: 캐릭터를 눌러 대사를 보는 부가 기능 ---------- */
-.w-speech{ padding:12px; flex-direction:row; align-items:center; gap:14px; cursor:pointer; min-height:96px; }
-.speech-card-thumbs{ display:flex; gap:6px; flex:0 0 auto; }
-.speech-card-thumbs img{ width:56px; height:72px; object-fit:contain; border-radius:10px; background: rgba(255,255,255,0.03); }
-.speech-card-label{ font-size:.78rem; color: var(--ink-soft); }
-.speech-card-empty{ font-size:.78rem; color: var(--ink-soft); }
+/* 커버가 없을 땐(캐릭터/문구를 못 보여주는 상태) "정보 카드"가 아니라 "버튼"처럼
+   보이게 만드는 게 목표 — 다른 무채색 위젯들과 달리 로즈 톤으로 채워서 눈에 띄게 하고,
+   누르면 살짝 눌리는 촉각 피드백을 줌 */
+.w-speech{
+  padding:12px; align-items:center; justify-content:center; cursor:pointer; min-height:96px;
+  transition: transform .12s ease, background .2s ease;
+}
+.w-speech:active{ transform: scale(0.96); }
+.w-speech:not(.has-cover){
+  background: linear-gradient(160deg, rgba(196,66,95,0.22), rgba(196,66,95,0.06));
+  border-color: rgba(196,66,95,0.4);
+}
+.w-speech:not(.has-cover):hover{
+  background: linear-gradient(160deg, rgba(196,66,95,0.3), rgba(196,66,95,0.1));
+}
+/* 커버를 안 정해뒀을 땐 캐릭터도, 문구도 미리 안 보여줌 — 그냥 은은하게 계속
+   숨쉬듯 커졌다 작아지는 아이콘만. 가만히 있지 않아야 "여기 눌러볼 수 있다"는 게
+   시선을 끔(알림 배지가 계속 살아있는 것과 같은 원리) */
+.speech-card-placeholder{
+  font-size:1.7rem; color: var(--rose); filter: drop-shadow(0 0 10px rgba(196,66,95,0.5));
+  animation: speechPulse 2.4s ease-in-out infinite;
+}
+@keyframes speechPulse{
+  0%, 100%{ transform: scale(1); opacity:.75; }
+  50%{ transform: scale(1.18); opacity:1; }
+}
+@media (prefers-reduced-motion: reduce){
+  .speech-card-placeholder{ animation:none; }
+}
 /* 이미지 위젯처럼 칸을 꽉 채우는 커버 사진 모드 */
 .w-speech.has-cover{ padding:0; overflow:hidden; align-items:stretch; }
 .speech-card-cover-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
@@ -1284,6 +1309,8 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .w-guestbook.gb-collapsed .gb-toggle-arrow{ transform: rotate(-90deg); }
   .w-guestbook.gb-collapsed .w-body,
   .w-guestbook.gb-collapsed .gb-form{ display:none; }
+  /* 옆에 나란히 두는 말풍선 위젯도 접힌 방명록만큼 납작하게 맞춤 */
+  .w-speech{ min-height:56px; padding:10px; }
 }
 .gb-entry{ border-bottom:1px solid var(--card-border); padding:9px 0; }
 .gb-entry .gb-name{ font-weight:600; font-size:.85rem; color: var(--rose); }
