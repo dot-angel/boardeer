@@ -316,11 +316,29 @@ body::before{
 .speech-card-thumbs img{ width:56px; height:72px; object-fit:contain; border-radius:10px; background: rgba(255,255,255,0.03); }
 .speech-card-label{ font-size:.78rem; color: var(--ink-soft); }
 .speech-card-empty{ font-size:.78rem; color: var(--ink-soft); }
-.speech-card-edit-btn{
-  position:absolute; top:8px; right:8px; width:28px; height:28px; border-radius:50%;
+/* 이미지 위젯처럼 칸을 꽉 채우는 커버 사진 모드 */
+.w-speech.has-cover{ padding:0; overflow:hidden; align-items:stretch; }
+.speech-card-cover-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.speech-card-cover-scrim{
+  position:absolute; inset:0;
+  background: linear-gradient(180deg, rgba(15,4,6,0.05) 40%, rgba(10,3,5,0.85) 100%);
+}
+.speech-card-cover-text{
+  position:relative; z-index:1; align-self:flex-end; width:100%;
+  padding:14px 16px; color:#fff; font-family: var(--font-display); font-size:.92rem;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+/* 톱니바퀴(카드 겉모습: 사진/문구)와 연필(대사·탭 내용)은 서로 완전히 다른 걸 편집하는
+   거라, 아이콘뿐 아니라 자리도 겹치지 않게 나란히 둠 — 헷갈려서 잘못 누르는 일이 없도록 */
+.speech-card-cover-btn, .speech-card-edit-btn{
+  position:absolute; top:8px; width:28px; height:28px; border-radius:50%;
   border:1px solid var(--card-border); background: rgba(15,4,6,0.55);
   color: var(--ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  z-index:2;
 }
+.speech-card-cover-btn{ right:42px; }
+.speech-card-edit-btn{ right:8px; }
+.speech-card-cover-btn:hover{ background: rgba(255,255,255,0.25); }
 .speech-card-edit-btn:hover{ background: rgba(196,66,95,0.5); }
 
 /* 방문자용 오버레이 — openModal의 .modal 박스(테두리/배경/그림자)를 안 쓰고, 블러 배경
@@ -329,7 +347,8 @@ body::before{
    라이트박스에서 이미 겪었던 것과 같은 이유로 무거웠음. 그래서 여는 순간의 화면을
    html2canvas로 한 장 찍어서(app.js), 그 정적인 이미지 한 장(.speech-overlay-bg)에만
    filter:blur를 걺 — 열려있는 동안은 다시 계산할 필요가 없어서 훨씬 가벼우면서도,
-   이 오버레이가 떠 있는 동안은 뒤 화면이 바뀌지 않으니 실시간 블러와 눈으로 구분 안 됨. */
+   이 오버레이가 떠 있는 동안은 뒤 화면이 바뀌지 않으니 실시간 블러와 눈으로 구분 안 됨.
+   블러/어둡기는 처음에 너무 세게 넣었더니 "유리" 느낌보다 "안 보임"에 가까워서 낮춤. */
 .speech-overlay{
   position:fixed; inset:0; z-index:250; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:22px; padding:20px;
@@ -340,17 +359,17 @@ body::before{
 .speech-overlay-bg{
   position:absolute; inset:-6%; z-index:0;
   background-size:cover; background-position:center;
-  filter: blur(18px) brightness(0.55) saturate(1.1);
+  filter: blur(9px) brightness(0.85) saturate(1.1);
   transform: scale(1.02); /* 블러 때문에 가장자리가 비치는 것을 살짝 여유 있게 가림 */
 }
 .speech-overlay-tint{
   position:absolute; inset:0; z-index:1;
-  background: rgba(5,2,3,0.55);
+  background: rgba(5,2,3,0.22);
   transition: background .35s ease;
 }
 /* 캐릭터모드(on)일 때만 은은한 핑크 톤이 배경에 번지도록 */
 .speech-overlay.is-on .speech-overlay-tint{
-  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.42), rgba(5,2,3,0.6) 68%);
+  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(5,2,3,0.25) 68%);
 }
 .speech-overlay-close{
   position:absolute; top:18px; right:18px; width:34px; height:34px; border-radius:50%; border:none;
@@ -390,6 +409,10 @@ body::before{
    정확히 겹침 — 그래서 영역 좌표(%)가 바깥 틀(모달) 크기와 무관하게 항상 같은 위치를
    가리킴(편집화면과 방문화면의 모달 크기가 달라도 어긋나지 않음) */
 .speech-charbox{ position:relative; display:inline-block; max-height:56vh; }
+/* 눌렀을 때 반응이 있어야 "눌렸다"는 게 느껴져서, 스티커가 말풍선 뜰 때 쓰는 것과
+   같은 살짝 튀는 애니메이션을 그대로 재사용함(자바스크립트에서 클릭할 때마다 이 클래스를
+   껐다 켜서 재생시킴) */
+.speech-charbox.jump{ animation: stickerJump .5s ease-out; }
 .speech-charbox img{ display:block; max-height:56vh; max-width:44vw; object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
 .speech-charbox svg{ position:absolute; inset:0; width:100%; height:100%; }
 .speech-charbox-empty{ font-size:.75rem; color: var(--ink-soft); padding:20px; }
