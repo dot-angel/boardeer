@@ -412,7 +412,7 @@ body::before{
 /* 눌렀을 때 반응이 있어야 "눌렸다"는 게 느껴져서, 스티커가 말풍선 뜰 때 쓰는 것과
    같은 살짝 튀는 애니메이션을 그대로 재사용함(자바스크립트에서 클릭할 때마다 이 클래스를
    껐다 켜서 재생시킴) */
-.speech-charbox.jump{ animation: stickerJump .5s ease-out; }
+.speech-charbox.jump{ animation: stickerJump .32s ease-out; }
 .speech-charbox img{ display:block; max-height:56vh; max-width:44vw; object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
 .speech-charbox svg{ position:absolute; inset:0; width:100%; height:100%; }
 .speech-charbox-empty{ font-size:.75rem; color: var(--ink-soft); padding:20px; }
@@ -434,7 +434,7 @@ body::before{
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:.82rem; line-height:1.4; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
   opacity:0;
-  transition: opacity .3s ease, transform .3s ease;
+  transition: opacity .16s ease, transform .16s ease;
 }
 .speech-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 .speech-empty-hint{ text-align:center; color: var(--ink-soft); font-size:.85rem; padding:40px 0; }
