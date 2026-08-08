@@ -441,22 +441,36 @@ body::before{
 
 /* 편집기 — 프로필 편집 모달과 같은 이유로(입력 잦음) 블러 대신 불투명도로 대체 */
 .modal.modal-speech-editor{
-  width:min(760px, 96vw); backdrop-filter:none; -webkit-backdrop-filter:none;
+  width:min(960px, 96vw); backdrop-filter:none; -webkit-backdrop-filter:none;
   background: rgba(20,9,11,0.95);
 }
 .speech-editor-tabbar{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
 .speech-editor-tools{ display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+/* PC: 왼쪽 문구 패널 - 가운데 캐릭터 둘이 나란히 - 오른쪽 문구 패널.
+   방문자가 실제로 보는 모습(캐릭터 둘이 나란함)을 그대로 두고 그 위에서 바로 그리면서,
+   양옆에서 문구를 넓게 쓸 수 있게 함 */
+.speech-editor-layout{ display:grid; grid-template-columns: 210px 1fr 210px; gap:16px; align-items:start; }
+.speech-editor-side h4{ margin:0 0 8px; font-family: var(--font-display); color: var(--rose); font-size:.9rem; }
+.speech-editor-center{ min-width:0; }
+.speech-editor-uploads{ display:flex; gap:8px; margin-bottom:10px; }
+.speech-editor-uploads .speech-editor-slot{ flex:1; margin-bottom:0; }
 .speech-editor-slot{
-  border:1px dashed var(--card-border); border-radius:12px; padding:8px; margin-bottom:8px;
+  border:1px dashed var(--card-border); border-radius:12px; padding:8px;
   text-align:center; font-size:.75rem; color: var(--ink-soft);
 }
 .speech-editor-slot img{ max-width:100%; max-height:120px; object-fit:contain; display:block; margin:0 auto 6px; }
-.speech-editor-stage-single{
-  position:relative; background: rgba(0,0,0,0.2); border-radius:12px; min-height:180px;
-  display:flex; justify-content:center; align-items:flex-end; overflow:hidden; margin-bottom:10px;
+.speech-editor-stage-dual{
+  position:relative; background: rgba(0,0,0,0.2); border-radius:12px; min-height:220px;
+  display:flex; justify-content:center; align-items:flex-end; gap:6px; overflow:hidden;
 }
-.speech-editor-stage-single .speech-charbox img{ max-height:42vh; max-width:100%; }
-.speech-editor-stage-single .speech-charbox svg{ cursor:crosshair; }
+.speech-editor-mount{ display:contents; } /* 레이아웃 박스를 안 만들고, 안의 .speech-charbox가 바로 flex 아이템이 되게 함 */
+.speech-editor-stage-dual .speech-charbox img{ max-height:46vh; max-width:100%; }
+.speech-editor-stage-dual .speech-charbox svg{ cursor:crosshair; }
+@media (max-width: 760px){
+  /* 좁은 화면에서는 옆으로 늘어놓을 자리가 없어서, 캐릭터1 문구 → 캐릭터1+2 이미지 →
+     캐릭터2 문구 순서 대신 그냥 위→아래로 쌓이게(그리드가 1열로 접힘) */
+  .speech-editor-layout{ grid-template-columns: 1fr; }
+}
 .speech-editor-region{ fill: rgba(196,66,95,0.18); stroke: var(--rose); stroke-width:1; cursor:pointer; }
 .speech-editor-region.selected{ fill: rgba(196,66,95,0.35); }
 /* 아직 저장 안 하고 방금 그린 도형 — 점선으로 "확정 전"임을 표시 */
@@ -469,6 +483,15 @@ body::before{
 .speech-region-row-pending{ border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.04); }
 .speech-region-row-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:.75rem; color: var(--ink-soft); }
 .speech-region-row textarea{ min-height:44px; }
+/* 모브용/서로용 문구는 길어야 한두 문장이라, 세로로 나열하면 자리를 너무 많이
+   차지함 — 가로로 나란히 두어 공간을 절반으로 줄임 */
+.speech-text-pair{ display:flex; gap:8px; }
+.speech-text-pair-col{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.speech-text-pair-col label{ margin:0; }
+.speech-text-pair-col textarea{ min-height:44px; }
+@media (max-width: 560px){
+  .speech-text-pair{ flex-direction:column; }
+}
 
 /* ---------- 위젯 카드 공통 — 배경이 은은하게 비치는 반투명 유리 ---------- */
 .w-card{
@@ -1224,7 +1247,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pf-edit-row-desc .pf-edit-value-desc{ flex:1 1 100%; width:100%; min-height:130px; resize:vertical; }
 
 /* ---------- 방명록 ---------- */
-.w-guestbook .w-body{ flex:1; min-height:0; margin-bottom:10px; overflow-y:auto; }
+/* flex:1이라 row-strip-right에 남는 세로 공간만큼 계속 늘어나던 걸, 일정 높이로
+   캡을 씌워서 그 이상은 늘어나지 않고 스크롤로 보게 함(스크롤은 원래 있었음) */
+.w-guestbook .w-body{ flex:1; min-height:0; max-height:220px; margin-bottom:10px; overflow-y:auto; }
 /* 접기/펼치기 버튼은 데스크톱에선 안 보임(다른 위젯처럼 제목 없는 톤 유지) —
    모바일에서만 방명록이 다른 위젯들에 비해 세로로 길어지는 걸 줄이기 위해 노출.
    기본 상태(HTML의 gb-collapsed 클래스)는 접힘이며, 이 규칙 자체가 모바일
