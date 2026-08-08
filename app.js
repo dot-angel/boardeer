@@ -7,6 +7,26 @@
    ========================================================= */
 
 let editMode = sessionStorage.getItem('gh_edit') === '1';
+// 편집 비밀번호(해시)를 기억해뒀다가, 실제로 DB에 쓸 때마다 자동으로 같이 실어 보냄.
+// Firestore 보안 규칙이 이 값을 meta/lock에 저장된 해시와 대조해서, 비밀번호를 아는
+// 사람이 보낸 요청만 통과시킴. sessionStorage에 저장해 새로고침해도 편집 상태 유지.
+let currentPwHash = sessionStorage.getItem('gh_pw') || null;
+
+// ▼ 모든 Firestore 쓰기(set)에 비밀번호 해시(_pw)를 자동으로 끼워 넣는 패치.
+//   앱 코드 곳곳의 .set(...) 호출을 일일이 고치지 않아도, 여기 한 곳만 고치면
+//   editMode일 때의 모든 쓰기 요청에 _pw가 실려서 나감.
+(function patchFirestoreWritesWithPassword(){
+  const origDocSet = firebase.firestore.DocumentReference.prototype.set;
+  firebase.firestore.DocumentReference.prototype.set = function(data, options){
+    const payload = currentPwHash ? Object.assign({}, data, { _pw: currentPwHash }) : data;
+    return origDocSet.call(this, payload, options);
+  };
+  const origBatchSet = firebase.firestore.WriteBatch.prototype.set;
+  firebase.firestore.WriteBatch.prototype.set = function(ref, data, options){
+    const payload = currentPwHash ? Object.assign({}, data, { _pw: currentPwHash }) : data;
+    return origBatchSet.call(this, ref, payload, options);
+  };
+})();
 
 const lockBtn = document.getElementById('lockBtn');
 const lockBadge = document.getElementById('lockBadge');
@@ -1242,12 +1262,15 @@ function refreshLockUI(){
 function renderAllModules(){
   renderImages(); renderProfile(); renderMusic(); renderDday(); renderGuestbook();
   renderCalendar(); renderGallery(); renderGallery2(); renderRefGallery(); renderVideos(); renderDocs(); renderSessions(); renderChecklist();
+  renderSpeechCard();
 }
 
 lockBtn.addEventListener('click', async ()=>{
   if(editMode){
     editMode = false;
+    currentPwHash = null;
     sessionStorage.removeItem('gh_edit');
+    sessionStorage.removeItem('gh_pw');
     refreshLockUI();
     renderAllModules();
     return;
@@ -1280,9 +1303,11 @@ lockBtn.addEventListener('click', async ()=>{
         if(!p1 || p1.length < 4){ toast('4자 이상 입력해주세요'); return; }
         if(p1 !== p2){ toast('비밀번호가 서로 달라요'); return; }
         const hash = await sha256(p1);
+        currentPwHash = hash;
         await db.collection('meta').doc('lock').set({ passwordHash: hash });
         editMode = true;
         sessionStorage.setItem('gh_edit','1');
+        sessionStorage.setItem('gh_pw', hash);
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드가 시작됐어요');
         migrateOversizedGalleries();
@@ -1304,8 +1329,10 @@ lockBtn.addEventListener('click', async ()=>{
     const submit = async ()=>{
       const hash = await sha256(input.value);
       if(hash === lockDoc.data().passwordHash){
+        currentPwHash = hash;
         editMode = true;
         sessionStorage.setItem('gh_edit','1');
+        sessionStorage.setItem('gh_pw', hash);
         refreshLockUI(); renderAllModules(); closeModal();
         toast('편집 모드로 전환됐어요');
         migrateOversizedGalleries();
@@ -2265,6 +2292,7 @@ function renderProfile(){
     ` : ''}
   `;
   bindProfile(slides);
+  if(typeof renderSpeechCard === 'function') renderSpeechCard();
 }
 
 function bindProfile(slides){
@@ -6360,6 +6388,529 @@ function renderStickers(){
   }
 }
 
+/* ================================================================
+   말풍선 위젯 — 캐릭터 이미지의 특정 부위를 누르면 말풍선이 뜨는 부가 기능.
+   기본은 항상 꺼진 채(타인모드) 시작하고, 방문자가 오버레이 안에서만 토글함.
+   탭 = "버전"(같은 캐릭터의 다른 이미지/대사 세트) 하나가 이미지 2장(캐릭터1/2)과
+   그 위에 그려진 클릭 영역들을 통째로 갖고 있음.
+   ================================================================ */
+
+let speechWidgetData = { tabs: [] };
+let speechEditorTabId = null;   // 편집기에서 지금 열려있는 탭
+let speechDrawShape = 'box';    // 편집기의 현재 그리기 모드: box | lasso
+
+function normalizeSpeechTab(t){
+  t = t || {};
+  return {
+    id: t.id || uid(),
+    name: t.name || '탭',
+    characters: [0,1].map(i=>{
+      const c = (t.characters && t.characters[i]) || {};
+      return { avatar: c.avatar || '', avatarChunked: !!c.avatarChunked, avatarFileId: c.avatarFileId || '', avatarChunkTotal: c.avatarChunkTotal || 0 };
+    }),
+    regions: Array.isArray(t.regions) ? t.regions.map(r=> ({
+      id: r.id || uid(),
+      character: r.character === 1 ? 1 : 0,   // 이 영역이 캐릭터1/캐릭터2 이미지 중 어디 위에 있는지
+      shape: r.shape === 'lasso' ? 'lasso' : 'box',
+      points: r.points,
+      textOther: r.textOther || '',
+      textCharacter: r.textCharacter || ''
+    })) : []
+  };
+}
+
+async function saveSpeechWidget(){
+  await docRef('speechWidget').set({ tabs: speechWidgetData.tabs });
+}
+
+// px, py는 스테이지 기준 0~100 퍼센트 좌표
+function speechPointInRegion(region, px, py){
+  if(region.shape === 'box'){
+    const p = region.points || {};
+    return px >= p.x && px <= p.x + p.w && py >= p.y && py <= p.y + p.h;
+  }
+  const pts = region.points || [];
+  let inside = false;
+  for(let i=0, j=pts.length-1; i<pts.length; j=i++){
+    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
+    const hit = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi || 0.0001) + xi);
+    if(hit) inside = !inside;
+  }
+  return inside;
+}
+
+function speechRegionSvgShape(region, className){
+  if(region.shape === 'box'){
+    const p = region.points;
+    return `<rect class="${className}" x="${p.x}%" y="${p.y}%" width="${p.w}%" height="${p.h}%" data-region="${region.id}"></rect>`;
+  }
+  const pts = (region.points||[]).map(p=> `${p.x},${p.y}`).join(' ');
+  return `<polygon class="${className}" points="${pts}" data-region="${region.id}"></polygon>`;
+}
+
+async function speechResolveCharacterUrl(character){
+  if(!character) return '';
+  if(character.avatarChunked && character.avatarFileId){
+    const cached = chunkedImageCache.get(character.avatarFileId);
+    if(cached) return cached;
+    try{
+      const dataUrl = await loadFileChunked(character.avatarFileId, character.avatarChunkTotal || 0);
+      chunkedImageCache.set(character.avatarFileId, dataUrl);
+      return dataUrl;
+    }catch(e){ return ''; }
+  }
+  return character.avatar || '';
+}
+
+// 프로필 카드가 지금 보여주고 있는 AU 이름과 같은 이름의 탭을 찾아 연동함.
+// 못 찾으면 첫 번째 탭으로 시작함(단, 프로필/말풍선 위젯 데이터는 서로 저장 형식이
+// 완전히 분리돼 있어서, 이 매칭이 실패해도 서로에게 영향 없음).
+function speechPickLinkedTabId(){
+  const tabs = speechWidgetData.tabs || [];
+  if(tabs.length === 0) return null;
+  const slides = (profileData.slides || []);
+  const currentLabel = slides[profileSlideIndex] && slides[profileSlideIndex].label;
+  const matched = currentLabel && tabs.find(t=> t.name === currentLabel);
+  return (matched || tabs[0]).id;
+}
+
+/* ---------------- 카드(평소 화면) ---------------- */
+
+async function renderSpeechCard(){
+  const box = document.getElementById('cardSpeech');
+  if(!box) return;
+  const tabs = speechWidgetData.tabs || [];
+  const linkedId = speechPickLinkedTabId();
+  const tab = tabs.find(t=> t.id === linkedId);
+
+  if(!tab){
+    box.innerHTML = `
+      <div class="speech-card-empty">${editMode ? '편집 버튼을 눌러 탭과 이미지를 추가해보세요' : '아직 준비 중이에요'}</div>
+      ${editMode ? `<button class="speech-card-edit-btn" id="speechEditBtn" aria-label="말풍선 위젯 편집">✎</button>` : ''}
+    `;
+    const editBtn = document.getElementById('speechEditBtn');
+    if(editBtn) editBtn.onclick = (e)=>{ e.stopPropagation(); openSpeechEditor(); };
+    return;
+  }
+
+  const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+  box.innerHTML = `
+    <div class="speech-card-thumbs">
+      ${url0 ? `<img src="${url0}" alt="">` : ''}
+      ${url1 ? `<img src="${url1}" alt="">` : ''}
+    </div>
+    <div class="speech-card-label">눌러서 반응 보기</div>
+    ${editMode ? `<button class="speech-card-edit-btn" id="speechEditBtn" aria-label="말풍선 위젯 편집">✎</button>` : ''}
+  `;
+  box.onclick = ()=> openSpeechOverlay(linkedId);
+  const editBtn = document.getElementById('speechEditBtn');
+  if(editBtn) editBtn.onclick = (e)=>{ e.stopPropagation(); openSpeechEditor(); };
+}
+
+/* ---------------- 방문자용 오버레이 ---------------- */
+
+function closeSpeechOverlay(){
+  const el = document.getElementById('speechOverlayRoot');
+  if(el){ el.remove(); }
+  if(window.__speechEscHandler){ document.removeEventListener('keydown', window.__speechEscHandler); window.__speechEscHandler = null; }
+}
+
+function openSpeechOverlay(initialTabId){
+  const tabs = speechWidgetData.tabs || [];
+  if(tabs.length === 0) return;
+  let activeId = initialTabId || tabs[0].id;
+  let mode = 'other'; // 오버레이를 열 때마다 항상 타인모드(=off)로 시작함
+
+  closeSpeechOverlay();
+  const el = document.createElement('div');
+  el.className = 'speech-overlay';
+  el.id = 'speechOverlayRoot';
+  el.innerHTML = `
+    <button class="speech-overlay-close" id="speechCloseBtn" aria-label="닫기">✕</button>
+    <div class="speech-tabs" id="speechTabs"></div>
+    <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
+    <button class="speech-toggle" id="speechModeBtn" aria-pressed="false">
+      <span class="speech-toggle-knob"></span>
+      <span class="speech-toggle-text"></span>
+    </button>
+  `;
+  document.body.appendChild(el);
+
+  el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
+  window.__speechEscHandler = (e)=>{ if(e.key === 'Escape') closeSpeechOverlay(); };
+  document.addEventListener('keydown', window.__speechEscHandler);
+  el.querySelector('#speechCloseBtn').onclick = closeSpeechOverlay;
+
+  const tabsEl = el.querySelector('#speechTabs');
+  const modeBtn = el.querySelector('#speechModeBtn');
+  const stage = el.querySelector('#speechStage');
+  let bubbleEl = null;
+
+  const renderModeBtn = ()=>{
+    const isOn = mode === 'character';
+    modeBtn.classList.toggle('is-on', isOn);
+    modeBtn.setAttribute('aria-pressed', String(isOn));
+    modeBtn.querySelector('.speech-toggle-text').textContent = isOn ? '캐릭터' : '타인';
+    el.classList.toggle('is-on', isOn); // 켜졌을 때 배경에 은은한 핑크빛
+  };
+
+  const renderTabs = ()=>{
+    tabsEl.innerHTML = tabs.map(t=> `<button class="speech-tab-btn ${t.id===activeId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('');
+    tabsEl.querySelectorAll('.speech-tab-btn').forEach(btn=>{
+      btn.onclick = ()=>{ activeId = btn.dataset.tab; renderTabs(); renderStage(); };
+    });
+  };
+
+  const renderStage = async ()=>{
+    if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
+    const tab = tabs.find(t=> t.id === activeId);
+    if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
+    const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+    stage.innerHTML = urls.map((url, idx)=> url
+      ? `<div class="speech-charbox" data-char="${idx}"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`
+      : ''
+    ).join('');
+
+    stage.querySelectorAll('.speech-charbox').forEach(box=>{
+      const idx = Number(box.dataset.char);
+      const svg = box.querySelector('svg');
+      const regions = tab.regions.filter(r=> r.character === idx);
+      svg.innerHTML = regions.map(r=> speechRegionSvgShape(r, 'speech-region')).join('');
+      svg.querySelectorAll('[data-region]').forEach(regionEl=>{
+        regionEl.addEventListener('click', (e)=>{
+          const region = regions.find(r=> r.id === regionEl.dataset.region);
+          if(!region) return;
+          const text = mode === 'other' ? region.textOther : region.textCharacter;
+          if(!text) return;
+          if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
+          // anchor(위치 고정용) 안에 실제 말풍선(팝인 애니메이션용)을 넣는 이중 구조.
+          // 하나의 요소에 "위치 이동 transform"과 "팝인 transform"을 같이 걸면 서로
+          // 덮어써서 말풍선이 떴다가 제자리로 툭 튀는 문제가 있었음 — 그래서 위치는
+          // anchor(top/left, transform 없음)가, 팝인 애니메이션은 그 안의 본체가 각자 맡게 함.
+          const anchor = document.createElement('div');
+          anchor.className = 'speech-bubble-anchor';
+          const stageRect = stage.getBoundingClientRect();
+          anchor.style.left = (e.clientX - stageRect.left) + 'px';
+          anchor.style.top = (e.clientY - stageRect.top) + 'px';
+          bubbleEl = document.createElement('div');
+          bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
+          bubbleEl.textContent = text;
+          anchor.appendChild(bubbleEl);
+          stage.appendChild(anchor);
+          requestAnimationFrame(()=>{
+            shapeSpeechBubble(bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
+            bubbleEl.classList.add('show');
+          });
+        });
+      });
+    });
+  };
+
+  modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; } };
+
+  renderModeBtn();
+  renderTabs();
+  renderStage();
+}
+
+/* ---------------- 편집기(편집모드 전용) ---------------- */
+
+function openSpeechEditor(){
+  const tabs = speechWidgetData.tabs || [];
+  speechEditorTabId = tabs[0] ? tabs[0].id : null;
+
+  openModal(`
+    <h3>말풍선 위젯 편집</h3>
+    <div class="speech-editor-tabbar" id="seTabbar"></div>
+    <div id="seTabBody"></div>
+    <div class="modal-actions"><button class="btn ghost" id="seCloseBtn">닫기</button></div>
+  `, (modal)=>{
+    modal.querySelector('#seCloseBtn').onclick = closeModal;
+    renderEditorTabbar(modal);
+    renderEditorTabBody(modal);
+  }, 'modal-speech-editor');
+}
+
+function renderEditorTabbar(modal){
+  const tabs = speechWidgetData.tabs || [];
+  const bar = modal.querySelector('#seTabbar');
+  bar.innerHTML = `
+    ${tabs.map(t=> `<button class="speech-tab-btn ${t.id===speechEditorTabId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('')}
+    <input type="text" id="seNewTabInput" placeholder="새 탭 이름" style="width:120px;">
+    <button class="btn small" id="seAddTabBtn">+ 탭 추가</button>
+  `;
+  bar.querySelectorAll('[data-tab]').forEach(btn=>{
+    btn.onclick = ()=>{ speechEditorTabId = btn.dataset.tab; renderEditorTabbar(modal); renderEditorTabBody(modal); };
+  });
+  const newInput = bar.querySelector('#seNewTabInput');
+  const addTab = async ()=>{
+    const name = newInput.value.trim();
+    if(!name){ newInput.focus(); return; }
+    const t = normalizeSpeechTab({ name });
+    speechWidgetData.tabs = [...tabs, t];
+    speechEditorTabId = t.id;
+    await saveSpeechWidget();
+    renderEditorTabbar(modal); renderEditorTabBody(modal);
+  };
+  bar.querySelector('#seAddTabBtn').onclick = addTab;
+  newInput.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); addTab(); } });
+}
+
+function renderEditorTabBody(modal){
+  const body = modal.querySelector('#seTabBody');
+  const tabs = speechWidgetData.tabs || [];
+  const tab = tabs.find(t=> t.id === speechEditorTabId);
+  if(!tab){ body.innerHTML = `<p class="hint">왼쪽 위에서 탭을 추가해주세요.</p>`; return; }
+
+  body.innerHTML = `
+    <div class="modal-actions" id="seTabActions" style="justify-content:flex-start; margin-top:0; gap:8px; flex-wrap:wrap;"></div>
+    <div class="speech-editor-tools">
+      <label style="margin:0;"><input type="radio" name="seShape" value="box" checked> 박스로 그리기</label>
+      <label style="margin:0;"><input type="radio" name="seShape" value="lasso"> 올가미로 그리기</label>
+      <span class="hint" style="margin:0;">이미지 위에서 드래그해서 영역을 그려주세요. 다 그리면 아래에서 대사를 입력하고 저장해주세요.</span>
+    </div>
+    <div class="profile-edit-cols" id="seCharCols">
+      <div class="profile-edit-col" data-char="0"><h4>캐릭터1</h4></div>
+      <div class="profile-edit-divider"></div>
+      <div class="profile-edit-col" data-char="1"><h4>캐릭터2</h4></div>
+    </div>
+  `;
+
+  renderTabActions(modal, tab, false);
+  modal.querySelectorAll('input[name="seShape"]').forEach(r=> r.onchange = ()=>{ speechDrawShape = r.value; });
+
+  [0,1].forEach(idx=> renderEditorCharColumn(modal, tab, idx));
+}
+
+// 탭 이름변경/삭제 액션 줄 — 브라우저 기본 prompt()/confirm() 대신, 사이트 톤에 맞는
+// 인라인 입력창과 2단계 확인(먼저 눌렀을 때만 "정말요?"로 바뀜)으로 대체함.
+function renderTabActions(modal, tab, confirmingDelete){
+  const wrap = modal.querySelector('#seTabActions');
+  if(confirmingDelete){
+    wrap.innerHTML = `
+      <span class="hint" style="margin:0;">이 탭을 정말 삭제할까요? 안의 이미지와 대사도 함께 사라져요.</span>
+      <button class="btn small danger" id="seDeleteConfirmBtn">삭제</button>
+      <button class="btn small ghost" id="seDeleteCancelBtn">취소</button>
+    `;
+    wrap.querySelector('#seDeleteConfirmBtn').onclick = async ()=>{
+      tab.characters.forEach(c=>{ if(c.avatarChunked && c.avatarFileId) deleteFileChunked(c.avatarFileId, c.avatarChunkTotal).catch(()=>{}); });
+      speechWidgetData.tabs = (speechWidgetData.tabs || []).filter(t=> t.id !== tab.id);
+      speechEditorTabId = speechWidgetData.tabs[0] ? speechWidgetData.tabs[0].id : null;
+      await saveSpeechWidget();
+      renderEditorTabbar(modal); renderEditorTabBody(modal);
+    };
+    wrap.querySelector('#seDeleteCancelBtn').onclick = ()=> renderTabActions(modal, tab, false);
+    return;
+  }
+  wrap.innerHTML = `
+    <input type="text" id="seNameInput" value="${escapeHtml(tab.name)}" style="width:140px;">
+    <button class="btn small" id="seRenameBtn">이름 저장</button>
+    <button class="btn small danger" id="seDeleteTabBtn">이 탭 삭제</button>
+  `;
+  const nameInput = wrap.querySelector('#seNameInput');
+  const saveName = async ()=>{
+    const name = nameInput.value.trim();
+    if(!name || name === tab.name) return;
+    tab.name = name;
+    await saveSpeechWidget();
+    renderEditorTabbar(modal);
+  };
+  wrap.querySelector('#seRenameBtn').onclick = saveName;
+  nameInput.addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); saveName(); } });
+  wrap.querySelector('#seDeleteTabBtn').onclick = ()=> renderTabActions(modal, tab, true);
+}
+
+// 캐릭터 한 명 분(이미지 업로드 + 그리기 스테이지 + 대사 목록)을 통째로 그리고 관리함.
+// 프로필 편집창의 "인물별 컬럼" 구성을 그대로 가져와서, 캐릭터1/캐릭터2 항목이 서로
+// 절대 안 섞이고 시각적으로도 뚜렷하게 나뉘도록 함.
+function renderEditorCharColumn(modal, tab, idx){
+  const col = modal.querySelector(`.profile-edit-col[data-char="${idx}"]`);
+  const hasImage = !!(tab.characters[idx].avatar || tab.characters[idx].avatarChunked);
+  col.innerHTML = `
+    <h4>캐릭터${idx+1}</h4>
+    <div class="speech-editor-slot" id="seSlot${idx}">
+      ${hasImage ? '' : '이미지를 올려주세요'}
+      <input type="file" accept="image/png,image/jpeg,image/gif" id="seFile${idx}">
+    </div>
+    <div class="speech-editor-stage-single" id="seStage${idx}"></div>
+    <div class="speech-region-list" id="seRegionList${idx}"></div>
+  `;
+
+  const input = col.querySelector(`#seFile${idx}`);
+  input.onchange = async ()=>{
+    const file = input.files[0];
+    if(!file) return;
+    try{
+      const dataUrl = await compressAvatarImageFile(file);
+      const old = tab.characters[idx];
+      if(old.avatarChunked && old.avatarFileId) deleteFileChunked(old.avatarFileId, old.avatarChunkTotal).catch(()=>{});
+      const chunkInfo = await saveFileChunked(dataUrl);
+      chunkedImageCache.set(chunkInfo.fileId, dataUrl);
+      tab.characters[idx] = { avatar:'', avatarChunked:true, avatarFileId: chunkInfo.fileId, avatarChunkTotal: chunkInfo.total };
+      await saveSpeechWidget();
+      renderEditorCharColumn(modal, tab, idx);
+    }catch(err){ toast(err.message || '이미지를 올리지 못했어요'); }
+  };
+
+  renderEditorCharStage(modal, tab, idx, null);
+  renderEditorRegionList(modal, tab, idx);
+}
+
+// 이 캐릭터의 그리기 스테이지. pendingRegion이 있으면(방금 그려서 아직 저장 전) 점선으로
+// 같이 보여줌 — 저장을 눌러야 진짜 데이터에 들어가고, 취소하면 흔적도 없이 사라짐.
+async function renderEditorCharStage(modal, tab, idx, pendingRegion){
+  const stage = modal.querySelector(`#seStage${idx}`);
+  const url = await speechResolveCharacterUrl(tab.characters[idx]);
+  if(!url){ stage.innerHTML = `<div class="speech-charbox-empty">이미지를 먼저 올려주세요</div>`; return; }
+
+  stage.innerHTML = `<div class="speech-charbox"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`;
+  const svg = stage.querySelector('svg');
+  const regions = tab.regions.filter(r=> r.character === idx);
+  svg.innerHTML = regions.map(r=> speechRegionSvgShape(r, 'speech-editor-region')).join('')
+    + (pendingRegion ? speechRegionSvgShape(pendingRegion, 'speech-editor-region speech-editor-region-pending') : '');
+
+  const toPercent = (e)=>{
+    const rect = svg.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+    return { x, y };
+  };
+
+  let drawing = false, startPt = null, lassoPts = [], liveEl = null;
+
+  svg.addEventListener('mousedown', (e)=>{
+    if(pendingRegion) return; // 저장 전인 그리기가 이미 있으면, 그거부터 저장/취소해야 새로 그릴 수 있음
+    if(e.target.dataset && e.target.dataset.region) return; // 기존 영역 클릭은 새로 그리기로 안 이어짐
+    drawing = true;
+    startPt = toPercent(e);
+    lassoPts = [startPt];
+    liveEl = document.createElementNS('http://www.w3.org/2000/svg', speechDrawShape === 'box' ? 'rect' : 'polygon');
+    liveEl.setAttribute('class', 'speech-editor-region speech-editor-region-pending');
+    svg.appendChild(liveEl);
+  });
+  svg.addEventListener('mousemove', (e)=>{
+    if(!drawing) return;
+    const pt = toPercent(e);
+    if(speechDrawShape === 'box'){
+      const x = Math.min(startPt.x, pt.x), y = Math.min(startPt.y, pt.y);
+      const w = Math.abs(pt.x - startPt.x), h = Math.abs(pt.y - startPt.y);
+      liveEl.setAttribute('x', x + '%'); liveEl.setAttribute('y', y + '%');
+      liveEl.setAttribute('width', w + '%'); liveEl.setAttribute('height', h + '%');
+    } else {
+      lassoPts.push(pt);
+      liveEl.setAttribute('points', lassoPts.map(p=> `${p.x},${p.y}`).join(' '));
+    }
+  });
+  const finishDrawing = ()=>{
+    if(!drawing) return;
+    drawing = false;
+    if(liveEl) liveEl.remove();
+    let region;
+    if(speechDrawShape === 'box'){
+      const endPt = lassoPts[lassoPts.length-1] || startPt;
+      const x = Math.min(startPt.x, endPt.x), y = Math.min(startPt.y, endPt.y);
+      const w = Math.abs(endPt.x - startPt.x), h = Math.abs(endPt.y - startPt.y);
+      if(w < 1 || h < 1) return; // 너무 작게 클릭만 한 경우는 무시
+      region = { id: uid(), character: idx, shape:'box', points:{x,y,w,h}, textOther:'', textCharacter:'' };
+    } else {
+      if(lassoPts.length < 3) return;
+      region = { id: uid(), character: idx, shape:'lasso', points: lassoPts, textOther:'', textCharacter:'' };
+    }
+    // 아직 tab.regions에는 안 넣고(=Firestore에도 저장 안 됨), 대사를 입력하고
+    // "저장"을 눌러야만 실제로 반영됨. 아래 renderPendingRegionForm이 그 저장/취소를 담당.
+    renderEditorCharStage(modal, tab, idx, region);
+    renderPendingRegionForm(modal, tab, idx, region);
+  };
+  svg.addEventListener('mouseup', finishDrawing);
+  svg.addEventListener('mouseleave', ()=>{ if(drawing){ drawing = false; if(liveEl) liveEl.remove(); } });
+}
+
+// 방금 그린(아직 저장 안 된) 영역의 대사 입력 폼 — 저장을 눌러야 tab.regions에 들어가고
+// Firestore에 반영됨. 취소를 누르면 그린 도형 자체가 흔적 없이 사라짐.
+function renderPendingRegionForm(modal, tab, idx, pendingRegion){
+  const list = modal.querySelector(`#seRegionList${idx}`);
+  const form = document.createElement('div');
+  form.className = 'speech-region-row speech-region-row-pending';
+  form.innerHTML = `
+    <div class="speech-region-row-top">
+      <span>새 영역 (${pendingRegion.shape === 'box' ? '박스' : '올가미'}) · 아직 저장 전이에요</span>
+    </div>
+    <label>타인용 대사</label>
+    <textarea id="sePendingOther"></textarea>
+    <label>캐릭터용 대사</label>
+    <textarea id="sePendingCharacter"></textarea>
+    <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
+      <button class="btn small primary" id="sePendingSave">저장</button>
+      <button class="btn small ghost" id="sePendingCancel">취소</button>
+    </div>
+  `;
+  list.prepend(form);
+  form.querySelector('#sePendingSave').onclick = async ()=>{
+    pendingRegion.textOther = form.querySelector('#sePendingOther').value;
+    pendingRegion.textCharacter = form.querySelector('#sePendingCharacter').value;
+    tab.regions.push(pendingRegion);
+    await saveSpeechWidget();
+    renderEditorCharStage(modal, tab, idx, null);
+    renderEditorRegionList(modal, tab, idx);
+  };
+  form.querySelector('#sePendingCancel').onclick = ()=>{
+    renderEditorCharStage(modal, tab, idx, null); // 저장 안 했으니 그린 도형만 그냥 지움
+    renderEditorRegionList(modal, tab, idx);
+  };
+}
+
+// 이미 저장된 영역들의 목록 — 텍스트를 고치면 곧바로 반영되지 않고, "저장"을 눌러야
+// 반영되며 "취소"를 누르면 마지막으로 저장된 내용으로 되돌아감(맘대로 조용히 사라지지 않음).
+function renderEditorRegionList(modal, tab, idx){
+  const list = modal.querySelector(`#seRegionList${idx}`);
+  const regions = tab.regions.filter(r=> r.character === idx);
+  if(regions.length === 0){ list.innerHTML = `<p class="hint">아직 그려진 영역이 없어요.</p>`; return; }
+  list.innerHTML = regions.map((r,i)=> `
+    <div class="speech-region-row" data-region="${r.id}">
+      <div class="speech-region-row-top">
+        <span>영역 ${i+1} (${r.shape === 'box' ? '박스' : '올가미'})</span>
+        <button class="btn small danger" data-del="${r.id}">삭제</button>
+      </div>
+      <label>타인용 대사</label>
+      <textarea data-field="textOther">${escapeHtml(r.textOther)}</textarea>
+      <label>캐릭터용 대사</label>
+      <textarea data-field="textCharacter">${escapeHtml(r.textCharacter)}</textarea>
+      <div class="modal-actions" style="justify-content:flex-start; margin-top:4px;">
+        <button class="btn small primary" data-save="${r.id}">저장</button>
+        <button class="btn small ghost" data-cancel="${r.id}">취소</button>
+      </div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      tab.regions = tab.regions.filter(r=> r.id !== btn.dataset.del);
+      await saveSpeechWidget();
+      renderEditorCharStage(modal, tab, idx, null);
+      renderEditorRegionList(modal, tab, idx);
+    };
+  });
+  list.querySelectorAll('[data-save]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const row = btn.closest('.speech-region-row');
+      const region = tab.regions.find(r=> r.id === row.dataset.region);
+      if(!region) return;
+      region.textOther = row.querySelector('[data-field="textOther"]').value;
+      region.textCharacter = row.querySelector('[data-field="textCharacter"]').value;
+      await saveSpeechWidget();
+      toast('저장했어요');
+    };
+  });
+  list.querySelectorAll('[data-cancel]').forEach(btn=>{
+    btn.onclick = ()=>{ renderEditorRegionList(modal, tab, idx); }; // 마지막 저장 상태로 다시 그림(입력 중이던 내용 버림)
+  });
+}
+
+docRef('speechWidget').onSnapshot(doc=>{
+  speechWidgetData = { tabs: doc.exists ? (doc.data().tabs || []).map(normalizeSpeechTab) : [] };
+  renderSpeechCard();
+});
+
 docRef('stickers').onSnapshot(doc=>{ stickerPosData = doc.exists ? doc.data() : { positions:{} }; renderStickers(); });
 
 /* ---------------- 초기화 ---------------- */
@@ -6373,6 +6924,9 @@ initBoardTabs();
 window.addEventListener('resize', debounce(()=>{
   document.querySelectorAll('.profile-compact-oneliner').forEach(el=>{
     shapeSpeechBubble(el, { radius:12, tailLeft:14, tailWidth:14, tailHeight:7 });
+  });
+  document.querySelectorAll('.speech-bubble.show').forEach(el=>{
+    shapeSpeechBubble(el, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
   });
   Object.values(stickerEls).forEach(s=>{
     shapeSpeechBubble(s.bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
