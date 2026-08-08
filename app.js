@@ -6640,6 +6640,11 @@ function openSpeechOverlay(initialTabId){
         regionEl.addEventListener('click', (e)=>{
           const region = regions.find(r=> r.id === regionEl.dataset.region);
           if(!region) return;
+          // 눌렀다는 반응(살짝 튀는 애니메이션)은 대사가 있든 없든 항상 보여줌 —
+          // 스티커가 말풍선 뜰 때 살짝 떠오르는 것과 같은 애니메이션을 재사용함
+          box.classList.remove('jump');
+          void box.offsetWidth; // 강제로 리플로우를 일으켜서 연속으로 눌러도 매번 애니메이션이 다시 시작되게 함
+          box.classList.add('jump');
           const text = mode === 'other' ? region.textOther : region.textCharacter;
           if(!text) return;
           if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
@@ -6671,6 +6676,83 @@ function openSpeechOverlay(initialTabId){
   renderModeBtn();
   renderTabs();
   renderStage();
+}
+
+/* ---------------- 카드 겉모습 설정(커버 사진/문구) — 대사 편집기와 별개 ---------------- */
+
+function openSpeechCoverEditor(){
+  const cover = normalizeSpeechCover(speechWidgetData.cover);
+  let draftImage = { image: cover.image, imageChunked: cover.imageChunked, imageFileId: cover.imageFileId, imageChunkTotal: cover.imageChunkTotal };
+  let imageChanged = false;
+
+  openModal(`
+    <h3>위젯 카드 겉모습 설정</h3>
+    <p class="hint">여기서 설정하면 평소 화면의 카드가 캐릭터 미리보기 대신 이 사진 한 장으로 꽉 채워져요. 대사·탭 내용에는 영향 없어요.</p>
+    <div class="speech-editor-slot" id="scImgSlot">
+      <input type="file" accept="image/png,image/jpeg,image/gif" id="scFile">
+    </div>
+    <label>카드에 같이 보여줄 문구 (선택)</label>
+    <input type="text" id="scText" placeholder="예: 눌러서 대화해보기" value="${escapeHtml(cover.text)}">
+    <div class="modal-actions">
+      <button class="btn ghost" id="scCancelBtn">취소</button>
+      <button class="btn primary" id="scSaveBtn">저장</button>
+    </div>
+  `, async (modal)=>{
+    const slot = modal.querySelector('#scImgSlot');
+    const fileInput = modal.querySelector('#scFile');
+
+    const renderPreview = async ()=>{
+      const url = draftImage.imageChunked || draftImage.image
+        ? await speechResolveCharacterUrl({ avatar: draftImage.image, avatarChunked: draftImage.imageChunked, avatarFileId: draftImage.imageFileId, avatarChunkTotal: draftImage.imageChunkTotal })
+        : '';
+      slot.innerHTML = `
+        ${url ? `<img src="${url}" alt="">` : '이미지를 올려주세요'}
+        <input type="file" accept="image/png,image/jpeg,image/gif" id="scFile">
+        ${url ? `<button class="btn small ghost" id="scRemoveBtn" type="button">이미지 제거</button>` : ''}
+      `;
+      slot.querySelector('#scFile').onchange = onFileChange;
+      const removeBtn = slot.querySelector('#scRemoveBtn');
+      if(removeBtn) removeBtn.onclick = ()=>{
+        draftImage = { image:'', imageChunked:false, imageFileId:'', imageChunkTotal:0 };
+        imageChanged = true;
+        renderPreview();
+      };
+    };
+
+    async function onFileChange(){
+      const input = slot.querySelector('#scFile');
+      const file = input.files[0];
+      if(!file) return;
+      try{
+        const dataUrl = await compressAvatarImageFile(file);
+        draftImage = { image: dataUrl, imageChunked: false, imageFileId:'', imageChunkTotal:0 };
+        imageChanged = true;
+        await renderPreview();
+      }catch(err){ toast(err.message || '이미지를 올리지 못했어요'); }
+    }
+    fileInput.onchange = onFileChange;
+    await renderPreview();
+
+    modal.querySelector('#scCancelBtn').onclick = closeModal;
+    modal.querySelector('#scSaveBtn').onclick = async ()=>{
+      const text = modal.querySelector('#scText').value.trim();
+      if(imageChanged && draftImage.image){
+        // 새로 고른 이미지는 아직 압축된 base64 상태 — 저장 직전에 청크로 올림(다른 이미지들과 같은 방식)
+        const old = cover;
+        const chunkInfo = await saveFileChunked(draftImage.image);
+        chunkedImageCache.set(chunkInfo.fileId, draftImage.image);
+        if(old.imageChunked && old.imageFileId) deleteFileChunked(old.imageFileId, old.imageChunkTotal).catch(()=>{});
+        draftImage = { image:'', imageChunked:true, imageFileId: chunkInfo.fileId, imageChunkTotal: chunkInfo.total };
+      } else if(imageChanged && !draftImage.image){
+        if(cover.imageChunked && cover.imageFileId) deleteFileChunked(cover.imageFileId, cover.imageChunkTotal).catch(()=>{});
+      }
+      speechWidgetData.cover = normalizeSpeechCover({ ...draftImage, text });
+      await saveSpeechWidget();
+      closeModal();
+      renderSpeechCard();
+      toast('저장했어요');
+    };
+  }, 'modal-speech-editor');
 }
 
 /* ---------------- 편집기(편집모드 전용) ---------------- */
