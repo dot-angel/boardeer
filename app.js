@@ -6395,9 +6395,21 @@ function renderStickers(){
    그 위에 그려진 클릭 영역들을 통째로 갖고 있음.
    ================================================================ */
 
-let speechWidgetData = { tabs: [] };
+let speechWidgetData = { tabs: [], cover: null };
 let speechEditorTabId = null;   // 편집기에서 지금 열려있는 탭
 let speechDrawShape = 'box';    // 편집기의 현재 그리기 모드: box | lasso
+
+// 평소 화면에 보이는 카드를 캐릭터 미리보기 2장 대신, 이미지 위젯처럼 칸을 꽉 채우는
+// 사진 한 장 + 문구로 바꾸고 싶을 때 쓰는 설정. 탭/캐릭터 데이터와는 완전히 별개라서
+// 톱니바퀴 편집을 건드려도 대사 데이터에는 전혀 영향이 없음.
+function normalizeSpeechCover(c){
+  c = c || {};
+  return {
+    image: c.image || '', imageChunked: !!c.imageChunked,
+    imageFileId: c.imageFileId || '', imageChunkTotal: c.imageChunkTotal || 0,
+    text: c.text || ''
+  };
+}
 
 function normalizeSpeechTab(t){
   t = t || {};
@@ -6420,7 +6432,7 @@ function normalizeSpeechTab(t){
 }
 
 async function saveSpeechWidget(){
-  await docRef('speechWidget').set({ tabs: speechWidgetData.tabs });
+  await docRef('speechWidget').set({ tabs: speechWidgetData.tabs, cover: speechWidgetData.cover });
 }
 
 // px, py는 스테이지 기준 0~100 퍼센트 좌표
@@ -6482,27 +6494,49 @@ async function renderSpeechCard(){
   const tabs = speechWidgetData.tabs || [];
   const linkedId = speechPickLinkedTabId();
   const tab = tabs.find(t=> t.id === linkedId);
+  const cover = speechWidgetData.cover;
+  const coverUrl = cover ? await speechResolveCharacterUrl({ avatar: cover.image, avatarChunked: cover.imageChunked, avatarFileId: cover.imageFileId, avatarChunkTotal: cover.imageChunkTotal }) : '';
 
-  if(!tab){
+  // 편집모드일 때 우상단에 뜨는 두 버튼 — 톱니바퀴(카드 겉모습: 커버 사진+문구)와
+  // 연필(대사 내용: 탭/캐릭터/클릭영역)은 완전히 다른 걸 편집하는 거라 아이콘과
+  // 자리를 뚜렷하게 구별해뒀음
+  const editButtons = editMode ? `
+    <button class="speech-card-cover-btn" id="speechCoverBtn" aria-label="위젯 카드 겉모습 설정" title="카드 겉모습(사진/문구) 설정">⚙</button>
+    <button class="speech-card-edit-btn" id="speechEditBtn" aria-label="말풍선 위젯 편집" title="대사·탭 편집">✎</button>
+  ` : '';
+
+  if(coverUrl){
+    box.className = 'w-card w-speech has-cover';
+    box.innerHTML = `
+      <img class="speech-card-cover-img" src="${coverUrl}" alt="">
+      <div class="speech-card-cover-scrim"></div>
+      ${cover.text ? `<div class="speech-card-cover-text">${escapeHtml(cover.text)}</div>` : ''}
+      ${editButtons}
+    `;
+  } else if(tab){
+    box.className = 'w-card w-speech';
+    const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+    box.innerHTML = `
+      <div class="speech-card-thumbs">
+        ${url0 ? `<img src="${url0}" alt="">` : ''}
+        ${url1 ? `<img src="${url1}" alt="">` : ''}
+      </div>
+      <div class="speech-card-label">눌러서 반응 보기</div>
+      ${editButtons}
+    `;
+  } else {
+    box.className = 'w-card w-speech';
     box.innerHTML = `
       <div class="speech-card-empty">${editMode ? '편집 버튼을 눌러 탭과 이미지를 추가해보세요' : '아직 준비 중이에요'}</div>
-      ${editMode ? `<button class="speech-card-edit-btn" id="speechEditBtn" aria-label="말풍선 위젯 편집">✎</button>` : ''}
+      ${editButtons}
     `;
-    const editBtn = document.getElementById('speechEditBtn');
-    if(editBtn) editBtn.onclick = (e)=>{ e.stopPropagation(); openSpeechEditor(); };
-    return;
   }
 
-  const [url0, url1] = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
-  box.innerHTML = `
-    <div class="speech-card-thumbs">
-      ${url0 ? `<img src="${url0}" alt="">` : ''}
-      ${url1 ? `<img src="${url1}" alt="">` : ''}
-    </div>
-    <div class="speech-card-label">눌러서 반응 보기</div>
-    ${editMode ? `<button class="speech-card-edit-btn" id="speechEditBtn" aria-label="말풍선 위젯 편집">✎</button>` : ''}
-  `;
-  box.onclick = ()=> openSpeechOverlay(linkedId);
+  if(tab || coverUrl) box.onclick = ()=> openSpeechOverlay(linkedId);
+  else box.onclick = null;
+
+  const coverBtn = document.getElementById('speechCoverBtn');
+  if(coverBtn) coverBtn.onclick = (e)=>{ e.stopPropagation(); openSpeechCoverEditor(); };
   const editBtn = document.getElementById('speechEditBtn');
   if(editBtn) editBtn.onclick = (e)=>{ e.stopPropagation(); openSpeechEditor(); };
 }
@@ -6933,7 +6967,8 @@ function renderEditorRegionList(modal, tab, idx){
 }
 
 docRef('speechWidget').onSnapshot(doc=>{
-  speechWidgetData = { tabs: doc.exists ? (doc.data().tabs || []).map(normalizeSpeechTab) : [] };
+  const d = doc.exists ? doc.data() : {};
+  speechWidgetData = { tabs: (d.tabs || []).map(normalizeSpeechTab), cover: normalizeSpeechCover(d.cover) };
   renderSpeechCard();
 });
 
