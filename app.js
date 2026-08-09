@@ -7308,6 +7308,27 @@ function stepShakerPhysics(){
       }
     }
   }
+  // 위 루프는 프레임당 한 번씩만 쌍을 검사해서, 파츠 3개 이상이 한 군데 몰리면
+  // (A·B를 밀어내고 나면 그 자리에서 A·C가 다시 겹치는 식으로) 한 번의 계산으로
+  // 다 못 풀고 살짝 겹친 채 남을 수 있음. 아크릴 참은 실제로는 절대 겹칠 수 없는
+  // 딱딱한 조각이라 그게 눈에 띄니까, 속도 계산 없이 위치만 여러 번 더 밀어내서
+  // 같은 프레임 안에서 완전히 떨어지게 함(충돌음/스핀은 위에서 이미 한 번만 적용).
+  for(let iter=0; iter<3; iter++){
+    for(let i=0;i<shakerPieces.length;i++){
+      for(let j=i+1;j<shakerPieces.length;j++){
+        const a = shakerPieces[i], b = shakerPieces[j];
+        const dx = b.x-a.x, dy = b.y-a.y;
+        const dist = Math.hypot(dx,dy) || 0.001;
+        const minDist = a.r + b.r;
+        if(dist < minDist){
+          const nx = dx/dist, ny = dy/dist;
+          const overlap = (minDist - dist) / 2;
+          a.x -= nx*overlap; a.y -= ny*overlap;
+          b.x += nx*overlap; b.y += ny*overlap;
+        }
+      }
+    }
+  }
   shakerPieces.forEach(p=>{
     p.el.style.transform = `translate(${(p.x-p.r).toFixed(1)}px, ${(p.y-p.r).toFixed(1)}px) rotate(${p.rot.toFixed(1)}deg)`;
   });
