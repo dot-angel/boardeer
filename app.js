@@ -7275,6 +7275,12 @@ const SHAKER_ANGULAR_FRICTION = 0.82;
 // 그대로라 튕긴 후엔 여전히 금방 잦아듦
 const SHAKER_WALL_RESTITUTION = 0.6;
 const SHAKER_PIECE_RESTITUTION = 0.8;
+// 벽 반사 코드는 부딪힌 방향(수직 성분)만 반발력으로 튕겨내고, 벽을 따라
+// 미끄러지는 방향(접선 성분)은 전혀 안 건드리고 있었음 — 그래서 중력에 밀려
+// 옆벽에 붙은 채로 마찰 없이 주르륵 미끄러져 내려가는(유리벽 같은) 느낌이 남.
+// 벽에 부딪히는 순간엔 접선 방향 속도도 같이 깎아서, 벽을 타고 미끄러지지
+// 않고 걸리는 느낌이 나게 함
+const SHAKER_WALL_TANGENT_FRICTION = 0.75;
 const SHAKER_MAX_SPEED = 20;
 const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 // 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
@@ -7338,10 +7344,10 @@ function stepShakerPhysics(){
     // 속도로 멈추게 함(예전엔 기준이 고정값이라 전체화면에서 훨씬 오래 돌았음)
     p.vr *= SHAKER_ANGULAR_FRICTION;
     if(Math.abs(p.vr) < sleepAngular) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; p.vy *= SHAKER_WALL_TANGENT_FRICTION; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; p.vy *= SHAKER_WALL_TANGENT_FRICTION; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; p.vx *= SHAKER_WALL_TANGENT_FRICTION; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; p.vx *= SHAKER_WALL_TANGENT_FRICTION; }
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
