@@ -2201,27 +2201,23 @@ function renderProfile(){
   box.innerHTML = `
     ${auHeaderHtml}
     <div class="profile-viewport" id="profileViewport">
-      ${(slide.sections.length > 1 || section.name || section.desc || editMode) ? `
-        <div class="profile-headline" id="profileHeadline">
-          <div class="profile-section-header" id="profSecHeader">
-            <div class="profile-section-name ${!section.name ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
-              ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '')}
-            </div>
-            ${(slide.sections.length > 1 || editMode) ? `
-              <div class="profile-section-actions">
-                ${slide.sections.length > 1 ? `<button class="icon-btn profile-section-order" id="profSecOrderBtn" title="시점/IF 목록 보기">☰</button>` : ''}
-                ${editMode ? `<button class="icon-btn profile-section-add" id="profSecAddBtn" title="시점/IF 추가">＋</button>` : ''}
-                ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
-              </div>
-            ` : ''}
+      <div class="profile-headline" id="profileHeadline">
+        <div class="profile-section-header" id="profSecHeader">
+          <div class="profile-section-name ${(editMode && !section.name) ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
+            ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '&nbsp;')}
           </div>
-          ${(section.desc || editMode) ? `
-            <div class="profile-section-desc ${!section.desc ? 'empty-hint':''}" id="profSecDescBtn" ${editMode ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
-              ${section.desc ? escapeHtml(section.desc) : (editMode ? '+ 짧은 설명 추가' : '')}
+          ${(slide.sections.length > 1 || editMode) ? `
+            <div class="profile-section-actions">
+              ${slide.sections.length > 1 ? `<button class="icon-btn profile-section-order" id="profSecOrderBtn" title="시점/IF 목록 보기">☰</button>` : ''}
+              ${editMode ? `<button class="icon-btn profile-section-add" id="profSecAddBtn" title="시점/IF 추가">＋</button>` : ''}
+              ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
             </div>
           ` : ''}
         </div>
-      ` : ''}
+        <div class="profile-section-desc ${(editMode && !section.desc) ? 'empty-hint':''}" id="profSecDescBtn" ${editMode ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
+          ${section.desc ? escapeHtml(section.desc) : (editMode ? '+ 짧은 설명 추가' : '&nbsp;')}
+        </div>
+      </div>
       <div class="profile-pair">
         ${[0,1].map(slot=>{
           const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
