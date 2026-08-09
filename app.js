@@ -7258,6 +7258,10 @@ const SHAKER_MAX_ANGULAR_SPEED = 4; // deg/frame — 이 이상으로는 회전�
 // 에어하키처럼 둥둥 떠다니는 느낌이 났음. 바닥에 닿은 조각엔 이 마찰을 추가로
 // 더 걸어서, 실제 무게에 눌려 금방 멈추는 느낌을 냄
 const SHAKER_GROUND_FRICTION = 0.8;
+// 부딪힌 두 조각의 접선(스치는) 방향 속도를 서로 얼마나 붙잡아 흡수할지(0=전혀 안 붙잡고
+// 계속 미끄러짐, 1=완전히 같은 속도로 붙어버림). 실제 딱딱한 조각끼리 스치듯 부딪히면
+// 미끄러지는 속도가 마찰로 확 줄어드는 걸 흉내냄
+const SHAKER_CONTACT_FRICTION = 0.55;
 
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
@@ -7285,10 +7289,10 @@ function stepShakerPhysics(){
     p.vr *= SHAKER_FRICTION;
     if(Math.abs(p.vr) < 0.06) p.vr = 0;
     if(Math.abs(p.vr) > SHAKER_MAX_ANGULAR_SPEED) p.vr = Math.sign(p.vr) * SHAKER_MAX_ANGULAR_SPEED;
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; }
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; p.vy *= SHAKER_CONTACT_FRICTION; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; p.vy *= SHAKER_CONTACT_FRICTION; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; p.vx *= SHAKER_CONTACT_FRICTION; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; p.vx *= SHAKER_CONTACT_FRICTION; }
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심.
@@ -7316,10 +7320,21 @@ function stepShakerPhysics(){
               a.vx -= imp*nx; a.vy -= imp*ny;
               b.vx += imp*nx; b.vy += imp*ny;
             }
-            // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
-            // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
+            // 정면(법선) 속도는 위에서 튕겨냈지만, 스치듯 부딪힐 때 훨씬 큰 비중을
+            // 차지하는 접선(옆으로 미끄러지는) 방향 속도는 그동안 거의 안 건드려서
+            // 튕기지 않고 계속 미끄러지는 것처럼 보였음. 접선 방향 속도를 마찰로
+            // 상당 부분(SHAKER_CONTACT_FRICTION 비율) 서로 붙잡아 흡수시켜서,
+            // 스치는 충돌에서도 "달그락" 하고 멈추는 느낌이 나게 함
             const tx = -ny, ty = nx;
-            const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
+            const aT = a.vx*tx + a.vy*ty, bT = b.vx*tx + b.vy*ty;
+            const avgT = (aT+bT)/2;
+            const newAT = aT + (avgT-aT)*SHAKER_CONTACT_FRICTION;
+            const newBT = bT + (avgT-bT)*SHAKER_CONTACT_FRICTION;
+            a.vx += (newAT-aT)*tx; a.vy += (newAT-aT)*ty;
+            b.vx += (newBT-bT)*tx; b.vy += (newBT-bT)*ty;
+            // 접선 속도가 흡수되면서 사라진 만큼 일부는 회전으로 옮겨줘서
+            // 손가락으로 튕긴 것처럼 자연스럽게 스핀이 붙게 함
+            const relVelT = bT - aT;
             a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
           }
         }
