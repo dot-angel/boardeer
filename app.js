@@ -7247,20 +7247,22 @@ function shakerFrameResized(){
   shakerFrameSize = { w: nw, h: nh };
 }
 
-// 예전 값(중력 0.12·마찰 0.985)은 조각이 한번 움직이면 한참을 둥둥 떠다니듯
-// 느리게 흘러다녀서 "무중력 속 쇳조각" 같은 느낌이 났음. 가벼운 아크릴 참
-// 느낌을 내려면: 중력은 좀 더 확실히 느껴지게(둥둥 뜨지 않게), 마찰(감쇠)은
-// 훨씬 크게 줘서 흔든 직후엔 팍 튀지만 금방 차분해지게, 반발력도 살짝 올려서
-// 통통 튀는 가벼운 질감을 냄.
-const SHAKER_GRAVITY = 0.32;
-const SHAKER_FRICTION = 0.92;
-// 회전은 이동(SHAKER_FRICTION)보다 더 빨리 잦아들게 별도 상수로 둠 — 같은
-// 마찰을 썼을 때 전체화면처럼 조각이 커진 상태에서 회전만 유독 오래 남아
-// "아무것도 없이 계속 도는" 것처럼 보이는 문제의 절반 원인이었음
-const SHAKER_ANGULAR_FRICTION = 0.86;
-const SHAKER_WALL_RESTITUTION = 0.62;
-const SHAKER_PIECE_RESTITUTION = 0.72;
-const SHAKER_MAX_SPEED = 32;
+// 반발력이 높고(0.72/0.62) 중력이 약하니(0.32) 부딪힌 뒤에도 에너지를 거의
+// 그대로 유지한 채 큰 포물선을 그리며 되튀어다녔음 — 이게 "탱탱볼" 인상의
+// 핵심 원인. 실제 아크릴 참은 부딪히면 "탁" 하고 에너지 대부분을 잃고,
+// 서로 다닥다닥 붙어 짧고 빠르게 달그락거리는 쪽에 가까움. 그래서:
+// - 반발력을 크게 낮춰 부딪힌 뒤 거의 멈칫하게(피스끼리/벽 둘 다)
+// - 중력을 세게 줘서 뜬 상태로 오래 머물지 않고 금방 바닥/서로에게 붙게
+// - 최고속도를 낮춰 큰 포물선 대신 좁은 반경에서 짧게 들썩이게
+const SHAKER_GRAVITY = 0.6;
+const SHAKER_FRICTION = 0.9;
+// 회전은 이동보다 더 빨리 잦아들되, 부딪히는 순간엔 매끈한 스핀이 아니라
+// 툭툭 꺾이듯 불규칙하게 튀는 편이 "말랑한 공"이 아니라 "딱딱한 조각"처럼
+// 보여서 마찰은 그대로 두고 부딪힐 때 주는 스핀 자체를 더 거칠게 만듦
+const SHAKER_ANGULAR_FRICTION = 0.82;
+const SHAKER_WALL_RESTITUTION = 0.2;
+const SHAKER_PIECE_RESTITUTION = 0.25;
+const SHAKER_MAX_SPEED = 20;
 const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 // 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
 // 튀거나 도는 상태가 남는데(부동소수점 특성상), 이 정도로 작아지면 그냥 확
@@ -7321,10 +7323,11 @@ function stepShakerPhysics(){
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
-  // 느낌의 핵심. 한 프레임에 한 번만 밀어내면 여러 조각이 한꺼번에 뭉쳤을 때
-  // (특히 세게 흔든 직후) 자리가 부족해서 덜 풀리고 살짝씩 겹친 채로 남는
-  // 경우가 많았음 — 같은 보정을 프레임당 3번 반복해서 겹침이 확실히 풀리게 함
-  for(let pass=0; pass<3; pass++){
+  // 느낌의 핵심. 예전엔 패스를 3번 반복해서 서서히 밀어냈는데, 그 "스르륵
+  // 밀려나는" 느낌 자체가 말랑한 공 인상을 더했음. 겹침 자체는 한 번에
+  // 확실히(overlap 전체를) 풀어서 즉각적으로 튕겨나가게 하고, 자리가 부족해
+  // 덜 풀리는 경우에 대비해 패스 수는 2번만 유지함(정밀하게 나눠 밀지는 않음)
+  for(let pass=0; pass<2; pass++){
   for(let i=0;i<shakerPieces.length;i++){
     for(let j=i+1;j<shakerPieces.length;j++){
       const a = shakerPieces[i], b = shakerPieces[j];
@@ -7343,11 +7346,14 @@ function stepShakerPhysics(){
             a.vx -= imp*nx; a.vy -= imp*ny;
             b.vx += imp*nx; b.vy += imp*ny;
           }
-          // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
-          // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
+          // 매끈하게 스핀을 주고받으면 공이 굴러가는 것처럼 보여서, 접선
+          // 방향 반응에 더해 부딪힐 때마다 무작위로 툭 꺾이는 회전을 살짝
+          // 얹음 — 매끄러운 회전이 아니라 딱딱한 조각이 모서리에 걸려
+          // 불규칙하게 튀는 느낌
           const tx = -ny, ty = nx;
           const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-          a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
+          const jag = Math.min(1, Math.abs(relVel)*0.08) * (Math.random()-0.5) * 2;
+          a.vr -= relVelT * 0.05 + jag; b.vr -= relVelT * 0.05 - jag;
         }
       }
     }
