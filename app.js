@@ -7312,7 +7312,14 @@ function stepShakerPhysics(){
     } else {
       p.vy += gravity;
     }
-    p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
+    // 예전엔 공중에 떠있는 동안에도 vy에 매 프레임 마찰을 걸어서, 중력이 만든
+    // 가속을 마찰이 계속 깎아먹는 바람에 "무게감 있게 뚝 떨어지는" 게 아니라
+    // 뭔가 저항을 받으며 둥둥 가라앉는 느낌이 났음. 흔들 때 준 수직 임펄스도
+    // 공중에서 같은 식으로 깎여서 튕겨나가는 힘 자체가 약해 보였음(낙하 속도
+    // 문제와 구분이 안 갔던 이유). 이제는 바닥에 붙어 정착하는 동안에만 vy에
+    // 마찰을 걸고, 진짜 공중에 떠있을 땐 중력만 그대로 받아 자유낙하하게 둠
+    p.vx *= SHAKER_FRICTION;
+    if(restingOnFloor) p.vy *= SHAKER_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
     if(speed > maxSpeed){ const s = maxSpeed/speed; p.vx *= s; p.vy *= s; }
     if(Math.abs(p.vx) < sleepLinear) p.vx = 0;
