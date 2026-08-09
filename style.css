@@ -302,9 +302,9 @@ body::before{
       "profile profile profile profile profile profile profile profile profile profile"
       "gb gb gb gb gb speech speech speech speech speech"
       "shaker shaker shaker shaker shaker shaker shaker shaker shaker shaker"
-      "cal cal cal cal cal cal cal cal cal cal"
+      "docs docs docs docs docs docs cal cal cal cal"
       "checklist checklist checklist checklist checklist checklist checklist checklist checklist checklist"
-      "docs docs docs docs docs docs sessions sessions sessions sessions";
+      "sessions sessions sessions sessions sessions sessions sessions sessions sessions sessions";
   }
   .board-page[data-page="0"] .row-images,
   .board-page[data-page="0"] .row-strip,
@@ -849,13 +849,32 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .dday-item .icon-btn{
   position:absolute; top:9px; right:0; width:22px; height:22px; font-size:.6rem;
 }
-/* 모바일에서도 가로 한 줄(라벨/날짜 왼쪽, D-숫자 오른쪽) 그대로 유지함. 예전엔
-   D-숫자 최소 크기(2.2rem)가 좁은 폭에서도 안 줄어들어서 한 줄에 다 안 들어가
-   세로로 쌓는 우회책을 썼었는데, 그러면 항목마다 두 줄씩 차지해서 위젯 전체가
-   세로로 길어지는 문제가 있었음. 대신 좁은 화면에서만 D-숫자 최소 크기를 낮춰서
-   계속 한 줄에 들어가게 함 */
-@media (max-width: 600px){
-  .dday-count{ font-size: clamp(1.5rem, 13cqw, 5rem); }
+/* 모바일에서는 캘린더 카드가 문서 위젯과 한 행을 나눠 쓰면서 폭이 크게
+   좁아지므로, 기존의 가로 배치(항목마다 라벨/날짜는 왼쪽·큰 D-숫자는 오른쪽,
+   전체 폭을 차지)로는 자리가 부족함. 항목 하나하나를 세로로(라벨 위, D-숫자
+   아래) 쌓은 좁은 조각으로 바꾸고, 그 조각들을 가로로 나란히 늘어놓아(항목이
+   많으면 가로 스크롤) 위젯 전체가 차지하는 가로폭을 훨씬 적게 씀 */
+@media (max-width: 900px){
+  .w-dday .w-body{
+    flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    justify-content: flex-start; align-items: stretch; gap:2px;
+  }
+  .w-dday .w-body::-webkit-scrollbar{ height:4px; }
+  .w-dday .w-body::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+  .dday-item{
+    flex: 0 0 auto; flex-direction:column; align-items:center; justify-content:center;
+    gap:0; padding: 4px 12px; border-bottom:none; border-right:1px solid var(--card-border);
+    min-width:56px;
+  }
+  .dday-item:first-child{ padding-top:4px; }
+  .dday-item:last-child{ border-right:none; }
+  .dday-info{ text-align:center; }
+  .dday-label{ font-size:.6rem; white-space:nowrap; }
+  /* 날짜까지 넣기엔 조각 폭이 너무 좁아지므로, 좁은 화면에서는 라벨+D-값만 남김 */
+  .dday-date{ display:none; }
+  .dday-count{ font-size: clamp(1.05rem, 8cqw, 2rem); text-align:center; }
+  body.edit-mode .dday-item{ padding-right:12px; padding-top:20px; }
+  .dday-item .icon-btn{ top:2px; right:50%; transform:translateX(50%); }
 }
 /* ---------- 프로필 위젯 (두 사람 프로필, 슬라이드로 여러 장(예: 본편/AU) 전환, AU별 시점/IF 세분화) ---------- */
 .w-profile{ align-items:stretch; }
@@ -1310,7 +1329,11 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   transform-origin:50% 50%; will-change:transform;
   transition: transform .32s cubic-bezier(.34,1.56,.64,1);
   cursor:grab; touch-action:none;
+  /* 흔드는 동작(빠른 드래그) 중에 안의 사진이 브라우저 기본 동작으로 선택되거나
+     "드래그되는 이미지"로 붙잡히지 않게 막음 */
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
 }
+.w-shaker img{ -webkit-user-drag:none; user-drag:none; }
 .w-shaker.shaker-grabbing{ transition:none; cursor:grabbing; }
 .shaker-frame{
   position:relative; flex:1; min-height:72px; border-radius:12px;
@@ -1355,6 +1378,18 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   position:absolute; top:3px; right:3px; width:20px; height:20px; font-size:.65rem;
   background:rgba(0,0,0,0.55); border-radius:50%; display:flex; align-items:center; justify-content:center;
 }
+/* 쉐이커 전체화면 보기(모바일에서 탭하면 열림) — 라이트박스와 같은 톤의 오버레이 위에
+   프레임을 화면 대부분을 차지하도록 정사각형에 가깝게 크게 띄움. 원래 자리의
+   #shakerFrame 요소를 그대로 옮겨오는 방식이라 사진/물리 상태가 그대로 유지됨 */
+.modal.modal-shaker-full{
+  width:auto; padding:16px; background: rgba(10,5,6,0.5);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+}
+.shaker-full-slot{
+  width:min(88vw, 520px); height:min(70vh, 520px);
+}
+.shaker-full-slot .shaker-frame{ width:100%; height:100%; flex:none; }
+.shaker-full-close{ position:absolute; top:10px; right:10px; }
 
 /* ---------- 방명록 ---------- */
 /* 쉐이커 위젯이 같은 칸(row-strip-right)에 추가되면서 행 전체가 다시 길어져서,

@@ -65,6 +65,11 @@ async function sha256(str){
 }
 
 function openModal(innerHtml, onMount, extraClass){
+  // 쉐이커 위젯을 전체화면으로 띄운 상태(#shakerFrame이 그 오버레이 안으로
+  // 옮겨가 있는 상태)에서 다른 모달이 열리면, 아래 modalRoot.innerHTML = ''가
+  // 실제 DOM 요소인 #shakerFrame까지 통째로 지워버려 위젯이 영구히 사라짐.
+  // 그래서 어떤 모달이든 열리기 직전엔 항상 먼저 프레임을 제자리로 돌려놓음.
+  if(typeof closeShakerFullscreen === 'function') closeShakerFullscreen();
   const overlay = document.createElement('div');
   // 라이트박스는 화면 전체(특히 큰 PC 모니터)를 매 프레임 블러 처리해야 해서 무거우므로,
   // 뒤쪽 전체화면 오버레이의 블러만 빼고 어둡게 깔리는 효과만 남김.
@@ -76,7 +81,10 @@ function openModal(innerHtml, onMount, extraClass){
   modalRoot.appendChild(overlay);
   if(onMount) onMount(overlay.querySelector('.modal'));
 }
-function closeModal(){ modalRoot.innerHTML = ''; }
+function closeModal(){
+  if(typeof closeShakerFullscreen === 'function') closeShakerFullscreen();
+  modalRoot.innerHTML = '';
+}
 
 /* FLIP(First-Last-Invert-Play) 방식의 간단한 자리바꿈 애니메이션. el은 이미 최종
    위치/크기로 그려져 있는 상태 — 거기서 시작하는 대신, 우선 fromRect(트랜지션
@@ -7168,6 +7176,7 @@ function syncShakerPieces(){
     el.style.width = size+'px'; el.style.height = size+'px';
     const imgEl = document.createElement('img');
     imgEl.alt = '';
+    imgEl.draggable = false; // 흔들 때 브라우저 기본 "이미지 드래그(고스트)" 동작으로 오인식되지 않게 함
     el.appendChild(imgEl);
     shakerFrameEl.appendChild(el);
     const px = r + Math.random() * Math.max(1, shakerFrameSize.w - r*2);
@@ -7212,6 +7221,17 @@ function shakerFrameResized(){
     p.x = Math.min(Math.max(p.r, p.x / Math.max(1, shakerFrameSize.w) * nw), nw - p.r);
     p.y = Math.min(Math.max(p.r, p.y / Math.max(1, shakerFrameSize.h) * nh), nh - p.r);
   });
+  // 프레임 크기가 큰 폭으로 바뀌면(전체화면 진입/복귀, 화면 회전 등) 조각 반지름도
+  // 새 크기 기준으로 다시 계산해서, 커진 프레임에서 조각이 너무 작아 보이거나
+  // 작아진 프레임에서 너무 커 보이지 않게 함
+  const newR = shakerPieceRadius(Math.max(shakerPieces.length, 1), nw, nh);
+  if(shakerPieces.length && Math.abs(newR - shakerPieces[0].r) > 1){
+    const size = newR * 2;
+    shakerPieces.forEach(p=>{
+      p.r = newR;
+      p.el.style.width = size+'px'; p.el.style.height = size+'px';
+    });
+  }
   shakerFrameSize = { w: nw, h: nh };
 }
 
@@ -7219,7 +7239,7 @@ const SHAKER_GRAVITY = 0.12;
 const SHAKER_FRICTION = 0.985;
 const SHAKER_WALL_RESTITUTION = 0.55;
 const SHAKER_PIECE_RESTITUTION = 0.65;
-const SHAKER_MAX_SPEED = 26;
+const SHAKER_MAX_SPEED = 40;
 const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 
 function stepShakerPhysics(){
@@ -7290,12 +7310,50 @@ function shakerApplyImpulse(dvx, dvy, spread){
 // 젓는" 느낌이 아니라 "위젯 자체를 손에 쥐고 흔드는" 느낌이 나게 함(손을
 // 떼면 스프링처럼 원래 각도로 되돌아옴). 모바일은 그 드래그 방식에 더해,
 // 실제로 기기를 흔들면(devicemotion) 가속도 변화량 기준으로도 감지함.
+// 프레임(#shakerFrame)을 원래 있던 위젯 카드 밖, 전체화면 오버레이로 옮겨서 크게
+// 보여줌. 조각들의 물리 상태(shakerPieces)는 그대로 유지되고(같은 DOM 노드를
+// 옮기는 것뿐이라 이미지 다시 로딩 없음), 여닫을 때마다 위치만 새 프레임 크기에
+// 맞춰 다시 스케일됨(shakerFrameResized가 다음 물리 프레임에서 자동 처리).
+let shakerFullOpen = false;
+let shakerFullOverlay = null;
+function closeShakerFullscreen(){
+  if(!shakerFullOpen) return;
+  shakerFullOpen = false;
+  const card = document.getElementById('cardShaker');
+  if(card && shakerFrameEl) card.insertBefore(shakerFrameEl, card.firstChild);
+  if(shakerFullOverlay) shakerFullOverlay.remove();
+  shakerFullOverlay = null;
+}
+function openShakerFullscreen(){
+  if(shakerFullOpen || !shakerFrameEl) return;
+  shakerFullOpen = true;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay shaker-full-overlay';
+  overlay.innerHTML = `
+    <div class="modal modal-shaker-full">
+      <button class="lightbox-x shaker-full-close" type="button" aria-label="닫기">✕</button>
+      <div class="shaker-full-slot" id="shakerFullSlot"></div>
+    </div>`;
+  overlay.querySelector('#shakerFullSlot').appendChild(shakerFrameEl);
+  overlay.addEventListener('click', e=>{ if(e.target === overlay) closeShakerFullscreen(); });
+  overlay.querySelector('.shaker-full-close').onclick = closeShakerFullscreen;
+  modalRoot.innerHTML = '';
+  modalRoot.appendChild(overlay);
+  shakerFullOverlay = overlay;
+}
+
 function initShakerInteraction(){
   const card = document.getElementById('cardShaker');
   const frame = document.getElementById('shakerFrame');
   if(!card || !frame) return;
   let dragging = false, lastX=0, lastY=0, lastT=0, motionAsked = false;
   let originX = 0, originY = 0;
+  let downX = 0, downY = 0, downT = 0, downPointerType = 'mouse', downOnManage = false;
+
+  // 사진 자체를 브라우저 기본 동작으로 드래그해서 선택/이동시키려는 걸 막음
+  // (pointer-events:none으로 이미 대부분 막히지만, 네이티브 dragstart는 그와
+  // 별개로 발생할 수 있어 한 번 더 확실히 막아둠)
+  frame.addEventListener('dragstart', e=> e.preventDefault());
 
   function askMotionPermission(){
     if(motionAsked) return; motionAsked = true;
@@ -7306,9 +7364,11 @@ function initShakerInteraction(){
     }
   }
   card.addEventListener('pointerdown', e=>{
-    if(e.target.closest('.shaker-manage-btn')) return; // 관리 버튼 클릭은 흔들기로 안 잡음
+    downOnManage = !!e.target.closest('.shaker-manage-btn');
+    if(downOnManage) return; // 관리 버튼 클릭은 흔들기로 안 잡음
     dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
     originX = e.clientX; originY = e.clientY;
+    downX = e.clientX; downY = e.clientY; downT = lastT; downPointerType = e.pointerType || 'mouse';
     card.classList.add('shaker-grabbing');
     askMotionPermission();
     try{ card.setPointerCapture(e.pointerId); }catch(err){}
@@ -7329,30 +7389,49 @@ function initShakerInteraction(){
     card.style.transform = `translate(${shiftX}px, ${shiftY}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
     lastX = e.clientX; lastY = e.clientY; lastT = t;
   });
-  const stopDrag = ()=>{
+  const stopDrag = (e)=>{
+    const wasDragging = dragging;
     dragging = false;
     card.classList.remove('shaker-grabbing');
     card.style.transform = ''; // 스프링처럼 원래 각도로 되돌아감(CSS transition)
+    // 모바일(터치)에서 거의 움직이지 않고(작은 탭) 빠르게 뗐으면 흔들기가 아니라
+    // "탭"으로 보고 전체화면으로 열어줌. PC(마우스)는 흔들기 동작과 겹치지 않게
+    // 이 기능을 적용하지 않음(요청: 모바일에서만 클릭 시 전체화면)
+    if(wasDragging && !downOnManage && e && downPointerType === 'touch'){
+      const dist = Math.hypot((e.clientX||downX) - downX, (e.clientY||downY) - downY);
+      const elapsed = performance.now() - downT;
+      if(dist < 12 && elapsed < 400) openShakerFullscreen();
+    }
   };
   card.addEventListener('pointerup', stopDrag);
   card.addEventListener('pointercancel', stopDrag);
 
+  // 예전엔 기준값(14)을 넘기기만 하면 항상 같은 세기(최대 14)로만 튕겨서, 살짝
+  // 흔들든 세게 흔들든 화면에서 거의 똑같아 보이는 문제가 있었음. 기준을 낮춰
+  // 더 민감하게 반응하고(약하게 흔들어도 감지), 쿨다운도 짧게 둬서 세게 흔들수록
+  // 더 자주 감지되게 하고, 임펄스/기울임 세기도 상한을 크게 올려 실제 흔드는
+  // 세기 차이가 화면에도 뚜렷하게 비례해서 드러나게 함.
   let lastAccelMag = null, lastShakeT = 0;
   window.addEventListener('devicemotion', e=>{
     const a = e.accelerationIncludingGravity || e.acceleration;
     if(!a) return;
     const mag = Math.hypot(a.x||0, a.y||0, a.z||0);
     const now = performance.now();
-    if(lastAccelMag !== null && Math.abs(mag - lastAccelMag) > 14 && now - lastShakeT > 250){
-      lastShakeT = now;
-      const dir = Math.random() * Math.PI * 2;
-      const power = Math.min(14, Math.abs(mag - lastAccelMag) * 0.35);
-      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*1.2);
-      // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌
-      card.classList.add('shaker-grabbing');
-      card.style.transform = `translate(${(Math.random()-0.5)*10}px, ${(Math.random()-0.5)*10}px) rotate(${(Math.random()-0.5)*6}deg)`;
-      clearTimeout(card._shakeResetT);
-      card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 180);
+    if(lastAccelMag !== null){
+      const delta = Math.abs(mag - lastAccelMag);
+      if(delta > 8 && now - lastShakeT > 90){
+        lastShakeT = now;
+        const dir = Math.random() * Math.PI * 2;
+        const power = Math.min(34, delta * 0.55);
+        shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*1.3);
+        // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
+        card.classList.add('shaker-grabbing');
+        const shift = Math.min(18, power*0.8);
+        const tilt = Math.min(12, power*0.45);
+        card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
+        clearTimeout(card._shakeResetT);
+        card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
+      }
     }
     lastAccelMag = mag;
   });
