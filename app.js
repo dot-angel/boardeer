@@ -3664,59 +3664,6 @@ function ddayDateText(dateStr){
   return `${y}.${m}.${d}`;
 }
 
-/* 모바일(폭 900px 이하)에서는 캘린더가 디데이+체크리스트와 세로 한 줄을 나눠 쓰는데,
-   캘린더가 이 둘의 행을 함께 걸쳐 차지하는 구조라 CSS만으로는 "걸친 항목(캘린더)의
-   내용 크기만큼 행이 늘어나는 것"만 막을 수 있을 뿐, 반대로 디데이+체크리스트 쪽이
-   커져서 행이 늘어나는 건 못 막음 — 체크리스트에 항목이 쌓일수록 캘린더 칸도 실제
-   필요한 것보다 훨씬 길게 늘어나 보이는 문제가 있었음.
-   그래서 순서를 뒤집어서: 캘린더 자신의 원래(내용 그대로의) 높이를 먼저 재고,
-   체크리스트는 디데이를 뺀 나머지 공간에 맞춰 들어가도록(넘치면 .checklist 안에서만
-   스크롤) 캘린더 쪽에서 체크리스트 높이를 거꾸로 정해줌 */
-let lastMobileCalPairWidth = null; // 세로 스크롤 때 모바일 브라우저 주소창이 접히면서
-// 폭은 그대로인데 높이만 바뀌는 resize가 발생함 — 그때마다 다시 재는 건 불필요하고,
-// 하필 스크롤 중간에 측정하면 잠깐 어긋난 값을 그대로 굳혀버릴 수 있어 오히려 더
-// 불안정해짐. 그래서 실제로 "폭"이 바뀐 경우에만 다시 계산함
-function fitMobileCalendarPairHeight(){
-  const checklistCard = document.getElementById('cardChecklist');
-  if(!checklistCard) return;
-  if(window.innerWidth > 900){
-    checklistCard.style.maxHeight = '';
-    lastMobileCalPairWidth = window.innerWidth;
-    return;
-  }
-  if(lastMobileCalPairWidth === window.innerWidth) return;
-  lastMobileCalPairWidth = window.innerWidth;
-  const calCard = document.getElementById('cardCalendar');
-  const ddayCard = document.getElementById('cardDday');
-  if(!calCard || !ddayCard) return;
-  // 디데이의 "진짜"(캘린더가 두 행을 걸쳐 누르는 영향 없는) 높이부터 잼 — 캘린더를
-  // 안 빼고 재면, 캘린더가 그 행에 필요로 하는 몫만큼 디데이 칸도 같이 늘어난
-  // 상태로 측정돼서 디데이 높이가 실제보다 부풀려짐(그 부풀려진 값을 아래에서
-  // 캘린더 높이만큼 빼버리면, 체크리스트 몫이 필요 이상으로 줄어드는 원인이 됨)
-  const prevCalDisplay = calCard.style.display;
-  calCard.style.display = 'none';
-  const ddayH = ddayCard.getBoundingClientRect().height;
-  calCard.style.display = prevCalDisplay;
-  // 캘린더의 "진짜"(디데이/체크리스트 영향 없는) 높이를 재려면, 같이 행을 나눠 쓰는
-  // 디데이/체크리스트를 잠깐 완전히 빼야 함 — 안 그러면 이 둘의 지금 크기 때문에
-  // 캘린더 칸이 그만큼 늘어난 상태로 측정돼서, 늘어난 크기를 그대로 다시 돌려주는
-  // 순환에 빠짐(레퍼런스 갤러리 쪽 fitRefGalleryToCalendarHeight와 같은 방식)
-  const prevDdayDisplay = ddayCard.style.display;
-  const prevChecklistDisplay = checklistCard.style.display;
-  ddayCard.style.display = 'none';
-  checklistCard.style.display = 'none';
-  const calH = calCard.getBoundingClientRect().height;
-  ddayCard.style.display = prevDdayDisplay;
-  checklistCard.style.display = prevChecklistDisplay;
-  if(!calH) return;
-  const gap = 20; // .board { gap:20px }와 맞춤(디데이 행 ↔ 체크리스트 행 사이 간격)
-  // height(고정값)로 주면 체크리스트 항목이 몇 개 안 될 때도 카드가 그 높이만큼
-  // 억지로 늘어나면서, 안쪽 리스트(.checklist, align-content:start)가 위쪽에만
-  // 붙고 그 아래가 텅 빈 부자연스러운 공간으로 남아버림. max-height(상한)로 주면
-  // 항목이 적을 땐 카드가 원래 필요한 만큼만 자연스럽게 작아지고, 항목이 많아서
-  // 캘린더보다 커지려 할 때만 이 값에서 멈추고 내부 스크롤로 넘어감
-  checklistCard.style.maxHeight = Math.max(80, Math.round(calH - ddayH - gap)) + 'px';
-}
 function renderDday(){
   const items = (ddayData.items || []).map((it,i)=>({...it, _i:i})).sort((a,b)=> a.date.localeCompare(b.date));
   const body = document.getElementById('ddayBody');
@@ -3949,7 +3896,7 @@ function buildCalWeekHTML(startDate){
 
 let calViewWasMobile = null;
 function renderCalendar(){
-  const box = document.getElementById('cardCalendar');
+  const box = document.getElementById('calContent');
   const mobile = isMobileCalView();
   calViewWasMobile = mobile;
 
@@ -3963,7 +3910,6 @@ function renderCalendar(){
     box.querySelector('#calNext').onclick = ()=>{ calWeekStart.setDate(calWeekStart.getDate() + 7); renderCalendar(); };
     box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
     fitRefGalleryToCalendarHeight();
-    fitMobileCalendarPairHeight();
     return;
   }
 
@@ -3989,7 +3935,6 @@ function renderCalendar(){
   box.querySelectorAll('[data-day]').forEach(el=> el.addEventListener('click', ()=> openDayModal(el.dataset.day)));
 
   fitRefGalleryToCalendarHeight();
-  fitMobileCalendarPairHeight();
 }
 // 창 폭이 900px 경계를 넘나들 때(주간뷰 ↔ 월간뷰) 캘린더를 다시 그려줌
 // (리사이즈/기기 회전 등으로 모바일·PC 전환이 생겨도 항상 알맞은 뷰로 유지됨)
@@ -5031,7 +4976,6 @@ window.addEventListener('resize', debounce(()=>{
     return;
   }
   fitRefGalleryToCalendarHeight();
-  fitMobileCalendarPairHeight();
   applyRefGalleryOverlap(document.getElementById('refGalleryGrid'), currentRefGalleryVisibleCount());
 }, 150));
 
@@ -7231,6 +7175,7 @@ function syncShakerPieces(){
     shakerPieces.push({
       key, ...it, x: px, y: py,
       vx: (Math.random()-0.5) * 2, vy: (Math.random()-0.5) * 2,
+      rot: Math.random() * 360, vr: (Math.random()-0.5) * 3,
       r, el, imgEl
     });
   });
@@ -7287,10 +7232,14 @@ function stepShakerPhysics(){
     const speed = Math.hypot(p.vx, p.vy);
     if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
     p.x += p.vx; p.y += p.vy;
-    if(p.x - p.r < 0){ p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; }
-    if(p.x + p.r > w){ p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; }
-    if(p.y - p.r < 0){ p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; }
-    if(p.y + p.r > h){ p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; }
+    // 회전도 이동과 같은 마찰을 받아 서서히 느려지다가, 벽에 부딪힐 때마다
+    // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
+    p.vr *= SHAKER_FRICTION;
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.06; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.06; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.06; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.06; }
+    p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심
   for(let i=0;i<shakerPieces.length;i++){
@@ -7310,11 +7259,16 @@ function stepShakerPhysics(){
           a.vx -= imp*nx; a.vy -= imp*ny;
           b.vx += imp*nx; b.vy += imp*ny;
         }
+        // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
+        // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
+        const tx = -ny, ty = nx;
+        const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
+        a.vr -= relVelT * 0.05; b.vr -= relVelT * 0.05;
       }
     }
   }
   shakerPieces.forEach(p=>{
-    p.el.style.transform = `translate(${(p.x-p.r).toFixed(1)}px, ${(p.y-p.r).toFixed(1)}px)`;
+    p.el.style.transform = `translate(${(p.x-p.r).toFixed(1)}px, ${(p.y-p.r).toFixed(1)}px) rotate(${p.rot.toFixed(1)}deg)`;
   });
 }
 
@@ -7322,6 +7276,7 @@ function shakerApplyImpulse(dvx, dvy, spread){
   shakerPieces.forEach(p=>{
     p.vx += dvx + (Math.random()-0.5) * spread;
     p.vy += dvy + (Math.random()-0.5) * spread;
+    p.vr += (Math.random()-0.5) * spread * 0.5;
   });
 }
 

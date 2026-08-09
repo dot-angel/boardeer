@@ -255,7 +255,10 @@ body::before{
 .row-strip{ grid-template-columns: 0.85fr 1.75fr 0.7fr; align-items: stretch; }
 .row-strip > .w-card{ min-width:0; }
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
-.row-strip-right{ display:grid; grid-template-rows: auto auto auto auto; gap:20px; }
+/* 디데이가 캘린더 위젯 안으로 옮겨가면서 이 칸은 방명록/말풍선/쉐이커 3행만 남음.
+   쉐이커 행만 1fr로 둬서, 이 칸 전체 높이(옆 음악/프로필 위젯 기준으로 정해짐)에서
+   방명록·말풍선이 쓰고 남는 공간을 디데이가 있던 자리까지 포함해 쉐이커가 그대로 차지함 */
+.row-strip-right{ display:grid; grid-template-rows: auto auto 1fr; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
 /* 세션 / 문서+체크리스트(세로로 쌓임) / 캘린더 순으로 나란히.
    폭 비율은 기존(캘린더+세션 묶음 1.2fr, 문서+체크리스트 1.4fr, 그 안에서
@@ -299,8 +302,8 @@ body::before{
       "profile profile profile profile profile profile profile profile profile profile"
       "gb gb gb gb gb speech speech speech speech speech"
       "shaker shaker shaker shaker shaker shaker shaker shaker shaker shaker"
-      "cal cal cal dday dday dday dday dday dday dday"
-      "cal cal cal checklist checklist checklist checklist checklist checklist checklist"
+      "cal cal cal cal cal cal cal cal cal cal"
+      "checklist checklist checklist checklist checklist checklist checklist checklist checklist checklist"
       "docs docs docs docs docs docs sessions sessions sessions sessions";
   }
   .board-page[data-page="0"] .row-images,
@@ -312,7 +315,6 @@ body::before{
   }
   #cardImages{ grid-area: images; }
   #cardMusic{ grid-area: music; }
-  #cardDday{ grid-area: dday; }
   #cardProfile{ grid-area: profile; }
   #cardCalendar{ grid-area: cal; min-width:0; }
   #cardGuestbook{ grid-area: gb; min-width:0; }
@@ -804,8 +806,20 @@ body::before{
   .mp-track-artist{ display:none; }
 }
 /* ---------- 디데이 (여백 없이 크게 — 레퍼런스처럼 굵은 타이포그래피 위주) ---------- */
-/* 말풍선 위젯과 같은 높이로 고정 — 디데이가 많아지면 내부 스크롤로 봄 */
-#cardDday{ height:130px; }
+/* 이제 디데이는 독립 카드가 아니라 캘린더 카드(.w-calendar) 맨 위에 고정으로 붙는
+   스트립(.cal-dday-strip)임. 높이는 예전 독립 카드 때와 같은 130px로 고정해서
+   디데이가 많아지면 이 안에서만 스크롤되고, 그 아래 캘린더 달력 영역(.cal-content)은
+   항상 자기 크기 그대로 표시됨 */
+.w-calendar{ gap:14px; }
+.cal-dday-strip{
+  flex: 0 0 130px; min-height:0; display:flex; flex-direction:column;
+  border-bottom: 1px solid var(--card-border); padding-bottom:14px;
+}
+/* 아래쪽 실제 달력 부분 — 예전엔 이 내용이 카드(.w-card, flex column) 바로
+   안에 그려졌는데, 이제 디데이 스트립과 자리를 나눠 써야 해서 별도 래퍼로
+   분리함. 카드였을 때와 똑같이 세로 flex로 두어 이전/다음달 버튼과 달력이
+   그대로 위→가운데→아래로 쌓이게 함 */
+.cal-content{ flex:1; min-height:0; display:flex; flex-direction:column; }
 .w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; overflow-y:auto; container-type: inline-size; }
 .dday-item{
   position: relative;
@@ -1370,7 +1384,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      실제 콘텐츠 기준 높이로 알아서 맞추게 함 — 방명록 쪽 폰트/패딩이 바뀌어도
      항상 정확히 같은 높이를 유지함 */
   .w-speech{ height:auto; padding:10px; }
-  #cardDday{ height:auto; }
 }
 .gb-entry{ border-bottom:1px solid var(--card-border); padding:9px 0; }
 .gb-entry .gb-name{ font-weight:600; font-size:.85rem; color: var(--rose); }
