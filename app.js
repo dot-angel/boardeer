@@ -7476,36 +7476,42 @@ function initShakerInteraction(){
   // 더 민감하게 반응하고(약하게 흔들어도 감지), 쿨다운도 짧게 둬서 세게 흔들수록
   // 더 자주 감지되게 하고, 임펄스/기울임 세기도 상한을 크게 올려 실제 흔드는
   // 세기 차이가 화면에도 뚜렷하게 비례해서 드러나게 함.
-  let lastAccelMag = null, lastShakeT = 0, lastAx = 0, lastAy = 0;
+  let motionBaseline = null, lastShakeT = 0, lastAx = 0, lastAy = 0;
   window.addEventListener('devicemotion', e=>{
     const a = e.accelerationIncludingGravity || e.acceleration;
     if(!a) return;
     const ax = a.x||0, ay = a.y||0;
     const mag = Math.hypot(ax, ay, a.z||0);
     const now = performance.now();
-    if(lastAccelMag !== null){
-      const delta = Math.abs(mag - lastAccelMag);
-      if(delta > 8 && now - lastShakeT > 90){
-        lastShakeT = now;
-        // 예전엔 방향을 완전 랜덤(Math.random()*2π)으로 줘서, 실제로 왼쪽으로
-        // 흔들든 위아래로 흔들든 조각들이 아무 방향이나 흩어졌음. 실제 가속도
-        // 변화량(ax, ay)의 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
-        // 무작위성만 자연스러움을 위해 남김), 파워도 드래그 쪽 상한(16)과 같은
-        // 규모로 낮춰서 "기기를 흔들 때만 유독 세게/약하게 느껴지던" 차이를 없앰
-        const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
-        const dir = dirBase + (Math.random()-0.5) * 0.5;
-        const power = Math.min(16, delta * 0.28);
-        shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.9);
-        // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
-        card.classList.add('shaker-grabbing');
-        const shift = Math.min(18, power*0.8);
-        const tilt = Math.min(12, power*0.45);
-        card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
-        clearTimeout(card._shakeResetT);
-        card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
-      }
+    if(motionBaseline === null){ motionBaseline = mag; lastAx = ax; lastAy = ay; return; }
+    // 예전엔 "이번 샘플이 바로 직전 샘플보다 얼마나 튀었나(delta)"로 흔들기를
+    // 감지했음 — 가만히 있다가 처음 움직이기 시작하는 순간엔 직전(정지) 샘플과의
+    // 차이가 크게 튀어서 잘 잡히는데, 일단 흔들리는 중엔 이미 움직이고 있는
+    // 상태라 샘플 간 차이가 상대적으로 작아져서 계속 흔들어도 반응이 뚝 끊김
+    // (그래서 "부딪히는 순간"만 잡고 "계속 흔드는 중"은 못 보는 것처럼 느껴졌음).
+    // 대신 천천히 따라오는 기준선을 하나 두고 "지금이 그 기준선 대비 얼마나
+    // 벗어나 있나(편차)"를 봄 — 계속 흔드는 동안엔 원시값이 기준선 위아래로
+    // 계속 크게 진동하므로 편차도 계속 커서, 흔드는 내내 짤랑짤랑 반응함
+    motionBaseline += (mag - motionBaseline) * 0.06;
+    const dev = mag - motionBaseline;
+    if(Math.abs(dev) > 3 && now - lastShakeT > 45){
+      lastShakeT = now;
+      // 실제 가속도 변화 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
+      // 무작위성만 자연스러움을 위해 남김), 파워도 드래그 쪽 상한(16)과 같은
+      // 규모로 맞춰서 "기기를 흔들 때만 유독 세게/약하게 느껴지던" 차이를 없앰
+      const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
+      const dir = dirBase + (Math.random()-0.5) * 0.5;
+      const power = Math.min(16, Math.abs(dev) * 1.3);
+      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.9);
+      // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
+      card.classList.add('shaker-grabbing');
+      const shift = Math.min(18, power*0.8);
+      const tilt = Math.min(12, power*0.45);
+      card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
+      clearTimeout(card._shakeResetT);
+      card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
     }
-    lastAccelMag = mag; lastAx = ax; lastAy = ay;
+    lastAx = ax; lastAy = ay;
   });
 }
 
