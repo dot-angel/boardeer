@@ -7149,7 +7149,14 @@ function shakerDetectAlpha(imgEl){
 function shakerPieceRadius(count, w, h){
   const area = Math.max(1, w) * Math.max(1, h);
   const r = Math.sqrt(area / (Math.max(1, count) * 5));
-  return Math.max(11, Math.min(22, r));
+  // 예전엔 상한이 22px 고정이라, 위젯 카드 안에서든 전체화면에서든 조각이
+  // 똑같이 작게만 보였음(전체화면에서 커져야 하는데 그대로였음). 프레임이 큰
+  // 만큼(=전체화면) 조각도 실제로 커 보이도록, 상한을 프레임의 짧은 변에
+  // 비례하게 바꿈 — 좁은 위젯 카드에서는 예전과 비슷하게, 넓은 전체화면에서는
+  // 훨씬 크게 나옴
+  const minSide = Math.min(w, h);
+  const maxR = Math.max(22, minSide * 0.22);
+  return Math.max(11, Math.min(maxR, r));
 }
 
 function syncShakerPieces(){
@@ -7238,12 +7245,22 @@ function shakerFrameResized(){
   shakerFrameSize = { w: nw, h: nh };
 }
 
-const SHAKER_GRAVITY = 0.12;
-const SHAKER_FRICTION = 0.985;
-const SHAKER_WALL_RESTITUTION = 0.55;
-const SHAKER_PIECE_RESTITUTION = 0.65;
-const SHAKER_MAX_SPEED = 40;
+// 예전 값(중력 0.12·마찰 0.985)은 조각이 한번 움직이면 한참을 둥둥 떠다니듯
+// 느리게 흘러다녀서 "무중력 속 쇳조각" 같은 느낌이 났음. 가벼운 아크릴 참
+// 느낌을 내려면: 중력은 좀 더 확실히 느껴지게(둥둥 뜨지 않게), 마찰(감쇠)은
+// 훨씬 크게 줘서 흔든 직후엔 팍 튀지만 금방 차분해지게, 반발력도 살짝 올려서
+// 통통 튀는 가벼운 질감을 냄.
+const SHAKER_GRAVITY = 0.32;
+const SHAKER_FRICTION = 0.92;
+const SHAKER_WALL_RESTITUTION = 0.62;
+const SHAKER_PIECE_RESTITUTION = 0.72;
+const SHAKER_MAX_SPEED = 42;
 const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
+// 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
+// 튀거나 도는 상태가 남는데(부동소수점 특성상), 이 정도로 작아지면 그냥 확
+// 재워서(0으로) 진짜로 멈추게 함 — "가만히 놔둬도 계속 혼자 도는" 원인이었음
+const SHAKER_SLEEP_LINEAR = 0.4;   // px/frame
+const SHAKER_SLEEP_ANGULAR = 0.4;  // deg/frame
 
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
@@ -7254,14 +7271,25 @@ function stepShakerPhysics(){
   shakerFrameResized();
   const { w, h } = shakerFrameSize;
   shakerPieces.forEach(p=>{
-    p.vy += SHAKER_GRAVITY;
+    // 바닥(또는 벽)에 거의 붙어서 속도가 아주 작아졌으면, 중력을 더 안 더하고
+    // 그냥 0으로 재움 — 안 그러면 중력이 매 프레임 계속 속도를 만들어내서
+    // 이론상 영원히(아주 미세하게라도) 계속 통통 튀는 상태가 됨
+    const restingOnFloor = (h - (p.y + p.r)) < 0.6 && Math.abs(p.vy) < SHAKER_SLEEP_LINEAR;
+    if(restingOnFloor){
+      p.vy = 0; p.y = h - p.r;
+    } else {
+      p.vy += SHAKER_GRAVITY;
+    }
     p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
     if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
+    if(Math.abs(p.vx) < SHAKER_SLEEP_LINEAR) p.vx = 0;
+    if(Math.abs(p.vy) < SHAKER_SLEEP_LINEAR && restingOnFloor) p.vy = 0;
     p.x += p.vx; p.y += p.vy;
     // 회전도 이동과 같은 마찰을 받아 서서히 느려지다가, 벽에 부딪힐 때마다
     // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
     p.vr *= SHAKER_FRICTION;
+    if(Math.abs(p.vr) < SHAKER_SLEEP_ANGULAR) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
     if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.06; }
     if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.06; }
     if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.06; }
