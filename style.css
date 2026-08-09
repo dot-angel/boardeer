@@ -255,7 +255,7 @@ body::before{
 .row-strip{ grid-template-columns: 0.85fr 1.75fr 0.7fr; align-items: stretch; }
 .row-strip > .w-card{ min-width:0; }
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
-.row-strip-right{ display:grid; grid-template-rows: 1fr auto auto; gap:20px; }
+.row-strip-right{ display:grid; grid-template-rows: auto auto auto; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
 /* 세션 / 문서+체크리스트(세로로 쌓임) / 캘린더 순으로 나란히.
    폭 비율은 기존(캘린더+세션 묶음 1.2fr, 문서+체크리스트 1.4fr, 그 안에서
@@ -342,7 +342,7 @@ body::before{
   -webkit-backdrop-filter: blur(22px) saturate(1.3);
 }
 .w-speech{
-  padding:12px; align-items:center; justify-content:center; cursor:pointer; min-height:96px;
+  padding:12px; align-items:center; justify-content:center; cursor:pointer; height:130px;
   transition: transform .12s ease, background .2s ease;
 }
 .w-speech:active{ transform: scale(0.96); }
@@ -828,7 +828,9 @@ body::before{
   .mp-track-artist{ display:none; }
 }
 /* ---------- 디데이 (여백 없이 크게 — 레퍼런스처럼 굵은 타이포그래피 위주) ---------- */
-.w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; container-type: inline-size; }
+/* 말풍선 위젯과 같은 높이로 고정 — 디데이가 많아지면 내부 스크롤로 봄 */
+#cardDday{ height:130px; }
+.w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; overflow-y:auto; container-type: inline-size; }
 .dday-item{
   position: relative;
   display:flex; align-items:center; justify-content:space-between; gap:14px;
@@ -1314,9 +1316,10 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pf-edit-row-desc .pf-edit-value-desc{ flex:1 1 100%; width:100%; min-height:130px; resize:vertical; }
 
 /* ---------- 방명록 ---------- */
-/* flex:1이라 row-strip-right에 남는 세로 공간만큼 계속 늘어나던 걸, 일정 높이로
-   캡을 씌워서 그 이상은 늘어나지 않고 스크롤로 보게 함(스크롤은 원래 있었음) */
-.w-guestbook .w-body{ flex:1; min-height:0; max-height:220px; margin-bottom:10px; overflow-y:auto; }
+/* 말풍선 위젯=디데이 위젯과 같은 고정 높이(130px), 방명록은 그 5.5배(약 715px)로
+   고정 — 셋 다 "얼마나 남았나"에 따라 유동적으로 늘어나던 걸 그만두고 정해진
+   비율로 고정함 */
+.w-guestbook .w-body{ flex:1; min-height:0; max-height:715px; margin-bottom:10px; overflow-y:auto; }
 /* 접기/펼치기 버튼은 데스크톱에선 안 보임(다른 위젯처럼 제목 없는 톤 유지) —
    모바일에서만 방명록이 다른 위젯들에 비해 세로로 길어지는 걸 줄이기 위해 노출.
    기본 상태(HTML의 gb-collapsed 클래스)는 접힘이며, 이 규칙 자체가 모바일
@@ -1335,7 +1338,8 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .w-guestbook.gb-collapsed .w-body,
   .w-guestbook.gb-collapsed .gb-form{ display:none; }
   /* 옆에 나란히 두는 말풍선 위젯도 접힌 방명록만큼 납작하게 맞춤 */
-  .w-speech{ min-height:56px; padding:10px; }
+  .w-speech{ height:56px; padding:10px; }
+  #cardDday{ height:auto; }
 }
 .gb-entry{ border-bottom:1px solid var(--card-border); padding:9px 0; }
 .gb-entry .gb-name{ font-weight:600; font-size:.85rem; color: var(--rose); }
