@@ -7145,11 +7145,15 @@ function shakerDetectAlpha(imgEl){
 }
 
 // 조각 크기는 프레임 넓이/개수에 맞춰 자동으로 줄어들어서, 사진이 늘어나도
-// 항상 프레임 안에 자연스럽게 들어차게 함(너무 작아지거나 커지지 않게 상하한만 둠)
+// 항상 프레임 안에 자연스럽게 들어차게 함(너무 작아지거나 커지지 않게 상하한만 둠).
+// 상한은 절대 px 고정값이 아니라 프레임의 짧은 변에 비례하게 둬서, 좁은 위젯
+// 카드일 땐 예전과 비슷한 크기를 유지하고 훨씬 넓은 전체화면(최대 520x520)에서는
+// 조각이 그만큼 커져서 "전체화면인데 사진만 작게 흩어져 보이는" 문제를 없앰
 function shakerPieceRadius(count, w, h){
   const area = Math.max(1, w) * Math.max(1, h);
   const r = Math.sqrt(area / (Math.max(1, count) * 5));
-  return Math.max(11, Math.min(22, r));
+  const maxR = Math.max(22, Math.min(w, h) * 0.16);
+  return Math.max(11, Math.min(maxR, r));
 }
 
 function syncShakerPieces(){
@@ -7262,10 +7266,15 @@ function stepShakerPhysics(){
     p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
     if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
+    // 속도가 아주 작아지면(거의 멈춘 상태) 남은 미세한 값까지 완전히 0으로 재움 —
+    // 이게 없으면 소수점 단위 속도가 계속 남아 미끌미끌 떠 있는 것처럼 보임(액체 느낌의
+    // 주 원인 중 하나). 확실하게 딱 멈추는 느낌을 주기 위한 처리
+    if(speed < 0.06){ p.vx = 0; p.vy = 0; }
     p.x += p.vx; p.y += p.vy;
     // 회전도 이동과 같은 마찰을 받아 서서히 느려지다가, 벽에 부딪힐 때마다
     // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
     p.vr *= SHAKER_FRICTION;
+    if(Math.abs(p.vr) < 0.06) p.vr = 0;
     if(Math.abs(p.vr) > SHAKER_MAX_ANGULAR_SPEED) p.vr = Math.sign(p.vr) * SHAKER_MAX_ANGULAR_SPEED;
     if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; }
     if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; }
@@ -7273,29 +7282,38 @@ function stepShakerPhysics(){
     if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; }
     p.rot += p.vr;
   });
-  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심
-  for(let i=0;i<shakerPieces.length;i++){
-    for(let j=i+1;j<shakerPieces.length;j++){
-      const a = shakerPieces[i], b = shakerPieces[j];
-      const dx = b.x-a.x, dy = b.y-a.y;
-      const dist = Math.hypot(dx,dy) || 0.001;
-      const minDist = a.r + b.r;
-      if(dist < minDist){
-        const nx = dx/dist, ny = dy/dist;
-        const overlap = (minDist - dist) / 2;
-        a.x -= nx*overlap; a.y -= ny*overlap;
-        b.x += nx*overlap; b.y += ny*overlap;
-        const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
-        if(relVel < 0){
-          const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
-          a.vx -= imp*nx; a.vy -= imp*ny;
-          b.vx += imp*nx; b.vy += imp*ny;
+  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심.
+  // 프레임 안에 조각이 촘촘하게 쌓이면 한 쌍을 밀어낸 결과가 다른 쌍과 다시 겹치는
+  // 연쇄가 생기는데, 이걸 프레임당 한 번만 계산하면 자리가 덜 잡힌 채로 남아서 다음
+  // 프레임에도 계속 밀리고 밀리며 흐물흐물(액체처럼) 보이는 원인이 됐음. 그래서 같은
+  // 프레임 안에서 위치 보정만 여러 번(3회) 반복해 자리를 확실히 잡아주되, 충돌
+  // 속도(임펄스)는 에너지가 반복 주입되지 않도록 첫 번째 패스에서만 적용함
+  for(let iter=0; iter<3; iter++){
+    for(let i=0;i<shakerPieces.length;i++){
+      for(let j=i+1;j<shakerPieces.length;j++){
+        const a = shakerPieces[i], b = shakerPieces[j];
+        const dx = b.x-a.x, dy = b.y-a.y;
+        const dist = Math.hypot(dx,dy) || 0.001;
+        const minDist = a.r + b.r;
+        if(dist < minDist){
+          const nx = dx/dist, ny = dy/dist;
+          const overlap = (minDist - dist) / 2;
+          a.x -= nx*overlap; a.y -= ny*overlap;
+          b.x += nx*overlap; b.y += ny*overlap;
+          if(iter === 0){
+            const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+            if(relVel < 0){
+              const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
+              a.vx -= imp*nx; a.vy -= imp*ny;
+              b.vx += imp*nx; b.vy += imp*ny;
+            }
+            // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
+            // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
+            const tx = -ny, ty = nx;
+            const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
+            a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
+          }
         }
-        // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
-        // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
-        const tx = -ny, ty = nx;
-        const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-        a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
       }
     }
   }
