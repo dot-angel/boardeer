@@ -7382,6 +7382,15 @@ function shakerApplyImpulse(dvx, dvy, spread){
 // 맞춰 다시 스케일됨(shakerFrameResized가 다음 물리 프레임에서 자동 처리).
 let shakerFullOpen = false;
 let shakerFullOverlay = null;
+// 흔들 때 "기울고 튕기는" 시각 피드백을 줄 대상은 지금 보이는 게 카드인지
+// 전체화면 모달인지에 따라 달라짐 — 매번 이 함수로 현재 대상을 다시 찾음
+// (전체화면 모달은 열 때마다 새로 만들어지는 DOM이라 고정 참조를 못 씀)
+function shakerWobbleTarget(){
+  if(shakerFullOpen){
+    return document.querySelector('.modal-shaker-full') || document.getElementById('cardShaker');
+  }
+  return document.getElementById('cardShaker');
+}
 function closeShakerFullscreen(){
   if(!shakerFullOpen) return;
   shakerFullOpen = false;
@@ -7406,40 +7415,46 @@ function openShakerFullscreen(){
   modalRoot.innerHTML = '';
   modalRoot.appendChild(overlay);
   shakerFullOverlay = overlay;
+  // 카드에서 하던 "잡고 흔들기"를 전체화면 모달 박스 전체에도 그대로 붙여줌
+  // (안 그러면 전체화면에서는 실제 기기 흔들기(devicemotion)만 먹히고,
+  // 화면을 손가락으로 드래그하는 방식의 흔들기는 안 먹힘)
+  attachShakerDragHandlers(overlay.querySelector('.modal-shaker-full'), { closeSelector: '.shaker-full-close' });
 }
 
-function initShakerInteraction(){
-  const card = document.getElementById('cardShaker');
-  const frame = document.getElementById('shakerFrame');
-  if(!card || !frame) return;
-  let dragging = false, lastX=0, lastY=0, lastT=0, motionAsked = false;
+let shakerMotionAsked = false;
+function shakerAskMotionPermission(){
+  if(shakerMotionAsked) return; shakerMotionAsked = true;
+  // iOS 13+는 devicemotion을 쓰려면 사용자 제스처 안에서 명시적으로 권한을
+  // 물어봐야 해서, 위젯(또는 전체화면 모달)을 처음 누르는 순간(이미 제스처
+  // 중) 같이 요청함
+  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+    DeviceMotionEvent.requestPermission().catch(()=>{});
+  }
+}
+
+// 카드(평소)와 전체화면 모달(모바일에서 탭해 확대했을 때) 양쪽 다 "잡고
+// 흔들기"가 똑같이 동작해야 해서, 드래그 감지 로직을 여기 하나로 모아두고
+// 두 군데(card, 전체화면 모달 박스)에서 재사용함. opts.tapOpensFullscreen이
+// true면(카드 쪽만) 터치로 살짝 탭했을 때 전체화면을 열어줌.
+function attachShakerDragHandlers(triggerEl, opts={}){
+  if(!triggerEl) return;
+  let dragging = false, lastX=0, lastY=0, lastT=0;
   let originX = 0, originY = 0;
   let downX = 0, downY = 0, downT = 0, downPointerType = 'mouse', downOnManage = false;
+  const excludeSelector = ['.shaker-manage-btn', '.shaker-bg-btn', opts.closeSelector].filter(Boolean).join(', ');
 
-  // 사진 자체를 브라우저 기본 동작으로 드래그해서 선택/이동시키려는 걸 막음
-  // (pointer-events:none으로 이미 대부분 막히지만, 네이티브 dragstart는 그와
-  // 별개로 발생할 수 있어 한 번 더 확실히 막아둠)
-  frame.addEventListener('dragstart', e=> e.preventDefault());
-
-  function askMotionPermission(){
-    if(motionAsked) return; motionAsked = true;
-    // iOS 13+는 devicemotion을 쓰려면 사용자 제스처 안에서 명시적으로 권한을
-    // 물어봐야 해서, 위젯을 처음 누르는 순간(이미 제스처 중) 같이 요청함
-    if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
-      DeviceMotionEvent.requestPermission().catch(()=>{});
-    }
-  }
-  card.addEventListener('pointerdown', e=>{
-    downOnManage = !!e.target.closest('.shaker-manage-btn, .shaker-bg-btn');
-    if(downOnManage) return; // 관리/배경 버튼 클릭은 흔들기로 안 잡음
+  triggerEl.addEventListener('pointerdown', e=>{
+    downOnManage = excludeSelector ? !!e.target.closest(excludeSelector) : false;
+    if(downOnManage) return; // 관리/배경/닫기 버튼 클릭은 흔들기로 안 잡음
     dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
     originX = e.clientX; originY = e.clientY;
     downX = e.clientX; downY = e.clientY; downT = lastT; downPointerType = e.pointerType || 'mouse';
-    card.classList.add('shaker-grabbing');
-    askMotionPermission();
-    try{ card.setPointerCapture(e.pointerId); }catch(err){}
+    const wobbleEl = shakerWobbleTarget();
+    if(wobbleEl) wobbleEl.classList.add('shaker-grabbing');
+    shakerAskMotionPermission();
+    try{ triggerEl.setPointerCapture(e.pointerId); }catch(err){}
   });
-  card.addEventListener('pointermove', e=>{
+  triggerEl.addEventListener('pointermove', e=>{
     if(!dragging) return;
     const t = performance.now();
     const dt = Math.max(8, t - lastT);
@@ -7455,30 +7470,51 @@ function initShakerInteraction(){
     const dvy = Math.max(-16, Math.min(16, rawDvy * 0.5));
     const speed = Math.hypot(dvx, dvy);
     if(speed > 0.5) shakerApplyImpulse(dvx, dvy, Math.min(speed*0.6, 16));
-    // 카드 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게(과하지 않게 상한을 둠)
-    const tiltX = Math.max(-10, Math.min(10, (e.clientY - originY) * 0.12));
-    const tiltY = Math.max(-10, Math.min(10, -(e.clientX - originX) * 0.12));
-    const shiftX = Math.max(-8, Math.min(8, (e.clientX - originX) * 0.08));
-    const shiftY = Math.max(-8, Math.min(8, (e.clientY - originY) * 0.08));
-    card.style.transform = `translate(${shiftX}px, ${shiftY}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+    // 카드(또는 전체화면 모달) 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게
+    // (과하지 않게 상한을 둠)
+    const wobbleEl = shakerWobbleTarget();
+    if(wobbleEl){
+      const tiltX = Math.max(-10, Math.min(10, (e.clientY - originY) * 0.12));
+      const tiltY = Math.max(-10, Math.min(10, -(e.clientX - originX) * 0.12));
+      const shiftX = Math.max(-8, Math.min(8, (e.clientX - originX) * 0.08));
+      const shiftY = Math.max(-8, Math.min(8, (e.clientY - originY) * 0.08));
+      wobbleEl.style.transform = `translate(${shiftX}px, ${shiftY}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+    }
     lastX = e.clientX; lastY = e.clientY; lastT = t;
   });
   const stopDrag = (e)=>{
     const wasDragging = dragging;
     dragging = false;
-    card.classList.remove('shaker-grabbing');
-    card.style.transform = ''; // 스프링처럼 원래 각도로 되돌아감(CSS transition)
+    const wobbleEl = shakerWobbleTarget();
+    if(wobbleEl){
+      wobbleEl.classList.remove('shaker-grabbing');
+      wobbleEl.style.transform = ''; // 스프링처럼 원래 각도로 되돌아감(CSS transition)
+    }
     // 모바일(터치)에서 거의 움직이지 않고(작은 탭) 빠르게 뗐으면 흔들기가 아니라
     // "탭"으로 보고 전체화면으로 열어줌. PC(마우스)는 흔들기 동작과 겹치지 않게
-    // 이 기능을 적용하지 않음(요청: 모바일에서만 클릭 시 전체화면)
-    if(wasDragging && !downOnManage && e && downPointerType === 'touch'){
+    // 이 기능을 적용하지 않음(요청: 모바일에서만 클릭 시 전체화면). 이미
+    // 전체화면인 상태(모달 쪽 핸들러)에서는 다시 열려고 하지 않음.
+    if(opts.tapOpensFullscreen && wasDragging && !downOnManage && e && downPointerType === 'touch'){
       const dist = Math.hypot((e.clientX||downX) - downX, (e.clientY||downY) - downY);
       const elapsed = performance.now() - downT;
       if(dist < 12 && elapsed < 400) openShakerFullscreen();
     }
   };
-  card.addEventListener('pointerup', stopDrag);
-  card.addEventListener('pointercancel', stopDrag);
+  triggerEl.addEventListener('pointerup', stopDrag);
+  triggerEl.addEventListener('pointercancel', stopDrag);
+}
+
+function initShakerInteraction(){
+  const card = document.getElementById('cardShaker');
+  const frame = document.getElementById('shakerFrame');
+  if(!card || !frame) return;
+
+  // 사진 자체를 브라우저 기본 동작으로 드래그해서 선택/이동시키려는 걸 막음
+  // (pointer-events:none으로 이미 대부분 막히지만, 네이티브 dragstart는 그와
+  // 별개로 발생할 수 있어 한 번 더 확실히 막아둠)
+  frame.addEventListener('dragstart', e=> e.preventDefault());
+
+  attachShakerDragHandlers(card, { tapOpensFullscreen: true });
 
   // 예전엔 기준값(14)을 넘기기만 하면 항상 같은 세기(최대 14)로만 튕겨서, 살짝
   // 흔들든 세게 흔들든 화면에서 거의 똑같아 보이는 문제가 있었음. 기준을 낮춰
@@ -7503,27 +7539,27 @@ function initShakerInteraction(){
     // 계속 크게 진동하므로 편차도 계속 커서, 흔드는 내내 짤랑짤랑 반응함
     motionBaseline += (mag - motionBaseline) * 0.06;
     const dev = mag - motionBaseline;
-    // 계속 흔드는 동안 계속 반응하게 만든 건 좋았는데, 감지 주기(45ms)와 1회당
-    // 힘(16 상한, ×1.3)이 둘 다 세다 보니 손으로 흔들 때 거의 매 프레임 최고
-    // 속도로 튀어서 지나치게 격하게 느껴졌음. 감지 간격을 넓히고 힘도 낮춰서
-    // 카드형태를 손으로 쥐고 흔드는 것과 비슷한 정도로 차분하게 조정.
-    // → 그래도 여전히 살짝 경박하다는 피드백이 있어서, 문턱값/쿨다운을 아주
-    // 조금 더 올리고 힘도 소폭 낮춰서 반응 빈도와 세기를 함께 살짝 눌러줌.
-    if(Math.abs(dev) > 4.2 && now - lastShakeT > 85){
+    // → 문턱값을 올리고 힘을 낮췄더니 "확실히 흔든 느낌"이 잘 안 살아서
+    // 답답하다는 피드백이 있었음. 감지 빈도/힘 모두 이전 값으로 되돌림.
+    if(Math.abs(dev) > 3.5 && now - lastShakeT > 70){
       lastShakeT = now;
       // 실제 가속도 변화 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
       // 무작위성만 자연스러움을 위해 남김)
       const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
       const dir = dirBase + (Math.random()-0.5) * 0.5;
-      const power = Math.min(9, Math.abs(dev) * 0.65);
-      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.6);
-      // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
-      card.classList.add('shaker-grabbing');
-      const shift = Math.min(13, power*0.7);
-      const tilt = Math.min(9, power*0.4);
-      card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
-      clearTimeout(card._shakeResetT);
-      card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
+      const power = Math.min(11, Math.abs(dev) * 0.8);
+      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.7);
+      // 실제로 기기를 흔들 때도 카드(또는 지금 열려 있는 전체화면 모달)가
+      // 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
+      const wobbleEl = shakerWobbleTarget();
+      if(wobbleEl){
+        wobbleEl.classList.add('shaker-grabbing');
+        const shift = Math.min(18, power*0.8);
+        const tilt = Math.min(12, power*0.45);
+        wobbleEl.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
+        clearTimeout(wobbleEl._shakeResetT);
+        wobbleEl._shakeResetT = setTimeout(()=>{ wobbleEl.classList.remove('shaker-grabbing'); wobbleEl.style.transform = ''; }, 160);
+      }
     }
     lastAx = ax; lastAy = ay;
   });
