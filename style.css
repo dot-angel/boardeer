@@ -1286,16 +1286,19 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 
 /* ---------- 방명록 ---------- */
 /* 말풍선 위젯=디데이 위젯과 같은 고정 높이(130px) 기준 비율로 시작했다가, 방명록이
-   너무 길다는 요청에 따라 기존 높이(715px)의 약 80% 수준인 572px로 축소함 —
-   "얼마나 남았나"에 따라 유동적으로 늘어나지 않고 정해진 높이로 고정하는 원칙은 동일 */
-.w-guestbook .w-body{ flex:1; min-height:0; max-height:572px; margin-bottom:10px; overflow-y:auto; }
+   너무 길다는 요청에 따라 기존 높이(715px)의 약 80% 수준인 572px로 축소함.
+   예전엔 max-height(내용이 넘칠 때만 작동하는 상한)만 걸어뒀는데, 그럼 글이
+   적어서 애초에 715px/572px에 못 미치는 상태에선 값을 줄여도 눈에 보이는
+   변화가 없었음 — flex-basis로 실제 높이를 못박아서 글이 적으면 아래 여백이
+   남고 많으면 그 안에서 스크롤되도록(항상 이 높이를 그대로 차지) 바꿈 */
+.w-guestbook .w-body{ flex:0 0 572px; min-height:0; margin-bottom:10px; overflow-y:auto; }
 /* 접기/펼치기 버튼은 데스크톱에선 안 보임(다른 위젯처럼 제목 없는 톤 유지) —
    모바일에서만 방명록이 다른 위젯들에 비해 세로로 길어지는 걸 줄이기 위해 노출.
    기본 상태(HTML의 gb-collapsed 클래스)는 접힘이며, 이 규칙 자체가 모바일
    미디어쿼리 안에 있어서 PC에서는 클래스가 있어도 항상 펼쳐진 채로 보임 */
 .gb-toggle{ display:none; }
 @media (max-width: 900px){
-  .w-guestbook .w-body{ max-height: 208px; }
+  .w-guestbook .w-body{ flex-basis: 208px; }
   .gb-toggle{
     display:flex; align-items:center; justify-content:space-between;
     width:100%; background:none; border:none; padding:2px 2px 10px; margin:0;
