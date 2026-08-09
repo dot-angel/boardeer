@@ -7252,6 +7252,12 @@ const SHAKER_WALL_RESTITUTION = 0.5;
 const SHAKER_PIECE_RESTITUTION = 0.5;
 const SHAKER_MAX_SPEED = 30;
 const SHAKER_MAX_ANGULAR_SPEED = 4; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
+// 공중에 떠 있을 때(위 SHAKER_FRICTION)와 바닥에 닿아 있을 때의 마찰을 다르게 둠.
+// 지금까지는 바닥에 붙어도 공중과 똑같은 마찰로 계속 옆으로 미끄러져서, 중력이
+// "바닥에 붙잡아두는" 역할만 하고 "무게 때문에 안 미끄러진다"는 역할을 못 해
+// 에어하키처럼 둥둥 떠다니는 느낌이 났음. 바닥에 닿은 조각엔 이 마찰을 추가로
+// 더 걸어서, 실제 무게에 눌려 금방 멈추는 느낌을 냄
+const SHAKER_GROUND_FRICTION = 0.8;
 
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
@@ -7264,6 +7270,9 @@ function stepShakerPhysics(){
   shakerPieces.forEach(p=>{
     p.vy += SHAKER_GRAVITY;
     p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
+    // 지난 프레임에 바닥에 붙어 있던 조각이면 가로 움직임에 마찰을 한 번 더 걸어서
+    // 계속 미끄러지지 않고 무게에 눌린 것처럼 빠르게 멈추게 함
+    if(p.y + p.r >= h - 1.5) p.vx *= SHAKER_GROUND_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
     if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
     // 속도가 아주 작아지면(거의 멈춘 상태) 남은 미세한 값까지 완전히 0으로 재움 —
