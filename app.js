@@ -7166,12 +7166,35 @@ function normalizeShakerItem(it){
 }
 function shakerItemKey(it){ return it.chunked ? ('f:'+it.fileId) : ('u:'+it.url); }
 
+// 이미지 안에 투명한 픽셀이 하나라도 있으면(스티커성 PNG) 동그란 프레임을
+// 씌우지 않고 원본 모양 그대로 보여주기 위한 검사. data: URL(청크 저장된
+// 사진 대부분)은 캔버스로 안전하게 읽을 수 있지만, 외부 URL은 CORS 정책에
+// 따라 캔버스가 "오염"돼 읽기가 막힐 수 있어서 그 경우엔 조용히 실패하고
+// 기본값(프레임 적용)으로 둠.
+function shakerDetectAlpha(imgEl){
+  return new Promise(resolve=>{
+    try{
+      const w = Math.min(48, imgEl.naturalWidth || 48) || 48;
+      const h = Math.min(48, imgEl.naturalHeight || 48) || 48;
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0, w, h);
+      const data = ctx.getImageData(0, 0, w, h).data;
+      for(let i = 3; i < data.length; i += 4){
+        if(data[i] < 250){ resolve(true); return; }
+      }
+      resolve(false);
+    }catch(err){ resolve(false); }
+  });
+}
+
 // 조각 크기는 프레임 넓이/개수에 맞춰 자동으로 줄어들어서, 사진이 늘어나도
 // 항상 프레임 안에 자연스럽게 들어차게 함(너무 작아지거나 커지지 않게 상하한만 둠)
 function shakerPieceRadius(count, w, h){
   const area = Math.max(1, w) * Math.max(1, h);
   const r = Math.sqrt(area / (Math.max(1, count) * 5));
-  return Math.max(16, Math.min(38, r));
+  return Math.max(11, Math.min(22, r));
 }
 
 function syncShakerPieces(){
@@ -7218,8 +7241,14 @@ function syncShakerPieces(){
     const size = r * 2;
     p.el.style.width = size+'px'; p.el.style.height = size+'px';
     if(!p.imgEl.src){
-      const resolved = resolveGalleryItemUrl(p, (url)=>{ p.imgEl.src = url; });
-      if(resolved) p.imgEl.src = resolved;
+      const setSrc = (url)=>{
+        p.imgEl.src = url;
+        p.imgEl.onload = ()=> shakerDetectAlpha(p.imgEl).then(hasAlpha=>{
+          p.el.classList.toggle('shaker-piece-plain', hasAlpha);
+        });
+      };
+      const resolved = resolveGalleryItemUrl(p, setSrc);
+      if(resolved) setSrc(resolved);
     }
   });
 }
@@ -7296,28 +7325,36 @@ function shakerApplyImpulse(dvx, dvy, spread){
   });
 }
 
-// PC에서는 가속도계가 없어서, 프레임을 마우스/터치로 눌러 빠르게 움직이는 동작을
-// "흔들기"로 인식함(속도가 클수록 조각들에 더 강한 임펄스). 모바일은 그 동작에
-// 더해 실제로 기기를 흔들면(devicemotion) 가속도 변화량 기준으로 감지함.
+// PC에서는 가속도계가 없어서, 위젯(카드) 전체를 마우스/터치로 눌러 빠르게
+// 움직이는 동작을 "흔들기"로 인식함(속도가 클수록 조각들에 더 강한 임펄스).
+// 이때 위젯 카드 자체도 살짝 기울고 튕기게 해서 "그 안의 사진을 손가락으로
+// 젓는" 느낌이 아니라 "위젯 자체를 손에 쥐고 흔드는" 느낌이 나게 함(손을
+// 떼면 스프링처럼 원래 각도로 되돌아옴). 모바일은 그 드래그 방식에 더해,
+// 실제로 기기를 흔들면(devicemotion) 가속도 변화량 기준으로도 감지함.
 function initShakerInteraction(){
+  const card = document.getElementById('cardShaker');
   const frame = document.getElementById('shakerFrame');
-  if(!frame) return;
+  if(!card || !frame) return;
   let dragging = false, lastX=0, lastY=0, lastT=0, motionAsked = false;
+  let originX = 0, originY = 0;
 
   function askMotionPermission(){
     if(motionAsked) return; motionAsked = true;
     // iOS 13+는 devicemotion을 쓰려면 사용자 제스처 안에서 명시적으로 권한을
-    // 물어봐야 해서, 프레임을 처음 누르는 순간(이미 제스처 중) 같이 요청함
+    // 물어봐야 해서, 위젯을 처음 누르는 순간(이미 제스처 중) 같이 요청함
     if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
       DeviceMotionEvent.requestPermission().catch(()=>{});
     }
   }
-  frame.addEventListener('pointerdown', e=>{
+  card.addEventListener('pointerdown', e=>{
+    if(e.target.closest('.shaker-manage-btn')) return; // 관리 버튼 클릭은 흔들기로 안 잡음
     dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
+    originX = e.clientX; originY = e.clientY;
+    card.classList.add('shaker-grabbing');
     askMotionPermission();
-    try{ frame.setPointerCapture(e.pointerId); }catch(err){}
+    try{ card.setPointerCapture(e.pointerId); }catch(err){}
   });
-  frame.addEventListener('pointermove', e=>{
+  card.addEventListener('pointermove', e=>{
     if(!dragging) return;
     const t = performance.now();
     const dt = Math.max(8, t - lastT);
@@ -7325,11 +7362,21 @@ function initShakerInteraction(){
     const dvy = (e.clientY - lastY) / dt * 16;
     const speed = Math.hypot(dvx, dvy);
     if(speed > 0.6) shakerApplyImpulse(dvx*0.5, dvy*0.5, speed*0.6);
+    // 카드 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게(과하지 않게 상한을 둠)
+    const tiltX = Math.max(-10, Math.min(10, (e.clientY - originY) * 0.12));
+    const tiltY = Math.max(-10, Math.min(10, -(e.clientX - originX) * 0.12));
+    const shiftX = Math.max(-8, Math.min(8, (e.clientX - originX) * 0.08));
+    const shiftY = Math.max(-8, Math.min(8, (e.clientY - originY) * 0.08));
+    card.style.transform = `translate(${shiftX}px, ${shiftY}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
     lastX = e.clientX; lastY = e.clientY; lastT = t;
   });
-  const stopDrag = ()=>{ dragging = false; };
-  frame.addEventListener('pointerup', stopDrag);
-  frame.addEventListener('pointercancel', stopDrag);
+  const stopDrag = ()=>{
+    dragging = false;
+    card.classList.remove('shaker-grabbing');
+    card.style.transform = ''; // 스프링처럼 원래 각도로 되돌아감(CSS transition)
+  };
+  card.addEventListener('pointerup', stopDrag);
+  card.addEventListener('pointercancel', stopDrag);
 
   let lastAccelMag = null, lastShakeT = 0;
   window.addEventListener('devicemotion', e=>{
@@ -7342,6 +7389,11 @@ function initShakerInteraction(){
       const dir = Math.random() * Math.PI * 2;
       const power = Math.min(14, Math.abs(mag - lastAccelMag) * 0.35);
       shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*1.2);
+      // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌
+      card.classList.add('shaker-grabbing');
+      card.style.transform = `translate(${(Math.random()-0.5)*10}px, ${(Math.random()-0.5)*10}px) rotate(${(Math.random()-0.5)*6}deg)`;
+      clearTimeout(card._shakeResetT);
+      card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 180);
     }
     lastAccelMag = mag;
   });

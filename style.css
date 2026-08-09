@@ -1291,9 +1291,15 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    (.shaker-frame)이 남는 세로 공간을 전부 차지(flex:1)하고 그 안에서 사진
    조각들이 물리 시뮬레이션으로 움직임. 조각의 위치/속도는 app.js가 매 프레임
    transform으로만 갱신하므로(레이아웃 재계산 없음) 여러 개가 움직여도 가벼움. */
-.w-shaker{ gap:10px; }
+.w-shaker{
+  padding:10px;
+  transform-origin:50% 50%; will-change:transform;
+  transition: transform .32s cubic-bezier(.34,1.56,.64,1);
+  cursor:grab; touch-action:none;
+}
+.w-shaker.shaker-grabbing{ transition:none; cursor:grabbing; }
 .shaker-frame{
-  position:relative; flex:1; min-height:120px; border-radius:14px;
+  position:relative; flex:1; min-height:72px; border-radius:12px;
   background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
   border:1px solid var(--card-border);
   overflow:hidden; touch-action:none; cursor:grab;
@@ -1301,7 +1307,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .shaker-frame:active{ cursor:grabbing; }
 .shaker-empty{
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  font-size:.78rem; color:var(--ink-soft); text-align:center; padding:10px; pointer-events:none;
+  font-size:.72rem; color:var(--ink-soft); text-align:center; padding:8px; pointer-events:none;
 }
 /* 조각 하나하나 — 동그란 아크릴 참(charm)처럼 흰 테두리 링 + 그림자로 두께감 */
 .shaker-piece{
@@ -1311,7 +1317,22 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   pointer-events:none;
 }
 .shaker-piece img{ width:100%; height:100%; object-fit:cover; display:block; }
-.shaker-manage-btn{ align-self:flex-start; }
+/* 투명한 부분이 있는 PNG(스티커류)는 동그란 프레임을 씌우면 원래 실루엣이
+   깨져 보여서, 그런 이미지는 링/그림자 없이 원본 모양 그대로 둥둥 떠다니게 함
+   (app.js가 캔버스로 알파 채널 유무를 검사해 이 클래스를 붙여줌) */
+.shaker-piece.shaker-piece-plain{
+  border-radius:0; border:none; box-shadow:none; overflow:visible; background:none;
+}
+.shaker-piece.shaker-piece-plain img{
+  object-fit:contain; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35));
+}
+/* 관리 버튼은 프레임 안 우상단에 작게 떠있는 아이콘 — 높이를 따로 차지하지 않음 */
+.shaker-manage-btn{
+  position:absolute; top:6px; right:6px; z-index:2;
+  width:24px; height:24px; font-size:.68rem;
+  background: rgba(0,0,0,0.45); border-color: rgba(255,255,255,0.25);
+}
+.shaker-manage-btn:hover{ background: rgba(0,0,0,0.6); }
 /* 이미지 관리 모달 안 썸네일 그리드 */
 .shaker-manage-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(64px,1fr)); gap:8px; margin-bottom:12px; }
 .shaker-manage-item{ position:relative; aspect-ratio:1/1; border-radius:10px; overflow:hidden; }
@@ -1322,20 +1343,16 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 
 /* ---------- 방명록 ---------- */
-/* 말풍선 위젯=디데이 위젯과 같은 고정 높이(130px) 기준 비율로 시작했다가, 방명록이
-   너무 길다는 요청에 따라 기존 높이(715px)의 약 80% 수준인 572px로 축소함.
-   예전엔 max-height(내용이 넘칠 때만 작동하는 상한)만 걸어뒀는데, 그럼 글이
-   적어서 애초에 715px/572px에 못 미치는 상태에선 값을 줄여도 눈에 보이는
-   변화가 없었음 — flex-basis로 실제 높이를 못박아서 글이 적으면 아래 여백이
-   남고 많으면 그 안에서 스크롤되도록(항상 이 높이를 그대로 차지) 바꿈 */
-.w-guestbook .w-body{ flex:0 0 572px; min-height:0; margin-bottom:10px; overflow-y:auto; }
+/* 쉐이커 위젯이 같은 칸(row-strip-right)에 추가되면서 행 전체가 다시 길어져서,
+   그만큼(그리고 조금 더) 방명록을 줄여서 상쇄함: 572px → 420px */
+.w-guestbook .w-body{ flex:0 0 420px; min-height:0; margin-bottom:10px; overflow-y:auto; }
 /* 접기/펼치기 버튼은 데스크톱에선 안 보임(다른 위젯처럼 제목 없는 톤 유지) —
    모바일에서만 방명록이 다른 위젯들에 비해 세로로 길어지는 걸 줄이기 위해 노출.
    기본 상태(HTML의 gb-collapsed 클래스)는 접힘이며, 이 규칙 자체가 모바일
    미디어쿼리 안에 있어서 PC에서는 클래스가 있어도 항상 펼쳐진 채로 보임 */
 .gb-toggle{ display:none; }
 @media (max-width: 900px){
-  .w-guestbook .w-body{ flex-basis: 208px; }
+  .w-guestbook .w-body{ flex-basis: 160px; }
   .gb-toggle{
     display:flex; align-items:center; justify-content:space-between;
     width:100%; background:none; border:none; padding:2px 2px 10px; margin:0;
