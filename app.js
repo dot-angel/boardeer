@@ -6043,25 +6043,37 @@ function openChecklistLinkModal(idx){
 function syncRowStripHeight(){
   const music = document.getElementById('cardMusic');
   const profile = document.getElementById('cardProfile');
+  const stripRight = document.querySelector('.row-strip-right');
   if(!music || !profile) return;
   if(window.innerWidth <= 900){
     profile.style.height = '';
+    music.style.height = '';
     return;
   }
-  const h = music.getBoundingClientRect().height;
-  if(h > 0) profile.style.height = h + 'px';
+  // 예전엔 음악 위젯 높이에 프로필만 맞췄는데, 방명록·말풍선 위젯·디데이가 모인
+  // 오른쪽 칸(row-strip-right)이 더 커질 수 있게 되면서(말풍선 위젯 추가) 그 경우엔
+  // 음악/프로필이 오히려 짧아 보이는 문제가 있었음 — 셋 중 가장 큰 높이에 맞춤
+  music.style.height = '';
+  const musicH = music.getBoundingClientRect().height;
+  const rightH = stripRight ? stripRight.scrollHeight : 0;
+  const h = Math.max(musicH, rightH);
+  if(h > 0){ profile.style.height = h + 'px'; music.style.height = h + 'px'; }
 }
 function initRowStripHeightSync(){
   const music = document.getElementById('cardMusic');
+  const stripRight = document.querySelector('.row-strip-right');
   if(!music) return;
   if(typeof ResizeObserver !== 'undefined'){
-    let lastH = -1;
-    new ResizeObserver(()=>{
+    let lastH = -1, lastRightH = -1;
+    const ro = new ResizeObserver(()=>{
       const h = Math.round(music.getBoundingClientRect().height);
-      if(h === lastH) return;
-      lastH = h;
+      const rightH = stripRight ? Math.round(stripRight.scrollHeight) : 0;
+      if(h === lastH && rightH === lastRightH) return;
+      lastH = h; lastRightH = rightH;
       syncRowStripHeight();
-    }).observe(music);
+    });
+    ro.observe(music);
+    if(stripRight) ro.observe(stripRight); // 방명록 접힘/펼침, 말풍선 위젯 커버 설정 등으로 이 칸 높이가 바뀔 때도 다시 맞춤
   }
   window.addEventListener('resize', syncRowStripHeight);
   syncRowStripHeight();
@@ -6771,7 +6783,7 @@ function openSpeechEditor(){
     <div id="seTabBody"></div>
     <div class="modal-actions"><button class="btn ghost" id="seCloseBtn">닫기</button></div>
   `, (modal)=>{
-    modal.querySelector('#seCloseBtn').onclick = closeModal;
+    modal.querySelector('#seCloseBtn').onclick = ()=>{ closeModal(); renderSpeechCard(); };
     renderEditorTabbar(modal);
     renderEditorTabBody(modal);
   }, 'modal-speech-editor');
@@ -7115,6 +7127,12 @@ function renderEditorRegionList(modal, tab, idx){
 }
 
 docRef('speechWidget').onSnapshot(doc=>{
+  // 편집기가 열려있는 동안은 여기서 손대지 않음 — 편집기가 붙잡고 있는 탭 객체를
+  // 여기서 새 객체로 통째로 갈아끼우면, 그 이후 편집기 안에서 그리거나 입력한 내용이
+  // (이미 끊어진 옛 객체에 적히는 셈이라) 실제로는 저장이 하나도 안 되는 문제가 있었음.
+  // 편집기는 어차피 이 데이터를 직접 들고 있다가 스스로 저장하므로, 열려있는 동안은
+  // 건너뛰어도 안전함 — 편집기를 닫으면 그 다음 갱신부터 정상 반영됨.
+  if(modalRoot.querySelector('#seTabbar')) return;
   const d = doc.exists ? doc.data() : {};
   speechWidgetData = { tabs: (d.tabs || []).map(normalizeSpeechTab), cover: normalizeSpeechCover(d.cover) };
   renderSpeechCard();
