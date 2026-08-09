@@ -7384,10 +7384,22 @@ function stepShakerPhysics(){
 // 적용됨(둘 다 이 함수를 통해서만 힘을 줌)
 function shakerApplyImpulse(dvx, dvy, spread){
   const scale = shakerPhysicsScale();
+  const mag = Math.hypot(dvx, dvy);
+  const baseDir = Math.atan2(dvy, dvx);
   shakerPieces.forEach(p=>{
-    p.vx += (dvx + (Math.random()-0.5) * spread) * scale;
-    p.vy += (dvy + (Math.random()-0.5) * spread) * scale;
-    p.vr += (Math.random()-0.5) * spread * 0.5 * scale;
+    // 예전엔 모든 조각이 거의 같은 방향(dvx,dvy)에 약한 노이즈만 더해서 받았음
+    // — 그러면 조각들이 다 같이 한 방향으로 나란히 움직이는 셈이라, 서로 간의
+    // 상대속도(=부딪혔을 때 튕겨나가게 만드는 값)가 애초에 거의 없었음. 반발력을
+    // 아무리 올려도 부딪히는 두 조각이 원래 비슷한 속도로 같이 가고 있었으면
+    // 튕길 힘 자체가 없는 것과 같음. 실제 통 안 참(charm)들은 벽에 이리저리
+    // 부딪히며 각자 다른 방향·세기로 튀기 때문에, 여기서도 조각마다 방향(최대
+    // 좌우 약 45도)과 세기(0.55~1.35배)를 개별적으로 크게 흩뜨려서 한 번
+    // 흔들어도 조각마다 실제로 다른 속도로 흩어지게 함
+    const dir = baseDir + (Math.random()-0.5) * 1.5;
+    const power = mag * (0.55 + Math.random()*0.8) + (Math.random()-0.5) * spread * 0.5;
+    p.vx += Math.cos(dir) * power * scale;
+    p.vy += Math.sin(dir) * power * scale;
+    p.vr += (Math.random()-0.5) * spread * 0.6 * scale;
   });
 }
 
