@@ -7220,6 +7220,7 @@ const SHAKER_FRICTION = 0.985;
 const SHAKER_WALL_RESTITUTION = 0.55;
 const SHAKER_PIECE_RESTITUTION = 0.65;
 const SHAKER_MAX_SPEED = 26;
+const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
