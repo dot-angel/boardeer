@@ -6049,7 +6049,13 @@ function syncRowStripHeight(){
   // 예전엔 음악 위젯 높이에 프로필만 맞췄는데, 방명록·말풍선 위젯·디데이가 모인
   // 오른쪽 칸(row-strip-right)이 더 커질 수 있게 되면서(말풍선 위젯 추가) 그 경우엔
   // 음악/프로필이 오히려 짧아 보이는 문제가 있었음 — 셋 중 가장 큰 높이에 맞춤
+  // 음악뿐 아니라 프로필도 재는 동안에는 인라인 높이를 비워둬야 함 — 프로필에
+  // 예전 계산값이 그대로 남아있으면 row-strip의 align-items:stretch가 그 값에
+  // 맞춰 행 전체(음악, 방명록칸)를 계속 그 크기로 늘려버려서, 방명록 쪽 CSS
+  // 높이를 아무리 줄여도 반영이 안 되는 문제가 있었음(프로필의 옛 값이 계속
+  // "가장 큰 값"으로 남아 자기 자신을 계속 정당화하는 순환이 생김).
   music.style.height = '';
+  profile.style.height = '';
   const musicH = music.getBoundingClientRect().height;
   const rightH = stripRight ? stripRight.scrollHeight : 0;
   const h = Math.max(musicH, rightH);
