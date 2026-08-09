@@ -332,45 +332,9 @@ body::before{
 /* 카드 껍데기(두께감/여백/크기) 관련 스타일은 .w-card 기본 규칙보다 뒤에서
    따로 모아둠 — .w-card와 같은 우선순위라 순서상 앞에 있으면 뒤에 나오는
    .w-card한테 덮여씌워지기 때문(border/box-shadow/backdrop-filter/padding 등이
-   실제로 이 문제로 한 번 무효화된 적 있음) */
+   실제로 이 문제로 한 번 무효화된 적 있음).
+   색이나 글로우, 리플 같은 꾸밈은 다 빼고 "두꺼운 유리"라는 형태감만 남김. */
 .w-speech:active{ transform: scale(0.96); }
-.w-speech:not(.has-cover){
-  background: linear-gradient(160deg, rgba(196,66,95,0.22), rgba(196,66,95,0.06));
-  border-color: rgba(196,66,95,0.4);
-}
-.w-speech:not(.has-cover):hover{
-  background: linear-gradient(160deg, rgba(196,66,95,0.3), rgba(196,66,95,0.1));
-}
-/* 아이콘은 (여러 번 시도해봤는데) 뭘 그려 넣어도 어색하거나 경고 배지처럼 보여서
-   빼버림. 대신 커서를 올리면(모바일은 누르면) 가운데서 동그랗게 번져나가는 리플로
-   "눌러볼 수 있다"는 걸 알려줌 — 계속 깜빡이지 않고 반응했을 때만 움직이니 훨씬
-   차분하고, 경고/알림보다는 물결/조명 스위치 켜지는 느낌에 가까움 */
-.w-speech:not(.has-cover)::before{
-  content:""; position:absolute; left:50%; top:50%; width:64px; height:64px; border-radius:50%;
-  background: radial-gradient(circle, rgba(196,66,95,0.5), transparent 72%);
-  transform: translate(-50%,-50%) scale(1);
-  opacity:.6;
-  animation: speechGlowBreathe 5s ease-in-out infinite;
-}
-@keyframes speechGlowBreathe{
-  0%, 100%{ opacity:.4; transform: translate(-50%,-50%) scale(0.9); }
-  50%{ opacity:.7; transform: translate(-50%,-50%) scale(1.08); }
-}
-.w-speech:not(.has-cover)::after{
-  content:""; position:absolute; left:50%; top:50%; width:16px; height:16px; border-radius:50%;
-  background: rgba(255,255,255,0.45);
-  transform: translate(-50%,-50%) scale(0);
-  opacity:.5;
-  transition: transform .55s ease, opacity .55s ease;
-}
-.w-speech:not(.has-cover):hover::after,
-.w-speech:not(.has-cover):active::after{
-  transform: translate(-50%,-50%) scale(8);
-  opacity:0;
-}
-@media (prefers-reduced-motion: reduce){
-  .w-speech:not(.has-cover)::before{ animation:none; }
-}
 /* 이미지 위젯처럼 칸을 꽉 채우는 커버 사진 모드 */
 .w-speech.has-cover{ padding:0; overflow:hidden; align-items:stretch; }
 .speech-card-cover-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
