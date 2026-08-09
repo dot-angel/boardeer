@@ -1264,8 +1264,6 @@ function refreshLockUI(){
   document.getElementById('checklistAddWrap').style.display = editMode ? 'flex' : 'none';
   const shakerManageBtn = document.getElementById('shakerManageBtn');
   if(shakerManageBtn) shakerManageBtn.style.display = editMode ? 'inline-flex' : 'none';
-  const shakerBgBtn = document.getElementById('shakerBgBtn');
-  if(shakerBgBtn) shakerBgBtn.style.display = editMode ? 'inline-flex' : 'none';
   lockBadge.textContent = editMode ? '🔓 편집 가능' : '🔒 보기 전용';
   lockBadge.classList.toggle('unlocked', editMode);
   lockBtn.textContent = editMode ? '잠그기' : '잠금 해제';
@@ -7151,14 +7149,7 @@ function shakerDetectAlpha(imgEl){
 function shakerPieceRadius(count, w, h){
   const area = Math.max(1, w) * Math.max(1, h);
   const r = Math.sqrt(area / (Math.max(1, count) * 5));
-  // 예전엔 상한이 22px 고정이라, 위젯 카드 안에서든 전체화면에서든 조각이
-  // 똑같이 작게만 보였음(전체화면에서 커져야 하는데 그대로였음). 프레임이 큰
-  // 만큼(=전체화면) 조각도 실제로 커 보이도록, 상한을 프레임의 짧은 변에
-  // 비례하게 바꿈 — 좁은 위젯 카드에서는 예전과 비슷하게, 넓은 전체화면에서는
-  // 훨씬 크게 나옴
-  const minSide = Math.min(w, h);
-  const maxR = Math.max(22, minSide * 0.22);
-  return Math.max(11, Math.min(maxR, r));
+  return Math.max(11, Math.min(22, r));
 }
 
 function syncShakerPieces(){
@@ -7247,39 +7238,14 @@ function shakerFrameResized(){
   shakerFrameSize = { w: nw, h: nh };
 }
 
-// 반발력이 높고(0.72/0.62) 중력이 약하니(0.32) 부딪힌 뒤에도 에너지를 거의
-// 그대로 유지한 채 큰 포물선을 그리며 되튀어다녔음 — 이게 "탱탱볼" 인상의
-// 핵심 원인. 실제 아크릴 참은 부딪히면 "탁" 하고 에너지 대부분을 잃고,
-// 서로 다닥다닥 붙어 짧고 빠르게 달그락거리는 쪽에 가까움. 그래서:
-// - 반발력을 크게 낮춰 부딪힌 뒤 거의 멈칫하게(피스끼리/벽 둘 다)
-// - 중력을 세게 줘서 뜬 상태로 오래 머물지 않고 금방 바닥/서로에게 붙게
-// - 최고속도를 낮춰 큰 포물선 대신 좁은 반경에서 짧게 들썩이게
-const SHAKER_GRAVITY = 0.6;
-const SHAKER_FRICTION = 0.9;
-// 회전은 이동보다 더 빨리 잦아들되, 부딪히는 순간엔 매끈한 스핀이 아니라
-// 툭툭 꺾이듯 불규칙하게 튀는 편이 "말랑한 공"이 아니라 "딱딱한 조각"처럼
-// 보여서 마찰은 그대로 두고 부딪힐 때 주는 스핀 자체를 더 거칠게 만듦
-const SHAKER_ANGULAR_FRICTION = 0.82;
-const SHAKER_WALL_RESTITUTION = 0.2;
-const SHAKER_PIECE_RESTITUTION = 0.25;
-const SHAKER_MAX_SPEED = 20;
+const SHAKER_GRAVITY = 0.05; // 흔들 때만 잠깐 움직이고 평소엔 거의 가만히 있도록 약하게
+const SHAKER_FRICTION = 0.86; // 액체 없이 마른 상태라 손 떼면 아주 빠르게(1초 내) 멎음
+const SHAKER_WALL_RESTITUTION = 0.16; // 부드럽게 튕겨나가지 않고 "탁" 부딪히고 붙듯 멈추게
+const SHAKER_PIECE_RESTITUTION = 0.18;
+const SHAKER_WALL_GRIP = 0.72; // 벽에 부딪히는 순간 옆으로 미끄러지던 속도도 같이 확 깎아서, 부드럽게 벽을 타고 흐르지 않고 그 자리에서 탁 멈추게
+const SHAKER_MAX_SPEED = 16; // 파츠가 케이스를 크게 벗어나듯 날아다니지 않고 좁은 범위에서만 달그락거림
+const SHAKER_SPIN_FRICTION = 0.85;
 const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
-// 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
-// 튀거나 도는 상태가 남는데(부동소수점 특성상), 이 정도로 작아지면 그냥 확
-// 재워서(0으로) 진짜로 멈추게 함 — "가만히 놔둬도 계속 혼자 도는" 원인이었음
-const SHAKER_SLEEP_LINEAR = 0.4;   // px/frame
-const SHAKER_SLEEP_ANGULAR = 0.4;  // deg/frame
-
-// 조각 크기는 전체화면 등에서 프레임에 비례해 커지는데(shakerPieceRadius),
-// 중력/최고속도/임펄스가 고정값 그대로면 커진 조각 입장에서는 상대적으로
-// 훨씬 약한 힘을 받는 셈이라 오히려 더 무겁고 둔하게 느껴짐(실제로 겪은 문제).
-// 이 스케일을 중력·최고속도·흔들 때 주는 힘에 다 같이 곱해서, 위젯 카드
-// 안에서든 전체화면에서든 "느낌"이 항상 똑같이 유지되게 함.
-const SHAKER_BASE_R = 16; // 예전 고정 반지름(11~22) 대략 중간값 — 이 기준 대비 비율로 스케일을 잡음
-function shakerPhysicsScale(){
-  const r = shakerPieces[0] ? shakerPieces[0].r : SHAKER_BASE_R;
-  return r / SHAKER_BASE_R;
-}
 
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
@@ -7289,45 +7255,30 @@ function stepShakerPhysics(){
   if(page && !page.classList.contains('board-page-active')) return;
   shakerFrameResized();
   const { w, h } = shakerFrameSize;
-  const scale = shakerPhysicsScale();
-  const gravity = SHAKER_GRAVITY * scale;
-  const maxSpeed = SHAKER_MAX_SPEED * scale;
-  const sleepLinear = SHAKER_SLEEP_LINEAR * scale;
-  const sleepAngular = SHAKER_SLEEP_ANGULAR * scale;
   shakerPieces.forEach(p=>{
-    // 바닥(또는 벽)에 거의 붙어서 속도가 아주 작아졌으면, 중력을 더 안 더하고
-    // 그냥 0으로 재움 — 안 그러면 중력이 매 프레임 계속 속도를 만들어내서
-    // 이론상 영원히(아주 미세하게라도) 계속 통통 튀는 상태가 됨
-    const restingOnFloor = (h - (p.y + p.r)) < 0.6 * scale && Math.abs(p.vy) < sleepLinear;
-    if(restingOnFloor){
-      p.vy = 0; p.y = h - p.r;
-    } else {
-      p.vy += gravity;
-    }
+    // 빠르게 튀는 동안(진짜 흔드는 중)에는 중력을 꺼서 포물선을 그리며 매끄럽게
+    // 날아가는 느낌이 안 나게 하고, 어느 정도 잦아들어 느려졌을 때만 살짝 중력을
+    // 줘서 바닥 쪽으로 가라앉듯 정리되게 함(곡선 궤적 없이 뚝뚝 꺾이는 움직임 유지)
+    if(Math.hypot(p.vx, p.vy) < 6) p.vy += SHAKER_GRAVITY;
     p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
-    if(speed > maxSpeed){ const s = maxSpeed/speed; p.vx *= s; p.vy *= s; }
-    if(Math.abs(p.vx) < sleepLinear) p.vx = 0;
-    if(Math.abs(p.vy) < sleepLinear && restingOnFloor) p.vy = 0;
+    if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
+    // 아주 낮은 속도는 0으로 스냅해서, 마른 파츠가 액체 속처럼 미세하게 계속
+    // 떠다니지 않고 실제로 바닥/서로에게 완전히 딱 붙어 멈추게 함
+    if(Math.hypot(p.vx, p.vy) < 0.05){ p.vx = 0; p.vy = 0; }
     p.x += p.vx; p.y += p.vy;
-    // 회전은 이동보다 마찰을 더 세게 줘서(전용 상수) 눈에 띄게 빨리 잦아들게 하고,
-    // "멈췄다"고 볼 기준(sleepAngular)도 이동처럼 scale에 비례하게 둬서, 전체화면처럼
-    // 조각이 커져 회전 임펄스도 같이 커지는 상황에서도 카드형태와 비슷한 체감
-    // 속도로 멈추게 함(예전엔 기준이 고정값이라 전체화면에서 훨씬 오래 돌았음)
-    p.vr *= SHAKER_ANGULAR_FRICTION;
-    if(Math.abs(p.vr) < sleepAngular) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
+    // 회전도 이동과 비슷하게 잦아들다가, 벽에 부딪힐 때마다 부딪힌 충격(속도
+    // 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌(단, 탱탱볼처럼
+    // 계속 튕기지 않도록 반사 계수와 스핀 계수 모두 낮춰 "달그락"에 가깝게)
+    p.vr *= SHAKER_SPIN_FRICTION;
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vy *= SHAKER_WALL_GRIP; p.vr += (p.vx - before) * 0.03; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vy *= SHAKER_WALL_GRIP; p.vr += (p.vx - before) * 0.03; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vx *= SHAKER_WALL_GRIP; p.vr += (p.vy - before) * 0.03; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vx *= SHAKER_WALL_GRIP; p.vr += (p.vy - before) * 0.03; }
+    if(Math.abs(p.vr) > SHAKER_MAX_ANGULAR_SPEED) p.vr = Math.sign(p.vr) * SHAKER_MAX_ANGULAR_SPEED;
     p.rot += p.vr;
   });
-  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
-  // 느낌의 핵심. 예전엔 패스를 3번 반복해서 서서히 밀어냈는데, 그 "스르륵
-  // 밀려나는" 느낌 자체가 말랑한 공 인상을 더했음. 겹침 자체는 한 번에
-  // 확실히(overlap 전체를) 풀어서 즉각적으로 튕겨나가게 하고, 자리가 부족해
-  // 덜 풀리는 경우에 대비해 패스 수는 2번만 유지함(정밀하게 나눠 밀지는 않음)
-  for(let pass=0; pass<2; pass++){
+  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심
   for(let i=0;i<shakerPieces.length;i++){
     for(let j=i+1;j<shakerPieces.length;j++){
       const a = shakerPieces[i], b = shakerPieces[j];
@@ -7339,40 +7290,34 @@ function stepShakerPhysics(){
         const overlap = (minDist - dist) / 2;
         a.x -= nx*overlap; a.y -= ny*overlap;
         b.x += nx*overlap; b.y += ny*overlap;
-        if(pass === 0){
-          const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
-          if(relVel < 0){
-            const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
-            a.vx -= imp*nx; a.vy -= imp*ny;
-            b.vx += imp*nx; b.vy += imp*ny;
-          }
-          // 매끈하게 스핀을 주고받으면 공이 굴러가는 것처럼 보여서, 접선
-          // 방향 반응에 더해 부딪힐 때마다 무작위로 툭 꺾이는 회전을 살짝
-          // 얹음 — 매끄러운 회전이 아니라 딱딱한 조각이 모서리에 걸려
-          // 불규칙하게 튀는 느낌
-          const tx = -ny, ty = nx;
-          const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-          const jag = Math.min(1, Math.abs(relVel)*0.08) * (Math.random()-0.5) * 2;
-          a.vr -= relVelT * 0.05 + jag; b.vr -= relVelT * 0.05 - jag;
+        const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+        if(relVel < 0){
+          const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
+          a.vx -= imp*nx; a.vy -= imp*ny;
+          b.vx += imp*nx; b.vy += imp*ny;
         }
+        // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받고,
+        // 접선 방향 속도 자체도 일부 깎아서(마찰) 옆으로 스치듯 부딪혀도 부드럽게
+        // 미끄러져 지나가지 않고 "탁" 걸리듯 멈추게 함
+        const tx = -ny, ty = nx;
+        const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
+        a.vr -= relVelT * 0.025; b.vr -= relVelT * 0.025;
+        const grip = relVelT * 0.28;
+        a.vx += tx*grip; a.vy += ty*grip;
+        b.vx -= tx*grip; b.vy -= ty*grip;
       }
     }
-  }
   }
   shakerPieces.forEach(p=>{
     p.el.style.transform = `translate(${(p.x-p.r).toFixed(1)}px, ${(p.y-p.r).toFixed(1)}px) rotate(${p.rot.toFixed(1)}deg)`;
   });
 }
 
-// 흔들기로 주는 힘도 조각 크기(scale)에 비례해서 커지게 함 — 이 함수 하나만
-// 고치면 마우스/터치 드래그, 실제 기기 흔들기(devicemotion) 양쪽 다 자동으로
-// 적용됨(둘 다 이 함수를 통해서만 힘을 줌)
 function shakerApplyImpulse(dvx, dvy, spread){
-  const scale = shakerPhysicsScale();
   shakerPieces.forEach(p=>{
-    p.vx += (dvx + (Math.random()-0.5) * spread) * scale;
-    p.vy += (dvy + (Math.random()-0.5) * spread) * scale;
-    p.vr += (Math.random()-0.5) * spread * 0.5 * scale;
+    p.vx += dvx + (Math.random()-0.5) * spread;
+    p.vy += dvy + (Math.random()-0.5) * spread;
+    p.vr += (Math.random()-0.5) * spread * 0.5;
   });
 }
 
@@ -7388,15 +7333,6 @@ function shakerApplyImpulse(dvx, dvy, spread){
 // 맞춰 다시 스케일됨(shakerFrameResized가 다음 물리 프레임에서 자동 처리).
 let shakerFullOpen = false;
 let shakerFullOverlay = null;
-// 흔들 때 "기울고 튕기는" 시각 피드백을 줄 대상은 지금 보이는 게 카드인지
-// 전체화면 모달인지에 따라 달라짐 — 매번 이 함수로 현재 대상을 다시 찾음
-// (전체화면 모달은 열 때마다 새로 만들어지는 DOM이라 고정 참조를 못 씀)
-function shakerWobbleTarget(){
-  if(shakerFullOpen){
-    return document.querySelector('.modal-shaker-full') || document.getElementById('cardShaker');
-  }
-  return document.getElementById('cardShaker');
-}
 function closeShakerFullscreen(){
   if(!shakerFullOpen) return;
   shakerFullOpen = false;
@@ -7421,153 +7357,100 @@ function openShakerFullscreen(){
   modalRoot.innerHTML = '';
   modalRoot.appendChild(overlay);
   shakerFullOverlay = overlay;
-  // 카드에서 하던 "잡고 흔들기"를 전체화면 모달 박스 전체에도 그대로 붙여줌
-  // (안 그러면 전체화면에서는 실제 기기 흔들기(devicemotion)만 먹히고,
-  // 화면을 손가락으로 드래그하는 방식의 흔들기는 안 먹힘)
-  attachShakerDragHandlers(overlay.querySelector('.modal-shaker-full'), { closeSelector: '.shaker-full-close' });
-}
-
-let shakerMotionAsked = false;
-function shakerAskMotionPermission(){
-  if(shakerMotionAsked) return; shakerMotionAsked = true;
-  // iOS 13+는 devicemotion을 쓰려면 사용자 제스처 안에서 명시적으로 권한을
-  // 물어봐야 해서, 위젯(또는 전체화면 모달)을 처음 누르는 순간(이미 제스처
-  // 중) 같이 요청함
-  if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
-    DeviceMotionEvent.requestPermission().catch(()=>{});
-  }
-}
-
-// 카드(평소)와 전체화면 모달(모바일에서 탭해 확대했을 때) 양쪽 다 "잡고
-// 흔들기"가 똑같이 동작해야 해서, 드래그 감지 로직을 여기 하나로 모아두고
-// 두 군데(card, 전체화면 모달 박스)에서 재사용함. opts.tapOpensFullscreen이
-// true면(카드 쪽만) 터치로 살짝 탭했을 때 전체화면을 열어줌.
-function attachShakerDragHandlers(triggerEl, opts={}){
-  if(!triggerEl) return;
-  let dragging = false, lastX=0, lastY=0, lastT=0;
-  let originX = 0, originY = 0;
-  let downX = 0, downY = 0, downT = 0, downPointerType = 'mouse', downOnManage = false;
-  const excludeSelector = ['.shaker-manage-btn', '.shaker-bg-btn', opts.closeSelector].filter(Boolean).join(', ');
-
-  triggerEl.addEventListener('pointerdown', e=>{
-    downOnManage = excludeSelector ? !!e.target.closest(excludeSelector) : false;
-    if(downOnManage) return; // 관리/배경/닫기 버튼 클릭은 흔들기로 안 잡음
-    dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
-    originX = e.clientX; originY = e.clientY;
-    downX = e.clientX; downY = e.clientY; downT = lastT; downPointerType = e.pointerType || 'mouse';
-    const wobbleEl = shakerWobbleTarget();
-    if(wobbleEl) wobbleEl.classList.add('shaker-grabbing');
-    shakerAskMotionPermission();
-    try{ triggerEl.setPointerCapture(e.pointerId); }catch(err){}
-  });
-  triggerEl.addEventListener('pointermove', e=>{
-    if(!dragging) return;
-    const t = performance.now();
-    const dt = Math.max(8, t - lastT);
-    // PC 마우스는 pointermove가 촘촘하게(작은 이동량으로 여러 번) 들어오는데,
-    // 모바일 터치 스와이프는 듬성듬성(큰 이동량으로 한두 번) 들어와서, 같은
-    // 세기로 휙 그어도 모바일 쪽이 한 번의 이벤트에 훨씬 큰 힘을 몰아서 받게
-    // 됨 — 이게 "모바일 스와이프가 너무 경박하게 튄다"의 원인. 이벤트 1회당
-    // 줄 수 있는 힘 자체에 상한을 둬서, 입력 방식과 무관하게 항상 "여러
-    // 프레임에 걸쳐 서서히 힘이 쌓이는" PC 드래그 특유의 느낌으로 통일함
-    const rawDvx = (e.clientX - lastX) / dt * 16;
-    const rawDvy = (e.clientY - lastY) / dt * 16;
-    const dvx = Math.max(-16, Math.min(16, rawDvx * 0.5));
-    const dvy = Math.max(-16, Math.min(16, rawDvy * 0.5));
-    const speed = Math.hypot(dvx, dvy);
-    if(speed > 0.5) shakerApplyImpulse(dvx, dvy, Math.min(speed*0.6, 16));
-    // 카드(또는 전체화면 모달) 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게
-    // (과하지 않게 상한을 둠)
-    const wobbleEl = shakerWobbleTarget();
-    if(wobbleEl){
-      const tiltX = Math.max(-10, Math.min(10, (e.clientY - originY) * 0.12));
-      const tiltY = Math.max(-10, Math.min(10, -(e.clientX - originX) * 0.12));
-      const shiftX = Math.max(-8, Math.min(8, (e.clientX - originX) * 0.08));
-      const shiftY = Math.max(-8, Math.min(8, (e.clientY - originY) * 0.08));
-      wobbleEl.style.transform = `translate(${shiftX}px, ${shiftY}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
-    }
-    lastX = e.clientX; lastY = e.clientY; lastT = t;
-  });
-  const stopDrag = (e)=>{
-    const wasDragging = dragging;
-    dragging = false;
-    const wobbleEl = shakerWobbleTarget();
-    if(wobbleEl){
-      wobbleEl.classList.remove('shaker-grabbing');
-      wobbleEl.style.transform = ''; // 스프링처럼 원래 각도로 되돌아감(CSS transition)
-    }
-    // 모바일(터치)에서 거의 움직이지 않고(작은 탭) 빠르게 뗐으면 흔들기가 아니라
-    // "탭"으로 보고 전체화면으로 열어줌. PC(마우스)는 흔들기 동작과 겹치지 않게
-    // 이 기능을 적용하지 않음(요청: 모바일에서만 클릭 시 전체화면). 이미
-    // 전체화면인 상태(모달 쪽 핸들러)에서는 다시 열려고 하지 않음.
-    if(opts.tapOpensFullscreen && wasDragging && !downOnManage && e && downPointerType === 'touch'){
-      const dist = Math.hypot((e.clientX||downX) - downX, (e.clientY||downY) - downY);
-      const elapsed = performance.now() - downT;
-      if(dist < 12 && elapsed < 400) openShakerFullscreen();
-    }
-  };
-  triggerEl.addEventListener('pointerup', stopDrag);
-  triggerEl.addEventListener('pointercancel', stopDrag);
 }
 
 function initShakerInteraction(){
   const card = document.getElementById('cardShaker');
   const frame = document.getElementById('shakerFrame');
   if(!card || !frame) return;
+  let dragging = false, lastX=0, lastY=0, lastT=0, motionAsked = false;
+  let originX = 0, originY = 0;
+  let downX = 0, downY = 0, downT = 0, downPointerType = 'mouse', downOnManage = false;
 
   // 사진 자체를 브라우저 기본 동작으로 드래그해서 선택/이동시키려는 걸 막음
   // (pointer-events:none으로 이미 대부분 막히지만, 네이티브 dragstart는 그와
   // 별개로 발생할 수 있어 한 번 더 확실히 막아둠)
   frame.addEventListener('dragstart', e=> e.preventDefault());
 
-  attachShakerDragHandlers(card, { tapOpensFullscreen: true });
+  function askMotionPermission(){
+    if(motionAsked) return; motionAsked = true;
+    // iOS 13+는 devicemotion을 쓰려면 사용자 제스처 안에서 명시적으로 권한을
+    // 물어봐야 해서, 위젯을 처음 누르는 순간(이미 제스처 중) 같이 요청함
+    if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+      DeviceMotionEvent.requestPermission().catch(()=>{});
+    }
+  }
+  card.addEventListener('pointerdown', e=>{
+    downOnManage = !!e.target.closest('.shaker-manage-btn');
+    if(downOnManage) return; // 관리 버튼 클릭은 흔들기로 안 잡음
+    dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
+    originX = e.clientX; originY = e.clientY;
+    downX = e.clientX; downY = e.clientY; downT = lastT; downPointerType = e.pointerType || 'mouse';
+    card.classList.add('shaker-grabbing');
+    askMotionPermission();
+    try{ card.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  card.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const t = performance.now();
+    const dt = Math.max(8, t - lastT);
+    const dvx = (e.clientX - lastX) / dt * 16;
+    const dvy = (e.clientY - lastY) / dt * 16;
+    const speed = Math.hypot(dvx, dvy);
+    if(speed > 0.6) shakerApplyImpulse(dvx*0.5, dvy*0.5, speed*0.6);
+    // 카드 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게(과하지 않게 상한을 둠)
+    const tiltX = Math.max(-10, Math.min(10, (e.clientY - originY) * 0.12));
+    const tiltY = Math.max(-10, Math.min(10, -(e.clientX - originX) * 0.12));
+    const shiftX = Math.max(-8, Math.min(8, (e.clientX - originX) * 0.08));
+    const shiftY = Math.max(-8, Math.min(8, (e.clientY - originY) * 0.08));
+    card.style.transform = `translate(${shiftX}px, ${shiftY}px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+    lastX = e.clientX; lastY = e.clientY; lastT = t;
+  });
+  const stopDrag = (e)=>{
+    const wasDragging = dragging;
+    dragging = false;
+    card.classList.remove('shaker-grabbing');
+    card.style.transform = ''; // 스프링처럼 원래 각도로 되돌아감(CSS transition)
+    // 모바일(터치)에서 거의 움직이지 않고(작은 탭) 빠르게 뗐으면 흔들기가 아니라
+    // "탭"으로 보고 전체화면으로 열어줌. PC(마우스)는 흔들기 동작과 겹치지 않게
+    // 이 기능을 적용하지 않음(요청: 모바일에서만 클릭 시 전체화면)
+    if(wasDragging && !downOnManage && e && downPointerType === 'touch'){
+      const dist = Math.hypot((e.clientX||downX) - downX, (e.clientY||downY) - downY);
+      const elapsed = performance.now() - downT;
+      if(dist < 12 && elapsed < 400) openShakerFullscreen();
+    }
+  };
+  card.addEventListener('pointerup', stopDrag);
+  card.addEventListener('pointercancel', stopDrag);
 
   // 예전엔 기준값(14)을 넘기기만 하면 항상 같은 세기(최대 14)로만 튕겨서, 살짝
   // 흔들든 세게 흔들든 화면에서 거의 똑같아 보이는 문제가 있었음. 기준을 낮춰
   // 더 민감하게 반응하고(약하게 흔들어도 감지), 쿨다운도 짧게 둬서 세게 흔들수록
   // 더 자주 감지되게 하고, 임펄스/기울임 세기도 상한을 크게 올려 실제 흔드는
   // 세기 차이가 화면에도 뚜렷하게 비례해서 드러나게 함.
-  let motionBaseline = null, lastShakeT = 0, lastAx = 0, lastAy = 0;
+  let lastAccelMag = null, lastShakeT = 0;
   window.addEventListener('devicemotion', e=>{
     const a = e.accelerationIncludingGravity || e.acceleration;
     if(!a) return;
-    const ax = a.x||0, ay = a.y||0;
-    const mag = Math.hypot(ax, ay, a.z||0);
+    const mag = Math.hypot(a.x||0, a.y||0, a.z||0);
     const now = performance.now();
-    if(motionBaseline === null){ motionBaseline = mag; lastAx = ax; lastAy = ay; return; }
-    // 예전엔 "이번 샘플이 바로 직전 샘플보다 얼마나 튀었나(delta)"로 흔들기를
-    // 감지했음 — 가만히 있다가 처음 움직이기 시작하는 순간엔 직전(정지) 샘플과의
-    // 차이가 크게 튀어서 잘 잡히는데, 일단 흔들리는 중엔 이미 움직이고 있는
-    // 상태라 샘플 간 차이가 상대적으로 작아져서 계속 흔들어도 반응이 뚝 끊김
-    // (그래서 "부딪히는 순간"만 잡고 "계속 흔드는 중"은 못 보는 것처럼 느껴졌음).
-    // 대신 천천히 따라오는 기준선을 하나 두고 "지금이 그 기준선 대비 얼마나
-    // 벗어나 있나(편차)"를 봄 — 계속 흔드는 동안엔 원시값이 기준선 위아래로
-    // 계속 크게 진동하므로 편차도 계속 커서, 흔드는 내내 짤랑짤랑 반응함
-    motionBaseline += (mag - motionBaseline) * 0.06;
-    const dev = mag - motionBaseline;
-    // → 문턱값을 올리고 힘을 낮췄더니 "확실히 흔든 느낌"이 잘 안 살아서
-    // 답답하다는 피드백이 있었음. 감지 빈도/힘 모두 이전 값으로 되돌림.
-    if(Math.abs(dev) > 3.5 && now - lastShakeT > 70){
-      lastShakeT = now;
-      // 실제 가속도 변화 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
-      // 무작위성만 자연스러움을 위해 남김)
-      const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
-      const dir = dirBase + (Math.random()-0.5) * 0.5;
-      const power = Math.min(11, Math.abs(dev) * 0.8);
-      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.7);
-      // 실제로 기기를 흔들 때도 카드(또는 지금 열려 있는 전체화면 모달)가
-      // 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
-      const wobbleEl = shakerWobbleTarget();
-      if(wobbleEl){
-        wobbleEl.classList.add('shaker-grabbing');
+    if(lastAccelMag !== null){
+      const delta = Math.abs(mag - lastAccelMag);
+      if(delta > 8 && now - lastShakeT > 90){
+        lastShakeT = now;
+        const dir = Math.random() * Math.PI * 2;
+        const power = Math.min(34, delta * 0.55);
+        shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*1.3);
+        // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
+        card.classList.add('shaker-grabbing');
         const shift = Math.min(18, power*0.8);
         const tilt = Math.min(12, power*0.45);
-        wobbleEl.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
-        clearTimeout(wobbleEl._shakeResetT);
-        wobbleEl._shakeResetT = setTimeout(()=>{ wobbleEl.classList.remove('shaker-grabbing'); wobbleEl.style.transform = ''; }, 160);
+        card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
+        clearTimeout(card._shakeResetT);
+        card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
       }
     }
-    lastAx = ax; lastAy = ay;
+    lastAccelMag = mag;
   });
 }
 
@@ -7638,96 +7521,14 @@ function openShakerManageModal(){
   });
 }
 
-// 프레임 배경 편집 버튼은 정적 HTML에 없을 수도 있어서(예전 버전) 여기서
-// 없으면 만들어 프레임 안(좌상단, 관리 버튼과 반대쪽)에 넣어둠. 이미 있으면
-// 다시 안 만듦.
-function ensureShakerBgBtn(){
-  if(document.getElementById('shakerBgBtn')) return;
-  const frame = document.getElementById('shakerFrame');
-  if(!frame) return;
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.id = 'shakerBgBtn';
-  btn.className = 'icon-btn shaker-bg-btn';
-  btn.title = '프레임 배경';
-  btn.textContent = '🖼';
-  btn.style.display = editMode ? 'inline-flex' : 'none';
-  frame.appendChild(btn);
-  btn.onclick = openShakerBgModal;
-}
-
-// 쉐이커 프레임 자체는 기본적으로 완전 투명(카드의 유리 배경이 그대로 비쳐
-// 보임). 편집모드에서 frameBg를 따로 지정하면 그 사진이 프레임 배경으로
-// 깔림(사이트 전체 배경과 별개, 이 위젯 하나에만 적용).
-function applyShakerFrameBg(){
-  const frame = document.getElementById('shakerFrame');
-  if(!frame) return;
-  if(shakerData.frameBg){
-    setElementBgImageWithFallback(frame, shakerData.frameBg);
-    frame.classList.add('has-bg');
-  } else {
-    frame.style.backgroundImage = '';
-    frame.classList.remove('has-bg');
-  }
-}
-
-async function openShakerBgModal(){
-  const cur = shakerData || {};
-  const curIsUrl = cur.frameBg && !cur.frameBg.startsWith('data:');
-  openModal(`
-    <h3>쉐이커 프레임 배경</h3>
-    <p class="hint">쉐이커 안쪽 프레임에만 적용되는 배경이에요. 비워두면 다른 위젯처럼 투명한 유리로 보여요.</p>
-    <label>배경 사진 올리기</label>
-    <input type="file" id="shakerBgFile" accept="image/*">
-    <label>또는, 이미지 URL 직접 입력</label>
-    <input type="url" id="shakerBgUrl" placeholder="https://..." value="${curIsUrl ? cur.frameBg : ''}">
-    <div class="modal-actions">
-      <button class="btn danger" id="rm" type="button">배경 없애기</button>
-      <button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button>
-    </div>
-  `, m=>{
-    m.querySelector('#c').onclick = closeModal;
-    m.querySelector('#rm').onclick = async ()=>{
-      await docRef('shaker').set({ frameBg: '' }, {merge:true});
-      closeModal();
-      toast('프레임 배경을 없앴어요');
-    };
-    m.querySelector('#s').onclick = async ()=>{
-      const saveBtn = m.querySelector('#s');
-      const file = m.querySelector('#shakerBgFile').files[0];
-      let image = normalizeImageUrl(m.querySelector('#shakerBgUrl').value.trim());
-      if(file){
-        saveBtn.disabled = true; saveBtn.textContent = '처리 중…';
-        try{
-          image = await compressImageFile(file, 1200, 500000);
-        }catch(err){
-          toast(err.message || '이미지를 처리하지 못했어요');
-          saveBtn.disabled = false; saveBtn.textContent = '저장';
-          return;
-        }
-      } else if(!image){
-        image = cur.frameBg || '';
-      }
-      await docRef('shaker').set({ frameBg: image }, {merge:true});
-      closeModal();
-      toast('프레임 배경을 저장했어요');
-    };
-  });
-}
-
 function initShakerWidget(){
   initShakerInteraction();
   requestAnimationFrame(stepShakerPhysics);
   const manageBtn = document.getElementById('shakerManageBtn');
   if(manageBtn) manageBtn.onclick = openShakerManageModal;
-  ensureShakerBgBtn();
 }
 
-docRef('shaker').onSnapshot(doc=>{
-  shakerData = doc.exists ? doc.data() : {items:[]};
-  syncShakerPieces();
-  applyShakerFrameBg();
-});
+docRef('shaker').onSnapshot(doc=>{ shakerData = doc.exists ? doc.data() : {items:[]}; syncShakerPieces(); });
 
 docRef('speechWidget').onSnapshot(doc=>{
   // 편집기가 열려있는 동안은 여기서 손대지 않음 — 편집기가 붙잡고 있는 탭 객체를

@@ -1342,7 +1342,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .w-shaker{
   padding:10px;
   transform-origin:50% 50%; will-change:transform;
-  transition: transform .32s cubic-bezier(.34,1.56,.64,1);
+  transition: transform .14s cubic-bezier(.22,.9,.32,1);
   cursor:grab; touch-action:none;
   /* 흔드는 동작(빠른 드래그) 중에 안의 사진이 브라우저 기본 동작으로 선택되거나
      "드래그되는 이미지"로 붙잡히지 않게 막음 */
@@ -1413,7 +1413,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   width:auto; padding:16px; background: rgba(10,5,6,0.5);
   backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   transform-origin:50% 50%; will-change:transform;
-  transition: transform .32s cubic-bezier(.34,1.56,.64,1);
+  transition: transform .14s cubic-bezier(.22,.9,.32,1);
   touch-action:none; cursor:grab;
 }
 .modal.modal-shaker-full.shaker-grabbing{ transition:none; cursor:grabbing; }
