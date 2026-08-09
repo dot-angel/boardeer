@@ -820,12 +820,13 @@ body::before{
    분리함. 카드였을 때와 똑같이 세로 flex로 두어 이전/다음달 버튼과 달력이
    그대로 위→가운데→아래로 쌓이게 함 */
 .cal-content{ flex:1; min-height:0; display:flex; flex-direction:column; }
-.w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; overflow-y:auto; container-type: inline-size; }
+.w-dday .w-body{ flex:1; min-height:0; display:flex; flex-direction:column; justify-content:center; overflow-y:auto; overflow-x:hidden; container-type: inline-size; }
 .dday-item{
   position: relative;
   display:flex; align-items:center; justify-content:space-between; gap:14px;
   padding: 6px 0;
   border-bottom: 1px solid var(--card-border);
+  min-width:0;
 }
 /* 삭제 버튼(✕)은 편집모드에서만 나오므로, 그 자리를 위한 오른쪽 여백도
    편집모드일 때만 잡음(보기 전용일 땐 D-숫자가 끝까지 꽉 차게) */
@@ -836,15 +837,17 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .dday-label{
   font-size:.72rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
   color: var(--ink-soft); margin-bottom:1px;
+  overflow-wrap:anywhere; word-break:break-word;
 }
 .dday-date{
   font-size:.7rem; font-weight:500; letter-spacing:.02em;
   color: var(--ink-soft);
+  overflow-wrap:anywhere; word-break:break-word;
 }
 .dday-count{
   font-family: var(--font-display); font-weight:800; letter-spacing:-0.02em;
-  font-size: clamp(2.2rem, 16cqw, 5rem); line-height:0.95; color: var(--rose);
-  text-align: right; flex: 0 0 auto;
+  font-size: clamp(1.3rem, 16cqw, 5rem); line-height:0.95; color: var(--rose);
+  text-align: right; flex: 0 1 auto; min-width:0;
 }
 .dday-item .icon-btn{
   position:absolute; top:9px; right:0; width:22px; height:22px; font-size:.6rem;
@@ -856,25 +859,31 @@ body.edit-mode .dday-item{ padding-right: 34px; }
    많으면 가로 스크롤) 위젯 전체가 차지하는 가로폭을 훨씬 적게 씀 */
 @media (max-width: 900px){
   .w-dday .w-body{
-    flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    flex-direction: row; flex-wrap: wrap; overflow-x: hidden; overflow-y: auto;
     justify-content: flex-start; align-items: stretch; gap:2px;
   }
-  .w-dday .w-body::-webkit-scrollbar{ height:4px; }
+  .w-dday .w-body::-webkit-scrollbar{ width:4px; }
   .w-dday .w-body::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
   .dday-item{
-    flex: 0 0 auto; flex-direction:column; align-items:center; justify-content:center;
-    gap:3px; padding: 10px 14px; border-bottom:none; border-right:1px solid var(--card-border);
-    min-width:64px;
+    flex: 0 1 auto; flex-direction:column; align-items:center; justify-content:center;
+    gap:3px; padding: 10px 10px; border-bottom:none; border-right:1px solid var(--card-border);
+    min-width:0; max-width:100%;
   }
   .dday-item:first-child{ padding-top:10px; }
   .dday-item:last-child{ border-right:none; }
-  .dday-info{ text-align:center; }
-  .dday-label{ font-size:.6rem; white-space:nowrap; margin-bottom:0; }
+  .dday-info{ text-align:center; max-width:100%; }
+  .dday-label{
+    font-size:.6rem; margin-bottom:0;
+    white-space:normal; overflow-wrap:anywhere; word-break:break-word;
+  }
   /* 예전엔 조각 폭이 너무 좁다고 날짜를 아예 숨겼는데, 그러면서 라벨+D값만
      남아 130px 높이 중 대부분이 빈 채로 남아버렸음. 날짜를 다시 보이게 하고
      세 줄이 세로로 고르게 퍼지도록 함(justify-content:center + gap) */
-  .dday-date{ display:block; font-size:.62rem; white-space:nowrap; }
-  .dday-count{ font-size: clamp(1.3rem, 9cqw, 2.3rem); text-align:center; }
+  .dday-date{
+    display:block; font-size:.62rem;
+    white-space:normal; overflow-wrap:anywhere; word-break:break-word;
+  }
+  .dday-count{ font-size: clamp(.85rem, 9cqw, 2.3rem); text-align:center; }
   body.edit-mode .dday-item{ padding-right:14px; padding-top:24px; }
   .dday-item .icon-btn{ top:4px; right:50%; transform:translateX(50%); }
 }

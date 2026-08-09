@@ -7254,7 +7254,7 @@ const SHAKER_GRAVITY = 0.32;
 const SHAKER_FRICTION = 0.92;
 const SHAKER_WALL_RESTITUTION = 0.62;
 const SHAKER_PIECE_RESTITUTION = 0.72;
-const SHAKER_MAX_SPEED = 42;
+const SHAKER_MAX_SPEED = 32;
 const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 // 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
 // 튀거나 도는 상태가 남는데(부동소수점 특성상), 이 정도로 작아지면 그냥 확
@@ -7311,7 +7311,11 @@ function stepShakerPhysics(){
     if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.06; }
     p.rot += p.vr;
   });
-  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심
+  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
+  // 느낌의 핵심. 한 프레임에 한 번만 밀어내면 여러 조각이 한꺼번에 뭉쳤을 때
+  // (특히 세게 흔든 직후) 자리가 부족해서 덜 풀리고 살짝씩 겹친 채로 남는
+  // 경우가 많았음 — 같은 보정을 프레임당 3번 반복해서 겹침이 확실히 풀리게 함
+  for(let pass=0; pass<3; pass++){
   for(let i=0;i<shakerPieces.length;i++){
     for(let j=i+1;j<shakerPieces.length;j++){
       const a = shakerPieces[i], b = shakerPieces[j];
@@ -7323,19 +7327,22 @@ function stepShakerPhysics(){
         const overlap = (minDist - dist) / 2;
         a.x -= nx*overlap; a.y -= ny*overlap;
         b.x += nx*overlap; b.y += ny*overlap;
-        const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
-        if(relVel < 0){
-          const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
-          a.vx -= imp*nx; a.vy -= imp*ny;
-          b.vx += imp*nx; b.vy += imp*ny;
+        if(pass === 0){
+          const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+          if(relVel < 0){
+            const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
+            a.vx -= imp*nx; a.vy -= imp*ny;
+            b.vx += imp*nx; b.vy += imp*ny;
+          }
+          // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
+          // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
+          const tx = -ny, ty = nx;
+          const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
+          a.vr -= relVelT * 0.05; b.vr -= relVelT * 0.05;
         }
-        // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
-        // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
-        const tx = -ny, ty = nx;
-        const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-        a.vr -= relVelT * 0.05; b.vr -= relVelT * 0.05;
       }
     }
+  }
   }
   shakerPieces.forEach(p=>{
     p.el.style.transform = `translate(${(p.x-p.r).toFixed(1)}px, ${(p.y-p.r).toFixed(1)}px) rotate(${p.rot.toFixed(1)}deg)`;
@@ -7427,10 +7434,18 @@ function initShakerInteraction(){
     if(!dragging) return;
     const t = performance.now();
     const dt = Math.max(8, t - lastT);
-    const dvx = (e.clientX - lastX) / dt * 16;
-    const dvy = (e.clientY - lastY) / dt * 16;
+    // PC 마우스는 pointermove가 촘촘하게(작은 이동량으로 여러 번) 들어오는데,
+    // 모바일 터치 스와이프는 듬성듬성(큰 이동량으로 한두 번) 들어와서, 같은
+    // 세기로 휙 그어도 모바일 쪽이 한 번의 이벤트에 훨씬 큰 힘을 몰아서 받게
+    // 됨 — 이게 "모바일 스와이프가 너무 경박하게 튄다"의 원인. 이벤트 1회당
+    // 줄 수 있는 힘 자체에 상한을 둬서, 입력 방식과 무관하게 항상 "여러
+    // 프레임에 걸쳐 서서히 힘이 쌓이는" PC 드래그 특유의 느낌으로 통일함
+    const rawDvx = (e.clientX - lastX) / dt * 16;
+    const rawDvy = (e.clientY - lastY) / dt * 16;
+    const dvx = Math.max(-16, Math.min(16, rawDvx * 0.5));
+    const dvy = Math.max(-16, Math.min(16, rawDvy * 0.5));
     const speed = Math.hypot(dvx, dvy);
-    if(speed > 0.6) shakerApplyImpulse(dvx*0.5, dvy*0.5, speed*0.6);
+    if(speed > 0.5) shakerApplyImpulse(dvx, dvy, Math.min(speed*0.6, 16));
     // 카드 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게(과하지 않게 상한을 둠)
     const tiltX = Math.max(-10, Math.min(10, (e.clientY - originY) * 0.12));
     const tiltY = Math.max(-10, Math.min(10, -(e.clientX - originX) * 0.12));
@@ -7461,19 +7476,26 @@ function initShakerInteraction(){
   // 더 민감하게 반응하고(약하게 흔들어도 감지), 쿨다운도 짧게 둬서 세게 흔들수록
   // 더 자주 감지되게 하고, 임펄스/기울임 세기도 상한을 크게 올려 실제 흔드는
   // 세기 차이가 화면에도 뚜렷하게 비례해서 드러나게 함.
-  let lastAccelMag = null, lastShakeT = 0;
+  let lastAccelMag = null, lastShakeT = 0, lastAx = 0, lastAy = 0;
   window.addEventListener('devicemotion', e=>{
     const a = e.accelerationIncludingGravity || e.acceleration;
     if(!a) return;
-    const mag = Math.hypot(a.x||0, a.y||0, a.z||0);
+    const ax = a.x||0, ay = a.y||0;
+    const mag = Math.hypot(ax, ay, a.z||0);
     const now = performance.now();
     if(lastAccelMag !== null){
       const delta = Math.abs(mag - lastAccelMag);
       if(delta > 8 && now - lastShakeT > 90){
         lastShakeT = now;
-        const dir = Math.random() * Math.PI * 2;
-        const power = Math.min(34, delta * 0.55);
-        shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*1.3);
+        // 예전엔 방향을 완전 랜덤(Math.random()*2π)으로 줘서, 실제로 왼쪽으로
+        // 흔들든 위아래로 흔들든 조각들이 아무 방향이나 흩어졌음. 실제 가속도
+        // 변화량(ax, ay)의 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
+        // 무작위성만 자연스러움을 위해 남김), 파워도 드래그 쪽 상한(16)과 같은
+        // 규모로 낮춰서 "기기를 흔들 때만 유독 세게/약하게 느껴지던" 차이를 없앰
+        const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
+        const dir = dirBase + (Math.random()-0.5) * 0.5;
+        const power = Math.min(16, delta * 0.28);
+        shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.9);
         // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
         card.classList.add('shaker-grabbing');
         const shift = Math.min(18, power*0.8);
@@ -7483,7 +7505,7 @@ function initShakerInteraction(){
         card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
       }
     }
-    lastAccelMag = mag;
+    lastAccelMag = mag; lastAx = ax; lastAy = ay;
   });
 }
 
