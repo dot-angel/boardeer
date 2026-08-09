@@ -7252,6 +7252,10 @@ function shakerFrameResized(){
 // 통통 튀는 가벼운 질감을 냄.
 const SHAKER_GRAVITY = 0.32;
 const SHAKER_FRICTION = 0.92;
+// 회전은 이동(SHAKER_FRICTION)보다 더 빨리 잦아들게 별도 상수로 둠 — 같은
+// 마찰을 썼을 때 전체화면처럼 조각이 커진 상태에서 회전만 유독 오래 남아
+// "아무것도 없이 계속 도는" 것처럼 보이는 문제의 절반 원인이었음
+const SHAKER_ANGULAR_FRICTION = 0.86;
 const SHAKER_WALL_RESTITUTION = 0.62;
 const SHAKER_PIECE_RESTITUTION = 0.72;
 const SHAKER_MAX_SPEED = 32;
@@ -7285,6 +7289,7 @@ function stepShakerPhysics(){
   const gravity = SHAKER_GRAVITY * scale;
   const maxSpeed = SHAKER_MAX_SPEED * scale;
   const sleepLinear = SHAKER_SLEEP_LINEAR * scale;
+  const sleepAngular = SHAKER_SLEEP_ANGULAR * scale;
   shakerPieces.forEach(p=>{
     // 바닥(또는 벽)에 거의 붙어서 속도가 아주 작아졌으면, 중력을 더 안 더하고
     // 그냥 0으로 재움 — 안 그러면 중력이 매 프레임 계속 속도를 만들어내서
@@ -7301,14 +7306,16 @@ function stepShakerPhysics(){
     if(Math.abs(p.vx) < sleepLinear) p.vx = 0;
     if(Math.abs(p.vy) < sleepLinear && restingOnFloor) p.vy = 0;
     p.x += p.vx; p.y += p.vy;
-    // 회전도 이동과 같은 마찰을 받아 서서히 느려지다가, 벽에 부딪힐 때마다
-    // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
-    p.vr *= SHAKER_FRICTION;
-    if(Math.abs(p.vr) < SHAKER_SLEEP_ANGULAR) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.06; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.06; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.06; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.06; }
+    // 회전은 이동보다 마찰을 더 세게 줘서(전용 상수) 눈에 띄게 빨리 잦아들게 하고,
+    // "멈췄다"고 볼 기준(sleepAngular)도 이동처럼 scale에 비례하게 둬서, 전체화면처럼
+    // 조각이 커져 회전 임펄스도 같이 커지는 상황에서도 카드형태와 비슷한 체감
+    // 속도로 멈추게 함(예전엔 기준이 고정값이라 전체화면에서 훨씬 오래 돌았음)
+    p.vr *= SHAKER_ANGULAR_FRICTION;
+    if(Math.abs(p.vr) < sleepAngular) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
@@ -7338,7 +7345,7 @@ function stepShakerPhysics(){
           // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
           const tx = -ny, ty = nx;
           const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-          a.vr -= relVelT * 0.05; b.vr -= relVelT * 0.05;
+          a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
         }
       }
     }
@@ -7494,15 +7501,18 @@ function initShakerInteraction(){
     // 계속 크게 진동하므로 편차도 계속 커서, 흔드는 내내 짤랑짤랑 반응함
     motionBaseline += (mag - motionBaseline) * 0.06;
     const dev = mag - motionBaseline;
-    if(Math.abs(dev) > 3 && now - lastShakeT > 45){
+    // 계속 흔드는 동안 계속 반응하게 만든 건 좋았는데, 감지 주기(45ms)와 1회당
+    // 힘(16 상한, ×1.3)이 둘 다 세다 보니 손으로 흔들 때 거의 매 프레임 최고
+    // 속도로 튀어서 지나치게 격하게 느껴졌음. 감지 간격을 넓히고 힘도 낮춰서
+    // 카드형태를 손으로 쥐고 흔드는 것과 비슷한 정도로 차분하게 조정
+    if(Math.abs(dev) > 3.5 && now - lastShakeT > 70){
       lastShakeT = now;
       // 실제 가속도 변화 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
-      // 무작위성만 자연스러움을 위해 남김), 파워도 드래그 쪽 상한(16)과 같은
-      // 규모로 맞춰서 "기기를 흔들 때만 유독 세게/약하게 느껴지던" 차이를 없앰
+      // 무작위성만 자연스러움을 위해 남김)
       const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
       const dir = dirBase + (Math.random()-0.5) * 0.5;
-      const power = Math.min(16, Math.abs(dev) * 1.3);
-      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.9);
+      const power = Math.min(11, Math.abs(dev) * 0.8);
+      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.7);
       // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
       card.classList.add('shaker-grabbing');
       const shift = Math.min(18, power*0.8);
