@@ -1306,8 +1306,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .w-guestbook.gb-collapsed .gb-toggle-arrow{ transform: rotate(-90deg); }
   .w-guestbook.gb-collapsed .w-body,
   .w-guestbook.gb-collapsed .gb-form{ display:none; }
-  /* 옆에 나란히 두는 말풍선 위젯도 접힌 방명록만큼 납작하게 맞춤 */
-  .w-speech{ height:56px; padding:10px; }
+  /* 옆에 나란히 두는 말풍선 위젯도 접힌 방명록만큼 납작하게 맞춤 — 예전엔 높이를
+     56px로 직접 못박아뒀는데, 접힌 방명록의 실제 높이(패딩+토글 버튼)와 정확히
+     안 맞아 둘의 높이가 미묘하게 달라 보였음. height를 auto로 풀어서, 이 둘이
+     속한 그리드 행의 기본 동작(align-items:stretch)이 두 카드를 같은 행의
+     실제 콘텐츠 기준 높이로 알아서 맞추게 함 — 방명록 쪽 폰트/패딩이 바뀌어도
+     항상 정확히 같은 높이를 유지함 */
+  .w-speech{ height:auto; padding:10px; }
   #cardDday{ height:auto; }
 }
 .gb-entry{ border-bottom:1px solid var(--card-border); padding:9px 0; }
