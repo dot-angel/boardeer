@@ -7128,6 +7128,11 @@ function shakerItemKey(it){ return it.chunked ? ('f:'+it.fileId) : ('u:'+it.url)
 // 사진 대부분)은 캔버스로 안전하게 읽을 수 있지만, 외부 URL은 CORS 정책에
 // 따라 캔버스가 "오염"돼 읽기가 막힐 수 있어서 그 경우엔 조용히 실패하고
 // 기본값(프레임 적용)으로 둠.
+// + 투명한지 여부(hasAlpha)뿐 아니라, 전체 픽셀 중 실제로 불투명한 픽셀이
+// 몇 %인지(fillRatio)도 같이 계산함 — 여백이 많은 스티커일수록 충돌에 쓰는
+// "히트박스"를 더 작게 잡아서, 안 보이는 투명한 여백끼리 부딪힌 것처럼
+// 보이는 걸 줄이기 위함(완벽한 픽셀 단위 충돌은 아니고 원형으로 근사한
+// 것이라 한계는 있지만, 사각형 박스 전체보다는 훨씬 실제 모양에 가까워짐)
 function shakerDetectAlpha(imgEl){
   return new Promise(resolve=>{
     try{
@@ -7138,16 +7143,29 @@ function shakerDetectAlpha(imgEl){
       const ctx = c.getContext('2d');
       ctx.drawImage(imgEl, 0, 0, w, h);
       const data = ctx.getImageData(0, 0, w, h).data;
+      let opaque = 0, total = 0;
       for(let i = 3; i < data.length; i += 4){
-        if(data[i] < 250){ resolve(true); return; }
+        total++;
+        if(data[i] >= 250) opaque++;
       }
-      resolve(false);
-    }catch(err){ resolve(false); }
+      resolve({ hasAlpha: opaque < total, fillRatio: total ? opaque/total : 1 });
+    }catch(err){ resolve({ hasAlpha:false, fillRatio:1 }); }
   });
 }
 
 // 조각 크기는 프레임 넓이/개수에 맞춰 자동으로 줄어들어서, 사진이 늘어나도
 // 항상 프레임 안에 자연스럽게 들어차게 함(너무 작아지거나 커지지 않게 상하한만 둠)
+// 조각의 "보이는 크기(박스)"인 p.r과 "실제로 충돌에 쓰이는 반지름"인 p.hitR을
+// 분리해서 관리하는 헬퍼. 이미지 박스(p.r)는 항상 기존처럼 균일한 크기로 두고,
+// 투명한 여백이 많은 스티커성 PNG(fillRatio가 작을수록)는 hitR만 더 작게 잡아서
+// 안 보이는 여백이 아니라 실제 그림이 있는 부분끼리 부딪히는 것에 가깝게 만듦.
+// 너무 작아지면 오히려 이상해 보여서 최소 55%까지만 줄어들게 제한함
+function shakerSetPieceRadius(p, r){
+  p.r = r;
+  const fill = (typeof p.fillRatio === 'number') ? p.fillRatio : 1;
+  p.hitR = Math.max(r * 0.55, r * Math.sqrt(fill));
+}
+
 function shakerPieceRadius(count, w, h){
   const area = Math.max(1, w) * Math.max(1, h);
   const r = Math.sqrt(area / (Math.max(1, count) * 5));
@@ -7197,20 +7215,22 @@ function syncShakerPieces(){
       key, ...it, x: px, y: py,
       vx: (Math.random()-0.5) * 2, vy: (Math.random()-0.5) * 2,
       rot: Math.random() * 360, vr: (Math.random()-0.5) * 3,
-      r, el, imgEl
+      r, hitR: r, fillRatio: 1, el, imgEl
     });
   });
 
   // 개수가 바뀌면 반지름도 전체에 다시 맞춤(새로 늘어난 사진 포함해서 자연스러운 크기로)
   shakerPieces.forEach(p=>{
-    p.r = r;
+    shakerSetPieceRadius(p, r);
     const size = r * 2;
     p.el.style.width = size+'px'; p.el.style.height = size+'px';
     if(!p.imgEl.src){
       const setSrc = (url)=>{
         p.imgEl.src = url;
-        p.imgEl.onload = ()=> shakerDetectAlpha(p.imgEl).then(hasAlpha=>{
+        p.imgEl.onload = ()=> shakerDetectAlpha(p.imgEl).then(({hasAlpha, fillRatio})=>{
           p.el.classList.toggle('shaker-piece-plain', hasAlpha);
+          p.fillRatio = fillRatio;
+          shakerSetPieceRadius(p, p.r); // 채움 비율을 반영해 히트박스(hitR) 다시 계산
         });
       };
       // 청크(조각) 저장된 사진은 로딩이 끝나도 콜백 인자로 실제 주소가 넘어오지
@@ -7240,7 +7260,7 @@ function shakerFrameResized(){
   if(shakerPieces.length && Math.abs(newR - shakerPieces[0].r) > 1){
     const size = newR * 2;
     shakerPieces.forEach(p=>{
-      p.r = newR;
+      shakerSetPieceRadius(p, newR);
       p.el.style.width = size+'px'; p.el.style.height = size+'px';
     });
   }
@@ -7306,9 +7326,11 @@ function stepShakerPhysics(){
     // 바닥(또는 벽)에 거의 붙어서 속도가 아주 작아졌으면, 중력을 더 안 더하고
     // 그냥 0으로 재움 — 안 그러면 중력이 매 프레임 계속 속도를 만들어내서
     // 이론상 영원히(아주 미세하게라도) 계속 통통 튀는 상태가 됨
-    const restingOnFloor = (h - (p.y + p.r)) < 0.6 * scale && Math.abs(p.vy) < sleepLinear;
+    // (보이는 박스 크기 p.r이 아니라 실제 히트박스 p.hitR 기준 — 투명 여백이
+    // 많은 스티커는 그만큼 바닥/벽에 더 파고들 수 있게 둠)
+    const restingOnFloor = (h - (p.y + p.hitR)) < 0.6 * scale && Math.abs(p.vy) < sleepLinear;
     if(restingOnFloor){
-      p.vy = 0; p.y = h - p.r;
+      p.vy = 0; p.y = h - p.hitR;
     } else {
       p.vy += gravity;
     }
@@ -7331,10 +7353,10 @@ function stepShakerPhysics(){
     // 속도로 멈추게 함(예전엔 기준이 고정값이라 전체화면에서 훨씬 오래 돌았음)
     p.vr *= SHAKER_ANGULAR_FRICTION;
     if(Math.abs(p.vr) < sleepAngular) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
+    if(p.x - p.hitR < 0){ const before = p.vx; p.x = p.hitR; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
+    if(p.x + p.hitR > w){ const before = p.vx; p.x = w - p.hitR; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; }
+    if(p.y - p.hitR < 0){ const before = p.vy; p.y = p.hitR; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
+    if(p.y + p.hitR > h){ const before = p.vy; p.y = h - p.hitR; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; }
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
@@ -7342,13 +7364,15 @@ function stepShakerPhysics(){
   // 밀려나는" 느낌 자체가 말랑한 공 인상을 더했음. 겹침 자체는 한 번에
   // 확실히(overlap 전체를) 풀어서 즉각적으로 튕겨나가게 하고, 자리가 부족해
   // 덜 풀리는 경우에 대비해 패스 수는 2번만 유지함(정밀하게 나눠 밀지는 않음)
+  // (여기서도 보이는 박스 p.r이 아니라 히트박스 p.hitR로 겹침을 판정함 — 투명
+  // 배경이 많은 스티커일수록 실제 그림끼리 닿기 전엔 "부딪힌 것"으로 안 침)
   for(let pass=0; pass<2; pass++){
   for(let i=0;i<shakerPieces.length;i++){
     for(let j=i+1;j<shakerPieces.length;j++){
       const a = shakerPieces[i], b = shakerPieces[j];
       const dx = b.x-a.x, dy = b.y-a.y;
       const dist = Math.hypot(dx,dy) || 0.001;
-      const minDist = a.r + b.r;
+      const minDist = a.hitR + b.hitR;
       if(dist < minDist){
         const nx = dx/dist, ny = dy/dist;
         const overlap = (minDist - dist) / 2;
