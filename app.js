@@ -7238,17 +7238,15 @@ function shakerFrameResized(){
   shakerFrameSize = { w: nw, h: nh };
 }
 
-/* 예전 값(중력 약함 + 마찰 거의 없음(0.985) + 반발력 큼)은 한 번 스친 조각이
-   튕기고 튕기고 계속 튕기며 무중력에서 탱탱볼이 떠다니는 느낌이 났음.
-   실제 아크릴 쉐이커(シャカシャカ)는 흔들지 않으면 사진들이 중력에 끌려
-   금방 바닥에 가라앉아 멈춰 있다가, 흔들 때만 짧게 흩어졌다 다시 가라앉는
-   느낌이라 — 중력은 더 세게, 마찰(감쇠)은 훨씬 크게, 벽/조각끼리 반발력은
-   훨씬 낮게(거의 안 튕기고 툭 부딪히는 느낌) 낮춤 */
-const SHAKER_GRAVITY = 0.45;
-const SHAKER_FRICTION = 0.90;
-const SHAKER_WALL_RESTITUTION = 0.18;
-const SHAKER_PIECE_RESTITUTION = 0.2;
-const SHAKER_MAX_SPEED = 28;
+/* "탁 달그락" 느낌 = 부딪힐 땐 또렷하게 튕기되(반발력은 크게), 그 튕김이
+   오래가지 않고 몇 번 안에 잦아드는 것(마찰/감쇠는 크게). 반발력을 낮춰서
+   흡수시키는 쪽으로 갔던 이전 시도는 통통 튀는 대신 훅 눌어붙는 느낌이라
+   방향이 반대였음 — 반발력은 원래 값 가깝게 되돌리고, 마찰만 확실히 키움 */
+const SHAKER_GRAVITY = 0.24;
+const SHAKER_FRICTION = 0.945;
+const SHAKER_WALL_RESTITUTION = 0.5;
+const SHAKER_PIECE_RESTITUTION = 0.5;
+const SHAKER_MAX_SPEED = 30;
 const SHAKER_MAX_ANGULAR_SPEED = 4; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 
 function stepShakerPhysics(){
@@ -7269,10 +7267,10 @@ function stepShakerPhysics(){
     // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
     p.vr *= SHAKER_FRICTION;
     if(Math.abs(p.vr) > SHAKER_MAX_ANGULAR_SPEED) p.vr = Math.sign(p.vr) * SHAKER_MAX_ANGULAR_SPEED;
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.025; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.025; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.025; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.025; }
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; }
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심
@@ -7297,7 +7295,7 @@ function stepShakerPhysics(){
         // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
         const tx = -ny, ty = nx;
         const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-        a.vr -= relVelT * 0.025; b.vr -= relVelT * 0.025;
+        a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
       }
     }
   }
