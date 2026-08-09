@@ -6554,9 +6554,9 @@ function closeSpeechOverlay(){
 }
 
 function openSpeechOverlay(initialTabId){
-  const tabs = speechWidgetData.tabs || [];
-  if(tabs.length === 0) return;
-  let activeId = initialTabId || tabs[0].id;
+  const initialTabs = speechWidgetData.tabs || [];
+  if(initialTabs.length === 0) return;
+  let activeId = initialTabId || initialTabs[0].id;
   let mode = 'other'; // 오버레이를 열 때마다 항상 타인모드(=off)로 시작함
 
   closeSpeechOverlay();
@@ -6566,6 +6566,7 @@ function openSpeechOverlay(initialTabId){
   el.innerHTML = `
     <div class="speech-overlay-tint"></div>
     <button class="speech-overlay-close" id="speechCloseBtn" aria-label="닫기">✕</button>
+    ${editMode ? `<button class="speech-overlay-edit" id="speechOverlayEditBtn" aria-label="말풍선 위젯 편집" title="대사·탭 편집">✎</button>` : ''}
     <div class="speech-tabs" id="speechTabs"></div>
     <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
     <button class="speech-toggle" id="speechModeBtn" aria-pressed="false">
@@ -6610,6 +6611,20 @@ function openSpeechOverlay(initialTabId){
   const stage = el.querySelector('#speechStage');
   let bubbleEl = null;
 
+  const overlayEditBtn = el.querySelector('#speechOverlayEditBtn');
+  if(overlayEditBtn){
+    overlayEditBtn.onclick = ()=>{
+      openSpeechEditor(activeId, ()=>{
+        // 편집기에서 탭이 삭제/추가됐을 수 있으니, 지금 보던 탭이 아직 있는지 다시 확인
+        const freshTabs = speechWidgetData.tabs || [];
+        if(!freshTabs.length){ closeSpeechOverlay(); return; }
+        if(!freshTabs.find(t=> t.id === activeId)) activeId = freshTabs[0].id;
+        renderTabs();
+        renderStage();
+      });
+    };
+  }
+
   const renderModeBtn = ()=>{
     const isOn = mode === 'character';
     modeBtn.classList.toggle('is-on', isOn);
@@ -6619,6 +6634,7 @@ function openSpeechOverlay(initialTabId){
   };
 
   const renderTabs = ()=>{
+    const tabs = speechWidgetData.tabs || [];
     tabsEl.innerHTML = tabs.map(t=> `<button class="speech-tab-btn ${t.id===activeId?'active':''}" data-tab="${t.id}">${escapeHtml(t.name)}</button>`).join('');
     tabsEl.querySelectorAll('.speech-tab-btn').forEach(btn=>{
       btn.onclick = ()=>{ activeId = btn.dataset.tab; renderTabs(); renderStage(); };
@@ -6648,13 +6664,14 @@ function openSpeechOverlay(initialTabId){
     anchor.appendChild(bubbleEl);
     stage.appendChild(anchor);
     requestAnimationFrame(()=>{
-      shapeSpeechBubble(bubbleEl, { radius:16, tailLeft:(w)=> (w-16)/2, tailWidth:16, tailHeight:8 });
+      shapeSpeechBubble(bubbleEl, { radius:18, tailLeft:(w)=> (w-18)/2, tailWidth:18, tailHeight:9 });
       bubbleEl.classList.add('show');
     });
   };
 
   const renderStage = async ()=>{
     if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
+    const tabs = speechWidgetData.tabs || [];
     const tab = tabs.find(t=> t.id === activeId);
     if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
     const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
@@ -6773,9 +6790,9 @@ function openSpeechCoverEditor(){
 
 /* ---------------- 편집기(편집모드 전용) ---------------- */
 
-function openSpeechEditor(){
+function openSpeechEditor(initialTabId, onClose){
   const tabs = speechWidgetData.tabs || [];
-  speechEditorTabId = tabs[0] ? tabs[0].id : null;
+  speechEditorTabId = (initialTabId && tabs.find(t=> t.id === initialTabId)) ? initialTabId : (tabs[0] ? tabs[0].id : null);
 
   openModal(`
     <h3>말풍선 위젯 편집</h3>
@@ -6783,7 +6800,7 @@ function openSpeechEditor(){
     <div id="seTabBody"></div>
     <div class="modal-actions"><button class="btn ghost" id="seCloseBtn">닫기</button></div>
   `, (modal)=>{
-    modal.querySelector('#seCloseBtn').onclick = ()=>{ closeModal(); renderSpeechCard(); };
+    modal.querySelector('#seCloseBtn').onclick = ()=>{ closeModal(); renderSpeechCard(); if(typeof onClose === 'function') onClose(); };
     renderEditorTabbar(modal);
     renderEditorTabBody(modal);
   }, 'modal-speech-editor');

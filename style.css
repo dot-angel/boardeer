@@ -396,6 +396,12 @@ body::before{
   display:flex; align-items:center; justify-content:center;
 }
 .speech-overlay-close:hover{ background: rgba(196,66,95,0.5); }
+.speech-overlay-edit{
+  position:absolute; top:18px; left:18px; width:34px; height:34px; border-radius:50%; border:none;
+  background: rgba(255,255,255,0.08); color:#fff; font-size:.85rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.speech-overlay-edit:hover{ background: rgba(196,66,95,0.5); }
 .speech-tabs{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
 .speech-tab-btn{
   padding:5px 14px; border-radius:20px; border:none;
@@ -444,13 +450,13 @@ body::before{
    본체+꼬리를 SVG path 하나로 합쳐 clip-path로 오려내는 방식(app.js의 shapeSpeechBubble) */
 .speech-bubble{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
-  max-width:220px; width:max-content;
+  max-width:320px; width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
   background: rgba(20,9,11,0.5); color: var(--ink);
-  border-radius:16px; padding:9px 13px 17px 13px;
+  border-radius:18px; padding:13px 18px 22px 18px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
-  font-family: var(--font-display); font-style:normal; font-weight:500; font-size:.82rem; line-height:1.4; text-align:center;
+  font-family: var(--font-display); font-style:normal; font-weight:500; font-size:1rem; line-height:1.45; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
   opacity:0;
   transition: opacity .16s ease, transform .16s ease;
@@ -1852,7 +1858,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 /* ---------- 모달 ---------- */
 .modal-overlay{
   position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
-  display:flex; align-items:center; justify-content:center; z-index: 200; animation: fadeIn .15s ease;
+  display:flex; align-items:center; justify-content:center; z-index: 260; animation: fadeIn .15s ease;
 }
 /* 라이트박스 전용: 전체화면 블러 연산이 PC(특히 큰 화면)에서 매 프레임 무겁기 때문에
    어둡게 깔리는 효과만 남기고 블러는 뺌. 라이트박스 박스 자체의 글라스 블러는 그대로 유지 */
