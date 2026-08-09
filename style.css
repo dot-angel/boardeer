@@ -842,7 +842,6 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .dday-date{
   font-size:.7rem; font-weight:500; letter-spacing:.02em;
   color: var(--ink-soft);
-  overflow-wrap:anywhere; word-break:break-word;
 }
 .dday-count{
   font-family: var(--font-display); font-weight:800; letter-spacing:-0.02em;
@@ -878,11 +877,16 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   }
   /* 예전엔 조각 폭이 너무 좁다고 날짜를 아예 숨겼는데, 그러면서 라벨+D값만
      남아 130px 높이 중 대부분이 빈 채로 남아버렸음. 날짜를 다시 보이게 하고
-     세 줄이 세로로 고르게 퍼지도록 함(justify-content:center + gap) */
+     세 줄이 세로로 고르게 퍼지도록 함(justify-content:center + gap).
+     예전엔 overflow-wrap:anywhere로 좁아지면 "2026.08" / "09"처럼 아무 데서나
+     끊겼는데, 그건 지우고 연도(.dday-y)/월일(.dday-md) span 자체를 각각
+     block으로 만들어서 정확히 그 경계에서만 두 줄로 나뉘게 함(가운데 점은
+     줄이 나뉘면 필요 없어서 숨김) */
   .dday-date{
     display:block; font-size:.62rem;
-    white-space:normal; overflow-wrap:anywhere; word-break:break-word;
   }
+  .dday-y, .dday-md{ display:block; }
+  .dday-sep{ display:none; }
   .dday-count{ font-size: clamp(.85rem, 9cqw, 2.3rem); text-align:center; }
   body.edit-mode .dday-item{ padding-right:14px; padding-top:24px; }
   .dday-item .icon-btn{ top:4px; right:50%; transform:translateX(50%); }
@@ -1348,9 +1352,15 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .w-shaker.shaker-grabbing{ transition:none; cursor:grabbing; }
 .shaker-frame{
   position:relative; flex:1; min-height:72px; border-radius:12px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  background-color:transparent; background-size:cover; background-position:center;
   border:1px solid var(--card-border);
   overflow:hidden; touch-action:none; cursor:grab;
+}
+/* 프레임 배경 이미지를 따로 지정했을 때만, 사진 조각이 잘 보이도록 아주
+   은은한 어둠을 한 겹 깔아줌(안 지정하면 카드 자체의 유리 배경이 그대로
+   비쳐 보이도록 완전 투명 — 위 background-color:transparent) */
+.shaker-frame.has-bg::after{
+  content:''; position:absolute; inset:0; background:rgba(0,0,0,0.18); pointer-events:none;
 }
 .shaker-frame:active{ cursor:grabbing; }
 .shaker-empty{
@@ -1381,6 +1391,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   background: rgba(0,0,0,0.45); border-color: rgba(255,255,255,0.25);
 }
 .shaker-manage-btn:hover{ background: rgba(0,0,0,0.6); }
+/* 프레임 배경 편집 버튼 — 관리 버튼과 마주 보는 반대쪽(좌상단) 코너에 둠 */
+.shaker-bg-btn{
+  position:absolute; top:6px; left:6px; z-index:2;
+  width:24px; height:24px; font-size:.68rem;
+  background: rgba(0,0,0,0.45); border-color: rgba(255,255,255,0.25);
+}
+.shaker-bg-btn:hover{ background: rgba(0,0,0,0.6); }
 /* 이미지 관리 모달 안 썸네일 그리드 */
 .shaker-manage-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(64px,1fr)); gap:8px; margin-bottom:12px; }
 .shaker-manage-item{ position:relative; aspect-ratio:1/1; border-radius:10px; overflow:hidden; }

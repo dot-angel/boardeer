@@ -1264,6 +1264,8 @@ function refreshLockUI(){
   document.getElementById('checklistAddWrap').style.display = editMode ? 'flex' : 'none';
   const shakerManageBtn = document.getElementById('shakerManageBtn');
   if(shakerManageBtn) shakerManageBtn.style.display = editMode ? 'inline-flex' : 'none';
+  const shakerBgBtn = document.getElementById('shakerBgBtn');
+  if(shakerBgBtn) shakerBgBtn.style.display = editMode ? 'inline-flex' : 'none';
   lockBadge.textContent = editMode ? '🔓 편집 가능' : '🔒 보기 전용';
   lockBadge.classList.toggle('unlocked', editMode);
   lockBtn.textContent = editMode ? '잠그기' : '잠금 해제';
@@ -7428,8 +7430,8 @@ function initShakerInteraction(){
     }
   }
   card.addEventListener('pointerdown', e=>{
-    downOnManage = !!e.target.closest('.shaker-manage-btn');
-    if(downOnManage) return; // 관리 버튼 클릭은 흔들기로 안 잡음
+    downOnManage = !!e.target.closest('.shaker-manage-btn, .shaker-bg-btn');
+    if(downOnManage) return; // 관리/배경 버튼 클릭은 흔들기로 안 잡음
     dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
     originX = e.clientX; originY = e.clientY;
     downX = e.clientX; downY = e.clientY; downT = lastT; downPointerType = e.pointerType || 'mouse';
@@ -7504,19 +7506,21 @@ function initShakerInteraction(){
     // 계속 흔드는 동안 계속 반응하게 만든 건 좋았는데, 감지 주기(45ms)와 1회당
     // 힘(16 상한, ×1.3)이 둘 다 세다 보니 손으로 흔들 때 거의 매 프레임 최고
     // 속도로 튀어서 지나치게 격하게 느껴졌음. 감지 간격을 넓히고 힘도 낮춰서
-    // 카드형태를 손으로 쥐고 흔드는 것과 비슷한 정도로 차분하게 조정
-    if(Math.abs(dev) > 3.5 && now - lastShakeT > 70){
+    // 카드형태를 손으로 쥐고 흔드는 것과 비슷한 정도로 차분하게 조정.
+    // → 그래도 여전히 살짝 경박하다는 피드백이 있어서, 문턱값/쿨다운을 아주
+    // 조금 더 올리고 힘도 소폭 낮춰서 반응 빈도와 세기를 함께 살짝 눌러줌.
+    if(Math.abs(dev) > 4.2 && now - lastShakeT > 85){
       lastShakeT = now;
       // 실제 가속도 변화 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
       // 무작위성만 자연스러움을 위해 남김)
       const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
       const dir = dirBase + (Math.random()-0.5) * 0.5;
-      const power = Math.min(11, Math.abs(dev) * 0.8);
-      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.7);
+      const power = Math.min(9, Math.abs(dev) * 0.65);
+      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.6);
       // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
       card.classList.add('shaker-grabbing');
-      const shift = Math.min(18, power*0.8);
-      const tilt = Math.min(12, power*0.45);
+      const shift = Math.min(13, power*0.7);
+      const tilt = Math.min(9, power*0.4);
       card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
       clearTimeout(card._shakeResetT);
       card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
@@ -7592,14 +7596,96 @@ function openShakerManageModal(){
   });
 }
 
+// 프레임 배경 편집 버튼은 정적 HTML에 없을 수도 있어서(예전 버전) 여기서
+// 없으면 만들어 프레임 안(좌상단, 관리 버튼과 반대쪽)에 넣어둠. 이미 있으면
+// 다시 안 만듦.
+function ensureShakerBgBtn(){
+  if(document.getElementById('shakerBgBtn')) return;
+  const frame = document.getElementById('shakerFrame');
+  if(!frame) return;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'shakerBgBtn';
+  btn.className = 'icon-btn shaker-bg-btn';
+  btn.title = '프레임 배경';
+  btn.textContent = '🖼';
+  btn.style.display = editMode ? 'inline-flex' : 'none';
+  frame.appendChild(btn);
+  btn.onclick = openShakerBgModal;
+}
+
+// 쉐이커 프레임 자체는 기본적으로 완전 투명(카드의 유리 배경이 그대로 비쳐
+// 보임). 편집모드에서 frameBg를 따로 지정하면 그 사진이 프레임 배경으로
+// 깔림(사이트 전체 배경과 별개, 이 위젯 하나에만 적용).
+function applyShakerFrameBg(){
+  const frame = document.getElementById('shakerFrame');
+  if(!frame) return;
+  if(shakerData.frameBg){
+    setElementBgImageWithFallback(frame, shakerData.frameBg);
+    frame.classList.add('has-bg');
+  } else {
+    frame.style.backgroundImage = '';
+    frame.classList.remove('has-bg');
+  }
+}
+
+async function openShakerBgModal(){
+  const cur = shakerData || {};
+  const curIsUrl = cur.frameBg && !cur.frameBg.startsWith('data:');
+  openModal(`
+    <h3>쉐이커 프레임 배경</h3>
+    <p class="hint">쉐이커 안쪽 프레임에만 적용되는 배경이에요. 비워두면 다른 위젯처럼 투명한 유리로 보여요.</p>
+    <label>배경 사진 올리기</label>
+    <input type="file" id="shakerBgFile" accept="image/*">
+    <label>또는, 이미지 URL 직접 입력</label>
+    <input type="url" id="shakerBgUrl" placeholder="https://..." value="${curIsUrl ? cur.frameBg : ''}">
+    <div class="modal-actions">
+      <button class="btn danger" id="rm" type="button">배경 없애기</button>
+      <button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#rm').onclick = async ()=>{
+      await docRef('shaker').set({ frameBg: '' }, {merge:true});
+      closeModal();
+      toast('프레임 배경을 없앴어요');
+    };
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const file = m.querySelector('#shakerBgFile').files[0];
+      let image = normalizeImageUrl(m.querySelector('#shakerBgUrl').value.trim());
+      if(file){
+        saveBtn.disabled = true; saveBtn.textContent = '처리 중…';
+        try{
+          image = await compressImageFile(file, 1200, 500000);
+        }catch(err){
+          toast(err.message || '이미지를 처리하지 못했어요');
+          saveBtn.disabled = false; saveBtn.textContent = '저장';
+          return;
+        }
+      } else if(!image){
+        image = cur.frameBg || '';
+      }
+      await docRef('shaker').set({ frameBg: image }, {merge:true});
+      closeModal();
+      toast('프레임 배경을 저장했어요');
+    };
+  });
+}
+
 function initShakerWidget(){
   initShakerInteraction();
   requestAnimationFrame(stepShakerPhysics);
   const manageBtn = document.getElementById('shakerManageBtn');
   if(manageBtn) manageBtn.onclick = openShakerManageModal;
+  ensureShakerBgBtn();
 }
 
-docRef('shaker').onSnapshot(doc=>{ shakerData = doc.exists ? doc.data() : {items:[]}; syncShakerPieces(); });
+docRef('shaker').onSnapshot(doc=>{
+  shakerData = doc.exists ? doc.data() : {items:[]};
+  syncShakerPieces();
+  applyShakerFrameBg();
+});
 
 docRef('speechWidget').onSnapshot(doc=>{
   // 편집기가 열려있는 동안은 여기서 손대지 않음 — 편집기가 붙잡고 있는 탭 객체를
