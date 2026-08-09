@@ -255,7 +255,7 @@ body::before{
 .row-strip{ grid-template-columns: 0.85fr 1.75fr 0.7fr; align-items: stretch; }
 .row-strip > .w-card{ min-width:0; }
 .row-strip > .row-strip-right{ min-width:0; min-height:0; }
-.row-strip-right{ display:grid; grid-template-rows: auto auto auto; gap:20px; }
+.row-strip-right{ display:grid; grid-template-rows: auto auto auto auto; gap:20px; }
 .row-strip-right > .w-card{ min-height:0; }
 /* 세션 / 문서+체크리스트(세로로 쌓임) / 캘린더 순으로 나란히.
    폭 비율은 기존(캘린더+세션 묶음 1.2fr, 문서+체크리스트 1.4fr, 그 안에서
@@ -298,6 +298,7 @@ body::before{
       "music music music music music music music music music music"
       "profile profile profile profile profile profile profile profile profile profile"
       "gb gb gb gb gb speech speech speech speech speech"
+      "shaker shaker shaker shaker shaker shaker shaker shaker shaker shaker"
       "cal cal cal dday dday dday dday dday dday dday"
       "cal cal cal checklist checklist checklist checklist checklist checklist checklist"
       "docs docs docs docs docs docs sessions sessions sessions sessions";
@@ -316,6 +317,7 @@ body::before{
   #cardCalendar{ grid-area: cal; min-width:0; }
   #cardGuestbook{ grid-area: gb; min-width:0; }
   #cardSpeech{ grid-area: speech; min-width:0; }
+  #cardShaker{ grid-area: shaker; min-width:0; }
   #cardSessions{ grid-area: sessions; }
   #cardDocs{ grid-area: docs; }
   #cardChecklist{ grid-area: checklist; }
@@ -1284,6 +1286,41 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pf-edit-row-desc .pf-edit-label{ flex:0 0 100%; }
 .pf-edit-row-desc .pf-edit-value-desc{ flex:1 1 100%; width:100%; min-height:130px; resize:vertical; }
 
+/* ---------- 쉐이커(아크릴 쉐이커 굿즈 느낌) ---------- */
+/* 프레임 자체는 다른 위젯처럼 flex column인 .w-card 안에서, 안쪽 유리 프레임
+   (.shaker-frame)이 남는 세로 공간을 전부 차지(flex:1)하고 그 안에서 사진
+   조각들이 물리 시뮬레이션으로 움직임. 조각의 위치/속도는 app.js가 매 프레임
+   transform으로만 갱신하므로(레이아웃 재계산 없음) 여러 개가 움직여도 가벼움. */
+.w-shaker{ gap:10px; }
+.shaker-frame{
+  position:relative; flex:1; min-height:120px; border-radius:14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  border:1px solid var(--card-border);
+  overflow:hidden; touch-action:none; cursor:grab;
+}
+.shaker-frame:active{ cursor:grabbing; }
+.shaker-empty{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:.78rem; color:var(--ink-soft); text-align:center; padding:10px; pointer-events:none;
+}
+/* 조각 하나하나 — 동그란 아크릴 참(charm)처럼 흰 테두리 링 + 그림자로 두께감 */
+.shaker-piece{
+  position:absolute; top:0; left:0; border-radius:50%; overflow:hidden;
+  border:2px solid rgba(255,255,255,0.78);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.4);
+  pointer-events:none;
+}
+.shaker-piece img{ width:100%; height:100%; object-fit:cover; display:block; }
+.shaker-manage-btn{ align-self:flex-start; }
+/* 이미지 관리 모달 안 썸네일 그리드 */
+.shaker-manage-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(64px,1fr)); gap:8px; margin-bottom:12px; }
+.shaker-manage-item{ position:relative; aspect-ratio:1/1; border-radius:10px; overflow:hidden; }
+.shaker-manage-thumb{ width:100%; height:100%; background-size:cover; background-position:center; background-color:rgba(255,255,255,0.06); }
+.shaker-manage-del{
+  position:absolute; top:3px; right:3px; width:20px; height:20px; font-size:.65rem;
+  background:rgba(0,0,0,0.55); border-radius:50%; display:flex; align-items:center; justify-content:center;
+}
+
 /* ---------- 방명록 ---------- */
 /* 말풍선 위젯=디데이 위젯과 같은 고정 높이(130px) 기준 비율로 시작했다가, 방명록이
    너무 길다는 요청에 따라 기존 높이(715px)의 약 80% 수준인 572px로 축소함.
@@ -1291,7 +1328,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    적어서 애초에 715px/572px에 못 미치는 상태에선 값을 줄여도 눈에 보이는
    변화가 없었음 — flex-basis로 실제 높이를 못박아서 글이 적으면 아래 여백이
    남고 많으면 그 안에서 스크롤되도록(항상 이 높이를 그대로 차지) 바꿈 */
-.w-guestbook .w-body{ flex:0 0 472px; min-height:0; margin-bottom:10px; overflow-y:auto; }
+.w-guestbook .w-body{ flex:0 0 572px; min-height:0; margin-bottom:10px; overflow-y:auto; }
 /* 접기/펼치기 버튼은 데스크톱에선 안 보임(다른 위젯처럼 제목 없는 톤 유지) —
    모바일에서만 방명록이 다른 위젯들에 비해 세로로 길어지는 걸 줄이기 위해 노출.
    기본 상태(HTML의 gb-collapsed 클래스)는 접힘이며, 이 규칙 자체가 모바일

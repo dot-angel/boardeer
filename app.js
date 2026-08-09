@@ -1254,6 +1254,8 @@ function refreshLockUI(){
   bgEditBtn.style.display = editMode ? 'inline-flex' : 'none';
   globalStyleBtn.style.display = editMode ? 'inline-flex' : 'none';
   document.getElementById('checklistAddWrap').style.display = editMode ? 'flex' : 'none';
+  const shakerManageBtn = document.getElementById('shakerManageBtn');
+  if(shakerManageBtn) shakerManageBtn.style.display = editMode ? 'inline-flex' : 'none';
   lockBadge.textContent = editMode ? '🔓 편집 가능' : '🔒 보기 전용';
   lockBadge.classList.toggle('unlocked', editMode);
   lockBtn.textContent = editMode ? '잠그기' : '잠금 해제';
@@ -7145,6 +7147,282 @@ function renderEditorRegionList(modal, tab, idx){
   });
 }
 
+/* ---------------- 쉐이커 위젯 ----------------
+   아크릴 쉐이커 굿즈처럼, 프레임 안에 사진 조각들을 넣어두고 흔들면 서로
+   부딪히며 자연스럽게 섞이는 연출. 사진 목록 자체는 다른 갤러리들과 똑같은
+   방식(docRef('shaker'), 청크 저장, resolveGalleryItemUrl)으로 관리하고,
+   위치/속도 같은 물리 상태는 그 목록과 별개로 이 위젯이 메모리에서만 들고
+   있음 — Firestore 스냅샷이 다시 올 때마다(예: 다른 항목 편집으로 인한
+   재알림) 위치가 리셋되지 않도록, 목록이 실제로 늘거나 줄었을 때만 조각을
+   추가/삭제하고 나머지 조각은 그대로 둠. */
+let shakerData = { items: [] };
+let shakerPieces = []; // { key, url, chunked, fileId, chunkTotal, x, y, vx, vy, r, el, imgEl }
+let shakerFrameEl = null;
+let shakerFrameSize = { w: 0, h: 0 };
+
+function normalizeShakerItem(it){
+  if(typeof it === 'string') return { url: it, chunked:false, fileId:'', chunkTotal:0 };
+  return { url: it.url || '', chunked: !!it.chunked, fileId: it.fileId || '', chunkTotal: it.chunkTotal || 0 };
+}
+function shakerItemKey(it){ return it.chunked ? ('f:'+it.fileId) : ('u:'+it.url); }
+
+// 조각 크기는 프레임 넓이/개수에 맞춰 자동으로 줄어들어서, 사진이 늘어나도
+// 항상 프레임 안에 자연스럽게 들어차게 함(너무 작아지거나 커지지 않게 상하한만 둠)
+function shakerPieceRadius(count, w, h){
+  const area = Math.max(1, w) * Math.max(1, h);
+  const r = Math.sqrt(area / (Math.max(1, count) * 5));
+  return Math.max(16, Math.min(38, r));
+}
+
+function syncShakerPieces(){
+  shakerFrameEl = document.getElementById('shakerFrame');
+  const emptyEl = document.getElementById('shakerEmpty');
+  if(!shakerFrameEl) return;
+  const items = (shakerData.items || []).map(normalizeShakerItem);
+  if(emptyEl) emptyEl.style.display = items.length ? 'none' : 'flex';
+
+  const keep = new Set(items.map(shakerItemKey));
+  shakerPieces = shakerPieces.filter(p=>{
+    if(keep.has(p.key)) return true;
+    p.el.remove();
+    return false;
+  });
+  const existingKeys = new Set(shakerPieces.map(p=> p.key));
+  const rect = shakerFrameEl.getBoundingClientRect();
+  shakerFrameSize = { w: rect.width || 200, h: rect.height || 140 };
+  const r = shakerPieceRadius(Math.max(items.length, 1), shakerFrameSize.w, shakerFrameSize.h);
+
+  items.forEach(it=>{
+    const key = shakerItemKey(it);
+    if(existingKeys.has(key)) return;
+    const el = document.createElement('div');
+    el.className = 'shaker-piece';
+    const size = r * 2;
+    el.style.width = size+'px'; el.style.height = size+'px';
+    const imgEl = document.createElement('img');
+    imgEl.alt = '';
+    el.appendChild(imgEl);
+    shakerFrameEl.appendChild(el);
+    const px = r + Math.random() * Math.max(1, shakerFrameSize.w - r*2);
+    const py = r + Math.random() * Math.max(1, shakerFrameSize.h - r*2);
+    shakerPieces.push({
+      key, ...it, x: px, y: py,
+      vx: (Math.random()-0.5) * 2, vy: (Math.random()-0.5) * 2,
+      r, el, imgEl
+    });
+  });
+
+  // 개수가 바뀌면 반지름도 전체에 다시 맞춤(새로 늘어난 사진 포함해서 자연스러운 크기로)
+  shakerPieces.forEach(p=>{
+    p.r = r;
+    const size = r * 2;
+    p.el.style.width = size+'px'; p.el.style.height = size+'px';
+    if(!p.imgEl.src){
+      const resolved = resolveGalleryItemUrl(p, (url)=>{ p.imgEl.src = url; });
+      if(resolved) p.imgEl.src = resolved;
+    }
+  });
+}
+
+function shakerFrameResized(){
+  if(!shakerFrameEl) return;
+  const rect = shakerFrameEl.getBoundingClientRect();
+  const nw = rect.width || shakerFrameSize.w, nh = rect.height || shakerFrameSize.h;
+  if(nw === shakerFrameSize.w && nh === shakerFrameSize.h) return;
+  // 창 크기 변화 등으로 프레임이 커지거나 작아지면, 조각들이 밖으로 튀어나가지
+  // 않게 이전 프레임 대비 비율로 위치를 다시 맞춰줌
+  shakerPieces.forEach(p=>{
+    p.x = Math.min(Math.max(p.r, p.x / Math.max(1, shakerFrameSize.w) * nw), nw - p.r);
+    p.y = Math.min(Math.max(p.r, p.y / Math.max(1, shakerFrameSize.h) * nh), nh - p.r);
+  });
+  shakerFrameSize = { w: nw, h: nh };
+}
+
+const SHAKER_GRAVITY = 0.12;
+const SHAKER_FRICTION = 0.985;
+const SHAKER_WALL_RESTITUTION = 0.55;
+const SHAKER_PIECE_RESTITUTION = 0.65;
+const SHAKER_MAX_SPEED = 26;
+
+function stepShakerPhysics(){
+  requestAnimationFrame(stepShakerPhysics);
+  if(document.hidden || !shakerPieces.length || !shakerFrameEl) return;
+  // 지금 보이는 탭이 아니면(예: 갤러리 탭) 계산을 건너뛰어 불필요한 렉을 막음
+  const page = shakerFrameEl.closest('.board-page');
+  if(page && !page.classList.contains('board-page-active')) return;
+  shakerFrameResized();
+  const { w, h } = shakerFrameSize;
+  shakerPieces.forEach(p=>{
+    p.vy += SHAKER_GRAVITY;
+    p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
+    const speed = Math.hypot(p.vx, p.vy);
+    if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
+    p.x += p.vx; p.y += p.vy;
+    if(p.x - p.r < 0){ p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; }
+    if(p.x + p.r > w){ p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; }
+    if(p.y - p.r < 0){ p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; }
+    if(p.y + p.r > h){ p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; }
+  });
+  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심
+  for(let i=0;i<shakerPieces.length;i++){
+    for(let j=i+1;j<shakerPieces.length;j++){
+      const a = shakerPieces[i], b = shakerPieces[j];
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const dist = Math.hypot(dx,dy) || 0.001;
+      const minDist = a.r + b.r;
+      if(dist < minDist){
+        const nx = dx/dist, ny = dy/dist;
+        const overlap = (minDist - dist) / 2;
+        a.x -= nx*overlap; a.y -= ny*overlap;
+        b.x += nx*overlap; b.y += ny*overlap;
+        const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+        if(relVel < 0){
+          const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
+          a.vx -= imp*nx; a.vy -= imp*ny;
+          b.vx += imp*nx; b.vy += imp*ny;
+        }
+      }
+    }
+  }
+  shakerPieces.forEach(p=>{
+    p.el.style.transform = `translate(${(p.x-p.r).toFixed(1)}px, ${(p.y-p.r).toFixed(1)}px)`;
+  });
+}
+
+function shakerApplyImpulse(dvx, dvy, spread){
+  shakerPieces.forEach(p=>{
+    p.vx += dvx + (Math.random()-0.5) * spread;
+    p.vy += dvy + (Math.random()-0.5) * spread;
+  });
+}
+
+// PC에서는 가속도계가 없어서, 프레임을 마우스/터치로 눌러 빠르게 움직이는 동작을
+// "흔들기"로 인식함(속도가 클수록 조각들에 더 강한 임펄스). 모바일은 그 동작에
+// 더해 실제로 기기를 흔들면(devicemotion) 가속도 변화량 기준으로 감지함.
+function initShakerInteraction(){
+  const frame = document.getElementById('shakerFrame');
+  if(!frame) return;
+  let dragging = false, lastX=0, lastY=0, lastT=0, motionAsked = false;
+
+  function askMotionPermission(){
+    if(motionAsked) return; motionAsked = true;
+    // iOS 13+는 devicemotion을 쓰려면 사용자 제스처 안에서 명시적으로 권한을
+    // 물어봐야 해서, 프레임을 처음 누르는 순간(이미 제스처 중) 같이 요청함
+    if(typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function'){
+      DeviceMotionEvent.requestPermission().catch(()=>{});
+    }
+  }
+  frame.addEventListener('pointerdown', e=>{
+    dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
+    askMotionPermission();
+    try{ frame.setPointerCapture(e.pointerId); }catch(err){}
+  });
+  frame.addEventListener('pointermove', e=>{
+    if(!dragging) return;
+    const t = performance.now();
+    const dt = Math.max(8, t - lastT);
+    const dvx = (e.clientX - lastX) / dt * 16;
+    const dvy = (e.clientY - lastY) / dt * 16;
+    const speed = Math.hypot(dvx, dvy);
+    if(speed > 0.6) shakerApplyImpulse(dvx*0.5, dvy*0.5, speed*0.6);
+    lastX = e.clientX; lastY = e.clientY; lastT = t;
+  });
+  const stopDrag = ()=>{ dragging = false; };
+  frame.addEventListener('pointerup', stopDrag);
+  frame.addEventListener('pointercancel', stopDrag);
+
+  let lastAccelMag = null, lastShakeT = 0;
+  window.addEventListener('devicemotion', e=>{
+    const a = e.accelerationIncludingGravity || e.acceleration;
+    if(!a) return;
+    const mag = Math.hypot(a.x||0, a.y||0, a.z||0);
+    const now = performance.now();
+    if(lastAccelMag !== null && Math.abs(mag - lastAccelMag) > 14 && now - lastShakeT > 250){
+      lastShakeT = now;
+      const dir = Math.random() * Math.PI * 2;
+      const power = Math.min(14, Math.abs(mag - lastAccelMag) * 0.35);
+      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*1.2);
+    }
+    lastAccelMag = mag;
+  });
+}
+
+function openShakerManageModal(){
+  const items = (shakerData.items || []).map(normalizeShakerItem);
+  openModal(`
+    <h3>쉐이커 이미지 관리</h3>
+    <div class="shaker-manage-grid">
+      ${items.map((it,i)=>`
+        <div class="shaker-manage-item">
+          <div class="shaker-manage-thumb" data-idx="${i}"></div>
+          <button class="icon-btn shaker-manage-del" data-idx="${i}" title="삭제">✕</button>
+        </div>
+      `).join('') || '<p class="hint">아직 이미지가 없어요</p>'}
+    </div>
+    <label>사진 올리기 (여러 장 선택 가능)</label>
+    <input type="file" id="shakerFiles" accept="image/*" multiple>
+    <p class="hint">화면에 맞게 자동으로 압축해서 쉐이커에 바로 추가돼요.</p>
+    <label>또는, 이미지 URL 직접 입력</label>
+    <input type="url" id="shakerUrl" placeholder="https://...">
+    <div class="modal-actions"><button class="btn ghost" id="c">닫기</button><button class="btn primary" id="s">추가</button></div>
+  `, m=>{
+    items.forEach((it,i)=>{
+      const thumb = m.querySelector(`.shaker-manage-thumb[data-idx="${i}"]`);
+      const resolved = resolveGalleryItemUrl(it, (url)=>{ if(thumb) thumb.style.backgroundImage = `url(${url})`; });
+      if(resolved && thumb) thumb.style.backgroundImage = `url(${resolved})`;
+    });
+    m.querySelectorAll('.shaker-manage-del').forEach(btn=>{
+      btn.onclick = async ()=>{
+        const idx = Number(btn.dataset.idx);
+        const arr = [...items];
+        deleteGalleryImageIfChunked(arr[idx]);
+        arr.splice(idx,1);
+        await docRef('shaker').set({ items: arr }, {merge:true});
+        openShakerManageModal();
+      };
+    });
+    m.querySelector('#c').onclick = closeModal;
+    m.querySelector('#s').onclick = async ()=>{
+      const saveBtn = m.querySelector('#s');
+      const files = Array.from(m.querySelector('#shakerFiles').files || []);
+      const url = normalizeImageUrl(m.querySelector('#shakerUrl').value.trim());
+      const newItems = [];
+      if(files.length){
+        saveBtn.disabled = true;
+        for(let i=0;i<files.length;i++){
+          saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
+          try{
+            const compressed = await compressImageFile(files[i], 1200, 300000);
+            newItems.push(await storeGalleryImage(compressed));
+          }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
+        }
+      } else if(url){
+        newItems.push({ url });
+      } else {
+        toast('사진을 선택하거나 URL을 입력해주세요');
+        return;
+      }
+      try{
+        await docRef('shaker').set({ items: [...items, ...newItems] }, {merge:true});
+      }catch(err){
+        toast(`저장하지 못했어요: ${err.message || err}`);
+        saveBtn.disabled = false; saveBtn.textContent = '추가';
+        return;
+      }
+      closeModal();
+    };
+  });
+}
+
+function initShakerWidget(){
+  initShakerInteraction();
+  requestAnimationFrame(stepShakerPhysics);
+  const manageBtn = document.getElementById('shakerManageBtn');
+  if(manageBtn) manageBtn.onclick = openShakerManageModal;
+}
+
+docRef('shaker').onSnapshot(doc=>{ shakerData = doc.exists ? doc.data() : {items:[]}; syncShakerPieces(); });
+
 docRef('speechWidget').onSnapshot(doc=>{
   // 편집기가 열려있는 동안은 여기서 손대지 않음 — 편집기가 붙잡고 있는 탭 객체를
   // 여기서 새 객체로 통째로 갈아끼우면, 그 이후 편집기 안에서 그리거나 입력한 내용이
@@ -7165,6 +7443,7 @@ refreshLockUI();
 initRow2HeightSync();
 initRowStripHeightSync();
 initBoardTabs();
+initShakerWidget();
 
 // 화면 폭이 바뀌면(반응형 구간 전환 등) 말풍선 폭도 달라질 수 있어서 다시 오려냄
 window.addEventListener('resize', debounce(()=>{
