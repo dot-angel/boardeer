@@ -7300,6 +7300,14 @@ function shakerPhysicsScale(){
   return r / SHAKER_BASE_R;
 }
 
+// 드래그(마우스든 터치든)로 흔드는 동안, pointermove 이벤트 하나하나가 직접
+// 힘을 쏘는 대신 여기 목표 속도만 갱신해두고, stepShakerPhysics가 매 프레임
+// (입력 이벤트 빈도와 무관하게 항상 같은 리듬으로) 조금씩 힘을 흘려 넣음 —
+// PC 드래그(이벤트 촘촘함)와 모바일 스와이프(이벤트 듬성듬성) 둘 다 "힘이
+// 들어오는 리듬" 자체가 같아지므로, 입력 방식 때문에 느낌이 달라지지 않음.
+let shakerDragActive = false;
+let shakerDragVX = 0, shakerDragVY = 0;
+
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
   if(document.hidden || !shakerPieces.length || !shakerFrameEl) return;
@@ -7309,6 +7317,16 @@ function stepShakerPhysics(){
   shakerFrameResized();
   const { w, h } = shakerFrameSize;
   const scale = shakerPhysicsScale();
+  // 드래그 중이면 목표 속도(shakerDragVX/VY)만큼 매 프레임 조금씩 힘을 흘려
+  // 넣음 — pointermove가 몰아서 들어오든(모바일) 촘촘히 들어오든(PC) 여기서는
+  // 항상 "프레임당 한 번" 같은 세기로 들어가므로 입력 방식 차이가 사라짐.
+  // 다음 입력이 없는 동안엔 목표 속도 자체를 서서히 줄여서, 손을 멈춰도
+  // 힘이 계속 나가는 일이 없게 함
+  if(shakerDragActive){
+    const speed = Math.hypot(shakerDragVX, shakerDragVY);
+    if(speed > 0.4) shakerApplyImpulse(shakerDragVX * 0.16, shakerDragVY * 0.16, Math.min(speed*0.22, 10));
+    shakerDragVX *= 0.9; shakerDragVY *= 0.9;
+  }
   const gravity = SHAKER_GRAVITY * scale;
   const maxSpeed = SHAKER_MAX_SPEED * scale;
   const sleepLinear = SHAKER_SLEEP_LINEAR * scale;
@@ -7497,6 +7515,7 @@ function attachShakerDragHandlers(triggerEl, opts={}){
     dragging = true; lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
     originX = e.clientX; originY = e.clientY;
     downX = e.clientX; downY = e.clientY; downT = lastT; downPointerType = e.pointerType || 'mouse';
+    shakerDragActive = true; shakerDragVX = 0; shakerDragVY = 0;
     const wobbleEl = shakerWobbleTarget();
     if(wobbleEl) wobbleEl.classList.add('shaker-grabbing');
     shakerAskMotionPermission();
@@ -7506,18 +7525,19 @@ function attachShakerDragHandlers(triggerEl, opts={}){
     if(!dragging) return;
     const t = performance.now();
     const dt = Math.max(8, t - lastT);
-    // PC 마우스는 pointermove가 촘촘하게(작은 이동량으로 여러 번) 들어오는데,
-    // 모바일 터치 스와이프는 듬성듬성(큰 이동량으로 한두 번) 들어와서, 같은
-    // 세기로 휙 그어도 모바일 쪽이 한 번의 이벤트에 훨씬 큰 힘을 몰아서 받게
-    // 됨 — 이게 "모바일 스와이프가 너무 경박하게 튄다"의 원인. 이벤트 1회당
-    // 줄 수 있는 힘 자체에 상한을 둬서, 입력 방식과 무관하게 항상 "여러
-    // 프레임에 걸쳐 서서히 힘이 쌓이는" PC 드래그 특유의 느낌으로 통일함
+    // 예전엔 pointermove가 들어올 때마다 그 자리에서 바로 힘을 쐈는데, 그러면
+    // PC(이벤트가 촘촘함)와 모바일 스와이프(이벤트가 듬성듬성 큰 폭으로 들어옴)가
+    // 근본적으로 다른 리듬으로 힘을 받게 됨 — 상한을 낮추면 스와이프 쪽 총합이
+    // 너무 약해지고, 올리면 스와이프 쪽이 한 방 한 방 튀는(경박한) 느낌이 됨.
+    // 그래서 여기서는 힘을 직접 쏘지 않고, "지금 이 정도 속도로 움직이고 있다"는
+    // 목표값만 부드럽게(저역통과 필터) 갱신해두고, 실제 힘 주입은 아래
+    // stepShakerPhysics가 입력 방식과 무관하게 항상 똑같은 프레임 리듬(매 프레임
+    // 조금씩)으로 함 — PC든 스와이프든 "물리 엔진이 힘을 넣는 리듬" 자체가
+    // 같아지므로 입력 이벤트 빈도 차이가 더 이상 느낌 차이로 안 이어짐.
     const rawDvx = (e.clientX - lastX) / dt * 16;
     const rawDvy = (e.clientY - lastY) / dt * 16;
-    const dvx = Math.max(-16, Math.min(16, rawDvx * 0.5));
-    const dvy = Math.max(-16, Math.min(16, rawDvy * 0.5));
-    const speed = Math.hypot(dvx, dvy);
-    if(speed > 0.5) shakerApplyImpulse(dvx, dvy, Math.min(speed*0.6, 16));
+    shakerDragVX = shakerDragVX * 0.35 + rawDvx * 0.65;
+    shakerDragVY = shakerDragVY * 0.35 + rawDvy * 0.65;
     // 카드(또는 전체화면 모달) 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게
     // (과하지 않게 상한을 둠)
     const wobbleEl = shakerWobbleTarget();
@@ -7533,6 +7553,7 @@ function attachShakerDragHandlers(triggerEl, opts={}){
   const stopDrag = (e)=>{
     const wasDragging = dragging;
     dragging = false;
+    shakerDragActive = false; // 손을 떼면 매 프레임 힘 주입을 멈춤(이미 조각에 붙은 속도는 관성으로 자연스럽게 남음)
     const wobbleEl = shakerWobbleTarget();
     if(wobbleEl){
       wobbleEl.classList.remove('shaker-grabbing');
