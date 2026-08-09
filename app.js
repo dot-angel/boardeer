@@ -7238,14 +7238,18 @@ function shakerFrameResized(){
   shakerFrameSize = { w: nw, h: nh };
 }
 
-const SHAKER_GRAVITY = 0.05; // 흔들 때만 잠깐 움직이고 평소엔 거의 가만히 있도록 약하게
-const SHAKER_FRICTION = 0.86; // 액체 없이 마른 상태라 손 떼면 아주 빠르게(1초 내) 멎음
-const SHAKER_WALL_RESTITUTION = 0.16; // 부드럽게 튕겨나가지 않고 "탁" 부딪히고 붙듯 멈추게
-const SHAKER_PIECE_RESTITUTION = 0.18;
-const SHAKER_WALL_GRIP = 0.72; // 벽에 부딪히는 순간 옆으로 미끄러지던 속도도 같이 확 깎아서, 부드럽게 벽을 타고 흐르지 않고 그 자리에서 탁 멈추게
-const SHAKER_MAX_SPEED = 16; // 파츠가 케이스를 크게 벗어나듯 날아다니지 않고 좁은 범위에서만 달그락거림
-const SHAKER_SPIN_FRICTION = 0.85;
-const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
+/* 예전 값(중력 약함 + 마찰 거의 없음(0.985) + 반발력 큼)은 한 번 스친 조각이
+   튕기고 튕기고 계속 튕기며 무중력에서 탱탱볼이 떠다니는 느낌이 났음.
+   실제 아크릴 쉐이커(シャカシャカ)는 흔들지 않으면 사진들이 중력에 끌려
+   금방 바닥에 가라앉아 멈춰 있다가, 흔들 때만 짧게 흩어졌다 다시 가라앉는
+   느낌이라 — 중력은 더 세게, 마찰(감쇠)은 훨씬 크게, 벽/조각끼리 반발력은
+   훨씬 낮게(거의 안 튕기고 툭 부딪히는 느낌) 낮춤 */
+const SHAKER_GRAVITY = 0.45;
+const SHAKER_FRICTION = 0.90;
+const SHAKER_WALL_RESTITUTION = 0.18;
+const SHAKER_PIECE_RESTITUTION = 0.2;
+const SHAKER_MAX_SPEED = 28;
+const SHAKER_MAX_ANGULAR_SPEED = 4; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
@@ -7256,26 +7260,19 @@ function stepShakerPhysics(){
   shakerFrameResized();
   const { w, h } = shakerFrameSize;
   shakerPieces.forEach(p=>{
-    // 빠르게 튀는 동안(진짜 흔드는 중)에는 중력을 꺼서 포물선을 그리며 매끄럽게
-    // 날아가는 느낌이 안 나게 하고, 어느 정도 잦아들어 느려졌을 때만 살짝 중력을
-    // 줘서 바닥 쪽으로 가라앉듯 정리되게 함(곡선 궤적 없이 뚝뚝 꺾이는 움직임 유지)
-    if(Math.hypot(p.vx, p.vy) < 6) p.vy += SHAKER_GRAVITY;
+    p.vy += SHAKER_GRAVITY;
     p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
     if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
-    // 아주 낮은 속도는 0으로 스냅해서, 마른 파츠가 액체 속처럼 미세하게 계속
-    // 떠다니지 않고 실제로 바닥/서로에게 완전히 딱 붙어 멈추게 함
-    if(Math.hypot(p.vx, p.vy) < 0.05){ p.vx = 0; p.vy = 0; }
     p.x += p.vx; p.y += p.vy;
-    // 회전도 이동과 비슷하게 잦아들다가, 벽에 부딪힐 때마다 부딪힌 충격(속도
-    // 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌(단, 탱탱볼처럼
-    // 계속 튕기지 않도록 반사 계수와 스핀 계수 모두 낮춰 "달그락"에 가깝게)
-    p.vr *= SHAKER_SPIN_FRICTION;
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vy *= SHAKER_WALL_GRIP; p.vr += (p.vx - before) * 0.03; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vy *= SHAKER_WALL_GRIP; p.vr += (p.vx - before) * 0.03; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vx *= SHAKER_WALL_GRIP; p.vr += (p.vy - before) * 0.03; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vx *= SHAKER_WALL_GRIP; p.vr += (p.vy - before) * 0.03; }
+    // 회전도 이동과 같은 마찰을 받아 서서히 느려지다가, 벽에 부딪힐 때마다
+    // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
+    p.vr *= SHAKER_FRICTION;
     if(Math.abs(p.vr) > SHAKER_MAX_ANGULAR_SPEED) p.vr = Math.sign(p.vr) * SHAKER_MAX_ANGULAR_SPEED;
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.025; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.025; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.025; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.025; }
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심
@@ -7296,36 +7293,11 @@ function stepShakerPhysics(){
           a.vx -= imp*nx; a.vy -= imp*ny;
           b.vx += imp*nx; b.vy += imp*ny;
         }
-        // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받고,
-        // 접선 방향 속도 자체도 일부 깎아서(마찰) 옆으로 스치듯 부딪혀도 부드럽게
-        // 미끄러져 지나가지 않고 "탁" 걸리듯 멈추게 함
+        // 접선(마찰) 방향 상대속도만큼 서로 반대 방향으로 살짝 스핀을 주고받아,
+        // 옆으로 스치듯 부딪히면 마치 손가락으로 튕긴 것처럼 자연스럽게 회전이 붙게 함
         const tx = -ny, ty = nx;
         const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
         a.vr -= relVelT * 0.025; b.vr -= relVelT * 0.025;
-        const grip = relVelT * 0.28;
-        a.vx += tx*grip; a.vy += ty*grip;
-        b.vx -= tx*grip; b.vy -= ty*grip;
-      }
-    }
-  }
-  // 위 루프는 프레임당 한 번씩만 쌍을 검사해서, 파츠 3개 이상이 한 군데 몰리면
-  // (A·B를 밀어내고 나면 그 자리에서 A·C가 다시 겹치는 식으로) 한 번의 계산으로
-  // 다 못 풀고 살짝 겹친 채 남을 수 있음. 아크릴 참은 실제로는 절대 겹칠 수 없는
-  // 딱딱한 조각이라 그게 눈에 띄니까, 속도 계산 없이 위치만 여러 번 더 밀어내서
-  // 같은 프레임 안에서 완전히 떨어지게 함(충돌음/스핀은 위에서 이미 한 번만 적용).
-  for(let iter=0; iter<3; iter++){
-    for(let i=0;i<shakerPieces.length;i++){
-      for(let j=i+1;j<shakerPieces.length;j++){
-        const a = shakerPieces[i], b = shakerPieces[j];
-        const dx = b.x-a.x, dy = b.y-a.y;
-        const dist = Math.hypot(dx,dy) || 0.001;
-        const minDist = a.r + b.r;
-        if(dist < minDist){
-          const nx = dx/dist, ny = dy/dist;
-          const overlap = (minDist - dist) / 2;
-          a.x -= nx*overlap; a.y -= ny*overlap;
-          b.x += nx*overlap; b.y += ny*overlap;
-        }
       }
     }
   }
@@ -7338,7 +7310,7 @@ function shakerApplyImpulse(dvx, dvy, spread){
   shakerPieces.forEach(p=>{
     p.vx += dvx + (Math.random()-0.5) * spread;
     p.vy += dvy + (Math.random()-0.5) * spread;
-    p.vr += (Math.random()-0.5) * spread * 0.5;
+    p.vr += (Math.random()-0.5) * spread * 0.18;
   });
 }
 
