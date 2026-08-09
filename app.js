@@ -3669,7 +3669,10 @@ function ddayDiffText(dateStr){
 
 function ddayDateText(dateStr){
   const [y,m,d] = dateStr.split('-');
-  return `${y}.${m}.${d}`;
+  // 연도와 월.일을 별개 span으로 나눠서, 좁은 화면(모바일)에서는 CSS로 이 사이를
+  // 줄바꿈해 두 줄로("2026" / "08.09") 접히게 하고, 넓은 화면에선 평소처럼
+  // "2026.08.09" 한 줄로 그대로 이어져 보이게 함
+  return `<span class="dday-y">${y}</span><span class="dday-sep">.</span><span class="dday-md">${m}.${d}</span>`;
 }
 
 function renderDday(){
