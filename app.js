@@ -7262,6 +7262,17 @@ const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전�
 const SHAKER_SLEEP_LINEAR = 0.4;   // px/frame
 const SHAKER_SLEEP_ANGULAR = 0.4;  // deg/frame
 
+// 조각 크기는 전체화면 등에서 프레임에 비례해 커지는데(shakerPieceRadius),
+// 중력/최고속도/임펄스가 고정값 그대로면 커진 조각 입장에서는 상대적으로
+// 훨씬 약한 힘을 받는 셈이라 오히려 더 무겁고 둔하게 느껴짐(실제로 겪은 문제).
+// 이 스케일을 중력·최고속도·흔들 때 주는 힘에 다 같이 곱해서, 위젯 카드
+// 안에서든 전체화면에서든 "느낌"이 항상 똑같이 유지되게 함.
+const SHAKER_BASE_R = 16; // 예전 고정 반지름(11~22) 대략 중간값 — 이 기준 대비 비율로 스케일을 잡음
+function shakerPhysicsScale(){
+  const r = shakerPieces[0] ? shakerPieces[0].r : SHAKER_BASE_R;
+  return r / SHAKER_BASE_R;
+}
+
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
   if(document.hidden || !shakerPieces.length || !shakerFrameEl) return;
@@ -7270,21 +7281,25 @@ function stepShakerPhysics(){
   if(page && !page.classList.contains('board-page-active')) return;
   shakerFrameResized();
   const { w, h } = shakerFrameSize;
+  const scale = shakerPhysicsScale();
+  const gravity = SHAKER_GRAVITY * scale;
+  const maxSpeed = SHAKER_MAX_SPEED * scale;
+  const sleepLinear = SHAKER_SLEEP_LINEAR * scale;
   shakerPieces.forEach(p=>{
     // 바닥(또는 벽)에 거의 붙어서 속도가 아주 작아졌으면, 중력을 더 안 더하고
     // 그냥 0으로 재움 — 안 그러면 중력이 매 프레임 계속 속도를 만들어내서
     // 이론상 영원히(아주 미세하게라도) 계속 통통 튀는 상태가 됨
-    const restingOnFloor = (h - (p.y + p.r)) < 0.6 && Math.abs(p.vy) < SHAKER_SLEEP_LINEAR;
+    const restingOnFloor = (h - (p.y + p.r)) < 0.6 * scale && Math.abs(p.vy) < sleepLinear;
     if(restingOnFloor){
       p.vy = 0; p.y = h - p.r;
     } else {
-      p.vy += SHAKER_GRAVITY;
+      p.vy += gravity;
     }
     p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
-    if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
-    if(Math.abs(p.vx) < SHAKER_SLEEP_LINEAR) p.vx = 0;
-    if(Math.abs(p.vy) < SHAKER_SLEEP_LINEAR && restingOnFloor) p.vy = 0;
+    if(speed > maxSpeed){ const s = maxSpeed/speed; p.vx *= s; p.vy *= s; }
+    if(Math.abs(p.vx) < sleepLinear) p.vx = 0;
+    if(Math.abs(p.vy) < sleepLinear && restingOnFloor) p.vy = 0;
     p.x += p.vx; p.y += p.vy;
     // 회전도 이동과 같은 마찰을 받아 서서히 느려지다가, 벽에 부딪힐 때마다
     // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
@@ -7327,11 +7342,15 @@ function stepShakerPhysics(){
   });
 }
 
+// 흔들기로 주는 힘도 조각 크기(scale)에 비례해서 커지게 함 — 이 함수 하나만
+// 고치면 마우스/터치 드래그, 실제 기기 흔들기(devicemotion) 양쪽 다 자동으로
+// 적용됨(둘 다 이 함수를 통해서만 힘을 줌)
 function shakerApplyImpulse(dvx, dvy, spread){
+  const scale = shakerPhysicsScale();
   shakerPieces.forEach(p=>{
-    p.vx += dvx + (Math.random()-0.5) * spread;
-    p.vy += dvy + (Math.random()-0.5) * spread;
-    p.vr += (Math.random()-0.5) * spread * 0.5;
+    p.vx += (dvx + (Math.random()-0.5) * spread) * scale;
+    p.vy += (dvy + (Math.random()-0.5) * spread) * scale;
+    p.vr += (Math.random()-0.5) * spread * 0.5 * scale;
   });
 }
 
