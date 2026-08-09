@@ -7145,14 +7145,17 @@ function shakerDetectAlpha(imgEl){
 }
 
 // 조각 크기는 프레임 넓이/개수에 맞춰 자동으로 줄어들어서, 사진이 늘어나도
-// 항상 프레임 안에 자연스럽게 들어차게 함(너무 작아지거나 커지지 않게 상하한만 둠).
-// 상한은 절대 px 고정값이 아니라 프레임의 짧은 변에 비례하게 둬서, 좁은 위젯
-// 카드일 땐 예전과 비슷한 크기를 유지하고 훨씬 넓은 전체화면(최대 520x520)에서는
-// 조각이 그만큼 커져서 "전체화면인데 사진만 작게 흩어져 보이는" 문제를 없앰
+// 항상 프레임 안에 자연스럽게 들어차게 함(너무 작아지거나 커지지 않게 상하한만 둠)
 function shakerPieceRadius(count, w, h){
   const area = Math.max(1, w) * Math.max(1, h);
   const r = Math.sqrt(area / (Math.max(1, count) * 5));
-  const maxR = Math.max(22, Math.min(w, h) * 0.16);
+  // 예전엔 상한이 22px 고정이라, 위젯 카드 안에서든 전체화면에서든 조각이
+  // 똑같이 작게만 보였음(전체화면에서 커져야 하는데 그대로였음). 프레임이 큰
+  // 만큼(=전체화면) 조각도 실제로 커 보이도록, 상한을 프레임의 짧은 변에
+  // 비례하게 바꿈 — 좁은 위젯 카드에서는 예전과 비슷하게, 넓은 전체화면에서는
+  // 훨씬 크게 나옴
+  const minSide = Math.min(w, h);
+  const maxR = Math.max(22, minSide * 0.22);
   return Math.max(11, Math.min(maxR, r));
 }
 
@@ -7242,26 +7245,48 @@ function shakerFrameResized(){
   shakerFrameSize = { w: nw, h: nh };
 }
 
-/* "탁 달그락" 느낌 = 부딪힐 땐 또렷하게 튕기되(반발력은 크게), 그 튕김이
-   오래가지 않고 몇 번 안에 잦아드는 것(마찰/감쇠는 크게). 반발력을 낮춰서
-   흡수시키는 쪽으로 갔던 이전 시도는 통통 튀는 대신 훅 눌어붙는 느낌이라
-   방향이 반대였음 — 반발력은 원래 값 가깝게 되돌리고, 마찰만 확실히 키움 */
-const SHAKER_GRAVITY = 0.24;
-const SHAKER_FRICTION = 0.945;
-const SHAKER_WALL_RESTITUTION = 0.5;
-const SHAKER_PIECE_RESTITUTION = 0.5;
-const SHAKER_MAX_SPEED = 30;
-const SHAKER_MAX_ANGULAR_SPEED = 4; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
-// 공중에 떠 있을 때(위 SHAKER_FRICTION)와 바닥에 닿아 있을 때의 마찰을 다르게 둠.
-// 지금까지는 바닥에 붙어도 공중과 똑같은 마찰로 계속 옆으로 미끄러져서, 중력이
-// "바닥에 붙잡아두는" 역할만 하고 "무게 때문에 안 미끄러진다"는 역할을 못 해
-// 에어하키처럼 둥둥 떠다니는 느낌이 났음. 바닥에 닿은 조각엔 이 마찰을 추가로
-// 더 걸어서, 실제 무게에 눌려 금방 멈추는 느낌을 냄
+// 예전 값(중력 0.12·마찰 0.985)은 조각이 한번 움직이면 한참을 둥둥 떠다니듯
+// 느리게 흘러다녀서 "무중력 속 쇳조각" 같은 느낌이 났음. 가벼운 아크릴 참
+// 느낌을 내려면: 중력은 좀 더 확실히 느껴지게(둥둥 뜨지 않게), 마찰(감쇠)은
+// 훨씬 크게 줘서 흔든 직후엔 팍 튀지만 금방 차분해지게, 반발력도 살짝 올려서
+// 통통 튀는 가벼운 질감을 냄.
+const SHAKER_GRAVITY = 0.32;
+const SHAKER_FRICTION = 0.92;
+// 회전은 이동(SHAKER_FRICTION)보다 더 빨리 잦아들게 별도 상수로 둠 — 같은
+// 마찰을 썼을 때 전체화면처럼 조각이 커진 상태에서 회전만 유독 오래 남아
+// "아무것도 없이 계속 도는" 것처럼 보이는 문제의 절반 원인이었음
+const SHAKER_ANGULAR_FRICTION = 0.86;
+const SHAKER_WALL_RESTITUTION = 0.62;
+const SHAKER_PIECE_RESTITUTION = 0.72;
+const SHAKER_MAX_SPEED = 32;
+const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
+// 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
+// 튀거나 도는 상태가 남는데(부동소수점 특성상), 이 정도로 작아지면 그냥 확
+// 재워서(0으로) 진짜로 멈추게 함 — "가만히 놔둬도 계속 혼자 도는" 원인이었음
+const SHAKER_SLEEP_LINEAR = 0.4;   // px/frame
+const SHAKER_SLEEP_ANGULAR = 0.4;  // deg/frame
+// 바닥에 붙은 조각이 공중과 똑같은 마찰로 계속 옆으로 미끄러지면(에어하키처럼)
+// 무게감 없이 둥둥 떠다니는 느낌이 남 — 바닥에 쉬고 있을 때만 가로 마찰을 한 번
+// 더 걸어서 무게에 눌린 것처럼 빨리 멈추게 함
 const SHAKER_GROUND_FRICTION = 0.8;
-// 부딪힌 두 조각의 접선(스치는) 방향 속도를 서로 얼마나 붙잡아 흡수할지(0=전혀 안 붙잡고
-// 계속 미끄러짐, 1=완전히 같은 속도로 붙어버림). 실제 딱딱한 조각끼리 스치듯 부딪히면
-// 미끄러지는 속도가 마찰로 확 줄어드는 걸 흉내냄
+// 부딪힌 두 조각(또는 벽)의 접선(스치는) 방향 속도를 서로/벽에 얼마나 붙잡아
+// 흡수할지(0=전혀 안 붙잡고 계속 미끄러짐, 1=완전히 같은 속도로 붙어버림).
+// 지금까지는 정면(법선) 속도만 튕겨내고 스치는 속도는 그대로 둬서 부딪혀도
+// 튕기지 않고 계속 미끄러지는 것처럼 보였음(원형이라 대부분의 충돌이 정면이
+// 아니라 스치는 각도라 더 두드러짐) — 이 비율(0~1)만큼 흡수시켜서 스치는
+// 충돌에서도 "달그락" 걸리는 느낌이 나게 함. scale과 무관한 순수 비율값
 const SHAKER_CONTACT_FRICTION = 0.55;
+
+// 조각 크기는 전체화면 등에서 프레임에 비례해 커지는데(shakerPieceRadius),
+// 중력/최고속도/임펄스가 고정값 그대로면 커진 조각 입장에서는 상대적으로
+// 훨씬 약한 힘을 받는 셈이라 오히려 더 무겁고 둔하게 느껴짐(실제로 겪은 문제).
+// 이 스케일을 중력·최고속도·흔들 때 주는 힘에 다 같이 곱해서, 위젯 카드
+// 안에서든 전체화면에서든 "느낌"이 항상 똑같이 유지되게 함.
+const SHAKER_BASE_R = 16; // 예전 고정 반지름(11~22) 대략 중간값 — 이 기준 대비 비율로 스케일을 잡음
+function shakerPhysicsScale(){
+  const r = shakerPieces[0] ? shakerPieces[0].r : SHAKER_BASE_R;
+  return r / SHAKER_BASE_R;
+}
 
 function stepShakerPhysics(){
   requestAnimationFrame(stepShakerPhysics);
@@ -7271,86 +7296,97 @@ function stepShakerPhysics(){
   if(page && !page.classList.contains('board-page-active')) return;
   shakerFrameResized();
   const { w, h } = shakerFrameSize;
+  const scale = shakerPhysicsScale();
+  const gravity = SHAKER_GRAVITY * scale;
+  const maxSpeed = SHAKER_MAX_SPEED * scale;
+  const sleepLinear = SHAKER_SLEEP_LINEAR * scale;
+  const sleepAngular = SHAKER_SLEEP_ANGULAR * scale;
   shakerPieces.forEach(p=>{
-    p.vy += SHAKER_GRAVITY;
+    // 바닥(또는 벽)에 거의 붙어서 속도가 아주 작아졌으면, 중력을 더 안 더하고
+    // 그냥 0으로 재움 — 안 그러면 중력이 매 프레임 계속 속도를 만들어내서
+    // 이론상 영원히(아주 미세하게라도) 계속 통통 튀는 상태가 됨
+    const restingOnFloor = (h - (p.y + p.r)) < 0.6 * scale && Math.abs(p.vy) < sleepLinear;
+    if(restingOnFloor){
+      p.vy = 0; p.y = h - p.r;
+    } else {
+      p.vy += gravity;
+    }
     p.vx *= SHAKER_FRICTION; p.vy *= SHAKER_FRICTION;
-    // 지난 프레임에 바닥에 붙어 있던 조각이면 가로 움직임에 마찰을 한 번 더 걸어서
-    // 계속 미끄러지지 않고 무게에 눌린 것처럼 빠르게 멈추게 함
-    if(p.y + p.r >= h - 1.5) p.vx *= SHAKER_GROUND_FRICTION;
+    if(restingOnFloor) p.vx *= SHAKER_GROUND_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
-    if(speed > SHAKER_MAX_SPEED){ const s = SHAKER_MAX_SPEED/speed; p.vx *= s; p.vy *= s; }
-    // 속도가 아주 작아지면(거의 멈춘 상태) 남은 미세한 값까지 완전히 0으로 재움 —
-    // 이게 없으면 소수점 단위 속도가 계속 남아 미끌미끌 떠 있는 것처럼 보임(액체 느낌의
-    // 주 원인 중 하나). 확실하게 딱 멈추는 느낌을 주기 위한 처리
-    if(speed < 0.06){ p.vx = 0; p.vy = 0; }
+    if(speed > maxSpeed){ const s = maxSpeed/speed; p.vx *= s; p.vy *= s; }
+    if(Math.abs(p.vx) < sleepLinear) p.vx = 0;
+    if(Math.abs(p.vy) < sleepLinear && restingOnFloor) p.vy = 0;
     p.x += p.vx; p.y += p.vy;
-    // 회전도 이동과 같은 마찰을 받아 서서히 느려지다가, 벽에 부딪힐 때마다
-    // 부딪힌 충격(속도 변화량)에 비례해 살짝 스핀이 더해져 자연스럽게 굴러가는 느낌을 줌
-    p.vr *= SHAKER_FRICTION;
-    if(Math.abs(p.vr) < 0.06) p.vr = 0;
-    if(Math.abs(p.vr) > SHAKER_MAX_ANGULAR_SPEED) p.vr = Math.sign(p.vr) * SHAKER_MAX_ANGULAR_SPEED;
-    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; p.vy *= SHAKER_CONTACT_FRICTION; }
-    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.04; p.vy *= SHAKER_CONTACT_FRICTION; }
-    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; p.vx *= SHAKER_CONTACT_FRICTION; }
-    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.04; p.vx *= SHAKER_CONTACT_FRICTION; }
+    // 회전은 이동보다 마찰을 더 세게 줘서(전용 상수) 눈에 띄게 빨리 잦아들게 하고,
+    // "멈췄다"고 볼 기준(sleepAngular)도 이동처럼 scale에 비례하게 둬서, 전체화면처럼
+    // 조각이 커져 회전 임펄스도 같이 커지는 상황에서도 카드형태와 비슷한 체감
+    // 속도로 멈추게 함(예전엔 기준이 고정값이라 전체화면에서 훨씬 오래 돌았음)
+    p.vr *= SHAKER_ANGULAR_FRICTION;
+    if(Math.abs(p.vr) < sleepAngular) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
+    if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; p.vy *= SHAKER_CONTACT_FRICTION; }
+    if(p.x + p.r > w){ const before = p.vx; p.x = w - p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; p.vy *= SHAKER_CONTACT_FRICTION; }
+    if(p.y - p.r < 0){ const before = p.vy; p.y = p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; p.vx *= SHAKER_CONTACT_FRICTION; }
+    if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; p.vx *= SHAKER_CONTACT_FRICTION; }
     p.rot += p.vr;
   });
-  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는 느낌의 핵심.
-  // 프레임 안에 조각이 촘촘하게 쌓이면 한 쌍을 밀어낸 결과가 다른 쌍과 다시 겹치는
-  // 연쇄가 생기는데, 이걸 프레임당 한 번만 계산하면 자리가 덜 잡힌 채로 남아서 다음
-  // 프레임에도 계속 밀리고 밀리며 흐물흐물(액체처럼) 보이는 원인이 됐음. 그래서 같은
-  // 프레임 안에서 위치 보정만 여러 번(3회) 반복해 자리를 확실히 잡아주되, 충돌
-  // 속도(임펄스)는 에너지가 반복 주입되지 않도록 첫 번째 패스에서만 적용함
-  for(let iter=0; iter<3; iter++){
-    for(let i=0;i<shakerPieces.length;i++){
-      for(let j=i+1;j<shakerPieces.length;j++){
-        const a = shakerPieces[i], b = shakerPieces[j];
-        const dx = b.x-a.x, dy = b.y-a.y;
-        const dist = Math.hypot(dx,dy) || 0.001;
-        const minDist = a.r + b.r;
-        if(dist < minDist){
-          const nx = dx/dist, ny = dy/dist;
-          const overlap = (minDist - dist) / 2;
-          a.x -= nx*overlap; a.y -= ny*overlap;
-          b.x += nx*overlap; b.y += ny*overlap;
-          if(iter === 0){
-            const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
-            if(relVel < 0){
-              const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
-              a.vx -= imp*nx; a.vy -= imp*ny;
-              b.vx += imp*nx; b.vy += imp*ny;
-            }
-            // 정면(법선) 속도는 위에서 튕겨냈지만, 스치듯 부딪힐 때 훨씬 큰 비중을
-            // 차지하는 접선(옆으로 미끄러지는) 방향 속도는 그동안 거의 안 건드려서
-            // 튕기지 않고 계속 미끄러지는 것처럼 보였음. 접선 방향 속도를 마찰로
-            // 상당 부분(SHAKER_CONTACT_FRICTION 비율) 서로 붙잡아 흡수시켜서,
-            // 스치는 충돌에서도 "달그락" 하고 멈추는 느낌이 나게 함
-            const tx = -ny, ty = nx;
-            const aT = a.vx*tx + a.vy*ty, bT = b.vx*tx + b.vy*ty;
-            const avgT = (aT+bT)/2;
-            const newAT = aT + (avgT-aT)*SHAKER_CONTACT_FRICTION;
-            const newBT = bT + (avgT-bT)*SHAKER_CONTACT_FRICTION;
-            a.vx += (newAT-aT)*tx; a.vy += (newAT-aT)*ty;
-            b.vx += (newBT-bT)*tx; b.vy += (newBT-bT)*ty;
-            // 접선 속도가 흡수되면서 사라진 만큼 일부는 회전으로 옮겨줘서
-            // 손가락으로 튕긴 것처럼 자연스럽게 스핀이 붙게 함
-            const relVelT = bT - aT;
-            a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
+  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
+  // 느낌의 핵심. 한 프레임에 한 번만 밀어내면 여러 조각이 한꺼번에 뭉쳤을 때
+  // (특히 세게 흔든 직후) 자리가 부족해서 덜 풀리고 살짝씩 겹친 채로 남는
+  // 경우가 많았음 — 같은 보정을 프레임당 3번 반복해서 겹침이 확실히 풀리게 함
+  for(let pass=0; pass<3; pass++){
+  for(let i=0;i<shakerPieces.length;i++){
+    for(let j=i+1;j<shakerPieces.length;j++){
+      const a = shakerPieces[i], b = shakerPieces[j];
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const dist = Math.hypot(dx,dy) || 0.001;
+      const minDist = a.r + b.r;
+      if(dist < minDist){
+        const nx = dx/dist, ny = dy/dist;
+        const overlap = (minDist - dist) / 2;
+        a.x -= nx*overlap; a.y -= ny*overlap;
+        b.x += nx*overlap; b.y += ny*overlap;
+        if(pass === 0){
+          const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
+          if(relVel < 0){
+            const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
+            a.vx -= imp*nx; a.vy -= imp*ny;
+            b.vx += imp*nx; b.vy += imp*ny;
           }
+          // 정면(법선) 속도는 위에서 튕겨냈지만, 원형끼리는 대부분 스치는 각도로
+          // 부딪히다 보니 그 스치는(접선) 속도가 그대로 남아 계속 미끄러지는 게
+          // "튕기지 않고 흐물흐물 미끄러진다"는 느낌의 진짜 원인이었음. 접선 속도의
+          // 상당 부분(SHAKER_CONTACT_FRICTION)을 서로 붙잡아 흡수시켜서 스치는
+          // 충돌에서도 확 걸리는("달그락") 느낌이 나게 하고, 흡수된 만큼은 스핀으로
+          // 옮겨 손가락으로 튕긴 듯 자연스럽게 회전이 붙게 함
+          const tx = -ny, ty = nx;
+          const aT = a.vx*tx + a.vy*ty, bT = b.vx*tx + b.vy*ty;
+          const avgT = (aT+bT)/2;
+          const newAT = aT + (avgT-aT)*SHAKER_CONTACT_FRICTION;
+          const newBT = bT + (avgT-bT)*SHAKER_CONTACT_FRICTION;
+          a.vx += (newAT-aT)*tx; a.vy += (newAT-aT)*ty;
+          b.vx += (newBT-bT)*tx; b.vy += (newBT-bT)*ty;
+          const relVelT = bT - aT;
+          a.vr -= relVelT * 0.035; b.vr -= relVelT * 0.035;
         }
       }
     }
+  }
   }
   shakerPieces.forEach(p=>{
     p.el.style.transform = `translate(${(p.x-p.r).toFixed(1)}px, ${(p.y-p.r).toFixed(1)}px) rotate(${p.rot.toFixed(1)}deg)`;
   });
 }
 
+// 흔들기로 주는 힘도 조각 크기(scale)에 비례해서 커지게 함 — 이 함수 하나만
+// 고치면 마우스/터치 드래그, 실제 기기 흔들기(devicemotion) 양쪽 다 자동으로
+// 적용됨(둘 다 이 함수를 통해서만 힘을 줌)
 function shakerApplyImpulse(dvx, dvy, spread){
+  const scale = shakerPhysicsScale();
   shakerPieces.forEach(p=>{
-    p.vx += dvx + (Math.random()-0.5) * spread;
-    p.vy += dvy + (Math.random()-0.5) * spread;
-    p.vr += (Math.random()-0.5) * spread * 0.18;
+    p.vx += (dvx + (Math.random()-0.5) * spread) * scale;
+    p.vy += (dvy + (Math.random()-0.5) * spread) * scale;
+    p.vr += (Math.random()-0.5) * spread * 0.5 * scale;
   });
 }
 
@@ -7427,10 +7463,18 @@ function initShakerInteraction(){
     if(!dragging) return;
     const t = performance.now();
     const dt = Math.max(8, t - lastT);
-    const dvx = (e.clientX - lastX) / dt * 16;
-    const dvy = (e.clientY - lastY) / dt * 16;
+    // PC 마우스는 pointermove가 촘촘하게(작은 이동량으로 여러 번) 들어오는데,
+    // 모바일 터치 스와이프는 듬성듬성(큰 이동량으로 한두 번) 들어와서, 같은
+    // 세기로 휙 그어도 모바일 쪽이 한 번의 이벤트에 훨씬 큰 힘을 몰아서 받게
+    // 됨 — 이게 "모바일 스와이프가 너무 경박하게 튄다"의 원인. 이벤트 1회당
+    // 줄 수 있는 힘 자체에 상한을 둬서, 입력 방식과 무관하게 항상 "여러
+    // 프레임에 걸쳐 서서히 힘이 쌓이는" PC 드래그 특유의 느낌으로 통일함
+    const rawDvx = (e.clientX - lastX) / dt * 16;
+    const rawDvy = (e.clientY - lastY) / dt * 16;
+    const dvx = Math.max(-16, Math.min(16, rawDvx * 0.5));
+    const dvy = Math.max(-16, Math.min(16, rawDvy * 0.5));
     const speed = Math.hypot(dvx, dvy);
-    if(speed > 0.6) shakerApplyImpulse(dvx*0.5, dvy*0.5, speed*0.6);
+    if(speed > 0.5) shakerApplyImpulse(dvx, dvy, Math.min(speed*0.6, 16));
     // 카드 자체를 손 움직임에 맞춰 살짝 기울고 흔들리게(과하지 않게 상한을 둠)
     const tiltX = Math.max(-10, Math.min(10, (e.clientY - originY) * 0.12));
     const tiltY = Math.max(-10, Math.min(10, -(e.clientX - originX) * 0.12));
@@ -7461,29 +7505,45 @@ function initShakerInteraction(){
   // 더 민감하게 반응하고(약하게 흔들어도 감지), 쿨다운도 짧게 둬서 세게 흔들수록
   // 더 자주 감지되게 하고, 임펄스/기울임 세기도 상한을 크게 올려 실제 흔드는
   // 세기 차이가 화면에도 뚜렷하게 비례해서 드러나게 함.
-  let lastAccelMag = null, lastShakeT = 0;
+  let motionBaseline = null, lastShakeT = 0, lastAx = 0, lastAy = 0;
   window.addEventListener('devicemotion', e=>{
     const a = e.accelerationIncludingGravity || e.acceleration;
     if(!a) return;
-    const mag = Math.hypot(a.x||0, a.y||0, a.z||0);
+    const ax = a.x||0, ay = a.y||0;
+    const mag = Math.hypot(ax, ay, a.z||0);
     const now = performance.now();
-    if(lastAccelMag !== null){
-      const delta = Math.abs(mag - lastAccelMag);
-      if(delta > 8 && now - lastShakeT > 90){
-        lastShakeT = now;
-        const dir = Math.random() * Math.PI * 2;
-        const power = Math.min(34, delta * 0.55);
-        shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*1.3);
-        // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
-        card.classList.add('shaker-grabbing');
-        const shift = Math.min(18, power*0.8);
-        const tilt = Math.min(12, power*0.45);
-        card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
-        clearTimeout(card._shakeResetT);
-        card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
-      }
+    if(motionBaseline === null){ motionBaseline = mag; lastAx = ax; lastAy = ay; return; }
+    // 예전엔 "이번 샘플이 바로 직전 샘플보다 얼마나 튀었나(delta)"로 흔들기를
+    // 감지했음 — 가만히 있다가 처음 움직이기 시작하는 순간엔 직전(정지) 샘플과의
+    // 차이가 크게 튀어서 잘 잡히는데, 일단 흔들리는 중엔 이미 움직이고 있는
+    // 상태라 샘플 간 차이가 상대적으로 작아져서 계속 흔들어도 반응이 뚝 끊김
+    // (그래서 "부딪히는 순간"만 잡고 "계속 흔드는 중"은 못 보는 것처럼 느껴졌음).
+    // 대신 천천히 따라오는 기준선을 하나 두고 "지금이 그 기준선 대비 얼마나
+    // 벗어나 있나(편차)"를 봄 — 계속 흔드는 동안엔 원시값이 기준선 위아래로
+    // 계속 크게 진동하므로 편차도 계속 커서, 흔드는 내내 짤랑짤랑 반응함
+    motionBaseline += (mag - motionBaseline) * 0.06;
+    const dev = mag - motionBaseline;
+    // 계속 흔드는 동안 계속 반응하게 만든 건 좋았는데, 감지 주기(45ms)와 1회당
+    // 힘(16 상한, ×1.3)이 둘 다 세다 보니 손으로 흔들 때 거의 매 프레임 최고
+    // 속도로 튀어서 지나치게 격하게 느껴졌음. 감지 간격을 넓히고 힘도 낮춰서
+    // 카드형태를 손으로 쥐고 흔드는 것과 비슷한 정도로 차분하게 조정
+    if(Math.abs(dev) > 3.5 && now - lastShakeT > 70){
+      lastShakeT = now;
+      // 실제 가속도 변화 방향을 그대로 써서 진짜 흔든 쪽으로 튀게 하고(약간의
+      // 무작위성만 자연스러움을 위해 남김)
+      const dirBase = Math.atan2(ay - lastAy, ax - lastAx) || (Math.random()*Math.PI*2);
+      const dir = dirBase + (Math.random()-0.5) * 0.5;
+      const power = Math.min(11, Math.abs(dev) * 0.8);
+      shakerApplyImpulse(Math.cos(dir)*power, Math.sin(dir)*power, power*0.7);
+      // 실제로 기기를 흔들 때도 카드가 짧게 흔들리는 걸 보여줌 — 흔든 세기에 비례해서 커짐
+      card.classList.add('shaker-grabbing');
+      const shift = Math.min(18, power*0.8);
+      const tilt = Math.min(12, power*0.45);
+      card.style.transform = `translate(${(Math.random()-0.5)*shift}px, ${(Math.random()-0.5)*shift}px) rotate(${(Math.random()-0.5)*tilt}deg)`;
+      clearTimeout(card._shakeResetT);
+      card._shakeResetT = setTimeout(()=>{ card.classList.remove('shaker-grabbing'); card.style.transform = ''; }, 160);
     }
-    lastAccelMag = mag;
+    lastAx = ax; lastAy = ay;
   });
 }
 
