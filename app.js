@@ -1473,6 +1473,9 @@ db.collection('meta').doc('background').onSnapshot(doc=>{
     bgImageLayerEl.style.backgroundImage = '';
     bgImageLayerEl.classList.remove('has-image');
   }
+  // 쉐이커 프레임의 "맑은 창" 미러 배경도 사이트 배경과 같이 갱신(프레임 전용
+  // 배경이 따로 지정돼 있으면 applyShakerFrameBg 내부에서 알아서 건드리지 않음)
+  if(typeof applyShakerFrameBg === 'function') applyShakerFrameBg();
 });
 
 /* ---------------- 테마 편집 (전체 색/폰트 일괄 적용) ---------------- */
@@ -7730,15 +7733,27 @@ function ensureShakerBgBtn(){
 // 쉐이커 프레임 자체는 기본적으로 완전 투명(카드의 유리 배경이 그대로 비쳐
 // 보임). 편집모드에서 frameBg를 따로 지정하면 그 사진이 프레임 배경으로
 // 깔림(사이트 전체 배경과 별개, 이 위젯 하나에만 적용).
+// frameBg가 없을 땐, 예전엔 완전 투명하게만 둬서 카드 자체의 블러(다른
+// 위젯과 같은 유리 질감)가 그대로 비쳐 흐릿해 보였음. 카드 테두리는 그
+// 블러를 그대로 유지하되, 프레임 안쪽만 사이트 배경 이미지를 또렷하게 한 번
+// 더 비춰서 "뿌연 유리에 뚫린 맑은 창" 같은 느낌을 내도록 바꿈
 function applyShakerFrameBg(){
   const frame = document.getElementById('shakerFrame');
   if(!frame) return;
   if(shakerData.frameBg){
     setElementBgImageWithFallback(frame, shakerData.frameBg);
     frame.classList.add('has-bg');
-  } else {
+    frame.classList.remove('shaker-frame-mirror-bg');
+    frame.style.removeProperty('--shaker-mirror-bg');
+  } else if(bgImageLayerEl.classList.contains('has-image') && bgImageLayerEl.style.backgroundImage){
     frame.style.backgroundImage = '';
     frame.classList.remove('has-bg');
+    frame.style.setProperty('--shaker-mirror-bg', bgImageLayerEl.style.backgroundImage);
+    frame.classList.add('shaker-frame-mirror-bg');
+  } else {
+    frame.style.backgroundImage = '';
+    frame.classList.remove('has-bg', 'shaker-frame-mirror-bg');
+    frame.style.removeProperty('--shaker-mirror-bg');
   }
 }
 

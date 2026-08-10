@@ -1352,12 +1352,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   /* 흔드는 동작(빠른 드래그) 중에 안의 사진이 브라우저 기본 동작으로 선택되거나
      "드래그되는 이미지"로 붙잡히지 않게 막음 */
   -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
-  /* .w-card 공통 규칙이 카드 뒤(사이트 배경)를 블러해서 비치게 하는데, 프레임
-     안쪽(배경 이미지를 따로 안 넣었을 때 훤히 비치는 부분)이 뿌옇게 보이는
-     원인이 이거였음. 이 위젯만 블러를 꺼서, 안쪽이 흐릿하지 않고 원본 배경이
-     또렷하게 비치게 함(직접 지정한 프레임 배경 이미지가 있으면 그건 원래도
-     블러와 무관하게 또렷했음) */
-  backdrop-filter: none; -webkit-backdrop-filter: none;
 }
 .w-shaker img{ -webkit-user-drag:none; user-drag:none; }
 .w-shaker.shaker-grabbing{ transition:none; cursor:grabbing; }
@@ -1372,6 +1366,20 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    비쳐 보이도록 완전 투명 — 위 background-color:transparent) */
 .shaker-frame.has-bg::after{
   content:''; position:absolute; inset:0; background:rgba(0,0,0,0.18); pointer-events:none;
+}
+/* 프레임 전용 배경을 따로 안 지정했을 때, 카드 테두리는 다른 위젯처럼 블러
+   그대로 유지하고, 프레임 안쪽만 사이트 배경을 또렷하게(블러 없이) 비춰서
+   "뿌연 유리에 뚫린 맑은 창" 같은 효과를 냄. .shaker-frame의 background-image는
+   카드 자신의 backdrop-filter(뒤에 있는 걸 블러하는 효과) 대상이 아니라 프레임
+   위에 그대로 그려지는 레이어라서, 사이트 배경과 같은 이미지를 여기 한 번 더
+   깔아두면 또렷하게 보임. 톤 보정(어둡게/채도)은 ::before 별도 레이어에만 걸어서,
+   그 위에 얹히는 실제 사진 조각들 색감에는 영향이 안 가게 함 */
+.shaker-frame.shaker-frame-mirror-bg::before{
+  content:''; position:absolute; inset:0;
+  background-image: var(--shaker-mirror-bg, none);
+  background-attachment: fixed; background-size:cover; background-position:center;
+  filter: brightness(0.42) saturate(1.15);
+  pointer-events:none;
 }
 .shaker-frame:active{ cursor:grabbing; }
 .shaker-empty{
