@@ -2439,13 +2439,38 @@ body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; b
    색상만 팔레트의 잉크(Dahlia)로 바꿔서, 사진이 어떤 색이든 스크림 자체가
    테마 톤으로 자연스럽게 녹아들게 함 */
 body.theme-light .slide-viewport::after{
-  background: linear-gradient(180deg, rgba(158,47,64,0.35) 0%, rgba(158,47,64,0) 25%, rgba(158,47,64,0) 55%, rgba(158,47,64,0.5) 100%);
+  background: linear-gradient(180deg, rgba(239,244,240,0.5) 0%, rgba(239,244,240,0) 25%, rgba(239,244,240,0) 55%, rgba(239,244,240,0.78) 100%);
 }
 body.theme-light .mp-cover-bg.has-cover::after{
-  background: linear-gradient(180deg, rgba(158,47,64,0) 0%, rgba(158,47,64,0) 32%, rgba(158,47,64,0.55) 58%, rgba(158,47,64,0.82) 100%);
+  background: linear-gradient(180deg, rgba(239,244,240,0) 0%, rgba(239,244,240,0) 32%, rgba(239,244,240,0.7) 58%, rgba(239,244,240,0.92) 100%);
 }
 body.theme-light .speech-card-cover-scrim{
-  background: linear-gradient(180deg, rgba(158,47,64,0) 60%, rgba(158,47,64,0.5) 100%);
+  background: linear-gradient(180deg, rgba(239,244,240,0) 60%, rgba(239,244,240,0.78) 100%);
+}
+/* ---- ⑥ 위 스크림이 어두운 톤에서 뽀얀 톤으로 바뀌면서, 그 위 흰 글자·검은
+   그림자 조합이 더 이상 안 맞음(밝은 바탕 위에 흰 글자) → 글자는 잉크색,
+   그림자는 검정 대신 스크림과 같은 옅은 종이색으로 은은하게 감싸는 방식으로 */
+body.theme-light .slide-caption{
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(239,244,240,0.85), 0 0 10px rgba(239,244,240,0.6);
+}
+body.theme-light .speech-card-cover-text{
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(239,244,240,0.85), 0 0 8px rgba(239,244,240,0.6);
+}
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-title,
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
+  color: var(--ink);
+  text-shadow: 0 1px 2px rgba(239,244,240,0.85), 0 0 5px rgba(239,244,240,0.6);
+}
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-artist{
+  color: var(--ink-soft);
+  text-shadow: 0 1px 2px rgba(239,244,240,0.85), 0 0 5px rgba(239,244,240,0.6);
+}
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-title,
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
+  text-shadow: 0 1px 2px rgba(239,244,240,0.6);
 }
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 body.theme-light .sticker-bubble{ background: rgba(255,255,255,0.8); }
@@ -2521,4 +2546,3 @@ body.theme-light .speech-bubble,
 body.theme-light .sticker-bubble{
   filter: drop-shadow(0 0 1px rgba(158,47,64,0.1)) drop-shadow(0 10px 22px rgba(158,47,64,0.18));
 }
-
