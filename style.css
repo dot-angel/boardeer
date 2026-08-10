@@ -82,37 +82,37 @@
    ========================================================= */
 body.theme-light{
   color-scheme: light;
-  --paper: #FEF9F5;            /* Floral White — 밝은 베이스 배경 */
-  --paper-deep: #EFD6CF;       /* Peach Creme — 배너 로딩 전 배경 등 */
-  --ink: #811612;              /* Caramel Red — 밝은 배경 위 짙은 글자색 */
-  --ink-soft: rgba(129,22,18,0.62);
-  --rose: #C44D50;             /* Red Trillium — 포인트 컬러 */
-  --rose-solid: #800F1D;       /* Falu Red — 버튼 등 단색 채움용 */
-  --rose-soft: rgba(196,77,80,0.16);
-  --sage: #C26A75;             /* Playful Pink — 보조 포인트 */
-  --gold: #D9D3C3;             /* Green Sage — 중립 라인/보조 텍스트 */
-  --gold-soft: rgba(217,211,195,0.45);
-  --card-bg: rgba(255,255,255,0.55);   /* 배경이 비치는 반투명 유리 카드(밝은 버전) */
-  --card-bg2: rgba(255,255,255,0.38);
-  --card-border: rgba(129,22,18,0.12);
+  --paper: #EFF4F0;            /* Linen — 쿨톤 베이스 배경 */
+  --paper-deep: #E8D1D1;       /* Ribbon — 배너 로딩 전 배경 등 */
+  --ink: #9E2F40;              /* Dahlia — 텍스트 전용, 면적에는 안 씀 */
+  --ink-soft: rgba(158,47,64,0.62);
+  --rose: #DF6774;             /* Carnation — 라인·텍스트 포인트, 면적에는 안 씀 */
+  --rose-solid: #F7B0B7;       /* Chantilly — 버튼 등 단색 채움용(파스텔) */
+  --rose-soft: rgba(223,103,116,0.14);
+  --sage: #D9D3C3;             /* Green Sage — 아주 작은 라벨/아이콘 포인트 전용 */
+  --gold: #DADBD4;             /* Mr. Kitty — 중립 라인/보조 텍스트 */
+  --gold-soft: rgba(218,219,212,0.5);
+  --card-bg: rgba(239,244,240,0.55);   /* 배경이 비치는 반투명 유리 카드(밝은 버전) */
+  --card-bg2: rgba(239,244,240,0.38);
+  --card-border: rgba(218,219,212,0.4);
   --card-hi: rgba(255,255,255,0.65);   /* 유리 상단 하이라이트 라인 */
-  --shadow: 0 12px 28px rgba(129,22,18,0.14);
-  --shadow-press: 0 6px 14px rgba(129,22,18,0.17);
-  --tab-chip-bg: rgba(129,22,18,0.06);
-  --tab-dot: rgba(129,22,18,0.28);
-  --tab-dot-hover: rgba(129,22,18,0.48);
-  --arrow-color: #811612;
+  --shadow: 0 12px 28px rgba(158,47,64,0.1);
+  --shadow-press: 0 6px 14px rgba(158,47,64,0.13);
+  --tab-chip-bg: rgba(218,219,212,0.2);
+  --tab-dot: rgba(218,219,212,0.45);
+  --tab-dot-hover: rgba(223,103,116,0.5);
+  --arrow-color: #9E2F40;
   --arrow-shadow: 0 2px 10px rgba(255,255,255,0.6), 0 1px 3px rgba(255,255,255,0.7);
-  --scroll-thumb: rgba(129,22,18,0.18);
-  --row-tint: 129,22,18;
+  --scroll-thumb: rgba(218,219,212,0.45);
+  --row-tint: 218,219,212;
 }
 /* 은은한 글로우도 같은 두 팔레트 안의 레드 계열(Red Trillium/Playful Pink/
    Falu Red)로 구성 — 어두운 배경을 전제로 한 다크모드 값과는 색·농도를 모두 다르게 줌 */
 body.theme-light::before{
   background:
-    radial-gradient(ellipse 560px 460px at 10% 6%, rgba(196,77,80,0.20), transparent 60%),
-    radial-gradient(ellipse 520px 460px at 90% 86%, rgba(194,106,117,0.18), transparent 62%),
-    radial-gradient(ellipse 720px 620px at 82% 6%, rgba(128,15,29,0.14), transparent 65%);
+    radial-gradient(ellipse 560px 460px at 10% 6%, rgba(223,103,116,0.16), transparent 60%),
+    radial-gradient(ellipse 520px 460px at 90% 86%, rgba(232,209,209,0.22), transparent 62%),
+    radial-gradient(ellipse 720px 620px at 82% 6%, rgba(247,176,183,0.16), transparent 65%);
 }
 /* 배경 사진 레이어도 다크모드처럼 어둡게 깔지 않고, 밝고 은은한 톤으로 비치게 함 */
 body.theme-light .bg-image-layer{
@@ -121,7 +121,7 @@ body.theme-light .bg-image-layer{
 body.theme-light .bg-image-layer.has-image::after{
   background:
     radial-gradient(ellipse at 25% 0%, rgba(255,255,255,0.4), transparent 60%),
-    linear-gradient(165deg, rgba(254,249,245,0.35) 0%, rgba(254,249,245,0.8) 100%);
+    linear-gradient(165deg, rgba(239,244,240,0.35) 0%, rgba(239,244,240,0.8) 100%);
 }
 *{ box-sizing: border-box; }
 html,body{ margin:0; padding:0; min-height:100%; }
@@ -2421,44 +2421,46 @@ body.theme-light .modal input[type=text], body.theme-light .modal input[type=pas
 body.theme-light .modal input[type=date], body.theme-light .modal input[type=url],
 body.theme-light .modal input[type=number], body.theme-light .modal textarea,
 body.theme-light .modal select, body.theme-light .modal input[type=file]{
-  background: rgba(129,22,18,0.05);
+  background: rgba(158,47,64,0.05);
 }
-body.theme-light .modal select option{ background:#FEF9F5; color:#811612; }
+body.theme-light .modal select option{ background:#EFF4F0; color:#9E2F40; }
 /* :where()로 감싸서 이 규칙 자체의 우선순위를 0으로 만듦 — 안 그러면
    "body.theme-light" 조상 선택자 때문에 명시도가 올라가서, 뒤에 나오는
    .btn.ghost/.btn.primary 같은 동일 명시도 규칙을 소스 순서와 무관하게
    덮어써버리는 문제가 생김 */
-:where(body.theme-light) .btn{ background: rgba(129,22,18,0.06); }
-:where(body.theme-light) .btn:hover{ background: rgba(129,22,18,0.14); }
+:where(body.theme-light) .btn{ background: rgba(158,47,64,0.06); }
+:where(body.theme-light) .btn:hover{ background: rgba(158,47,64,0.14); }
+body.theme-light .btn.primary{ color: var(--ink); }
+body.theme-light .btn.primary:hover{ background:#f4a0a8; }
 body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; border-color: rgba(196,77,80,0.35); }
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 body.theme-light .sticker-bubble{ background: rgba(255,255,255,0.8); }
-body.theme-light .sec-order-row{ background: rgba(129,22,18,0.05); }
-body.theme-light .sec-order-row.viewonly:hover{ background: rgba(129,22,18,0.1); }
-body.theme-light .sec-order-list .icon-btn{ background: rgba(129,22,18,0.06); }
-body.theme-light .sec-order-list .icon-btn:hover{ background: rgba(129,22,18,0.14); }
-body.theme-light .shaker-manage-thumb{ background-color: rgba(129,22,18,0.06); }
-body.theme-light .speech-editor-stage-dual{ background: rgba(129,22,18,0.06); }
+body.theme-light .sec-order-row{ background: rgba(158,47,64,0.05); }
+body.theme-light .sec-order-row.viewonly:hover{ background: rgba(158,47,64,0.1); }
+body.theme-light .sec-order-list .icon-btn{ background: rgba(158,47,64,0.06); }
+body.theme-light .sec-order-list .icon-btn:hover{ background: rgba(158,47,64,0.14); }
+body.theme-light .shaker-manage-thumb{ background-color: rgba(158,47,64,0.06); }
+body.theme-light .speech-editor-stage-dual{ background: rgba(158,47,64,0.06); }
 body.theme-light .shaker-manage-btn, body.theme-light .shaker-bg-btn{
-  background: rgba(129,22,18,0.4); border-color: rgba(255,255,255,0.5);
+  background: rgba(158,47,64,0.4); border-color: rgba(255,255,255,0.5);
 }
 body.theme-light .shaker-manage-btn:hover, body.theme-light .shaker-bg-btn:hover{
-  background: rgba(129,22,18,0.55);
+  background: rgba(158,47,64,0.55);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
-  body.theme-light .w-card, body.theme-light .modal, body.theme-light .btn{ background:#FEF9F5; }
+  body.theme-light .w-card, body.theme-light .modal, body.theme-light .btn{ background:#EFF4F0; }
 }
 /* 카드 호버 그림자 / 말풍선 위젯의 "두꺼운 유리" 그림자 — 검은 그림자 대신
    팔레트 톤(짙은 캐러멜레드)의 은은한 그림자로, 밝은 배경에서 얼룩처럼
    보이지 않게 함 */
 body.theme-light .w-card:hover{
-  box-shadow: 0 16px 36px rgba(129,22,18,0.16), inset 0 1px 0 var(--card-hi);
+  box-shadow: 0 16px 36px rgba(158,47,64,0.16), inset 0 1px 0 var(--card-hi);
 }
 body.theme-light .w-speech{
   box-shadow:
-    0 18px 34px rgba(129,22,18,0.18),
+    0 18px 34px rgba(158,47,64,0.18),
     inset 0 2px 0 rgba(255,255,255,0.5),
-    inset 0 -10px 16px rgba(129,22,18,0.10);
+    inset 0 -10px 16px rgba(158,47,64,0.10);
 }
 
 /* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(배너/사진 위 배지/전체화면
@@ -2496,13 +2498,13 @@ body.theme-light .site-banner-scrim{
    반대로(테두리는 안 보이고 그림자만 얼룩처럼 남아) 작동해서, 둘 다
    라이트모드용 톤으로 바꿈 */
 body.theme-light .shaker-piece{
-  box-shadow: 0 4px 10px rgba(129,22,18,0.22), inset 0 1px 0 rgba(255,255,255,0.6);
+  box-shadow: 0 4px 10px rgba(158,47,64,0.22), inset 0 1px 0 rgba(255,255,255,0.6);
 }
 body.theme-light .shaker-piece.shaker-piece-plain img{
-  filter: drop-shadow(0 3px 6px rgba(129,22,18,0.22));
+  filter: drop-shadow(0 3px 6px rgba(158,47,64,0.22));
 }
 body.theme-light .speech-bubble,
 body.theme-light .sticker-bubble{
-  filter: drop-shadow(0 0 1px rgba(129,22,18,0.1)) drop-shadow(0 10px 22px rgba(129,22,18,0.18));
+  filter: drop-shadow(0 0 1px rgba(158,47,64,0.1)) drop-shadow(0 10px 22px rgba(158,47,64,0.18));
 }
 
