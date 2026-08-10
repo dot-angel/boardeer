@@ -2433,6 +2433,20 @@ body.theme-light .modal select option{ background:#EFF4F0; color:#9E2F40; }
 body.theme-light .btn.primary{ color: var(--ink); }
 body.theme-light .btn.primary:hover{ background:#f4a0a8; }
 body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; border-color: rgba(196,77,80,0.35); }
+/* ---- ⑤ 사진이 카드 하나를 꽉 채우는 위젯(이미지/음악/말풍선 커버)의
+   글자 가독성용 스크림 — 원래는 다크모드 기준의 무채색 검정이라 라이트모드
+   에서는 사진 위에 검은 얼룩처럼 붕 뜸. 어둡기(하단 불투명도)는 그대로 두고
+   색상만 팔레트의 잉크(Dahlia)로 바꿔서, 사진이 어떤 색이든 스크림 자체가
+   테마 톤으로 자연스럽게 녹아들게 함 */
+body.theme-light .slide-viewport::after{
+  background: linear-gradient(180deg, rgba(158,47,64,0.35) 0%, rgba(158,47,64,0) 25%, rgba(158,47,64,0) 55%, rgba(158,47,64,0.5) 100%);
+}
+body.theme-light .mp-cover-bg.has-cover::after{
+  background: linear-gradient(180deg, rgba(158,47,64,0) 0%, rgba(158,47,64,0) 32%, rgba(158,47,64,0.55) 58%, rgba(158,47,64,0.82) 100%);
+}
+body.theme-light .speech-card-cover-scrim{
+  background: linear-gradient(180deg, rgba(158,47,64,0) 60%, rgba(158,47,64,0.5) 100%);
+}
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 body.theme-light .sticker-bubble{ background: rgba(255,255,255,0.8); }
 body.theme-light .sec-order-row{ background: rgba(158,47,64,0.05); }
@@ -2487,7 +2501,7 @@ body.theme-light .speech-bubble{
    같은 어둡기(하단 불투명도)는 유지하면서 색상만 팔레트의 레드 계열
    (Falu Red)로 바꿔서, 사진이 있든 없든 라이트모드 무드와 맞게 함. */
 body.theme-light .site-banner-scrim{
-  background: linear-gradient(180deg, rgba(128,15,29,0.04) 20%, rgba(128,15,29,0.8) 100%);
+  background: linear-gradient(180deg, rgba(158,47,64,0.04) 20%, rgba(158,47,64,0.85) 100%);
 }
 
 /* ---- ③ 검은 그림자가 스티커/말풍선처럼 작은 요소 여러 개에 걸려있어서,
