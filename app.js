@@ -7369,12 +7369,18 @@ function stepShakerPhysics(){
     p.rot += p.vr;
   });
   // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
-  // 느낌의 핵심. 예전엔 패스를 3번 반복해서 서서히 밀어냈는데, 그 "스르륵
-  // 밀려나는" 느낌 자체가 말랑한 공 인상을 더했음. 겹침 자체는 한 번에
-  // 확실히(overlap 전체를) 풀어서 즉각적으로 튕겨나가게 하고, 자리가 부족해
-  // 덜 풀리는 경우에 대비해 패스 수는 2번만 유지함(정밀하게 나눠 밀지는 않음)
-  // (여기서도 보이는 박스 p.r이 아니라 히트박스 p.r로 겹침을 판정함 — 투명
-  // 배경이 많은 스티커일수록 실제 그림끼리 닿기 전엔 "부딪힌 것"으로 안 침)
+  // 느낌의 핵심. 겹침 보정(위치 밀어내기)은 pass마다 계속 하되, 튕김(속도 변화)은
+  // "몇 번째 pass인가"가 아니라 "이번 프레임에 이 짝이 이미 튕겼는가"로 판단함.
+  // 예전엔 pass===0에서만 튕겼는데, 무더기 위로 조각이 떨어질 때처럼 pass 0
+  // 시점엔 아직 안 겹쳐 있다가 다른 짝들이 먼저 밀리면서 pass 1에 가서야 겹친
+  // 게 드러나는 경우, 그 짝은 위치만 슬쩍 밀리고 튕기는 힘을 아예 못 받아서
+  // "떨어져서 부딪혀도 안 튀는" 것처럼 보였음. 그렇다고 두 pass 다 무조건
+  // 튕기게 하면 같은 짝이 중복으로 튕겨서 에너지가 눈덩이처럼 불어나는(예전에
+  // 겪었던) 문제가 재발함 — 그래서 "짝 하나당 프레임에 한 번만" 튕기도록,
+  // 겹침을 발견한 시점이 아니라 실제로 튕김을 준 시점에만 처리 완료로 표시함
+  // (겹쳤어도 서로 멀어지는 중이면 애초에 안 튕기므로, 그런 경우는 다음 pass에서
+  // 방향이 바뀌었으면 정당하게 다시 기회를 줘야 하기 때문)
+  const boundedPairs = new Set();
   for(let pass=0; pass<2; pass++){
   for(let i=0;i<shakerPieces.length;i++){
     for(let j=i+1;j<shakerPieces.length;j++){
@@ -7387,21 +7393,23 @@ function stepShakerPhysics(){
         const overlap = (minDist - dist) / 2;
         a.x -= nx*overlap; a.y -= ny*overlap;
         b.x += nx*overlap; b.y += ny*overlap;
-        if(pass === 0){
+        const pairKey = i + '_' + j;
+        if(!boundedPairs.has(pairKey)){
           const relVel = (b.vx-a.vx)*nx + (b.vy-a.vy)*ny;
           if(relVel < 0){
             const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
             a.vx -= imp*nx; a.vy -= imp*ny;
             b.vx += imp*nx; b.vy += imp*ny;
+            // 매끈하게 스핀을 주고받으면 공이 굴러가는 것처럼 보여서, 접선
+            // 방향 반응에 더해 부딪힐 때마다 무작위로 툭 꺾이는 회전을 살짝
+            // 얹음 — 매끄러운 회전이 아니라 딱딱한 조각이 모서리에 걸려
+            // 불규칙하게 튀는 느낌
+            const tx = -ny, ty = nx;
+            const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
+            const jag = Math.min(1, Math.abs(relVel)*0.08) * (Math.random()-0.5) * 2;
+            a.vr -= relVelT * 0.05 + jag; b.vr -= relVelT * 0.05 - jag;
+            boundedPairs.add(pairKey); // 이 짝은 이번 프레임엔 더 이상 안 튕김(중복 방지)
           }
-          // 매끈하게 스핀을 주고받으면 공이 굴러가는 것처럼 보여서, 접선
-          // 방향 반응에 더해 부딪힐 때마다 무작위로 툭 꺾이는 회전을 살짝
-          // 얹음 — 매끄러운 회전이 아니라 딱딱한 조각이 모서리에 걸려
-          // 불규칙하게 튀는 느낌
-          const tx = -ny, ty = nx;
-          const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-          const jag = Math.min(1, Math.abs(relVel)*0.08) * (Math.random()-0.5) * 2;
-          a.vr -= relVelT * 0.05 + jag; b.vr -= relVelT * 0.05 - jag;
         }
       }
     }
