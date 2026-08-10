@@ -1352,6 +1352,12 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   /* 흔드는 동작(빠른 드래그) 중에 안의 사진이 브라우저 기본 동작으로 선택되거나
      "드래그되는 이미지"로 붙잡히지 않게 막음 */
   -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  /* .w-card 공통 규칙이 카드 뒤(사이트 배경)를 블러해서 비치게 하는데, 프레임
+     안쪽(배경 이미지를 따로 안 넣었을 때 훤히 비치는 부분)이 뿌옇게 보이는
+     원인이 이거였음. 이 위젯만 블러를 꺼서, 안쪽이 흐릿하지 않고 원본 배경이
+     또렷하게 비치게 함(직접 지정한 프레임 배경 이미지가 있으면 그건 원래도
+     블러와 무관하게 또렷했음) */
+  backdrop-filter: none; -webkit-backdrop-filter: none;
 }
 .w-shaker img{ -webkit-user-drag:none; user-drag:none; }
 .w-shaker.shaker-grabbing{ transition:none; cursor:grabbing; }
