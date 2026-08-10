@@ -2502,15 +2502,11 @@ body.theme-light .w-speech{
     inset 0 -10px 16px rgba(158,47,64,0.10);
 }
 
-/* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(배너/사진 위 배지/전체화면
+/* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(사진 위 배지/전체화면
    오버레이 안) 요소들 — 배경은 그대로 두고, 라이트모드를 따라가 버려
-   안 보이던 글자·아이콘 색만 고정된 밝은 색으로 되돌림 ---- */
-body.theme-light .banner-bottom-right .btn{
-  background: rgba(255,255,255,0.12); color:#FBF7F8;
-}
-body.theme-light .banner-bottom-right .btn:hover{ background: rgba(255,255,255,0.22); }
-body.theme-light .lock-badge{ background: rgba(255,255,255,0.1); color:#FBF7F8; }
-body.theme-light .lock-badge.unlocked{ color:#f4b6bd; border-color:#f4b6bd; }
+   안 보이던 글자·아이콘 색만 고정된 밝은 색으로 되돌림. 배너 쪽 컨트롤은
+   아래 ④에서 스크림 자체를 뽀얗게 바꾸면서 기본 잉크색 글자로도 충분히
+   읽히게 됐으므로 여기서 제외함 ---- */
 body.theme-light .speech-card-cover-btn,
 body.theme-light .speech-card-edit-btn,
 body.theme-light .video-collapse,
@@ -2519,14 +2515,16 @@ body.theme-light .speech-bubble{
   color:#FBF7F8;
 }
 
-/* ---- ④ 배너 스크림 — 제목/버튼 글자가 사진 위에서도 항상 읽히도록 배경은
-   계속 어둡게 유지하되(위 ②와 같은 이유), 다크모드 팔레트 그대로인 무채색
-   검정(rgba(15,4,6)/rgba(10,3,5))이 배너 사진이 없을 때(연한 --paper-deep
-   색 위) 그대로 깔리면 라이트모드 톤과 안 어울리는 탁한 검정 얼룩처럼 보였음.
-   같은 어둡기(하단 불투명도)는 유지하면서 색상만 팔레트의 레드 계열
-   (Falu Red)로 바꿔서, 사진이 있든 없든 라이트모드 무드와 맞게 함. */
+/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 톤으로: 어둡기(하단
+   불투명도)는 유지하면서 색상만 뽀얀 종이색(Linen)으로 바꿔서 사진이
+   있든 없든 라이트모드 무드와 맞게 함. 제목 글자도 흰색 고정 대신
+   잉크색 + 종이색 그림자로 바꿔서 밝아진 스크림 위에서도 읽히게 함 */
 body.theme-light .site-banner-scrim{
-  background: linear-gradient(180deg, rgba(158,47,64,0.04) 20%, rgba(158,47,64,0.85) 100%);
+  background: linear-gradient(180deg, rgba(239,244,240,0.12) 20%, rgba(239,244,240,0.88) 100%);
+}
+body.theme-light .site-name{
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(239,244,240,0.85), 0 0 10px rgba(239,244,240,0.6);
 }
 
 /* ---- ③ 검은 그림자가 스티커/말풍선처럼 작은 요소 여러 개에 걸려있어서,
@@ -2536,7 +2534,7 @@ body.theme-light .site-banner-scrim{
    원래 어두운 배경을 전제로 넣어둔 흰 테두리 하이라이트가 밝은 배경에서는
    반대로(테두리는 안 보이고 그림자만 얼룩처럼 남아) 작동해서, 둘 다
    라이트모드용 톤으로 바꿈 */
-body.theme-light .shaker-piece{
+body.theme-light .shaker-piece:not(.shaker-piece-plain){
   box-shadow: 0 4px 10px rgba(158,47,64,0.22), inset 0 1px 0 rgba(255,255,255,0.6);
 }
 body.theme-light .shaker-piece.shaker-piece-plain img{
@@ -2546,3 +2544,4 @@ body.theme-light .speech-bubble,
 body.theme-light .sticker-bubble{
   filter: drop-shadow(0 0 1px rgba(158,47,64,0.1)) drop-shadow(0 10px 22px rgba(158,47,64,0.18));
 }
+
