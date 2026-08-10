@@ -1528,12 +1528,27 @@ function injectCustomFontFace(srcDecl){
    값을 넣어봤자 상속 전에 body 자신의 규칙이 이겨버려 라이트모드에서는
    커스텀 색이 통째로 무시되는 문제가 있었음(다크모드는 body에 직접
    걸린 규칙이 없어서 html의 인라인 값이 그대로 상속돼 우연히 잘 됐던 것). */
+function hexToRgbTriple(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex||'');
+  if(!m) return null;
+  const n = parseInt(m[1], 16);
+  return `${(n>>16)&255},${(n>>8)&255},${n&255}`;
+}
+
 function applyTheme(theme){
   if(!theme) return;
   THEME_VARS.forEach(v=>{
     const key = v.replace('--','');
     if(theme[key]) document.body.style.setProperty(v, theme[key]);
   });
+  // 라이트모드 보정 규칙들이 검정 대신 --ink 톤의 rgba(var(--ink-rgb), 알파)를 쓰므로,
+  // 사용자가 테마 편집에서 글자색을 바꾸면 이 r,g,b 성분도 같이 갱신해야
+  // 그림자/스크림/버튼 배경 등 보정 색이 새 글자색을 따라감(안 그러면 커스텀
+  // 잉크컬러를 골라도 보정 부분만 옛 기본색 그대로 남아있게 됨).
+  if(theme.ink){
+    const rgb = hexToRgbTriple(theme.ink);
+    if(rgb) document.body.style.setProperty('--ink-rgb', rgb);
+  }
   if(theme.customFontData){
     injectCustomFontFace(`url(${theme.customFontData}) format('truetype')`);
     document.body.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
@@ -1579,6 +1594,7 @@ function subscribeModeMeta(){
     // 이전 모드에서 적용해둔 색/폰트 인라인 오버라이드를 먼저 걷어내야, 그 값이
     // 새로 전환한 모드에도 그대로 남아있는(색이 안 바뀌는) 문제가 생기지 않음.
     THEME_VARS.forEach(v=> document.body.style.removeProperty(v));
+    document.body.style.removeProperty('--ink-rgb');
     document.body.style.removeProperty('--font-display');
     document.body.style.removeProperty('--font-body');
     injectCustomFontFace(null);

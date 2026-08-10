@@ -32,6 +32,7 @@
   --paper: #0F0406;            /* Coffee Bean — 베이스 다크 배경색 */
   --paper-deep: #1A0B0F;       /* 약간 밝은 변형 — 배너 로딩 전 배경 등 */
   --ink: #F3ECEE;              /* Alabaster 톤 라이트 글자색 */
+  --ink-rgb: 243,236,238;      /* --ink의 r,g,b 성분 — rgba() 톤 보정에서 재사용 */
   --ink-soft: rgba(243,236,238,0.62);
   --rose: #C4425F;             /* Night Bordeaux를 다크 배경에서 읽히도록 밝힌 포인트 컬러 */
   --rose-solid: #7A2130;       /* 버튼 등 단색 채움용 진한 로즈 */
@@ -85,8 +86,9 @@ body.theme-light{
   --paper: #EFF4F0;            /* Linen — 쿨톤 베이스 배경 */
   --paper-deep: #E8D1D1;       /* Ribbon — 배너 로딩 전 배경 등 */
   --ink: #a71a36;              /* Dahlia — 텍스트 전용, 면적에는 안 씀 */
-  --ink-soft: rgba(167,26,54,0.62);
-  --rose: #DF6774;             /* Carnation — 라인·텍스트 포인트, 면적에는 안 씀 */
+  --ink-rgb: 167,26,54;        /* --ink의 r,g,b 성분 — rgba() 톤 보정에서 재사용(테마 편집으로 --ink를 바꾸면 JS가 이 값도 같이 갱신함) */
+  --ink-soft: rgba(var(--ink-rgb),0.62);
+  --rose: #DF688F;             /* Carnation을 좀 더 쿨하게(코랄→로즈-마젠타 쪽으로 색상환 이동) 조정 — 라인·텍스트 포인트, 면적에는 안 씀 */
   --rose-solid: #F7B0B7;       /* Chantilly — 버튼 등 단색 채움용(파스텔) */
   --rose-soft: rgba(223,103,116,0.14);
   --sage: #d7d9c3;             /* Green Sage — 작은 라벨/아이콘 포인트 + 사진 위 스크림 톤 */
@@ -96,8 +98,8 @@ body.theme-light{
   --card-bg2: rgba(239,244,240,0.38);
   --card-border: rgba(218,219,212,0.4);
   --card-hi: rgba(255,255,255,0.65);   /* 유리 상단 하이라이트 라인 */
-  --shadow: 0 12px 28px rgba(167,26,54,0.1);
-  --shadow-press: 0 6px 14px rgba(167,26,54,0.13);
+  --shadow: 0 12px 28px rgba(var(--ink-rgb),0.1);
+  --shadow-press: 0 6px 14px rgba(var(--ink-rgb),0.13);
   --tab-chip-bg: rgba(218,219,212,0.2);
   --tab-dot: rgba(218,219,212,0.45);
   --tab-dot-hover: rgba(223,103,116,0.5);
@@ -2421,15 +2423,15 @@ body.theme-light .modal input[type=text], body.theme-light .modal input[type=pas
 body.theme-light .modal input[type=date], body.theme-light .modal input[type=url],
 body.theme-light .modal input[type=number], body.theme-light .modal textarea,
 body.theme-light .modal select, body.theme-light .modal input[type=file]{
-  background: rgba(167,26,54,0.05);
+  background: rgba(var(--ink-rgb),0.05);
 }
 body.theme-light .modal select option{ background:#EFF4F0; color:#a71a36; }
 /* :where()로 감싸서 이 규칙 자체의 우선순위를 0으로 만듦 — 안 그러면
    "body.theme-light" 조상 선택자 때문에 명시도가 올라가서, 뒤에 나오는
    .btn.ghost/.btn.primary 같은 동일 명시도 규칙을 소스 순서와 무관하게
    덮어써버리는 문제가 생김 */
-:where(body.theme-light) .btn{ background: rgba(167,26,54,0.06); }
-:where(body.theme-light) .btn:hover{ background: rgba(167,26,54,0.14); }
+:where(body.theme-light) .btn{ background: rgba(var(--ink-rgb),0.06); }
+:where(body.theme-light) .btn:hover{ background: rgba(var(--ink-rgb),0.14); }
 body.theme-light .btn.primary{ color: var(--ink); }
 body.theme-light .btn.primary:hover{ background:#f4a0a8; }
 body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; border-color: rgba(196,77,80,0.35); }
@@ -2437,37 +2439,45 @@ body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; b
    글자 가독성용 스크림 — 원래는 다크모드 기준의 무채색 검정이라 라이트모드
    에서는 사진 위에 검은 얼룩처럼 붕 뜸. 어둡기(하단 불투명도)는 그대로 두고
    색상만 팔레트의 그린세이지로 바꿔서, 사진이 어떤 색이든 스크림 자체가
-   테마 톤으로 자연스럽게 녹아들게 함 */
+   테마 톤으로 자연스럽게 녹아들게 함. 처음엔 팔레트의 밝은 세이지(--sage)를
+   그대로 썼는데, 흰 글씨 뒤에서 대비를 주려면 스크림이 사진보다 어두워야
+   하는데 밝은 파스텔을 진하게 깔아버리면 오히려 사진 위에 뽀얀 막을 씌운
+   것처럼 붕 떠 보이고, 대비가 안 나오니 글자 그림자를 키워서 메꾸려다 보니
+   네온사인처럼 번지는 문제가 생겼음. 그래서 세이지의 짙은 버전(다크 올리브,
+   58,62,46)을 씀 — 색감(그린세이지 무드)은 유지하면서 실제로는 어둡게
+   눌러줘서 정상적인 사진 그림자처럼 자연스럽게 가라앉음 */
 body.theme-light .slide-viewport::after{
-  background: linear-gradient(180deg, rgba(215,217,195,0.5) 0%, rgba(215,217,195,0) 25%, rgba(215,217,195,0) 55%, rgba(215,217,195,0.78) 100%);
+  background: linear-gradient(180deg, rgba(58,62,46,0.5) 0%, rgba(58,62,46,0) 25%, rgba(58,62,46,0) 55%, rgba(58,62,46,0.78) 100%);
 }
 body.theme-light .mp-cover-bg.has-cover::after{
-  background: linear-gradient(180deg, rgba(215,217,195,0) 0%, rgba(215,217,195,0) 32%, rgba(215,217,195,0.7) 58%, rgba(215,217,195,0.92) 100%);
+  background: linear-gradient(180deg, rgba(58,62,46,0) 0%, rgba(58,62,46,0) 32%, rgba(58,62,46,0.7) 58%, rgba(58,62,46,0.92) 100%);
 }
 body.theme-light .speech-card-cover-scrim{
-  background: linear-gradient(180deg, rgba(215,217,195,0) 60%, rgba(215,217,195,0.78) 100%);
+  background: linear-gradient(180deg, rgba(58,62,46,0) 60%, rgba(58,62,46,0.78) 100%);
 }
-/* ---- ⑥ 검정 대신 팔레트의 레드(Carnation)를 그림자색으로 써서, 흰 글자를
-   그대로 유지해도 옅은 로즈솔리드 그라데이션 위에서 잘 읽히게 함 */
+/* ---- ⑥ 검정 대신 팔레트의 레드(달리아)를 그림자색으로 씀. 다만 위 스크림이
+   이제 실제로 어두워져서 대비를 이미 만들어주므로, 그림자 자체는 다크모드
+   원본처럼 큰 번짐을 줄 필요가 없음 — 번짐(blur)을 크게 주면 채도 있는 색은
+   네온사인처럼 보여서, 딱 붙는 작은 그림자로 줄임 */
 body.theme-light .slide-caption{
-  text-shadow: 0 6px 20px rgba(167,26,54,0.55), 0 1px 4px rgba(167,26,54,0.65);
+  text-shadow: 0 1px 3px rgba(var(--ink-rgb),0.6), 0 2px 8px rgba(var(--ink-rgb),0.35);
 }
 body.theme-light .speech-card-cover-text{
-  text-shadow: 0 1px 4px rgba(167,26,54,0.6);
+  text-shadow: 0 1px 4px rgba(var(--ink-rgb),0.6);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
   color: rgba(255,255,255,0.95);
-  text-shadow: 0 1px 2px rgba(167,26,54,0.75), 0 0 4px rgba(167,26,54,0.55);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.75), 0 0 4px rgba(var(--ink-rgb),0.55);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-artist{
   color: rgba(255,255,255,0.88);
-  text-shadow: 0 1px 2px rgba(167,26,54,0.75), 0 0 4px rgba(167,26,54,0.55);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.75), 0 0 4px rgba(var(--ink-rgb),0.55);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
-  text-shadow: 0 1px 2px rgba(167,26,54,0.5);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.5);
 }
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 /* 말풍선 3종(스티커 말풍선/말풍선 위젯/프로필 간략보기 한마디)을 라이트모드에서
@@ -2478,17 +2488,17 @@ body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 body.theme-light .sticker-bubble,
 body.theme-light .speech-bubble,
 body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.8); }
-body.theme-light .sec-order-row{ background: rgba(167,26,54,0.05); }
-body.theme-light .sec-order-row.viewonly:hover{ background: rgba(167,26,54,0.1); }
-body.theme-light .sec-order-list .icon-btn{ background: rgba(167,26,54,0.06); }
-body.theme-light .sec-order-list .icon-btn:hover{ background: rgba(167,26,54,0.14); }
-body.theme-light .shaker-manage-thumb{ background-color: rgba(167,26,54,0.06); }
-body.theme-light .speech-editor-stage-dual{ background: rgba(167,26,54,0.06); }
+body.theme-light .sec-order-row{ background: rgba(var(--ink-rgb),0.05); }
+body.theme-light .sec-order-row.viewonly:hover{ background: rgba(var(--ink-rgb),0.1); }
+body.theme-light .sec-order-list .icon-btn{ background: rgba(var(--ink-rgb),0.06); }
+body.theme-light .sec-order-list .icon-btn:hover{ background: rgba(var(--ink-rgb),0.14); }
+body.theme-light .shaker-manage-thumb{ background-color: rgba(var(--ink-rgb),0.06); }
+body.theme-light .speech-editor-stage-dual{ background: rgba(var(--ink-rgb),0.06); }
 body.theme-light .shaker-manage-btn, body.theme-light .shaker-bg-btn{
-  background: rgba(167,26,54,0.4); border-color: rgba(255,255,255,0.5);
+  background: rgba(var(--ink-rgb),0.4); border-color: rgba(255,255,255,0.5);
 }
 body.theme-light .shaker-manage-btn:hover, body.theme-light .shaker-bg-btn:hover{
-  background: rgba(167,26,54,0.55);
+  background: rgba(var(--ink-rgb),0.55);
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   body.theme-light .w-card, body.theme-light .modal, body.theme-light .btn{ background:#EFF4F0; }
@@ -2497,13 +2507,13 @@ body.theme-light .shaker-manage-btn:hover, body.theme-light .shaker-bg-btn:hover
    팔레트 톤(짙은 캐러멜레드)의 은은한 그림자로, 밝은 배경에서 얼룩처럼
    보이지 않게 함 */
 body.theme-light .w-card:hover{
-  box-shadow: 0 16px 36px rgba(167,26,54,0.16), inset 0 1px 0 var(--card-hi);
+  box-shadow: 0 16px 36px rgba(var(--ink-rgb),0.16), inset 0 1px 0 var(--card-hi);
 }
 body.theme-light .w-speech{
   box-shadow:
-    0 18px 34px rgba(167,26,54,0.18),
+    0 18px 34px rgba(var(--ink-rgb),0.18),
     inset 0 2px 0 rgba(255,255,255,0.5),
-    inset 0 -10px 16px rgba(167,26,54,0.10);
+    inset 0 -10px 16px rgba(var(--ink-rgb),0.10);
 }
 
 /* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(사진 위 배지/전체화면
@@ -2518,15 +2528,14 @@ body.theme-light .row-refpair.video-open .video-title{
   color:#FBF7F8;
 }
 
-/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 톤(그린세이지)으로: 어둡기
-   (하단 불투명도)는 유지하면서 색상만 바꿔서 사진이 있든 없든 라이트모드
-   무드와 맞게 함. 제목 글자도 흰색 고정 대신 잉크색 + 종이색 그림자로 바꿔서
-   밝아진 스크림 위에서도 읽히게 함 */
+/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 원리(짙은 세이지)로:
+   하단을 진짜로 어둡게 눌러줘서 흰 제목 글자가 자연스럽게 대비되게 함.
+   제목 그림자도 번짐(blur)을 줄여서 네온처럼 번지지 않게 함 */
 body.theme-light .site-banner-scrim{
-  background: linear-gradient(180deg, rgba(215,217,195,0.12) 20%, rgba(215,217,195,0.88) 100%);
+  background: linear-gradient(180deg, rgba(58,62,46,0.1) 20%, rgba(58,62,46,0.72) 100%);
 }
 body.theme-light .site-name{
-  text-shadow: 0 6px 24px rgba(167,26,54,0.55), 0 2px 10px rgba(167,26,54,0.6);
+  text-shadow: 0 1px 3px rgba(var(--ink-rgb),0.6), 0 3px 10px rgba(var(--ink-rgb),0.4);
 }
 body.theme-light .banner-bottom-right .btn{
   background: rgba(255,255,255,0.12); color:#FBF7F8;
@@ -2543,13 +2552,13 @@ body.theme-light .lock-badge.unlocked{ color:#f4b6bd; border-color:#f4b6bd; }
    반대로(테두리는 안 보이고 그림자만 얼룩처럼 남아) 작동해서, 둘 다
    라이트모드용 톤으로 바꿈 */
 body.theme-light .shaker-piece:not(.shaker-piece-plain){
-  box-shadow: 0 4px 10px rgba(167,26,54,0.22), inset 0 1px 0 rgba(255,255,255,0.6);
+  box-shadow: 0 4px 10px rgba(var(--ink-rgb),0.22), inset 0 1px 0 rgba(255,255,255,0.6);
 }
 body.theme-light .shaker-piece.shaker-piece-plain img{
-  filter: drop-shadow(0 3px 6px rgba(167,26,54,0.22));
+  filter: drop-shadow(0 3px 6px rgba(var(--ink-rgb),0.22));
 }
 body.theme-light .speech-bubble,
 body.theme-light .sticker-bubble,
 body.theme-light .profile-compact-oneliner{
-  filter: drop-shadow(0 0 1px rgba(167,26,54,0.1)) drop-shadow(0 10px 22px rgba(167,26,54,0.18));
+  filter: drop-shadow(0 0 1px rgba(var(--ink-rgb),0.1)) drop-shadow(0 10px 22px rgba(var(--ink-rgb),0.18));
 }
