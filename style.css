@@ -84,7 +84,7 @@ body.theme-light{
   color-scheme: light;
   --paper: #EFF4F0;            /* Linen — 쿨톤 베이스 배경 */
   --paper-deep: #E8D1D1;       /* Ribbon — 배너 로딩 전 배경 등 */
-  --ink: #9E2F40;              /* Dahlia — 텍스트 전용, 면적에는 안 씀 */
+  --ink: #a71a36;              /* Dahlia — 텍스트 전용, 면적에는 안 씀 */
   --ink-soft: rgba(158,47,64,0.62);
   --rose: #DF6774;             /* Carnation — 라인·텍스트 포인트, 면적에는 안 씀 */
   --rose-solid: #F7B0B7;       /* Chantilly — 버튼 등 단색 채움용(파스텔) */
