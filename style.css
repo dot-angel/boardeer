@@ -1072,8 +1072,13 @@ body:not(.edit-mode) .profile-fields-scroll{
 .profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
 .profile-field .pf-label{ font-weight:700; color: var(--rose); flex:0 0 auto; white-space:nowrap; }
 .profile-field .pf-value{ color: var(--ink); white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; flex:1; min-width:0; }
-/* 성격 항목은 줄글 대신 키워드 해시태그 알약으로 보여줌 */
-.profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; justify-content:center; height:22px; overflow:hidden; }
+/* 성격 항목은 줄글 대신 키워드 해시태그 알약으로 보여줌.
+   예전엔 height:22px(한 줄 높이)에 overflow:hidden을 걸어놨는데, 카드 폭이
+   넓은 데스크톱에선 대부분 한 줄에 다 들어가서 안 티났지만, 모바일처럼 폭이
+   좁아 해시태그가 두 줄 이상으로 줄바꿈되면 그 아래 줄이 통째로 잘려서 안
+   보였음(예: 4개 중 앞 2개만 보이고 나머지 생략). 높이를 min-height로 바꾸고
+   overflow:hidden을 없애서, 태그 개수가 많아 몇 줄로 넘어가든 전부 보이게 함 */
+.profile-field-personality{ flex-direction:row; align-items:baseline; flex-wrap:wrap; gap:5px; justify-content:center; min-height:22px; }
 .pf-hashtags{ display:flex; flex-wrap:wrap; gap:5px; justify-content:center; }
 .pf-hashtag{
   font-size:.72rem; font-weight:600; color: var(--rose);
