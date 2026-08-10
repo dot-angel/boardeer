@@ -1505,19 +1505,9 @@ function parseColorToHexAlpha(str){
 }
 
 const THEME_VARS = ['--rose','--sage','--gold','--paper','--card-bg','--card-bg2','--ink'];
-/* style.css의 :root(다크 기본값)와 [data-theme="light"](라이트 기본값)에 실제로 박혀있는
-   값과 반드시 같게 유지해야 함 — 여기는 오직 "테마 편집" 모달에 입력칸 기본값을
-   채워 넣기 위한 JS 쪽 복사본일 뿐, 실제 화면에 적용되는 색은 항상 CSS가 기준임
-   (사용자가 아직 커스텀하지 않은 값은 여기서 강제로 인라인 지정하지 않고 CSS 기본값이
-   그대로 보이게 함 — applyThemeColors 참고) */
-const THEME_DEFAULTS = {
-  dark:  { rose:'#C4425F', sage:'#A9727F', gold:'#95929C', paper:'#0F0406', 'card-bg':'rgba(32,16,20,0.075)', 'card-bg2':'rgba(32,16,20,0.045)', ink:'#F3ECEE' },
-  light: { rose:'#B3223B', sage:'#8C5B63', gold:'#8B7D74', paper:'#F6F1EC', 'card-bg':'rgba(255,255,255,0.55)', 'card-bg2':'rgba(255,255,255,0.34)', ink:'#2B1417' }
-};
 const FONT_DISPLAY_OPTIONS = ['ZEN SERIF','Song Myung','Noto Serif KR','Nanum Myeongjo','Gowun Batang'];
 const FONT_BODY_OPTIONS = ['ZEN SERIF','Noto Sans KR','Gowun Dodum'];
 const CUSTOM_FONT_MAX_BYTES = 500000;
-const THEME_MODE_STORAGE_KEY = 'noeunThemeMode';
 
 function injectCustomFontFace(srcDecl){
   let styleTag = document.getElementById('customFontFace');
@@ -1531,40 +1521,12 @@ function injectCustomFontFace(srcDecl){
     : '';
 }
 
-let currentThemeDoc = {};
-let currentMode = 'dark';
-
-/* 저장된 라이트/다크 각각의 커스텀 색만 돌려줌(기본값을 채워넣지 않음) — 이래야
-   아직 커스텀 안 한 항목은 CSS의 기본값이 그대로 살아있음. 다크모드는 예전에
-   중첩 구조 없이 theme 문서 최상단에 바로 rose/sage/... 를 저장하던 시절 데이터와도
-   호환되도록, theme.dark가 없으면 최상단 값을 그대로 다크모드 값으로 봐줌(마이그레이션). */
-function getSavedModeColors(themeDoc, mode){
-  if(themeDoc[mode]) return themeDoc[mode];
-  if(mode === 'dark'){
-    const legacy = {};
-    THEME_VARS.forEach(v=>{
-      const key = v.replace('--','');
-      if(themeDoc[key]) legacy[key] = themeDoc[key];
-    });
-    return legacy;
-  }
-  return {};
-}
-/* 테마 편집 모달의 입력칸을 채우기 위한 용도 — 커스텀 값이 없으면 기본 팔레트로 채움 */
-function getEditableModeColors(themeDoc, mode){
-  return { ...THEME_DEFAULTS[mode], ...getSavedModeColors(themeDoc, mode) };
-}
-
-function applyThemeColors(modeColors){
+function applyTheme(theme){
+  if(!theme) return;
   THEME_VARS.forEach(v=>{
     const key = v.replace('--','');
-    document.documentElement.style.removeProperty(v);
-    if(modeColors && modeColors[key]) document.documentElement.style.setProperty(v, modeColors[key]);
+    if(theme[key]) document.documentElement.style.setProperty(v, theme[key]);
   });
-}
-
-function applyFonts(theme){
-  if(!theme) return;
   if(theme.customFontData){
     injectCustomFontFace(`url(${theme.customFontData}) format('truetype')`);
     document.documentElement.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
@@ -1575,52 +1537,13 @@ function applyFonts(theme){
     document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
   } else {
     injectCustomFontFace(null);
-    document.documentElement.style.removeProperty('--font-display');
-    document.documentElement.style.removeProperty('--font-body');
     if(theme.fontDisplay) document.documentElement.style.setProperty('--font-display', `'${theme.fontDisplay}', 'Noto Serif KR', serif`);
     if(theme.fontBody) document.documentElement.style.setProperty('--font-body', `'${theme.fontBody}', serif`);
   }
 }
 
-function getStoredModeOverride(){
-  try{ return localStorage.getItem(THEME_MODE_STORAGE_KEY); }catch(e){ return null; }
-}
-function setStoredModeOverride(mode){
-  try{ localStorage.setItem(THEME_MODE_STORAGE_KEY, mode); }catch(e){}
-}
-/* 방문자가 이 브라우저에서 한 번이라도 직접 라이트/다크를 눌러 바꾼 적이 있으면 그걸
-   최우선으로 기억하고, 그런 적이 없으면 주인이 테마 편집에서 정한 "기본 모드"를 따르고,
-   그것도 없으면 다크모드로 시작함 */
-function resolveInitialMode(theme){
-  const stored = getStoredModeOverride();
-  if(stored === 'dark' || stored === 'light') return stored;
-  if(theme && (theme.mode === 'dark' || theme.mode === 'light')) return theme.mode;
-  return 'dark';
-}
-
-function updateModeToggleBtn(){
-  if(!modeToggleBtn) return;
-  modeToggleBtn.textContent = currentMode === 'light' ? '☀️ 라이트' : '🌙 다크';
-}
-
-function setActiveMode(mode, persistLocal){
-  currentMode = mode === 'light' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', currentMode);
-  applyThemeColors(getSavedModeColors(currentThemeDoc, currentMode));
-  updateModeToggleBtn();
-  if(persistLocal) setStoredModeOverride(currentMode);
-}
-
 db.collection('meta').doc('theme').onSnapshot(doc=>{
-  currentThemeDoc = doc.exists ? doc.data() : {};
-  applyFonts(currentThemeDoc);
-  setActiveMode(resolveInitialMode(currentThemeDoc), false);
-});
-
-modeToggleBtn.addEventListener('click', ()=>{
-  const next = currentMode === 'light' ? 'dark' : 'light';
-  setActiveMode(next, true);
-  toast(next === 'light' ? '☀️ 라이트 모드로 바꿨어요' : '🌙 다크 모드로 바꿨어요');
+  if(doc.exists) applyTheme(doc.data());
 });
 
 globalStyleBtn.addEventListener('click', async ()=>{
