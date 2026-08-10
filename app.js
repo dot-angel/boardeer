@@ -7472,9 +7472,7 @@ function shakerWobbleTarget(){
   if(shakerFullOpen){
     return document.querySelector('.modal-shaker-full') || document.getElementById('cardShaker');
   }
-  // 카드 전체(.w-shaker)가 아니라 프레임(.shaker-frame)에만 흔들림을 걺 — 이유는
-  // style.css의 .shaker-frame 흔들림 애니메이션 주석 참고(마스크+블러 렌더링 버그 회피)
-  return document.getElementById('shakerFrame') || document.getElementById('cardShaker');
+  return document.getElementById('cardShaker');
 }
 function closeShakerFullscreen(){
   if(!shakerFullOpen) return;
