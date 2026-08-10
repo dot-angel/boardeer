@@ -1383,13 +1383,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .w-shaker.shaker-grabbing{ transition:none; cursor:grabbing; }
 .shaker-frame{
   position:relative; z-index:1; flex:1; min-height:72px; border-radius:12px;
-  /* 완전 투명으로 두면(뒤가 그대로 비침) 카드 뒤에 깔린 사이트 전체의 붉은
-     색 글로우 얼룩(body::before)까지 같이 비쳐서 지저분해 보임 — 그래서
-     투명 대신 사이트 베이스 다크톤(--paper, 글로우/배경 사진 없는 순수
-     배경색)으로 채워서 색 얼룩 없이 깔끔하게 둠. 블러는 여전히 없음(위
-     ::before가 카드 테두리에만 블러를 걸고, 이 프레임 안쪽은 그 mask
-     구멍이라 애초에 블러가 안 걸림) */
-  background-color: var(--paper); background-size:cover; background-position:center;
+  background-color:transparent; background-size:cover; background-position:center;
   border:1px solid var(--card-border);
   overflow:hidden; touch-action:none; cursor:grab;
 }
