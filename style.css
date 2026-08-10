@@ -74,39 +74,40 @@
 /* =========================================================
    라이트모드 — 다크모드와 동일한 편집 자유도(배너/배경/색상)를 갖되,
    여기서는 그 편집값이 없을 때(=기본값)만 쓰이는 "라이트 기본 팔레트".
-   참고 팔레트: GARNET(Diamond White/Silver Quartz/Dark Carmine/Black
-   Cherry Stone) + Falu Red 계열(Nana's Rose/Playful Pink/Red Trillium/
-   Falu Red) + Floral White/Green Sage/Peach Creme/Caramel Red를
-   밝은 배경 위에서 읽히도록 재해석함.
+   전체 무드는 아래 두 팔레트만 참고해서 짬:
+     ① 디저트 핑크 팔레트 — Drought / Nana's Rose / Playful Pink /
+        Red Trillium / Falu Red
+     ② 플로럴 크림 팔레트 — Green Sage / Peach Creme / Floral White /
+        Caramel Red
    ========================================================= */
 body.theme-light{
   color-scheme: light;
   --paper: #FEF9F5;            /* Floral White — 밝은 베이스 배경 */
-  --paper-deep: #F4E7E0;       /* Peach Creme를 살짝 옅게 — 배너 로딩 전 배경 등 */
-  --ink: #380507;              /* Black Cherry Stone — 밝은 배경 위 짙은 글자색 */
-  --ink-soft: rgba(56,5,7,0.62);
+  --paper-deep: #EFD6CF;       /* Peach Creme — 배너 로딩 전 배경 등 */
+  --ink: #811612;              /* Caramel Red — 밝은 배경 위 짙은 글자색 */
+  --ink-soft: rgba(129,22,18,0.62);
   --rose: #C44D50;             /* Red Trillium — 포인트 컬러 */
   --rose-solid: #800F1D;       /* Falu Red — 버튼 등 단색 채움용 */
   --rose-soft: rgba(196,77,80,0.16);
   --sage: #C26A75;             /* Playful Pink — 보조 포인트 */
-  --gold: #B7ADA0;             /* Green Sage를 살짝 짙게 — 중립 라인/보조 텍스트 */
-  --gold-soft: rgba(183,173,160,0.4);
+  --gold: #D9D3C3;             /* Green Sage — 중립 라인/보조 텍스트 */
+  --gold-soft: rgba(217,211,195,0.45);
   --card-bg: rgba(255,255,255,0.55);   /* 배경이 비치는 반투명 유리 카드(밝은 버전) */
   --card-bg2: rgba(255,255,255,0.38);
-  --card-border: rgba(56,5,7,0.12);
+  --card-border: rgba(129,22,18,0.12);
   --card-hi: rgba(255,255,255,0.65);   /* 유리 상단 하이라이트 라인 */
-  --shadow: 0 12px 28px rgba(89,8,11,0.14);
-  --shadow-press: 0 6px 14px rgba(89,8,11,0.17);
-  --tab-chip-bg: rgba(56,5,7,0.06);
-  --tab-dot: rgba(56,5,7,0.28);
-  --tab-dot-hover: rgba(56,5,7,0.48);
-  --arrow-color: #380507;
+  --shadow: 0 12px 28px rgba(129,22,18,0.14);
+  --shadow-press: 0 6px 14px rgba(129,22,18,0.17);
+  --tab-chip-bg: rgba(129,22,18,0.06);
+  --tab-dot: rgba(129,22,18,0.28);
+  --tab-dot-hover: rgba(129,22,18,0.48);
+  --arrow-color: #811612;
   --arrow-shadow: 0 2px 10px rgba(255,255,255,0.6), 0 1px 3px rgba(255,255,255,0.7);
-  --scroll-thumb: rgba(56,5,7,0.18);
-  --row-tint: 56,5,7;
+  --scroll-thumb: rgba(129,22,18,0.18);
+  --row-tint: 129,22,18;
 }
-/* 라이트모드에서는 은은한 글로우도 이 팔레트(Falu Red/Playful Pink/Dark Carmine)로
-   재구성 — 어두운 배경을 전제로 한 다크모드 값과는 색·농도를 모두 다르게 줌 */
+/* 은은한 글로우도 같은 두 팔레트 안의 레드 계열(Red Trillium/Playful Pink/
+   Falu Red)로 구성 — 어두운 배경을 전제로 한 다크모드 값과는 색·농도를 모두 다르게 줌 */
 body.theme-light::before{
   background:
     radial-gradient(ellipse 560px 460px at 10% 6%, rgba(196,77,80,0.20), transparent 60%),
