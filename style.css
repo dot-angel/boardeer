@@ -1367,15 +1367,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .w-shaker::before{
   content:''; position:absolute; inset:0; border-radius: var(--radius);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  /* 이 블러 먹인 테두리 링은 다른 위젯들과 똑같이 카드 배경(var(--card-bg),
+     어두운 붉은 톤)을 그대로 물려받고 있었음 — 아크릴 참 느낌을 내려면 이
+     블러 부분 자체가 뽀얀 흰빛이어야 해서, 여기에 직접 흰색 반투명 배경을
+     한 겹 얹어 다른 위젯들과 톤을 다르게 함(안쪽 프레임은 위 .shaker-frame이
+     계속 완전 투명 그대로 유지) */
+  background: rgba(255,255,255,0.4);
   pointer-events:none; z-index:0;
-  /* 부모(.w-shaker)가 흔드는 동안 transform으로 계속 움직이면, 브라우저가
-     backdrop-filter+mask 조합을 매 프레임 다시 계산하다가 가끔 마스크(구멍)를
-     놓쳐서 원래 안 보여야 할 블러가 순간적으로 새어 보이는 버그가 있었음.
-     이 요소를 독립된 합성 레이어로 미리 승격해두면(translateZ(0)) 그 재계산이
-     부모 transform과 분리돼서 안정적으로 유지되는 경우가 많아, 카드 전체가
-     흔들려도 마스크가 깨지지 않는지 시도해봄 */
-  transform: translateZ(0);
-  backface-visibility: hidden;
   -webkit-mask-image: linear-gradient(#000,#000), linear-gradient(#000,#000);
   -webkit-mask-size: 100% 100%, calc(100% - 20px) calc(100% - 20px);
   -webkit-mask-position: 0 0, 10px 10px;
