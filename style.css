@@ -88,7 +88,7 @@ body.theme-light{
   --ink: #a71a36;              /* Dahlia — 텍스트 전용, 면적에는 안 씀 */
   --ink-rgb: 167,26,54;        /* --ink의 r,g,b 성분 — rgba() 톤 보정에서 재사용(테마 편집으로 --ink를 바꾸면 JS가 이 값도 같이 갱신함) */
   --ink-soft: rgba(var(--ink-rgb),0.62);
-  --rose: #DF688F;             /* Carnation — 라인·텍스트 포인트, 면적에는 안 씀 */
+  --rose: #DF688F;             /* Carnation을 좀 더 쿨하게(코랄→로즈-마젠타 쪽으로 색상환 이동) 조정 — 라인·텍스트 포인트, 면적에는 안 씀 */
   --rose-solid: #F7B0B7;       /* Chantilly — 버튼 등 단색 채움용(파스텔) */
   --rose-soft: rgba(223,103,116,0.14);
   --sage: #d7d9c3;             /* Green Sage — 작은 라벨/아이콘 포인트 + 사진 위 스크림 톤 */
@@ -2436,48 +2436,44 @@ body.theme-light .btn.primary{ color: var(--ink); }
 body.theme-light .btn.primary:hover{ background:#f4a0a8; }
 body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; border-color: rgba(196,77,80,0.35); }
 /* ---- ⑤ 사진이 카드 하나를 꽉 채우는 위젯(이미지/음악/말풍선 커버)의
-   글자 가독성용 스크림 — 원래는 다크모드 기준의 무채색 검정이라 라이트모드
-   에서는 사진 위에 검은 얼룩처럼 붕 뜸. 어둡기(하단 불투명도)는 그대로 두고
-   색상만 팔레트의 그린세이지로 바꿔서, 사진이 어떤 색이든 스크림 자체가
-   테마 톤으로 자연스럽게 녹아들게 함. 처음엔 팔레트의 밝은 세이지(--sage)를
-   그대로 썼는데, 흰 글씨 뒤에서 대비를 주려면 스크림이 사진보다 어두워야
-   하는데 밝은 파스텔을 진하게 깔아버리면 오히려 사진 위에 뽀얀 막을 씌운
-   것처럼 붕 떠 보이고, 대비가 안 나오니 글자 그림자를 키워서 메꾸려다 보니
-   네온사인처럼 번지는 문제가 생겼음. 그래서 세이지의 짙은 버전(다크 올리브,
-   58,62,46)을 씀 — 색감(그린세이지 무드)은 유지하면서 실제로는 어둡게
-   눌러줘서 정상적인 사진 그림자처럼 자연스럽게 가라앉음 */
+   글자 가독성용 스크림 — 팔레트에 없는 임의의 짙은 올리브색을 쓰는 대신,
+   다른 유리 요소들(모달/토스트/말풍선)과 통일감 있게 흰색 그라데이션을 씀.
+   대신 스크림만으로 대비를 만들려 하지 않고 알파를 낮게 유지해서 사진이
+   충분히 비치게 하고, 실제 가독성은 아래 ⑥의 진하고 촘촘한 텍스트
+   그림자(잉크 톤)가 담당하게 함 — 스크림은 은은한 보조 장치로만 남김 */
 body.theme-light .slide-viewport::after{
-  background: linear-gradient(180deg, rgba(58,62,46,0.5) 0%, rgba(58,62,46,0) 25%, rgba(58,62,46,0) 55%, rgba(58,62,46,0.78) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 25%, rgba(255,255,255,0) 55%, rgba(255,255,255,0.45) 100%);
 }
 body.theme-light .mp-cover-bg.has-cover::after{
-  background: linear-gradient(180deg, rgba(58,62,46,0) 0%, rgba(58,62,46,0) 32%, rgba(58,62,46,0.7) 58%, rgba(58,62,46,0.92) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 32%, rgba(255,255,255,0.4) 58%, rgba(255,255,255,0.55) 100%);
 }
 body.theme-light .speech-card-cover-scrim{
-  background: linear-gradient(180deg, rgba(58,62,46,0) 60%, rgba(58,62,46,0.78) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0) 60%, rgba(255,255,255,0.45) 100%);
 }
-/* ---- ⑥ 검정 대신 팔레트의 레드(달리아)를 그림자색으로 씀. 다만 위 스크림이
-   이제 실제로 어두워져서 대비를 이미 만들어주므로, 그림자 자체는 다크모드
-   원본처럼 큰 번짐을 줄 필요가 없음 — 번짐(blur)을 크게 주면 채도 있는 색은
-   네온사인처럼 보여서, 딱 붙는 작은 그림자로 줄임 */
+/* ---- ⑥ 검정 대신 팔레트의 레드(달리아)를 그림자색으로 씀. 스크림 알파를
+   낮춘 만큼 대비를 그림자가 더 많이 책임져야 해서, 촘촘한(작은 blur) 진한
+   레이어를 하나 더 추가해 글자 테두리를 또렷하게 잡아준 뒤 큰 blur 레이어로
+   은은하게 번지게 함 — 너무 크게 번지면 네온사인처럼 보이니 큰 레이어의
+   투명도는 낮게 유지 */
 body.theme-light .slide-caption{
-  text-shadow: 0 1px 3px rgba(var(--ink-rgb),0.6), 0 2px 8px rgba(var(--ink-rgb),0.35);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.85), 0 1px 4px rgba(var(--ink-rgb),0.6), 0 3px 10px rgba(var(--ink-rgb),0.4);
 }
 body.theme-light .speech-card-cover-text{
-  text-shadow: 0 1px 4px rgba(var(--ink-rgb),0.6);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.85), 0 2px 8px rgba(var(--ink-rgb),0.5);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
   color: rgba(255,255,255,0.95);
-  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.75), 0 0 4px rgba(var(--ink-rgb),0.55);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.85), 0 0 5px rgba(var(--ink-rgb),0.6);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-artist{
   color: rgba(255,255,255,0.88);
-  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.75), 0 0 4px rgba(var(--ink-rgb),0.55);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.85), 0 0 5px rgba(var(--ink-rgb),0.6);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
-  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.5);
+  text-shadow: 0 1px 3px rgba(var(--ink-rgb),0.65);
 }
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 /* 말풍선 3종(스티커 말풍선/말풍선 위젯/프로필 간략보기 한마디)을 라이트모드에서
@@ -2528,14 +2524,13 @@ body.theme-light .row-refpair.video-open .video-title{
   color:#FBF7F8;
 }
 
-/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 원리(짙은 세이지)로:
-   하단을 진짜로 어둡게 눌러줘서 흰 제목 글자가 자연스럽게 대비되게 함.
-   제목 그림자도 번짐(blur)을 줄여서 네온처럼 번지지 않게 함 */
+/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 원리(흰색 + 낮은 알파,
+   가독성은 아래 텍스트 그림자가 담당)로 통일 */
 body.theme-light .site-banner-scrim{
-  background: linear-gradient(180deg, rgba(58,62,46,0.1) 20%, rgba(58,62,46,0.72) 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.42) 100%);
 }
 body.theme-light .site-name{
-  text-shadow: 0 1px 3px rgba(var(--ink-rgb),0.6), 0 3px 10px rgba(var(--ink-rgb),0.4);
+  text-shadow: 0 1px 2px rgba(var(--ink-rgb),0.8), 0 2px 8px rgba(var(--ink-rgb),0.5), 0 4px 14px rgba(var(--ink-rgb),0.3);
 }
 body.theme-light .banner-bottom-right .btn{
   background: rgba(255,255,255,0.12); color:#FBF7F8;
@@ -2558,7 +2553,14 @@ body.theme-light .shaker-piece.shaker-piece-plain img{
   filter: drop-shadow(0 3px 6px rgba(var(--ink-rgb),0.22));
 }
 body.theme-light .speech-bubble,
-body.theme-light .sticker-bubble,
+body.theme-light .sticker-bubble{
+  filter: drop-shadow(0 0 1px rgba(var(--ink-rgb),0.1)) drop-shadow(0 10px 22px rgba(var(--ink-rgb),0.18));
+  /* 두 말풍선 다 글자색이 var(--ink)(라이트모드 기본은 진한 다홍)라, 검정
+     text-shadow를 그대로 두면 진한 글자 밑에 진한 그림자가 깔려 뭉개져 보임.
+     그래서 흰색 그림자로 바꿔 배경(반투명 흰 유리) 위에서 글자가 살짝
+     떠 보이는 옅은 엠보싱 느낌으로 가독성을 살림 */
+  text-shadow: 0 1px 2px rgba(255,255,255,0.75), 0 1px 1px rgba(255,255,255,0.5);
+}
 body.theme-light .profile-compact-oneliner{
   filter: drop-shadow(0 0 1px rgba(var(--ink-rgb),0.1)) drop-shadow(0 10px 22px rgba(var(--ink-rgb),0.18));
 }
