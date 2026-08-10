@@ -88,7 +88,7 @@ body.theme-light{
   --ink: #a71a36;              /* Dahlia — 텍스트 전용, 면적에는 안 씀 */
   --ink-rgb: 167,26,54;        /* --ink의 r,g,b 성분 — rgba() 톤 보정에서 재사용(테마 편집으로 --ink를 바꾸면 JS가 이 값도 같이 갱신함) */
   --ink-soft: rgba(var(--ink-rgb),0.62);
-  --rose: #DF688F;             /* Carnation을 좀 더 쿨하게(코랄→로즈-마젠타 쪽으로 색상환 이동) 조정 — 라인·텍스트 포인트, 면적에는 안 씀 */
+  --rose: #DF688F;             /* Carnation — 라인·텍스트 포인트, 면적에는 안 씀 */
   --rose-solid: #F7B0B7;       /* Chantilly — 버튼 등 단색 채움용(파스텔) */
   --rose-soft: rgba(223,103,116,0.14);
   --sage: #d7d9c3;             /* Green Sage — 작은 라벨/아이콘 포인트 + 사진 위 스크림 톤 */
