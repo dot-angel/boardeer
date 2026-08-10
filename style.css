@@ -2388,3 +2388,82 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .site-sticker{ width:92px; height:118px; }
   .sticker-bubble{ max-width:104px; font-size:.76rem; padding:7px 10px 15px 10px; }
 }
+/* =========================================================
+   라이트모드 보정 — 위의 팔레트 변수 교체만으로는 안 잡히던,
+   "다크모드용 값이 그대로 박혀있던" 부분들을 모아서 고침.
+   두 가지 패턴으로 나뉨:
+   ① 모달/토스트/스티커 말풍선처럼 원래 배경 위에 바로 뜨는 요소인데
+      배경색이 다크모드 값(#1a0b0f 계열)으로 하드코딩돼 있어서,
+      라이트모드에서 글자색만 어두운 톤을 따라가고 배경은 그대로 어두운
+      채로 남아 "어두운 칠판에 어두운 글씨" 같은 대비 문제가 나던 것.
+      → 이런 요소는 배경을 라이트모드 팔레트에 맞게 바꿔줌.
+   ② 배너/사진 위 배지처럼 반대로 배경은 "항상 어둡게" 유지하는 게
+      의도인 요소인데, 글자/아이콘 색이 var(--ink)를 따라가버려서
+      라이트모드에선 어두운 배경 위에 어두운 글자가 얹히던 것.
+      → 이런 요소는 배경은 그대로 두고 글자색만 고정된 밝은 색으로 되돌림.
+   ========================================================= */
+
+/* ---- ① 배경이 다크모드 값으로 고정돼 있던 요소들 ---- */
+body.theme-light .modal{
+  background: rgba(255,255,255,0.82);
+}
+body.theme-light .modal input[type=text], body.theme-light .modal input[type=password],
+body.theme-light .modal input[type=date], body.theme-light .modal input[type=url],
+body.theme-light .modal input[type=number], body.theme-light .modal textarea,
+body.theme-light .modal select, body.theme-light .modal input[type=file]{
+  background: rgba(129,22,18,0.05);
+}
+body.theme-light .modal select option{ background:#FEF9F5; color:#811612; }
+/* :where()로 감싸서 이 규칙 자체의 우선순위를 0으로 만듦 — 안 그러면
+   "body.theme-light" 조상 선택자 때문에 명시도가 올라가서, 뒤에 나오는
+   .btn.ghost/.btn.primary 같은 동일 명시도 규칙을 소스 순서와 무관하게
+   덮어써버리는 문제가 생김 */
+:where(body.theme-light) .btn{ background: rgba(129,22,18,0.06); }
+:where(body.theme-light) .btn:hover{ background: rgba(129,22,18,0.14); }
+body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; border-color: rgba(196,77,80,0.35); }
+body.theme-light .toast{ background: rgba(255,255,255,0.88); }
+body.theme-light .sticker-bubble{ background: rgba(255,255,255,0.8); }
+body.theme-light .sec-order-row{ background: rgba(129,22,18,0.05); }
+body.theme-light .sec-order-row.viewonly:hover{ background: rgba(129,22,18,0.1); }
+body.theme-light .sec-order-list .icon-btn{ background: rgba(129,22,18,0.06); }
+body.theme-light .sec-order-list .icon-btn:hover{ background: rgba(129,22,18,0.14); }
+body.theme-light .shaker-manage-thumb{ background-color: rgba(129,22,18,0.06); }
+body.theme-light .speech-editor-stage-dual{ background: rgba(129,22,18,0.06); }
+body.theme-light .shaker-manage-btn, body.theme-light .shaker-bg-btn{
+  background: rgba(129,22,18,0.4); border-color: rgba(255,255,255,0.5);
+}
+body.theme-light .shaker-manage-btn:hover, body.theme-light .shaker-bg-btn:hover{
+  background: rgba(129,22,18,0.55);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
+  body.theme-light .w-card, body.theme-light .modal, body.theme-light .btn{ background:#FEF9F5; }
+}
+/* 카드 호버 그림자 / 말풍선 위젯의 "두꺼운 유리" 그림자 — 검은 그림자 대신
+   팔레트 톤(짙은 캐러멜레드)의 은은한 그림자로, 밝은 배경에서 얼룩처럼
+   보이지 않게 함 */
+body.theme-light .w-card:hover{
+  box-shadow: 0 16px 36px rgba(129,22,18,0.16), inset 0 1px 0 var(--card-hi);
+}
+body.theme-light .w-speech{
+  box-shadow:
+    0 18px 34px rgba(129,22,18,0.18),
+    inset 0 2px 0 rgba(255,255,255,0.5),
+    inset 0 -10px 16px rgba(129,22,18,0.10);
+}
+
+/* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(배너/사진 위 배지/전체화면
+   오버레이 안) 요소들 — 배경은 그대로 두고, 라이트모드를 따라가 버려
+   안 보이던 글자·아이콘 색만 고정된 밝은 색으로 되돌림 ---- */
+body.theme-light .banner-bottom-right .btn{
+  background: rgba(255,255,255,0.12); color:#FBF7F8;
+}
+body.theme-light .banner-bottom-right .btn:hover{ background: rgba(255,255,255,0.22); }
+body.theme-light .lock-badge{ background: rgba(255,255,255,0.1); color:#FBF7F8; }
+body.theme-light .lock-badge.unlocked{ color:#f4b6bd; border-color:#f4b6bd; }
+body.theme-light .speech-card-cover-btn,
+body.theme-light .speech-card-edit-btn,
+body.theme-light .video-collapse,
+body.theme-light .row-refpair.video-open .video-title,
+body.theme-light .speech-bubble{
+  color:#FBF7F8;
+}
