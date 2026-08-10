@@ -61,6 +61,7 @@ themeModeBtn.addEventListener('click', ()=>{
   try{ localStorage.setItem('noeunThemeMode', next); }catch(err){}
   applyThemeModeButtonLabel();
   applyBannerImageForCurrentTheme();
+  applyBgImageForCurrentTheme();
 });
 
 /* ---------------- 설정 미완료 안내 ---------------- */
@@ -1461,6 +1462,7 @@ bgEditBtn.addEventListener('click', async ()=>{
   const doc = await db.collection('meta').doc('background').get();
   const cur = doc.exists ? doc.data() : {};
   const curIsUrl = cur.image && !cur.image.startsWith('data:');
+  const curLightIsUrl = cur.imageLight && !cur.imageLight.startsWith('data:');
   openModal(`
     <h3>홈페이지 배경 이미지</h3>
     <p class="hint">배너와는 별개로, 사이트 전체 뒤에 깔리는 배경이에요. 위젯들이 반투명 유리 카드라 배경이 은은하게 비쳐 보여요.</p>
@@ -1468,6 +1470,10 @@ bgEditBtn.addEventListener('click', async ()=>{
     <input type="file" id="bgImgFile" accept="image/*">
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="bgImg" placeholder="https://..." value="${curIsUrl ? cur.image : ''}">
+    <label>라이트모드 전용 배경 사진 (선택, 안 정하면 위 사진을 그대로 씀)</label>
+    <input type="file" id="bgImgFileLight" accept="image/*">
+    <input type="url" id="bgImgLight" placeholder="https://..." value="${curLightIsUrl ? cur.imageLight : ''}">
+    <p class="hint">라이트모드일 때만 이 사진으로 바뀌어요.</p>
     <div class="modal-actions">
       <button class="btn danger" id="rm" type="button">배경 사진 없애기</button>
       <button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button>
@@ -1475,44 +1481,52 @@ bgEditBtn.addEventListener('click', async ()=>{
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#rm').onclick = async ()=>{
-      await db.collection('meta').doc('background').set({ image:'' }, {merge:true});
+      await db.collection('meta').doc('background').set({ image:'', imageLight:'' }, {merge:true});
       closeModal();
       toast('배경 사진을 없앴어요');
     };
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const file = m.querySelector('#bgImgFile').files[0];
+      const fileLight = m.querySelector('#bgImgFileLight').files[0];
       let image = normalizeImageUrl(m.querySelector('#bgImg').value.trim());
-      if(file){
-        saveBtn.disabled = true;
-        saveBtn.textContent = '사진 처리 중…';
-        try{
-          image = await compressImageFile(file, 1920, 700000);
-        }catch(err){
-          toast(err.message || '이미지를 처리하지 못했어요');
-          saveBtn.disabled = false;
-          saveBtn.textContent = '저장';
-          return;
-        }
-      } else if(!image){
-        image = cur.image || '';
+      let imageLight = normalizeImageUrl(m.querySelector('#bgImgLight').value.trim());
+      saveBtn.disabled = true;
+      saveBtn.textContent = '사진 처리 중…';
+      try{
+        if(file) image = await compressImageFile(file, 1920, 700000);
+        else if(!image) image = cur.image || '';
+        if(fileLight) imageLight = await compressImageFile(fileLight, 1920, 700000);
+        else if(!imageLight) imageLight = cur.imageLight || '';
+      }catch(err){
+        toast(err.message || '이미지를 처리하지 못했어요');
+        saveBtn.disabled = false;
+        saveBtn.textContent = '저장';
+        return;
       }
-      await db.collection('meta').doc('background').set({ image }, {merge:true});
+      await db.collection('meta').doc('background').set({ image, imageLight }, {merge:true});
       closeModal();
       toast('배경 이미지를 저장했어요');
     };
   });
 });
 
-db.collection('meta').doc('background').onSnapshot(doc=>{
-  const d = doc.exists ? doc.data() : {};
-  if(d.image){
-    setElementBgImageWithFallback(bgImageLayerEl, d.image);
+// 배너 쪽과 같은 패턴 — 문서를 기억해뒀다가 테마 토글 시에도 같은 함수로 다시 적용
+let lastBgDocData = {};
+function applyBgImageForCurrentTheme(){
+  const isLight = currentThemeMode() === 'light';
+  const image = (isLight && lastBgDocData.imageLight) ? lastBgDocData.imageLight : lastBgDocData.image;
+  if(image){
+    setElementBgImageWithFallback(bgImageLayerEl, image);
     bgImageLayerEl.classList.add('has-image');
   } else {
     bgImageLayerEl.style.backgroundImage = '';
     bgImageLayerEl.classList.remove('has-image');
   }
+}
+db.collection('meta').doc('background').onSnapshot(doc=>{
+  lastBgDocData = doc.exists ? doc.data() : {};
+  applyBgImageForCurrentTheme();
 });
 
 /* ---------------- 테마 편집 (전체 색/폰트 일괄 적용) ---------------- */
