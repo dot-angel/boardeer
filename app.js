@@ -1679,6 +1679,7 @@ globalStyleBtn.addEventListener('click', async ()=>{
         await metaDoc('theme').delete();
       }catch(err){ console.error(err); }
       THEME_VARS.forEach(v=> document.body.style.removeProperty(v));
+      document.body.style.removeProperty('--ink-rgb');
       document.body.style.removeProperty('--font-display');
       document.body.style.removeProperty('--font-body');
       injectCustomFontFace(null);
