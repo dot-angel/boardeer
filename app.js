@@ -37,32 +37,6 @@ const bgImageLayerEl = document.getElementById('bgImageLayer');
 const bannerEditBtn = document.getElementById('bannerEditBtn');
 const bgEditBtn = document.getElementById('bgEditBtn');
 const globalStyleBtn = document.getElementById('globalStyleBtn');
-const themeModeBtn = document.getElementById('themeModeBtn');
-
-/* ---------------- 라이트/다크 모드 토글 ----------------
-   사이트 전체 색을 바꾸는 "테마 편집"(Firestore에 저장, 모든 방문자에게 동일하게
-   보임)과는 별개로, 이건 "지금 보는 내가 다크로 볼지 라이트로 볼지"를 정하는
-   개인 설정이라 방문자 브라우저의 localStorage에만 저장함(다른 사람에게는 영향
-   없음). 기본값은 다크. index.html <head>의 인라인 스크립트가 CSS 적용 전에
-   먼저 data-theme을 붙여둬서 새로고침 시 깜빡임은 없음 — 여기서는 버튼
-   라벨만 그 상태에 맞춰 동기화하고, 클릭 시 전환+저장을 담당함 */
-function currentThemeMode(){
-  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-}
-function applyThemeModeButtonLabel(){
-  const mode = currentThemeMode();
-  themeModeBtn.textContent = mode === 'light' ? '☀️ 라이트' : '🌙 다크';
-}
-applyThemeModeButtonLabel();
-themeModeBtn.addEventListener('click', ()=>{
-  const next = currentThemeMode() === 'light' ? 'dark' : 'light';
-  if(next === 'light') document.documentElement.setAttribute('data-theme', 'light');
-  else document.documentElement.removeAttribute('data-theme');
-  try{ localStorage.setItem('noeunThemeMode', next); }catch(err){}
-  applyThemeModeButtonLabel();
-  applyBannerImageForCurrentTheme();
-  applyBgImageForCurrentTheme();
-});
 
 /* ---------------- 설정 미완료 안내 ---------------- */
 
@@ -1399,7 +1373,6 @@ bannerEditBtn.addEventListener('click', async ()=>{
   const doc = await db.collection('meta').doc('banner').get();
   const cur = doc.exists ? doc.data() : {};
   const curIsUrl = cur.image && !cur.image.startsWith('data:');
-  const curLightIsUrl = cur.imageLight && !cur.imageLight.startsWith('data:');
   openModal(`
     <h3>배너 편집</h3>
     <label>배너 사진 올리기 (기기에서 바로 선택)</label>
@@ -1408,52 +1381,38 @@ bannerEditBtn.addEventListener('click', async ()=>{
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="bImg" placeholder="https://..." value="${curIsUrl ? cur.image : ''}">
     <p class="hint">imgbb.com, postimages.org 등에 올린 "직접 링크" 주소를 붙여넣어도 돼요. 위에서 사진을 선택하면 이 URL 입력은 무시돼요.</p>
-    <label>라이트모드 전용 배너 사진 (선택, 안 정하면 위 사진을 그대로 씀)</label>
-    <input type="file" id="bImgFileLight" accept="image/*">
-    <input type="url" id="bImgLight" placeholder="https://..." value="${curLightIsUrl ? cur.imageLight : ''}">
-    <p class="hint">라이트모드일 때만 이 사진으로 바뀌어요. 예: 다크모드는 밤 사진, 라이트모드는 낮 사진처럼 분위기를 다르게 줄 수 있어요.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const file = m.querySelector('#bImgFile').files[0];
-      const fileLight = m.querySelector('#bImgFileLight').files[0];
       let image = normalizeImageUrl(m.querySelector('#bImg').value.trim());
-      let imageLight = normalizeImageUrl(m.querySelector('#bImgLight').value.trim());
-      saveBtn.disabled = true;
-      saveBtn.textContent = '사진 처리 중…';
-      try{
-        if(file) image = await compressImageFile(file);
-        else if(!image) image = cur.image || '';
-        if(fileLight) imageLight = await compressImageFile(fileLight);
-        else if(!imageLight) imageLight = cur.imageLight || '';
-      }catch(err){
-        toast(err.message || '이미지를 처리하지 못했어요');
-        saveBtn.disabled = false;
-        saveBtn.textContent = '저장';
-        return;
+      if(file){
+        saveBtn.disabled = true;
+        saveBtn.textContent = '사진 처리 중…';
+        try{
+          image = await compressImageFile(file);
+        }catch(err){
+          toast(err.message || '이미지를 처리하지 못했어요');
+          saveBtn.disabled = false;
+          saveBtn.textContent = '저장';
+          return;
+        }
+      } else if(!image){
+        image = cur.image || '';
       }
-      await db.collection('meta').doc('banner').set({ image, imageLight }, {merge:true});
+      await db.collection('meta').doc('banner').set({ image }, {merge:true});
       closeModal();
       toast('배너를 저장했어요');
     };
   });
 });
 
-// 마지막으로 받은 배너 문서를 기억해뒀다가, Firestore 데이터가 바뀔 때뿐 아니라
-// (라이트/다크 토글처럼) 데이터는 그대로인데 "지금 보여줄 이미지"만 바뀌어야 할
-// 때도 같은 함수로 다시 적용할 수 있게 함
-let lastBannerDocData = {};
-function applyBannerImageForCurrentTheme(){
-  const isLight = currentThemeMode() === 'light';
-  const image = (isLight && lastBannerDocData.imageLight) ? lastBannerDocData.imageLight : lastBannerDocData.image;
-  if(image) setElementBgImageWithFallback(siteBannerEl, image);
-}
 db.collection('meta').doc('banner').onSnapshot(doc=>{
   if(!doc.exists) return;
-  lastBannerDocData = doc.data();
-  applyBannerImageForCurrentTheme();
+  const d = doc.data();
+  if(d.image) setElementBgImageWithFallback(siteBannerEl, d.image);
 });
 
 /* ---------------- 홈페이지 전체 배경 이미지 (배너와 별개) ---------------- */
@@ -1462,7 +1421,6 @@ bgEditBtn.addEventListener('click', async ()=>{
   const doc = await db.collection('meta').doc('background').get();
   const cur = doc.exists ? doc.data() : {};
   const curIsUrl = cur.image && !cur.image.startsWith('data:');
-  const curLightIsUrl = cur.imageLight && !cur.imageLight.startsWith('data:');
   openModal(`
     <h3>홈페이지 배경 이미지</h3>
     <p class="hint">배너와는 별개로, 사이트 전체 뒤에 깔리는 배경이에요. 위젯들이 반투명 유리 카드라 배경이 은은하게 비쳐 보여요.</p>
@@ -1470,10 +1428,6 @@ bgEditBtn.addEventListener('click', async ()=>{
     <input type="file" id="bgImgFile" accept="image/*">
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="bgImg" placeholder="https://..." value="${curIsUrl ? cur.image : ''}">
-    <label>라이트모드 전용 배경 사진 (선택, 안 정하면 위 사진을 그대로 씀)</label>
-    <input type="file" id="bgImgFileLight" accept="image/*">
-    <input type="url" id="bgImgLight" placeholder="https://..." value="${curLightIsUrl ? cur.imageLight : ''}">
-    <p class="hint">라이트모드일 때만 이 사진으로 바뀌어요.</p>
     <div class="modal-actions">
       <button class="btn danger" id="rm" type="button">배경 사진 없애기</button>
       <button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button>
@@ -1481,52 +1435,44 @@ bgEditBtn.addEventListener('click', async ()=>{
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#rm').onclick = async ()=>{
-      await db.collection('meta').doc('background').set({ image:'', imageLight:'' }, {merge:true});
+      await db.collection('meta').doc('background').set({ image:'' }, {merge:true});
       closeModal();
       toast('배경 사진을 없앴어요');
     };
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const file = m.querySelector('#bgImgFile').files[0];
-      const fileLight = m.querySelector('#bgImgFileLight').files[0];
       let image = normalizeImageUrl(m.querySelector('#bgImg').value.trim());
-      let imageLight = normalizeImageUrl(m.querySelector('#bgImgLight').value.trim());
-      saveBtn.disabled = true;
-      saveBtn.textContent = '사진 처리 중…';
-      try{
-        if(file) image = await compressImageFile(file, 1920, 700000);
-        else if(!image) image = cur.image || '';
-        if(fileLight) imageLight = await compressImageFile(fileLight, 1920, 700000);
-        else if(!imageLight) imageLight = cur.imageLight || '';
-      }catch(err){
-        toast(err.message || '이미지를 처리하지 못했어요');
-        saveBtn.disabled = false;
-        saveBtn.textContent = '저장';
-        return;
+      if(file){
+        saveBtn.disabled = true;
+        saveBtn.textContent = '사진 처리 중…';
+        try{
+          image = await compressImageFile(file, 1920, 700000);
+        }catch(err){
+          toast(err.message || '이미지를 처리하지 못했어요');
+          saveBtn.disabled = false;
+          saveBtn.textContent = '저장';
+          return;
+        }
+      } else if(!image){
+        image = cur.image || '';
       }
-      await db.collection('meta').doc('background').set({ image, imageLight }, {merge:true});
+      await db.collection('meta').doc('background').set({ image }, {merge:true});
       closeModal();
       toast('배경 이미지를 저장했어요');
     };
   });
 });
 
-// 배너 쪽과 같은 패턴 — 문서를 기억해뒀다가 테마 토글 시에도 같은 함수로 다시 적용
-let lastBgDocData = {};
-function applyBgImageForCurrentTheme(){
-  const isLight = currentThemeMode() === 'light';
-  const image = (isLight && lastBgDocData.imageLight) ? lastBgDocData.imageLight : lastBgDocData.image;
-  if(image){
-    setElementBgImageWithFallback(bgImageLayerEl, image);
+db.collection('meta').doc('background').onSnapshot(doc=>{
+  const d = doc.exists ? doc.data() : {};
+  if(d.image){
+    setElementBgImageWithFallback(bgImageLayerEl, d.image);
     bgImageLayerEl.classList.add('has-image');
   } else {
     bgImageLayerEl.style.backgroundImage = '';
     bgImageLayerEl.classList.remove('has-image');
   }
-}
-db.collection('meta').doc('background').onSnapshot(doc=>{
-  lastBgDocData = doc.exists ? doc.data() : {};
-  applyBgImageForCurrentTheme();
 });
 
 /* ---------------- 테마 편집 (전체 색/폰트 일괄 적용) ---------------- */
@@ -1559,9 +1505,19 @@ function parseColorToHexAlpha(str){
 }
 
 const THEME_VARS = ['--rose','--sage','--gold','--paper','--card-bg','--card-bg2','--ink'];
+/* style.css의 :root(다크 기본값)와 [data-theme="light"](라이트 기본값)에 실제로 박혀있는
+   값과 반드시 같게 유지해야 함 — 여기는 오직 "테마 편집" 모달에 입력칸 기본값을
+   채워 넣기 위한 JS 쪽 복사본일 뿐, 실제 화면에 적용되는 색은 항상 CSS가 기준임
+   (사용자가 아직 커스텀하지 않은 값은 여기서 강제로 인라인 지정하지 않고 CSS 기본값이
+   그대로 보이게 함 — applyThemeColors 참고) */
+const THEME_DEFAULTS = {
+  dark:  { rose:'#C4425F', sage:'#A9727F', gold:'#95929C', paper:'#0F0406', 'card-bg':'rgba(32,16,20,0.075)', 'card-bg2':'rgba(32,16,20,0.045)', ink:'#F3ECEE' },
+  light: { rose:'#B3223B', sage:'#8C5B63', gold:'#8B7D74', paper:'#F6F1EC', 'card-bg':'rgba(255,255,255,0.55)', 'card-bg2':'rgba(255,255,255,0.34)', ink:'#2B1417' }
+};
 const FONT_DISPLAY_OPTIONS = ['ZEN SERIF','Song Myung','Noto Serif KR','Nanum Myeongjo','Gowun Batang'];
 const FONT_BODY_OPTIONS = ['ZEN SERIF','Noto Sans KR','Gowun Dodum'];
 const CUSTOM_FONT_MAX_BYTES = 500000;
+const THEME_MODE_STORAGE_KEY = 'noeunThemeMode';
 
 function injectCustomFontFace(srcDecl){
   let styleTag = document.getElementById('customFontFace');
@@ -1575,12 +1531,40 @@ function injectCustomFontFace(srcDecl){
     : '';
 }
 
-function applyTheme(theme){
-  if(!theme) return;
+let currentThemeDoc = {};
+let currentMode = 'dark';
+
+/* 저장된 라이트/다크 각각의 커스텀 색만 돌려줌(기본값을 채워넣지 않음) — 이래야
+   아직 커스텀 안 한 항목은 CSS의 기본값이 그대로 살아있음. 다크모드는 예전에
+   중첩 구조 없이 theme 문서 최상단에 바로 rose/sage/... 를 저장하던 시절 데이터와도
+   호환되도록, theme.dark가 없으면 최상단 값을 그대로 다크모드 값으로 봐줌(마이그레이션). */
+function getSavedModeColors(themeDoc, mode){
+  if(themeDoc[mode]) return themeDoc[mode];
+  if(mode === 'dark'){
+    const legacy = {};
+    THEME_VARS.forEach(v=>{
+      const key = v.replace('--','');
+      if(themeDoc[key]) legacy[key] = themeDoc[key];
+    });
+    return legacy;
+  }
+  return {};
+}
+/* 테마 편집 모달의 입력칸을 채우기 위한 용도 — 커스텀 값이 없으면 기본 팔레트로 채움 */
+function getEditableModeColors(themeDoc, mode){
+  return { ...THEME_DEFAULTS[mode], ...getSavedModeColors(themeDoc, mode) };
+}
+
+function applyThemeColors(modeColors){
   THEME_VARS.forEach(v=>{
     const key = v.replace('--','');
-    if(theme[key]) document.documentElement.style.setProperty(v, theme[key]);
+    document.documentElement.style.removeProperty(v);
+    if(modeColors && modeColors[key]) document.documentElement.style.setProperty(v, modeColors[key]);
   });
+}
+
+function applyFonts(theme){
+  if(!theme) return;
   if(theme.customFontData){
     injectCustomFontFace(`url(${theme.customFontData}) format('truetype')`);
     document.documentElement.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
@@ -1591,13 +1575,52 @@ function applyTheme(theme){
     document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
   } else {
     injectCustomFontFace(null);
+    document.documentElement.style.removeProperty('--font-display');
+    document.documentElement.style.removeProperty('--font-body');
     if(theme.fontDisplay) document.documentElement.style.setProperty('--font-display', `'${theme.fontDisplay}', 'Noto Serif KR', serif`);
     if(theme.fontBody) document.documentElement.style.setProperty('--font-body', `'${theme.fontBody}', serif`);
   }
 }
 
+function getStoredModeOverride(){
+  try{ return localStorage.getItem(THEME_MODE_STORAGE_KEY); }catch(e){ return null; }
+}
+function setStoredModeOverride(mode){
+  try{ localStorage.setItem(THEME_MODE_STORAGE_KEY, mode); }catch(e){}
+}
+/* 방문자가 이 브라우저에서 한 번이라도 직접 라이트/다크를 눌러 바꾼 적이 있으면 그걸
+   최우선으로 기억하고, 그런 적이 없으면 주인이 테마 편집에서 정한 "기본 모드"를 따르고,
+   그것도 없으면 다크모드로 시작함 */
+function resolveInitialMode(theme){
+  const stored = getStoredModeOverride();
+  if(stored === 'dark' || stored === 'light') return stored;
+  if(theme && (theme.mode === 'dark' || theme.mode === 'light')) return theme.mode;
+  return 'dark';
+}
+
+function updateModeToggleBtn(){
+  if(!modeToggleBtn) return;
+  modeToggleBtn.textContent = currentMode === 'light' ? '☀️ 라이트' : '🌙 다크';
+}
+
+function setActiveMode(mode, persistLocal){
+  currentMode = mode === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', currentMode);
+  applyThemeColors(getSavedModeColors(currentThemeDoc, currentMode));
+  updateModeToggleBtn();
+  if(persistLocal) setStoredModeOverride(currentMode);
+}
+
 db.collection('meta').doc('theme').onSnapshot(doc=>{
-  if(doc.exists) applyTheme(doc.data());
+  currentThemeDoc = doc.exists ? doc.data() : {};
+  applyFonts(currentThemeDoc);
+  setActiveMode(resolveInitialMode(currentThemeDoc), false);
+});
+
+modeToggleBtn.addEventListener('click', ()=>{
+  const next = currentMode === 'light' ? 'dark' : 'light';
+  setActiveMode(next, true);
+  toast(next === 'light' ? '☀️ 라이트 모드로 바꿨어요' : '🌙 다크 모드로 바꿨어요');
 });
 
 globalStyleBtn.addEventListener('click', async ()=>{

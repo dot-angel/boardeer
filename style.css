@@ -34,15 +34,33 @@
   --ink: #F3ECEE;              /* Alabaster 톤 라이트 글자색 */
   --ink-soft: rgba(243,236,238,0.62);
   --rose: #C4425F;             /* Night Bordeaux를 다크 배경에서 읽히도록 밝힌 포인트 컬러 */
+  --rose-rgb: 196,66,95;       /* --rose와 반드시 같은 값을 RGB 트리플릿으로도 들고 있어서,
+                                   rgba(var(--rose-rgb), X) 형태로 카드 곳곳의 로즈 톤 글로우/호버가
+                                   테마 편집·라이트모드 전환에도 같이 따라오게 함 */
   --rose-solid: #7A2130;       /* 버튼 등 단색 채움용 진한 로즈 */
-  --rose-soft: rgba(196,66,95,0.18);
+  --rose-solid-hover: #8f2839;
+  --rose-soft: rgba(var(--rose-rgb),0.18);
   --sage: #A9727F;             /* Mauve Shadow를 밝힌 보조 포인트 */
   --gold: #95929C;             /* Rosy Granite — 중립 라인/보조 텍스트 */
   --gold-soft: rgba(149,146,156,0.35);
   --card-bg: rgba(32,16,20,0.075);     /* 배경이 비치는 반투명 유리 카드 (더 투명하게) */
   --card-bg2: rgba(32,16,20,0.045);
-  --card-border: rgba(255,255,255,0.11);
-  --card-hi: rgba(255,255,255,0.07);  /* 유리 상단 하이라이트 라인 */
+  --hi-rgb: 255,255,255;       /* 유리 카드/버튼 위의 "밝은 쪽" 하이라이트·보더·호버의 기준색.
+                                   다크모드에선 흰색이 카드 위에서 은은하게 뜨지만, 라이트모드에선
+                                   같은 자리에 흰색을 쓰면 배경에 묻혀 안 보이므로 이 변수 하나만
+                                   라이트모드에서 어두운 톤으로 바꿔서 카드 전체의 보더/호버/스크롤바 등이
+                                   한 번에 라이트모드에 맞게 뒤집히게 함 */
+  --card-border: rgba(var(--hi-rgb),0.11);
+  --card-hi: rgba(var(--hi-rgb),0.07);  /* 유리 상단 하이라이트 라인 */
+  --accent-warn: #ff9aa6;      /* 삭제/위험 강조색. 카드 표면 위에서 쓰일 때만 이 변수를 쓰고,
+                                   사진 위에 뜨는 항상-어두운 칩(예: pin-del-btn) 안에서는 어떤 테마든
+                                   그대로 밝은 코럴로 남아야 해서 그런 자리는 리터럴 값을 그대로 둠 */
+  --modal-overlay-bg: rgba(5,2,3,0.55);   /* 모달 뒤 화면 전체를 덮는 어둑한 배경 */
+  --modal-bg: rgba(24,11,14,0.72);        /* 모달 박스 자체(블러 있는 버전) */
+  --modal-bg-opaque: rgba(20,9,11,0.94);  /* 타이핑 렉 방지를 위해 블러 대신 불투명도로 대체한 모달들 */
+  --modal-select-bg: #1a0b0f;             /* select 드롭다운 옵션 배경(브라우저 네이티브 렌더링이라 배경색만 따로 지정) */
+  --toast-bg: rgba(24,11,14,0.75);
+  --sticker-bg: rgba(20,9,11,0.5);
   --shadow: 0 12px 28px rgba(0,0,0,0.32);
   --shadow-press: 0 6px 14px rgba(0,0,0,0.35);
   /* 블러 세기를 낮춤(20px→12px, 10px→7px) — backdrop-filter는 카드마다 매 프레임 다시
@@ -59,35 +77,62 @@
   --font-body: 'ZEN SERIF', 'Noto Sans KR', serif;
   --radius: 16px;
 }
-/* ---- 라이트 모드 ----
-   참고로 받은 컬러 팔레트 3장에서 뽑음:
-   - 배경/카드 밝은 톤: Noguchi "White Color Palettes"의 #f5f5f5 · #d9d5cf
-   - 포인트 레드: 같은 팔레트의 #cd2e3d (다크모드 --rose와 같은 체리 계열이라 톤이 이어짐)
-   - 진한 텍스트/버튼: Garnet 팔레트의 Dark Carmine(#590808)·Black Cherry Stone(#380507),
-     그리고 Ballroom-Blush 팔레트의 Heirloom Red(#7F1D25)
-   - 보조 톤(sage): 같은 팔레트의 Pizza Pie(#9F6162)
-   다크모드처럼 documentElement에 인라인으로 --rose/--sage/--gold/--paper/--card-bg/
-   --card-bg2/--ink를 직접 지정해둔 상태(테마 편집 모달에서 커스텀한 경우)라면 인라인
-   스타일이 더 우선순위가 높아서 그 값이 유지됨 — 사이트 전체 커스텀 테마가 라이트/다크
-   전환보다 항상 우선됨 */
+/* =========================================================
+   라이트모드 — 다크모드와 동일한 변수 세트를 전부 다시 정의해서,
+   테마 편집 모달에서 다크모드와 완전히 동등한 수준으로 색을 커스텀할 수 있게 함.
+   참고 이미지들(화이트/가넷/레드 팔레트)을 바탕으로 기본값을 잡음:
+     Diamond White·White Color Palette → 크림 톤 배경,
+     Dark Carmine·가넷 레드 → 포인트 로즈,
+     Black Cherry Stone·Dark Void → 글자색(다크 톤),
+     Ashes·Light Charcoal → 중립 라인/보조 텍스트
+   ========================================================= */
 [data-theme="light"]{
   color-scheme: light;
-  --paper: #F7F3F0;
-  --paper-deep: #ECE4DE;
-  --ink: #2D211C;
-  --ink-soft: rgba(45,33,28,0.62);
-  --rose: #B8324B;
-  --rose-solid: #7F1D25;
-  --rose-soft: rgba(184,50,75,0.14);
-  --sage: #9F6162;
-  --gold: #8C7A72;
-  --gold-soft: rgba(140,122,114,0.28);
-  --card-bg: rgba(255,255,255,0.55);
-  --card-bg2: rgba(255,255,255,0.35);
-  --card-border: rgba(45,33,28,0.13);
-  --card-hi: rgba(255,255,255,0.65);
-  --shadow: 0 12px 28px rgba(89,8,11,0.10);
-  --shadow-press: 0 6px 14px rgba(89,8,11,0.14);
+  --paper: #F6F1EC;            /* Diamond White를 살짝 데운 아이보리 — 베이스 라이트 배경색 */
+  --paper-deep: #EDE2D9;       /* 배너 등에 쓰는 약간 더 짙은 크림 */
+  --ink: #2B1417;              /* Black Cherry Stone에 가까운 다크 와인 블랙 — 글자색 */
+  --ink-soft: rgba(43,20,23,0.62);
+  --rose: #B3223B;             /* Dark Carmine/가넷 레드를 크림 배경 위에서 선명하게 읽히도록 조정한 포인트 컬러 */
+  --rose-rgb: 179,34,59;
+  --rose-solid: #7A1220;       /* 버튼 등 단색 채움용 진한 가넷 */
+  --rose-solid-hover: #931528;
+  --rose-soft: rgba(var(--rose-rgb),0.14);
+  --sage: #8C5B63;             /* 더스티 로즈 — 보조 포인트 */
+  --gold: #8B7D74;             /* Ashes/Light Charcoal 톤 — 중립 라인/보조 텍스트 */
+  --gold-soft: rgba(139,125,116,0.32);
+  --card-bg: rgba(255,255,255,0.55);   /* 크림 배경 위에 뜨는 화이트 글라스 카드 */
+  --card-bg2: rgba(255,255,255,0.34);
+  --hi-rgb: 40,20,20;          /* 카드 위 "밝은 쪽" 하이라이트를 라이트모드에선 옅은 다크 톤으로 뒤집음 */
+  --accent-warn: #A3182F;      /* 삭제/위험 텍스트 — 크림 배경 위에서도 읽히는 딥 레드 */
+}
+[data-theme="light"] body::before{
+  /* 다크모드의 선명한 로즈 글로우 3덩이는 흰 배경 위에선 그대로 쓰면 얼룩처럼 보여서,
+     같은 구도를 아주 옅은 블러시 톤으로 낮춰 은은한 온기만 남김 */
+  background:
+    radial-gradient(ellipse 560px 460px at 10% 6%, rgba(179,34,59,0.10), transparent 60%),
+    radial-gradient(ellipse 520px 460px at 90% 86%, rgba(140,90,95,0.09), transparent 62%),
+    radial-gradient(ellipse 720px 620px at 82% 6%, rgba(122,18,32,0.07), transparent 65%);
+}
+[data-theme="light"] .bg-image-layer{
+  /* 다크모드는 사진을 어둡게 눌러서 카드가 더 도드라지게 하지만, 라이트모드는 반대로
+     사진을 밝고 화사하게 살짝만 눌러서 크림 배경과 톤이 이어지게 함 */
+  filter: brightness(0.96) saturate(1.05);
+}
+[data-theme="light"] .bg-image-layer.has-image::after{
+  background:
+    radial-gradient(ellipse at 25% 0%, rgba(179,34,59,0.08), transparent 60%),
+    linear-gradient(165deg, rgba(255,255,255,0.10) 0%, rgba(237,226,217,0.55) 100%);
+}
+[data-theme="light"] .site-banner-scrim{
+  background: linear-gradient(180deg, rgba(255,255,255,0.05) 20%, rgba(237,226,217,0.92) 100%);
+}
+[data-theme="light"] .site-name{
+  color: #2B1417;
+  text-shadow: 0 6px 26px rgba(255,255,255,0.55), 0 2px 8px rgba(255,255,255,0.45);
+}
+[data-theme="light"] .board-tab-arrow{
+  color: #2B1417;
+  text-shadow: 0 2px 10px rgba(255,255,255,0.6), 0 1px 3px rgba(255,255,255,0.7);
 }
 *{ box-sizing: border-box; }
 html,body{ margin:0; padding:0; min-height:100%; }
@@ -107,12 +152,6 @@ body{
   background-size: cover; background-position: center;
   filter: brightness(0.42) saturate(1.15);
 }
-[data-theme="light"] .bg-image-layer{
-  /* 다크모드는 사진을 짙게 눌러서 그 위에 밝은 글자가 뜨게 하지만, 라이트모드는
-     반대로 카드/글자가 어두운 톤이라 사진을 눌러 어둡게 만들 필요가 없음 —
-     원본에 가깝게 밝게 두고 채도만 살짝 낮춰 은은하게 함 */
-  filter: brightness(0.98) saturate(0.92);
-}
 .bg-image-layer.has-image::after{
   content:"";
   position:absolute; inset:0;
@@ -120,28 +159,16 @@ body{
     radial-gradient(ellipse at 25% 0%, rgba(101,25,38,0.22), transparent 60%),
     linear-gradient(165deg, rgba(15,4,6,0.35) 0%, rgba(15,4,6,0.78) 100%);
 }
-[data-theme="light"] .bg-image-layer.has-image::after{
-  background:
-    radial-gradient(ellipse at 25% 0%, rgba(184,50,75,0.10), transparent 60%),
-    linear-gradient(165deg, rgba(247,243,240,0.25) 0%, rgba(247,243,240,0.72) 100%);
-}
 /* 배경 사진이 없을 때도(혹은 있어도 은은하게 더해져) 고급스러운 느낌을 주는 컬러 글로우 */
 body::before{
   content:"";
   position: fixed; inset:-10%; z-index:-1;
   background:
-    radial-gradient(ellipse 560px 460px at 10% 6%, rgba(196,66,95,0.30), transparent 60%),
+    radial-gradient(ellipse 560px 460px at 10% 6%, rgba(var(--rose-rgb),0.30), transparent 60%),
     radial-gradient(ellipse 520px 460px at 90% 86%, rgba(169,114,127,0.24), transparent 62%),
     radial-gradient(ellipse 720px 620px at 82% 6%, rgba(101,25,38,0.22), transparent 65%);
   filter: blur(70px);
   pointer-events: none;
-}
-[data-theme="light"] body::before{
-  /* 밝은 바탕에서는 같은 세기의 글로우가 탁해 보여서 옅게 낮춤 */
-  background:
-    radial-gradient(ellipse 560px 460px at 10% 6%, rgba(184,50,75,0.14), transparent 60%),
-    radial-gradient(ellipse 520px 460px at 90% 86%, rgba(159,97,98,0.12), transparent 62%),
-    radial-gradient(ellipse 720px 620px at 82% 6%, rgba(127,29,37,0.10), transparent 65%);
 }
 /* ---------- 배너 (제목 + 잠금/테마 버튼이 하단에 통합, 별도 상단바 없음) ---------- */
 .site-banner{
@@ -172,7 +199,7 @@ body::before{
   color: #FBF7F8;
   text-shadow: 0 6px 30px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.45);
 }
-.site-name[contenteditable="true"]:hover{ background: rgba(255,255,255,0.1); cursor:text; border-radius:8px; }
+.site-name[contenteditable="true"]:hover{ background: rgba(var(--hi-rgb),0.1); cursor:text; border-radius:8px; }
 /* 모바일에서는 배너가 화면 세로 공간을 지나치게 많이 차지해서(560px 고정) 위젯들을
    보기까지 스크롤이 길어졌음 → 배너 높이를 훨씬 낮추고, 제목 폰트/여백도 그에 맞춰 줄임 */
 @media (max-width: 900px){
@@ -183,32 +210,25 @@ body::before{
 .btn{
   font-family: var(--font-body);
   border: 1px solid var(--card-border);
-  background: rgba(255,255,255,0.08);
+  background: rgba(var(--hi-rgb),0.08);
   backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color: var(--ink); padding: 8px 16px; border-radius: 999px; cursor: pointer; font-size: .85rem;
   transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
   box-shadow: var(--shadow);
 }
-.btn:hover{ background: rgba(255,255,255,0.16); }
+.btn:hover{ background: rgba(var(--hi-rgb),0.16); }
 .btn:active{ transform: translateY(2px); box-shadow: var(--shadow-press); }
 .btn.primary{ background: var(--rose-solid); color:#fff; border-color: var(--rose-solid); }
-.btn.primary:hover{ background:#8f2839; }
+.btn.primary:hover{ background: var(--rose-solid-hover); }
 .btn.ghost{ background: transparent; box-shadow:none; }
 .btn.small{ padding: 6px 13px; font-size: .78rem; }
-.btn.danger{ background: rgba(196,66,95,0.14); color:#ff8f9e; border-color: rgba(196,66,95,0.4); }
+.btn.danger{ background: rgba(var(--rose-rgb),0.14); color:var(--accent-warn); border-color: rgba(var(--rose-rgb),0.4); }
 .lock-badge{
   font-size: .75rem; padding: 6px 12px; border-radius: 999px;
   display:flex; align-items:center; gap:6px;
-  border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink-soft);
+  border: 1px solid var(--card-border); background: rgba(var(--hi-rgb),0.06); color: var(--ink-soft);
 }
 .lock-badge.unlocked{ border-color: var(--rose); color: var(--rose); }
-/* 배너는 사진 위에 항상 어두운 스크림(.site-banner-scrim)을 깔아 글자를 읽히게
-   하는 구조라, 사이트 테마와 무관하게 그 안 글자색은 항상 밝게 유지해야 함.
-   라이트모드에서 --ink/--rose가 어두운 톤으로 바뀌면 어두운 스크림 위에서
-   글자가 안 보이게 되므로, 배너 안 요소들만 고정 밝은 색으로 잡아줌 */
-[data-theme="light"] .banner-bottom .btn{ color:#FBF7F8; }
-[data-theme="light"] .lock-badge{ color: rgba(251,247,248,0.72); }
-[data-theme="light"] .lock-badge.unlocked{ color:#E8899C; border-color:#E8899C; }
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
 .board-tabs{ position: relative; }
 /* .slide-dots(위젯 안 슬라이드 위치 표시 — 배경 없이 작은 점만 나열)와 헷갈리지 않도록,
@@ -221,16 +241,16 @@ body::before{
   padding: 9px 16px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  background: rgba(255,255,255,0.08);
+  background: rgba(var(--hi-rgb),0.08);
   backdrop-filter: blur(14px) saturate(180%); -webkit-backdrop-filter: blur(14px) saturate(180%);
   box-shadow: var(--shadow);
 }
 .board-tab-dot{
   width:7px; height:7px; padding:0; border-radius:999px;
-  border:none; background: rgba(255,255,255,0.3);
+  border:none; background: rgba(var(--hi-rgb),0.3);
   cursor: pointer; transition: background .15s ease, width .15s ease;
 }
-.board-tab-dot:hover{ background: rgba(255,255,255,0.5); }
+.board-tab-dot:hover{ background: rgba(var(--hi-rgb),0.5); }
 .board-tab-dot.active{ width:20px; background: var(--rose); }
 /* 좌우 화살표: 이미지 위젯의 슬라이드 화살표(.slide-nav)와 동일한 스타일 —
    둥근 배경 없이 흰 화살표 아이콘 + 그림자만. 평소엔 숨겨져 있다가
@@ -416,8 +436,8 @@ body::before{
 }
 .speech-card-cover-btn{ right:42px; }
 .speech-card-edit-btn{ right:8px; }
-.speech-card-cover-btn:hover{ background: rgba(255,255,255,0.25); }
-.speech-card-edit-btn:hover{ background: rgba(196,66,95,0.5); }
+.speech-card-cover-btn:hover{ background: rgba(var(--hi-rgb),0.25); }
+.speech-card-edit-btn:hover{ background: rgba(var(--rose-rgb),0.5); }
 
 /* 방문자용 오버레이 — openModal의 .modal 박스(테두리/배경/그림자)를 안 쓰고, 블러 배경
    위에 이미지·토글·탭 이름만 떠 있는 형태.
@@ -447,31 +467,31 @@ body::before{
 }
 /* 캐릭터모드(on)일 때만 은은한 핑크 톤이 배경에 번지도록 */
 .speech-overlay.is-on .speech-overlay-tint{
-  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(5,2,3,0.25) 68%);
+  background: radial-gradient(circle at 50% 45%, rgba(var(--rose-rgb),0.32), rgba(5,2,3,0.25) 68%);
 }
 .speech-overlay-close{
   position:absolute; top:18px; right:18px; width:34px; height:34px; border-radius:50%; border:none;
-  background: rgba(255,255,255,0.08); color:#fff; font-size:.85rem; cursor:pointer;
+  background: rgba(var(--hi-rgb),0.08); color:#fff; font-size:.85rem; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
 }
-.speech-overlay-close:hover{ background: rgba(196,66,95,0.5); }
+.speech-overlay-close:hover{ background: rgba(var(--rose-rgb),0.5); }
 .speech-overlay-edit{
   position:absolute; top:18px; left:18px; width:34px; height:34px; border-radius:50%; border:none;
-  background: rgba(255,255,255,0.08); color:#fff; font-size:.85rem; cursor:pointer;
+  background: rgba(var(--hi-rgb),0.08); color:#fff; font-size:.85rem; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
 }
-.speech-overlay-edit:hover{ background: rgba(196,66,95,0.5); }
+.speech-overlay-edit:hover{ background: rgba(var(--rose-rgb),0.5); }
 .speech-tabs{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
 .speech-tab-btn{
   padding:5px 14px; border-radius:20px; border:none;
-  background:none; color: rgba(255,255,255,0.5); font-size:.8rem; cursor:pointer;
+  background:none; color: rgba(var(--hi-rgb),0.5); font-size:.8rem; cursor:pointer;
 }
 .speech-tab-btn.active{ color:#fff; font-weight:600; }
 /* 슬라이딩 토글 — 알약 모양 틀 안에서 동그란 손잡이가 좌(off)/우(on)로 움직이고,
    손잡이가 없는 쪽 여백에 지금 상태 글자가 뜸 */
 .speech-toggle{
   position:relative; width:112px; height:44px; border-radius:999px;
-  border:2px solid rgba(255,255,255,0.85); background:transparent; cursor:pointer; flex:0 0 auto;
+  border:2px solid rgba(var(--hi-rgb),0.85); background:transparent; cursor:pointer; flex:0 0 auto;
 }
 .speech-toggle-knob{
   position:absolute; top:3px; left:3px; width:34px; height:34px; border-radius:50%;
@@ -500,7 +520,7 @@ body::before{
 .speech-charbox img{ display:block; max-height:56vh; max-width:44vw; object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
 .speech-charbox svg{ position:absolute; inset:0; width:100%; height:100%; }
 .speech-charbox-empty{ font-size:.75rem; color: var(--ink-soft); padding:20px; }
-.speech-region{ fill: rgba(255,255,255,0); cursor:pointer; pointer-events:all; }
+.speech-region{ fill: rgba(var(--hi-rgb),0); cursor:pointer; pointer-events:all; }
 /* 말풍선 위치를 잡는 껍데기(anchor) — 클릭한 지점의 top/left만 담당.
    실제 말풍선 본체(.speech-bubble)는 이 안에서 자기 자신의 팝인 애니메이션만 담당하게
    분리해서, 위치 이동과 팝인 효과가 서로의 transform을 덮어쓰지 않게 함. */
@@ -511,10 +531,10 @@ body::before{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
   max-width:320px; width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color: var(--ink);
+  background: var(--sticker-bg); color: var(--ink);
   border-radius:18px; padding:13px 18px 22px 18px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
+  filter: drop-shadow(0 0 1px rgba(var(--hi-rgb),0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:1rem; line-height:1.45; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
   opacity:0;
@@ -526,7 +546,7 @@ body::before{
 /* 편집기 — 프로필 편집 모달과 같은 이유로(입력 잦음) 블러 대신 불투명도로 대체 */
 .modal.modal-speech-editor{
   width:min(960px, 96vw); backdrop-filter:none; -webkit-backdrop-filter:none;
-  background: rgba(20,9,11,0.95);
+  background: var(--modal-bg-opaque);
 }
 .speech-editor-tabbar{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
 .speech-editor-tools{ display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
@@ -555,16 +575,16 @@ body::before{
      캐릭터2 문구 순서 대신 그냥 위→아래로 쌓이게(그리드가 1열로 접힘) */
   .speech-editor-layout{ grid-template-columns: 1fr; }
 }
-.speech-editor-region{ fill: rgba(196,66,95,0.18); stroke: var(--rose); stroke-width:1; cursor:pointer; }
-.speech-editor-region.selected{ fill: rgba(196,66,95,0.35); }
+.speech-editor-region{ fill: rgba(var(--rose-rgb),0.18); stroke: var(--rose); stroke-width:1; cursor:pointer; }
+.speech-editor-region.selected{ fill: rgba(var(--rose-rgb),0.35); }
 /* 아직 저장 안 하고 방금 그린 도형 — 점선으로 "확정 전"임을 표시 */
-.speech-editor-region-pending{ fill: rgba(196,66,95,0.28); stroke: #fff; stroke-width:1.4; stroke-dasharray:4 3; }
+.speech-editor-region-pending{ fill: rgba(var(--rose-rgb),0.28); stroke: #fff; stroke-width:1.4; stroke-dasharray:4 3; }
 .speech-region-list{ margin-top:4px; display:flex; flex-direction:column; gap:8px; }
 .speech-region-row{
   border:1px solid var(--card-border); border-radius:12px; padding:8px 10px;
   display:flex; flex-direction:column; gap:6px;
 }
-.speech-region-row-pending{ border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.04); }
+.speech-region-row-pending{ border-color: rgba(var(--hi-rgb),0.5); background: rgba(var(--hi-rgb),0.04); }
 .speech-region-row-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:.75rem; color: var(--ink-soft); }
 .speech-region-row textarea{ min-height:44px; }
 /* 모브용/서로용 문구는 길어야 한두 문장이라, 세로로 나열하면 자리를 너무 많이
@@ -595,18 +615,19 @@ body::before{
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .w-card, .modal, .btn{ background: #1c0e12; }
+  [data-theme="light"] .w-card, [data-theme="light"] .modal, [data-theme="light"] .btn{ background: #F2E9E4; }
 }
-.w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 1px 0 var(--card-hi); border-color: rgba(196,66,95,0.4); }
+.w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 1px 0 var(--card-hi); border-color: rgba(var(--rose-rgb),0.4); }
 
 /* 말풍선 위젯만 다른 위젯들의 얇은 유리와 달리 두꺼운 유리 덩어리처럼 보이게 함 —
    테두리를 더 두껍고 밝게, 위쪽 하이라이트는 더 세게, 아래쪽엔 그림자를 안쪽으로
    한 겹 더 깔아서 "두께"가 있는 것처럼 보이게 함. (.w-card 바로 다음에 둬야
    .w-card의 border/box-shadow/backdrop-filter/padding에 덮여씌워지지 않음) */
 .w-speech{
-  border-width:2px; border-color: rgba(255,255,255,0.22);
+  border-width:2px; border-color: rgba(var(--hi-rgb),0.22);
   box-shadow:
     0 18px 34px rgba(0,0,0,0.45),
-    inset 0 2px 0 rgba(255,255,255,0.22),
+    inset 0 2px 0 rgba(var(--hi-rgb),0.22),
     inset 0 -10px 16px rgba(0,0,0,0.35);
   backdrop-filter: blur(22px) saturate(1.3);
   -webkit-backdrop-filter: blur(22px) saturate(1.3);
@@ -615,7 +636,7 @@ body::before{
 }
 .w-body.scroll{ overflow-y:auto; }
 .w-body.scroll::-webkit-scrollbar{ width:5px; }
-.w-body.scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.w-body.scroll::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .w-empty{ font-size:.78rem; color:var(--ink-soft); text-align:center; padding: 18px 0; }
 /* 편집모드 전용 작은 버튼 배치용 */
 .w-edit-row{ margin-top:8px; flex:0 0 auto; }
@@ -673,7 +694,7 @@ body::before{
 }
 .slide-del, .slide-caption-btn{
   position:absolute; z-index:3; top:12px; width:28px; height:28px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.5); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  border:1px solid rgba(var(--hi-rgb),0.25); background: rgba(20,10,12,0.5); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#fff; font-size:.7rem;
 }
 .slide-del{ right:12px; color:#ff9aa6; }
@@ -687,7 +708,7 @@ body::before{
   position:absolute; left:0; right:0; bottom:10px; z-index:3;
   padding:0; margin:0; pointer-events:auto;
 }
-.slide-dots.slide-dots-overlay .dot{ background: rgba(255,255,255,0.45); box-shadow:0 1px 3px rgba(0,0,0,0.5); }
+.slide-dots.slide-dots-overlay .dot{ background: rgba(var(--hi-rgb),0.45); box-shadow:0 1px 3px rgba(0,0,0,0.5); }
 .slide-dots.slide-dots-overlay .dot.active{ background: #fff; }
 .slide-add{ margin: 0 18px 16px; align-self:flex-start; }
 .slide-empty{ flex:1; display:flex; align-items:center; justify-content:center; color:var(--ink-soft); font-size:.85rem; min-height:220px; }
@@ -743,7 +764,7 @@ body::before{
 .w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
   text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
-.w-music:has(.mp-cover-bg.has-cover) .mp-artist{ color: rgba(255,255,255,0.88); }
+.w-music:has(.mp-cover-bg.has-cover) .mp-artist{ color: rgba(var(--hi-rgb),0.88); }
 .mp-seek{
   -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:999px;
   background: var(--card-bg2); accent-color: var(--rose); cursor:pointer; margin-top:2px;
@@ -791,7 +812,7 @@ body::before{
 .mp-play-btn:hover{ filter:none; opacity:.8; }
 .player-tracks{ flex:0 1 auto; min-height:0; max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
 .player-tracks::-webkit-scrollbar{ width:5px; }
-.player-tracks::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.player-tracks::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .player-track{
   display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:10px; cursor:pointer; font-size:.8rem;
 }
@@ -917,7 +938,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
     justify-content: flex-start; align-items: stretch; gap:2px;
   }
   .w-dday .w-body::-webkit-scrollbar{ width:4px; }
-  .w-dday .w-body::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+  .w-dday .w-body::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
   .dday-item{
     flex: 0 1 auto; flex-direction:column; align-items:center; justify-content:center;
     gap:3px; padding: 10px 10px; border-bottom:none; border-right:1px solid var(--card-border);
@@ -970,7 +991,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 }
 .profile-viewport{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:12px; padding:6px 4px; min-height:0; overflow-y:auto; }
 .profile-viewport::-webkit-scrollbar{ width:5px; }
-.profile-viewport::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.profile-viewport::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 /* 요청: 세로 스크롤은 해시태그(성격) 아래부터만 생기게. 데스크톱(카드 높이가
    app.js에서 음악 위젯 기준으로 고정된 상태)에서는 사진/이름/나이/성격까지의
    위쪽 고정 영역(.profile-basic)은 원래 크기 그대로 두고, 그 아래 항목 영역
@@ -1051,11 +1072,11 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .sec-order-list{ display:flex; flex-direction:column; gap:6px; max-height:50vh; overflow-y:auto; margin:8px 0; }
 .sec-order-row{
   display:flex; align-items:center; gap:8px; padding:6px 8px;
-  background: rgba(255,255,255,0.05); border-radius:10px;
+  background: rgba(var(--hi-rgb),0.05); border-radius:10px;
 }
 .sec-order-idx{ font-size:.72rem; color: var(--ink-soft); flex:0 0 auto; width:16px; text-align:center; }
 .sec-order-row.viewonly{ cursor:pointer; transition: background .15s ease; }
-.sec-order-row.viewonly:hover{ background: rgba(255,255,255,0.1); }
+.sec-order-row.viewonly:hover{ background: rgba(var(--hi-rgb),0.1); }
 .sec-order-name{ flex:1; min-width:0; font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sec-order-name.empty-hint{ color: var(--ink-soft); font-style:italic; }
 .sec-order-btns{ display:flex; gap:2px; flex:0 0 auto; }
@@ -1098,7 +1119,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-section-tab .ps-edit{ border:none; background:none; color:inherit; font-size:.72rem; opacity:.7; cursor:pointer; padding:0; }
 .profile-section-tab .ps-edit:hover{ opacity:1; }
 .profile-section-add{
-  width:30px; height:30px; border-radius:50%; border:1px solid var(--card-border); background: rgba(255,255,255,0.05);
+  width:30px; height:30px; border-radius:50%; border:1px solid var(--card-border); background: rgba(var(--hi-rgb),0.05);
   color: var(--ink-soft); font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
 .profile-section-add:hover{ color: var(--rose); border-color: var(--rose); }
@@ -1109,7 +1130,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 /* 각 프로필(사람)에 딸린 정보 항목 — 공용이 아니라 프로필별로 따로 표시/편집됨 */
 .profile-person-fields{ width:100%; border-radius:12px; margin-top:4px; }
 .profile-person-fields.editable{ cursor:pointer; transition: background .15s ease; padding:4px; }
-.profile-person-fields.editable:hover{ background: rgba(255,255,255,0.06); }
+.profile-person-fields.editable:hover{ background: rgba(var(--hi-rgb),0.06); }
 .profile-fields{ display:flex; flex-direction:column; gap:4px; width:100%; }
 /* 나이/생년월일·키몸무게/BWH·성격까지는 항상 같은 자리를 차지해서 위젯 높이에
    영향이 없지만, 그 아래 커스텀 항목+링크+기타설명은 사람/시점마다 개수·길이가
@@ -1121,7 +1142,7 @@ body:not(.edit-mode) .profile-fields-scroll{
 }
 .profile-fields-scroll{ display:flex; flex-direction:column; gap:4px; width:100%; margin-top:4px; min-height:0; }
 .profile-fields-scroll::-webkit-scrollbar{ width:4px; }
-.profile-fields-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.profile-fields-scroll::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .profile-field{ display:flex; flex-direction:column; gap:1px; font-size:.72rem; line-height:1.45; padding:0 4px; text-align:left; }
 /* 항목명 오른쪽에 내용이 오도록 한 줄로 배치(라벨은 줄바꿈 없이 고정, 내용은 남는 폭을 씀) */
 .profile-field .pf-row{ display:flex; flex-direction:row; align-items:baseline; gap:5px; }
@@ -1164,9 +1185,9 @@ body:not(.edit-mode) .profile-fields-scroll{
 .pf-link-item{
   display:inline-flex; align-items:center; gap:4px; font-size:.7rem; font-weight:600;
   padding:4px 10px; border-radius:999px; border:1px solid var(--card-border);
-  background: rgba(255,255,255,0.05); color: var(--ink); text-decoration:none;
+  background: rgba(var(--hi-rgb),0.05); color: var(--ink); text-decoration:none;
 }
-a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
+a.pf-link-item:hover{ background: rgba(var(--hi-rgb),0.1); }
 .pf-link-item.empty-hint{ opacity:.6; cursor:default; }
 .profile-slide-desc.empty-hint{ text-align:center; cursor:pointer; opacity:.65; font-size:.68rem; color: var(--ink-soft); }
 .profile-slide-desc.empty-hint:hover{ opacity:1; }
@@ -1181,7 +1202,7 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 }
 .profile-basic{ display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:100%; }
 .profile-basic.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px 8px; }
-.profile-basic.editable:hover{ background: rgba(255,255,255,0.06); }
+.profile-basic.editable:hover{ background: rgba(var(--hi-rgb),0.06); }
 .profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; width:100%; max-width:100%; }
 .profile-info{ display:flex; flex-direction:column; align-items:center; gap:2px; max-width:100%; }
 /* 사진이 위아래로 잘리지 않도록 background-size:contain을 씀(대신 비율이 안 맞으면
@@ -1268,7 +1289,7 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
   font-family: var(--font-display); font-style:italic; font-weight:400;
   font-size:.8rem; line-height:1.35; color: var(--ink);
   width:fit-content; max-width:100%;
-  background: rgba(255,255,255,0.07);
+  background: rgba(var(--hi-rgb),0.07);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* border 대신 filter:drop-shadow를 씀 — border는 clip-path로 오려내기 전의
      원래 사각형 테두리를 기준으로 그려져서 오려낸 모양(특히 꼬리 옆 바닥선)과
@@ -1294,10 +1315,10 @@ a.pf-link-item:hover{ background: rgba(255,255,255,0.1); }
 /* 펼치기/접기 토글 — 데스크톱에선 안 보이고, 모바일 보기 전용일 때만 노출 */
 .profile-mobile-toggle{
   display:none; width:100%; margin-top:8px; padding:7px; border-radius:10px;
-  border:1px solid var(--card-border); background: rgba(255,255,255,0.04);
+  border:1px solid var(--card-border); background: rgba(var(--hi-rgb),0.04);
   color: var(--ink-soft); font-size:.72rem; font-weight:600; cursor:pointer;
 }
-.profile-mobile-toggle:hover{ background: rgba(255,255,255,0.08); color: var(--ink); }
+.profile-mobile-toggle:hover{ background: rgba(var(--hi-rgb),0.08); color: var(--ink); }
 @media (max-width:900px){
   /* 편집 모드에서는 필드를 직접 눌러 고쳐야 하니 간략보기를 적용하지 않고
      항상 기존 전체 위젯 그대로 보여줌 */
@@ -1456,8 +1477,8 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 /* 조각 하나하나 — 동그란 아크릴 참(charm)처럼 흰 테두리 링 + 그림자로 두께감 */
 .shaker-piece{
   position:absolute; top:0; left:0; border-radius:50%; overflow:hidden;
-  border:2px solid rgba(255,255,255,0.78);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.4);
+  border:2px solid rgba(var(--hi-rgb),0.78);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(var(--hi-rgb),0.4);
   pointer-events:none;
 }
 .shaker-piece img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -1474,20 +1495,20 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .shaker-manage-btn{
   position:absolute; top:6px; right:6px; z-index:2;
   width:24px; height:24px; font-size:.68rem;
-  background: rgba(0,0,0,0.45); border-color: rgba(255,255,255,0.25);
+  background: rgba(0,0,0,0.45); border-color: rgba(var(--hi-rgb),0.25);
 }
 .shaker-manage-btn:hover{ background: rgba(0,0,0,0.6); }
 /* 프레임 배경 편집 버튼 — 관리 버튼과 마주 보는 반대쪽(좌상단) 코너에 둠 */
 .shaker-bg-btn{
   position:absolute; top:6px; left:6px; z-index:2;
   width:24px; height:24px; font-size:.68rem;
-  background: rgba(0,0,0,0.45); border-color: rgba(255,255,255,0.25);
+  background: rgba(0,0,0,0.45); border-color: rgba(var(--hi-rgb),0.25);
 }
 .shaker-bg-btn:hover{ background: rgba(0,0,0,0.6); }
 /* 이미지 관리 모달 안 썸네일 그리드 */
 .shaker-manage-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(64px,1fr)); gap:8px; margin-bottom:12px; }
 .shaker-manage-item{ position:relative; aspect-ratio:1/1; border-radius:10px; overflow:hidden; }
-.shaker-manage-thumb{ width:100%; height:100%; background-size:cover; background-position:center; background-color:rgba(255,255,255,0.06); }
+.shaker-manage-thumb{ width:100%; height:100%; background-size:cover; background-position:center; background-color:rgba(var(--hi-rgb),0.06); }
 .shaker-manage-del{
   position:absolute; top:3px; right:3px; width:20px; height:20px; font-size:.65rem;
   background:rgba(0,0,0,0.55); border-radius:50%; display:flex; align-items:center; justify-content:center;
@@ -1543,14 +1564,11 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .gb-entry .gb-time{ font-size:.68rem; color:var(--ink-soft); margin-left:6px; }
 .gb-entry .gb-msg{ font-size:.82rem; margin-top:2px; white-space:pre-wrap; line-height:1.5; }
 .gb-entry .gb-del{ float:right; background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
-.gb-entry .gb-del:hover{ color:#ff8f9e; }
+.gb-entry .gb-del:hover{ color:var(--accent-warn); }
 .gb-form{ display:flex; flex-direction:column; gap:7px; border-top:1px solid var(--card-border); padding-top:12px; flex:0 0 auto; }
 .gb-form input, .gb-form textarea{
   width:100%; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
-  font-family: var(--font-body); font-size:.82rem; background: rgba(255,255,255,0.05); color: var(--ink);
-}
-[data-theme="light"] .gb-form input, [data-theme="light"] .gb-form textarea{
-  background: rgba(45,33,28,0.045);
+  font-family: var(--font-body); font-size:.82rem; background: rgba(var(--hi-rgb),0.05); color: var(--ink);
 }
 .gb-form input::placeholder, .gb-form textarea::placeholder{ color: var(--ink-soft); }
 .gb-form textarea{ min-height:48px; resize:vertical; }
@@ -1570,7 +1588,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   width:100%; padding:8px 12px; border-radius:10px; cursor:pointer;
   border:1px solid transparent; position:relative;
 }
-.cal-week-day:hover{ background: rgba(255,255,255,0.08); }
+.cal-week-day:hover{ background: rgba(var(--hi-rgb),0.08); }
 .cal-week-day.today{ font-weight:700; color: var(--rose); }
 .cal-week-dow{ flex:0 0 22px; font-size:.72rem; color: var(--ink-soft); text-align:center; }
 .cal-week-day.today .cal-week-dow{ color: var(--rose); }
@@ -1611,13 +1629,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   content:"✦"; position:absolute; top:1px; right:3px; font-size:8px; line-height:1; color: var(--sage);
 }
 .cal-day.empty{ visibility:hidden; }
-.cal-day:hover{ background: rgba(255,255,255,0.08); }
+.cal-day:hover{ background: rgba(var(--hi-rgb),0.08); }
 .icon-btn{
   width: 28px; height:28px; border-radius: 50%; border: 1px solid var(--card-border);
-  background: rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:center;
+  background: rgba(var(--hi-rgb),0.06); display:flex; align-items:center; justify-content:center;
   cursor:pointer; font-size:.75rem; color: var(--ink);
 }
-.icon-btn:hover{ background: rgba(255,255,255,0.14); }
+.icon-btn:hover{ background: rgba(var(--hi-rgb),0.14); }
 /* ---------- 갤러리 (핀터레스트형 매스너리) — 높이 고정, 넘치면 위젯 내부에서 스크롤 ---------- */
 .w-gallery{ padding-bottom:20px; }
 /* 스크롤/높이 제한은 바깥 래퍼(.pin-grid-scroll)에만 걸고, 실제 위치 계산이 일어나는
@@ -1637,7 +1655,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .pin-grid-scroll{ max-height: 380px; }
 }
 .pin-grid-scroll::-webkit-scrollbar{ width:5px; }
-.pin-grid-scroll::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.pin-grid-scroll::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 /* 예전엔 column-count(다단)로 매스너리를 흉내냈는데, 이 방식은 브라우저가 전체 높이를
    "균형있게" 나눠서 다단을 채우기 때문에 배열 앞쪽(최신) 사진이 2번째/3번째 열 중간쯤에
    놓일 수 있어서 "최신 사진일수록 위"가 보장되지 않았음. 그래서 실제 좌표는 app.js의
@@ -1712,7 +1730,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   background: rgba(15,4,6,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med); color:#ff8f9e; font-size:.75rem;
   cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
-.pin-del-btn:hover{ background: rgba(196,66,95,0.55); color:#fff; }
+.pin-del-btn:hover{ background: rgba(var(--rose-rgb),0.55); color:#fff; }
 .pin-item-dense .pin-del-btn{ width:20px; height:20px; font-size:.6rem; top:4px; left:4px; }
 /* 드래그로 순서 바꾸기 */
 .pin-item[draggable="true"], .pin-item-dense[draggable="true"]{ cursor: grab; }
@@ -1723,7 +1741,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pin-drop-line{
   position:absolute; width:3px; border-radius:3px;
   background: var(--rose);
-  box-shadow: 0 0 6px 1px rgba(196,66,95,0.7);
+  box-shadow: 0 0 6px 1px rgba(var(--rose-rgb),0.7);
   opacity:0; pointer-events:none; z-index:5;
   transition: left .08s ease, top .08s ease, height .08s ease, opacity .12s ease;
 }
@@ -1767,7 +1785,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pin-item-picking img{ transition: opacity .15s ease; }
 .pin-pick-check{
   position:absolute; top:8px; right:8px; z-index:2;
-  width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,0.85);
+  width:24px; height:24px; border-radius:50%; border:2px solid rgba(var(--hi-rgb),0.85);
   background: rgba(15,4,6,0.35); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   pointer-events:none; transition: background .15s ease, border-color .15s ease;
 }
@@ -1785,7 +1803,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .gallery-pick-bar{
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   padding:8px 10px; margin-bottom:10px; border-radius:12px;
-  background: rgba(196,66,95,0.12); border:1px solid rgba(196,66,95,0.35);
+  background: rgba(var(--rose-rgb),0.12); border:1px solid rgba(var(--rose-rgb),0.35);
   font-size:.78rem; color: var(--ink);
 }
 .gallery-pick-bar span{ flex:1; min-width:0; font-weight:600; }
@@ -1815,7 +1833,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   margin-top: var(--gallery2-overlap-px, -12px);
 }
 .gallery2-grid::-webkit-scrollbar{ width:5px; }
-.gallery2-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.gallery2-grid::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .pin-item-dense{
   aspect-ratio: 1/1; border-radius:8px; overflow:hidden; cursor:pointer; position:relative;
   border:1px solid var(--card-border); background: var(--card-bg2);
@@ -1864,7 +1882,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   margin-top: var(--ref-overlap-px, -12px);
 }
 .ref-gallery-grid::-webkit-scrollbar{ width:5px; }
-.ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.ref-gallery-grid::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 /* ---------- 영상전용 플레이어 (갤러리 탭, 유튜브 여러 개를 목록에서 골라 재생) ---------- */
 .w-video{ gap:10px; min-width:0; padding:10px; }
@@ -1878,7 +1896,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .video-player .w-empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:0; }
 .video-collapse{
   position:absolute; top:8px; right:8px; z-index:2; width:28px; height:28px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.75); color:var(--ink); font-size:.8rem;
+  border:1px solid rgba(var(--hi-rgb),0.25); background: rgba(20,10,12,0.75); color:var(--ink); font-size:.8rem;
   display:flex; align-items:center; justify-content:center;
 }
 /* 평소엔 레퍼런스갤러리 옆 좁은 칸에 세로로 쌓인 목록(제목은 자리가 없어 생략) */
@@ -1886,7 +1904,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:420px; padding-right:2px;
 }
 .video-list::-webkit-scrollbar{ width:5px; }
-.video-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.video-list::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .video-item{
   position:relative; flex:0 0 auto; width:100%; cursor:pointer; border-radius:10px; overflow:hidden;
   border:2px solid transparent; transition: border-color .15s ease;
@@ -1898,7 +1916,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .video-title{ display:none; }
 .video-del{
   position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); color:#ff9aa6; font-size:.65rem;
+  border:1px solid rgba(var(--hi-rgb),0.25); background: rgba(20,10,12,0.6); color:#ff9aa6; font-size:.65rem;
 }
 /* 재생 중(줄이 전체 폭으로 넓어진 상태)엔 목록도 플레이어 아래에 가로로 넓게 펼쳐서
    여러 영상을 둘러보기 편하게 하고, 이때는 제목도 같이 보여줌 */
@@ -1926,28 +1944,28 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .doc-list{ max-height: 320px; }
 }
 .doc-list::-webkit-scrollbar{ width:5px; }
-.doc-list::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.doc-list::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .doc-row{
   display:flex; align-items:center; gap:10px;
   border: 1px solid var(--card-border); border-radius: 16px; padding: 10px 13px;
   background: var(--card-bg2);
   cursor:pointer;
 }
-.doc-row:hover{ background: rgba(255,255,255,0.07); }
+.doc-row:hover{ background: rgba(var(--hi-rgb),0.07); }
 .doc-row:hover .doc-title{ color: var(--rose); }
 .doc-row .doc-icon{ font-size:1.1rem; flex:0 0 auto; }
 .doc-row .doc-main{ flex:1; min-width:0; }
 .doc-row .doc-title{ font-weight:600; font-size:.85rem; color: var(--ink); }
 .doc-row .doc-opt-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
-.doc-row .doc-opt{ font-size:.62rem; font-weight:600; color: var(--rose); background: rgba(196,66,95,0.14); border:1px solid rgba(196,66,95,0.3); padding:1px 7px; border-radius:999px; white-space:nowrap; }
+.doc-row .doc-opt{ font-size:.62rem; font-weight:600; color: var(--rose); background: rgba(var(--rose-rgb),0.14); border:1px solid rgba(var(--rose-rgb),0.3); padding:1px 7px; border-radius:999px; white-space:nowrap; }
 .doc-row .doc-desc{ font-size:.72rem; color:var(--ink-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .doc-row .doc-del{
   flex:0 0 auto; width:24px; height:24px; border-radius:50%;
-  border:1px solid var(--card-border); background: rgba(255,255,255,0.06); color:#ff9aa6; font-size:.65rem;
+  border:1px solid var(--card-border); background: rgba(var(--hi-rgb),0.06); color:var(--accent-warn); font-size:.65rem;
 }
 .doc-row .doc-edit{
   flex:0 0 auto; width:24px; height:24px; border-radius:50%;
-  border:1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink-soft); font-size:.7rem;
+  border:1px solid var(--card-border); background: rgba(var(--hi-rgb),0.06); color: var(--ink-soft); font-size:.7rem;
 }
 .doc-row .doc-edit:hover{ color: var(--rose); }
 .doc-add{ margin-top:10px; align-self:flex-start; }
@@ -1995,7 +2013,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 #refGalleryFilterChips .tag-chip{ padding:4px 11px; font-size:.68rem; flex:0 0 auto; }
 #refGalleryFilterChips.tag-filter::-webkit-scrollbar{ height:4px; }
-#refGalleryFilterChips.tag-filter::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+#refGalleryFilterChips.tag-filter::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 /* 문서 위젯 필터 칩도 옵션(태그) 종류가 많아지면 줄바꿈되면서 세로 공간을 계속
    차지해 카드가 늘어나는 원인이 될 수 있어서, 레퍼런스 갤러리와 같은 방식으로
    한 줄만 두고 옆으로 스크롤하게 함 */
@@ -2005,22 +2023,22 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 #docFilter .tag-chip{ flex:0 0 auto; }
 #docFilter.tag-filter::-webkit-scrollbar{ height:4px; }
-#docFilter.tag-filter::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+#docFilter.tag-filter::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .pin-toolbar{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
 .pin-toolbar .tag-filter{ flex:1; margin-bottom:10px; }
 .pin-opt-btn{
   position:absolute; z-index:2; width:20px; height:20px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  border:1px solid rgba(var(--hi-rgb),0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#fff; font-size:.62rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
 }
-.pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
+.pin-opt-btn:hover{ background: rgba(var(--rose-rgb),0.7); }
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
 .session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 @media (max-width: 900px){
   .session-grid{ max-height: 320px; }
 }
 .session-grid::-webkit-scrollbar{ width:5px; }
-.session-grid::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.15); border-radius:4px; }
+.session-grid::-webkit-scrollbar-thumb{ background: rgba(var(--hi-rgb),0.15); border-radius:4px; }
 .session-card{
   position:relative; border-radius:18px; overflow:hidden; cursor:pointer;
   border:1px solid var(--card-border); aspect-ratio: 16/9; background: var(--card-bg2);
@@ -2034,12 +2052,12 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 .session-card .del{
   position:absolute; top:8px; right:8px; z-index:2; width:24px; height:24px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  border:1px solid rgba(var(--hi-rgb),0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#ff9aa6; font-size:.65rem;
 }
 .session-card .edit{
   position:absolute; top:8px; left:8px; z-index:2; width:24px; height:24px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  border:1px solid rgba(var(--hi-rgb),0.25); background: rgba(20,10,12,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   color:#fff; font-size:.7rem;
 }
 .session-add{ margin-top:10px; align-self:flex-start; }
@@ -2052,7 +2070,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .check-item{
   display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem; min-width:0;
 }
-.check-item:hover{ background: rgba(255,255,255,0.07); }
+.check-item:hover{ background: rgba(var(--hi-rgb),0.07); }
 .check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
 .check-item-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
 .check-item-text{ overflow-wrap:break-word; }
@@ -2062,13 +2080,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 /* 항목별 부제목 — 항목 텍스트 바로 아래에 작게 표시됨(예: 기한, 담당 등) */
 .check-item-subtitle{ font-size:.72rem; color: var(--ink-soft); }
 .check-item-subtitle.editable{ cursor:pointer; border-radius:6px; padding:0 3px; transition: background .15s ease; }
-.check-item-subtitle.editable:hover{ background: rgba(255,255,255,0.06); }
+.check-item-subtitle.editable:hover{ background: rgba(var(--hi-rgb),0.06); }
 .check-item-subtitle.empty-hint{ opacity:.65; }
 .check-item-subtitle.empty-hint:hover{ opacity:1; }
 .check-item.checked{ opacity:.5; }
 .check-item.checked .check-item-text{ text-decoration: line-through; }
 .check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
-.check-item .del:hover{ color:#ff8f9e; }
+.check-item .del:hover{ color:var(--accent-warn); }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
 /* 폭이 좁은 폰에서는 2열로 나누면 각 칸이 너무 좁아져서 글자가 답답하게 접힘.
@@ -2079,11 +2097,11 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
-  font-family: var(--font-body); font-size:.82rem; background: rgba(255,255,255,0.05); color: var(--ink);
+  font-family: var(--font-body); font-size:.82rem; background: rgba(var(--hi-rgb),0.05); color: var(--ink);
 }
 /* ---------- 모달 ---------- */
 .modal-overlay{
-  position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
+  position: fixed; inset:0; background: var(--modal-overlay-bg); backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
   display:flex; align-items:center; justify-content:center; z-index: 260; animation: fadeIn .15s ease;
 }
 /* 라이트박스 전용: 전체화면 블러 연산이 PC(특히 큰 화면)에서 매 프레임 무겁기 때문에
@@ -2092,7 +2110,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    화면 전체엔 블러를 걸지 않고, 대신 모달 박스 "바깥" 여백에만 블러 조각을 깔아 붙임.
    실제 블러가 걸리는 면적 자체가 작아지므로 사진에 가려서 안 보이는 부분까지 계산하던
    비용이 사라지고, 화면 가장자리(사진 밖으로 보이는 부분)는 이전처럼 그대로 블러돼 보임 */
-.modal-overlay.modal-overlay-plain{ backdrop-filter:none; -webkit-backdrop-filter:none; background: rgba(5,2,3,0.55); }
+.modal-overlay.modal-overlay-plain{ backdrop-filter:none; -webkit-backdrop-filter:none; background: var(--modal-overlay-bg); }
 .lightbox-blur-frame{ position:fixed; inset:0; z-index:1; pointer-events:none; }
 .lightbox-blur-strip{
   position:fixed; backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
@@ -2100,18 +2118,12 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal.modal-lightbox{ position:relative; z-index:2; }
 @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
 .modal{
-  background: rgba(24,11,14,0.72);
+  background: var(--modal-bg);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--card-border); border-radius: 24px; padding: 24px;
   width: min(440px, 90vw); max-height: 85vh; overflow:auto;
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 var(--card-hi);
   animation: popIn .18s ease; color: var(--ink);
-}
-[data-theme="light"] .modal{
-  /* 라이트모드에서도 모달 자체는 어두운 유리 패널로 고정하지 않고, 사이트
-     톤에 맞는 밝은 유리 패널로 바꿔서 편집 화면이 튀지 않게 함 */
-  background: rgba(255,255,255,0.82);
-  box-shadow: 0 20px 60px rgba(89,8,11,0.16), inset 0 1px 0 var(--card-hi);
 }
 @keyframes popIn{ from{ transform: translateY(10px); opacity:0 } to{ transform: translateY(0); opacity:1 } }
 .modal h3{ font-family: var(--font-display); margin-top:0; color: var(--rose); }
@@ -2120,16 +2132,10 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal input[type=url], .modal input[type=number], .modal textarea, .modal select,
 .modal input[type=file]{
   width:100%; padding:9px 11px; border-radius:12px; border:1px solid var(--card-border);
-  font-family: var(--font-body); font-size:.85rem; background: rgba(255,255,255,0.05); color: var(--ink);
-}
-[data-theme="light"] .modal input[type=text], [data-theme="light"] .modal input[type=password], [data-theme="light"] .modal input[type=date],
-[data-theme="light"] .modal input[type=url], [data-theme="light"] .modal input[type=number], [data-theme="light"] .modal textarea, [data-theme="light"] .modal select,
-[data-theme="light"] .modal input[type=file]{
-  background: rgba(45,33,28,0.045);
+  font-family: var(--font-body); font-size:.85rem; background: rgba(var(--hi-rgb),0.05); color: var(--ink);
 }
 .modal input::placeholder, .modal textarea::placeholder{ color: var(--ink-soft); }
-.modal select option{ background: #1a0b0f; color: var(--ink); }
-[data-theme="light"] .modal select option{ background: #F7F3F0; }
+.modal select option{ background: var(--modal-select-bg); color: var(--ink); }
 .modal textarea{ min-height:80px; resize:vertical; }
 .modal .row{ display:flex; gap:8px; }
 .modal .row > *{ flex:1; }
@@ -2142,7 +2148,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal.modal-profile-edit{
   width:min(680px, 94vw);
   backdrop-filter:none; -webkit-backdrop-filter:none;
-  background: rgba(20,9,11,0.94);
+  background: var(--modal-bg-opaque);
 }
 .profile-edit-cols{ display:flex; gap:18px; align-items:flex-start; }
 .profile-edit-col{ flex:1; min-width:0; }
@@ -2191,7 +2197,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   display:flex; align-items:center; justify-content:center;
   transition: background .15s ease;
 }
-.lightbox-x:hover{ background: rgba(196,66,95,0.6); }
+.lightbox-x:hover{ background: rgba(var(--rose-rgb),0.6); }
 .lightbox-body{ position:relative; text-align:center; }
 /* 이미지 실제 렌더링 크기에 딱 맞는 래퍼. 이 래퍼 안에 좌/우 클릭·스와이프 존을 깔아서
    화살표 버튼이 아니라 사진 자체의 왼쪽/오른쪽을 눌러 이동하게 함.
@@ -2281,7 +2287,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .lightbox-carousel-peek:hover{ opacity:1; }
 .lightbox-carousel-more{
   flex:0 0 auto; width:28px; display:flex; align-items:center; justify-content:center;
-  color: rgba(255,255,255,0.65); font-size:1.2rem; letter-spacing:1px;
+  color: rgba(var(--hi-rgb),0.65); font-size:1.2rem; letter-spacing:1px;
 }
 /* 캐러셀 조각들이 놓일 자리를 옆으로 확보하기 위해, 묶음 사진일 때는 가운데 사진
    자체를 조금 좁혀서 보여줌(사진이 잘리는 게 아니라 화면에서 차지하는 폭만 줄어듦) */
@@ -2324,13 +2330,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .lightbox-tag{ margin-top:10px; padding:0 4px; }
 .lightbox-tag-chip{
   display:inline-block; font-size:.74rem; padding:4px 12px; border-radius:999px;
-  background: var(--rose-soft); color: var(--rose); border:1px solid rgba(196,66,95,0.35);
+  background: var(--rose-soft); color: var(--rose); border:1px solid rgba(var(--rose-rgb),0.35);
 }
 .color-row{ display:flex; align-items:center; gap:8px; }
 .color-row span{ font-size:.78rem; color:var(--ink-soft); }
 .toast{
   position: fixed; bottom: 24px; left:50%; transform: translateX(-50%);
-  background: rgba(24,11,14,0.75); color: var(--ink); border:1px solid var(--card-border);
+  background: var(--toast-bg); color: var(--ink); border:1px solid var(--card-border);
   padding: 11px 20px; border-radius: 999px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   font-size:.82rem; z-index: 300; animation: fadeIn .15s ease; box-shadow: var(--shadow);
@@ -2373,13 +2379,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
      브라우저가 지원하는 선에서 알아서 피해줌 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color: var(--ink);
+  background: var(--sticker-bg); color: var(--ink);
   border-radius:16px; padding:9px 13px 17px 13px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* border+box-shadow 대신 filter:drop-shadow 두 개를 겹쳐서 씀 — clip-path로
      오려낸 후 실제로 보이는 본체+꼬리 윤곽 전체에 얇은 외곽선(1번째)과 원래
      있던 큰 그림자(2번째, --shadow와 동일 값)를 매끄럽게 한 번에 둘러줌 */
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
+  filter: drop-shadow(0 0 1px rgba(var(--hi-rgb),0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:.82rem; line-height:1.4; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.55);
   opacity:0; pointer-events:none;
