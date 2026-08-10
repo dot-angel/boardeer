@@ -37,6 +37,24 @@ const bgImageLayerEl = document.getElementById('bgImageLayer');
 const bannerEditBtn = document.getElementById('bannerEditBtn');
 const bgEditBtn = document.getElementById('bgEditBtn');
 const globalStyleBtn = document.getElementById('globalStyleBtn');
+const modeToggleBtn = document.getElementById('modeToggleBtn');
+
+/* ---------------- 라이트모드 / 다크모드 ----------------
+   방문자마다 원하는 모드를 볼 수 있도록 이 브라우저(localStorage)에만 저장하고,
+   다크모드가 기본값. 모드별로 배너/배경/테마 편집이 서로 완전히 분리되도록,
+   Firestore 문서 이름 뒤에 'Light'를 붙여 라이트모드 전용 문서를 따로 씀
+   (meta/banner ↔ meta/bannerLight, meta/background ↔ meta/backgroundLight,
+   meta/theme ↔ meta/themeLight) — 이렇게 하면 다크모드에서 꾸며둔 배경 사진/색상을
+   그대로 두고 라이트모드만 처음부터 새로 자유롭게 꾸밀 수 있음. */
+let siteMode = localStorage.getItem('gh_mode') === 'light' ? 'light' : 'dark';
+function metaDoc(base){
+  return db.collection('meta').doc(siteMode === 'light' ? base + 'Light' : base);
+}
+function applyModeClass(){
+  document.body.classList.toggle('theme-light', siteMode === 'light');
+  if(modeToggleBtn) modeToggleBtn.textContent = siteMode === 'light' ? '🌙 다크모드' : '☀️ 라이트모드';
+}
+applyModeClass();
 
 /* ---------------- 설정 미완료 안내 ---------------- */
 
@@ -1370,11 +1388,11 @@ db.collection('meta').doc('site').onSnapshot(doc=>{
 /* ---------------- 배너 (항상 최상단 고정) ---------------- */
 
 bannerEditBtn.addEventListener('click', async ()=>{
-  const doc = await db.collection('meta').doc('banner').get();
+  const doc = await metaDoc('banner').get();
   const cur = doc.exists ? doc.data() : {};
   const curIsUrl = cur.image && !cur.image.startsWith('data:');
   openModal(`
-    <h3>배너 편집</h3>
+    <h3>배너 편집 <span style="font-size:.7rem;font-weight:400;color:var(--ink-soft);">(${siteMode === 'light' ? '라이트모드' : '다크모드'})</span></h3>
     <label>배너 사진 올리기 (기기에서 바로 선택)</label>
     <input type="file" id="bImgFile" accept="image/*">
     <p class="hint">기기의 사진을 바로 선택하면 화면에 맞게 자동으로 압축해서 저장해요. 별도 사이트에 올릴 필요 없어요.</p>
@@ -1402,27 +1420,21 @@ bannerEditBtn.addEventListener('click', async ()=>{
       } else if(!image){
         image = cur.image || '';
       }
-      await db.collection('meta').doc('banner').set({ image }, {merge:true});
+      await metaDoc('banner').set({ image }, {merge:true});
       closeModal();
       toast('배너를 저장했어요');
     };
   });
 });
 
-db.collection('meta').doc('banner').onSnapshot(doc=>{
-  if(!doc.exists) return;
-  const d = doc.data();
-  if(d.image) setElementBgImageWithFallback(siteBannerEl, d.image);
-});
-
 /* ---------------- 홈페이지 전체 배경 이미지 (배너와 별개) ---------------- */
 
 bgEditBtn.addEventListener('click', async ()=>{
-  const doc = await db.collection('meta').doc('background').get();
+  const doc = await metaDoc('background').get();
   const cur = doc.exists ? doc.data() : {};
   const curIsUrl = cur.image && !cur.image.startsWith('data:');
   openModal(`
-    <h3>홈페이지 배경 이미지</h3>
+    <h3>홈페이지 배경 이미지 <span style="font-size:.7rem;font-weight:400;color:var(--ink-soft);">(${siteMode === 'light' ? '라이트모드' : '다크모드'})</span></h3>
     <p class="hint">배너와는 별개로, 사이트 전체 뒤에 깔리는 배경이에요. 위젯들이 반투명 유리 카드라 배경이 은은하게 비쳐 보여요.</p>
     <label>배경 사진 올리기 (기기에서 바로 선택)</label>
     <input type="file" id="bgImgFile" accept="image/*">
@@ -1435,7 +1447,7 @@ bgEditBtn.addEventListener('click', async ()=>{
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#rm').onclick = async ()=>{
-      await db.collection('meta').doc('background').set({ image:'' }, {merge:true});
+      await metaDoc('background').set({ image:'' }, {merge:true});
       closeModal();
       toast('배경 사진을 없앴어요');
     };
@@ -1457,22 +1469,11 @@ bgEditBtn.addEventListener('click', async ()=>{
       } else if(!image){
         image = cur.image || '';
       }
-      await db.collection('meta').doc('background').set({ image }, {merge:true});
+      await metaDoc('background').set({ image }, {merge:true});
       closeModal();
       toast('배경 이미지를 저장했어요');
     };
   });
-});
-
-db.collection('meta').doc('background').onSnapshot(doc=>{
-  const d = doc.exists ? doc.data() : {};
-  if(d.image){
-    setElementBgImageWithFallback(bgImageLayerEl, d.image);
-    bgImageLayerEl.classList.add('has-image');
-  } else {
-    bgImageLayerEl.style.backgroundImage = '';
-    bgImageLayerEl.classList.remove('has-image');
-  }
 });
 
 /* ---------------- 테마 편집 (전체 색/폰트 일괄 적용) ---------------- */
@@ -1542,21 +1543,67 @@ function applyTheme(theme){
   }
 }
 
-db.collection('meta').doc('theme').onSnapshot(doc=>{
-  if(doc.exists) applyTheme(doc.data());
+/* 배너 / 배경 / 테마 3가지 모두 라이트·다크모드별로 완전히 분리된 문서를 구독함.
+   모드를 전환할 때마다(toggleSiteMode) 기존 구독을 끊고 새 모드의 문서로 다시 구독해서,
+   화면에 지금 보고 있는 모드의 편집값만 반영되게 함. */
+let unsubBanner = null, unsubBackground = null, unsubTheme = null;
+function subscribeModeMeta(){
+  if(unsubBanner) unsubBanner();
+  if(unsubBackground) unsubBackground();
+  if(unsubTheme) unsubTheme();
+
+  unsubBanner = metaDoc('banner').onSnapshot(doc=>{
+    const d = doc.exists ? doc.data() : {};
+    if(d.image) setElementBgImageWithFallback(siteBannerEl, d.image);
+    else siteBannerEl.style.backgroundImage = '';
+  });
+
+  unsubBackground = metaDoc('background').onSnapshot(doc=>{
+    const d = doc.exists ? doc.data() : {};
+    if(d.image){
+      setElementBgImageWithFallback(bgImageLayerEl, d.image);
+      bgImageLayerEl.classList.add('has-image');
+    } else {
+      bgImageLayerEl.style.backgroundImage = '';
+      bgImageLayerEl.classList.remove('has-image');
+    }
+  });
+
+  unsubTheme = metaDoc('theme').onSnapshot(doc=>{
+    // 이전 모드에서 적용해둔 색/폰트 인라인 오버라이드를 먼저 걷어내야, 그 값이
+    // 새로 전환한 모드에도 그대로 남아있는(색이 안 바뀌는) 문제가 생기지 않음.
+    THEME_VARS.forEach(v=> document.documentElement.style.removeProperty(v));
+    document.documentElement.style.removeProperty('--font-display');
+    document.documentElement.style.removeProperty('--font-body');
+    injectCustomFontFace(null);
+    if(doc.exists) applyTheme(doc.data());
+  });
+}
+subscribeModeMeta();
+
+modeToggleBtn.addEventListener('click', ()=>{
+  siteMode = siteMode === 'light' ? 'dark' : 'light';
+  localStorage.setItem('gh_mode', siteMode);
+  applyModeClass();
+  subscribeModeMeta();
+  toast(siteMode === 'light' ? '라이트모드로 전환했어요' : '다크모드로 전환했어요');
 });
 
 globalStyleBtn.addEventListener('click', async ()=>{
   if(!editMode){ toast('잠금 해제 후 편집모드에서 변경할 수 있어요'); return; }
-  const cs = getComputedStyle(document.documentElement);
+  // 라이트모드 기본 팔레트는 body.theme-light 클래스로만 지정돼 있어서(html이 아니라
+  // body 스코프), 지금 실제로 적용되고 있는 값을 정확히 읽으려면 documentElement가
+  // 아니라 body에서 계산된 스타일을 읽어야 함(저장된 커스텀 색이 있으면 그 값이,
+  // 없으면 현재 모드의 기본 팔레트 값이 그대로 잡힘).
+  const cs = getComputedStyle(document.body);
   const cur = {};
   THEME_VARS.forEach(v=> cur[v.replace('--','')] = cs.getPropertyValue(v).trim());
-  const themeDoc = await db.collection('meta').doc('theme').get();
+  const themeDoc = await metaDoc('theme').get();
   const saved = themeDoc.exists ? themeDoc.data() : {};
   const cardBgParsed = parseColorToHexAlpha(cur['card-bg']);
   const cardBgAlphaPct = Math.round(cardBgParsed.alpha*100);
   openModal(`
-    <h3>테마 편집</h3>
+    <h3>테마 편집 <span style="font-size:.7rem;font-weight:400;color:var(--ink-soft);">(${siteMode === 'light' ? '라이트모드' : '다크모드'})</span></h3>
     <p style="font-size:.78rem;color:var(--ink-soft)">여기서 바꾸면 사이트 전체에 한 번에 적용돼요.</p>
     <label>메인 포인트 컬러</label>
     <div class="color-row"><input type="color" id="tRose" value="${cur.rose}"></div>
@@ -1601,13 +1648,13 @@ globalStyleBtn.addEventListener('click', async ()=>{
     });
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#tFontClear').onclick = async ()=>{
-      await db.collection('meta').doc('theme').set({ customFontData:'', customFontFile:'' }, {merge:true});
+      await metaDoc('theme').set({ customFontData:'', customFontFile:'' }, {merge:true});
       closeModal();
       toast('커스텀 폰트를 해제했어요');
     };
     m.querySelector('#tReset').onclick = async ()=>{
       try{
-        await db.collection('meta').doc('theme').delete();
+        await metaDoc('theme').delete();
       }catch(err){ console.error(err); }
       THEME_VARS.forEach(v=> document.documentElement.style.removeProperty(v));
       document.documentElement.style.removeProperty('--font-display');
@@ -1653,7 +1700,7 @@ globalStyleBtn.addEventListener('click', async ()=>{
         theme.customFontFile = fontFileName;
         theme.customFontData = '';
       }
-      await db.collection('meta').doc('theme').set(theme, {merge:true});
+      await metaDoc('theme').set(theme, {merge:true});
       closeModal();
       toast('테마를 적용했어요');
     };
