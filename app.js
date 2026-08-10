@@ -1522,24 +1522,30 @@ function injectCustomFontFace(srcDecl){
     : '';
 }
 
+/* ⚠️ 커스텀 테마 값은 반드시 document.documentElement(html)이 아니라
+   document.body에 적용해야 함. 라이트모드 기본 팔레트가 body.theme-light{...}
+   처럼 body 자기 자신에 직접 걸려있는 규칙이라서, html에 인라인으로
+   값을 넣어봤자 상속 전에 body 자신의 규칙이 이겨버려 라이트모드에서는
+   커스텀 색이 통째로 무시되는 문제가 있었음(다크모드는 body에 직접
+   걸린 규칙이 없어서 html의 인라인 값이 그대로 상속돼 우연히 잘 됐던 것). */
 function applyTheme(theme){
   if(!theme) return;
   THEME_VARS.forEach(v=>{
     const key = v.replace('--','');
-    if(theme[key]) document.documentElement.style.setProperty(v, theme[key]);
+    if(theme[key]) document.body.style.setProperty(v, theme[key]);
   });
   if(theme.customFontData){
     injectCustomFontFace(`url(${theme.customFontData}) format('truetype')`);
-    document.documentElement.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
-    document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
+    document.body.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
+    document.body.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
   } else if(theme.customFontFile){
     injectCustomFontFace(`url('./fonts/${theme.customFontFile}') format('truetype')`);
-    document.documentElement.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
-    document.documentElement.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
+    document.body.style.setProperty('--font-display', `'CustomUserFont', 'ZEN SERIF', serif`);
+    document.body.style.setProperty('--font-body', `'CustomUserFont', 'ZEN SERIF', serif`);
   } else {
     injectCustomFontFace(null);
-    if(theme.fontDisplay) document.documentElement.style.setProperty('--font-display', `'${theme.fontDisplay}', 'Noto Serif KR', serif`);
-    if(theme.fontBody) document.documentElement.style.setProperty('--font-body', `'${theme.fontBody}', serif`);
+    if(theme.fontDisplay) document.body.style.setProperty('--font-display', `'${theme.fontDisplay}', 'Noto Serif KR', serif`);
+    if(theme.fontBody) document.body.style.setProperty('--font-body', `'${theme.fontBody}', serif`);
   }
 }
 
@@ -1572,9 +1578,9 @@ function subscribeModeMeta(){
   unsubTheme = metaDoc('theme').onSnapshot(doc=>{
     // 이전 모드에서 적용해둔 색/폰트 인라인 오버라이드를 먼저 걷어내야, 그 값이
     // 새로 전환한 모드에도 그대로 남아있는(색이 안 바뀌는) 문제가 생기지 않음.
-    THEME_VARS.forEach(v=> document.documentElement.style.removeProperty(v));
-    document.documentElement.style.removeProperty('--font-display');
-    document.documentElement.style.removeProperty('--font-body');
+    THEME_VARS.forEach(v=> document.body.style.removeProperty(v));
+    document.body.style.removeProperty('--font-display');
+    document.body.style.removeProperty('--font-body');
     injectCustomFontFace(null);
     if(doc.exists) applyTheme(doc.data());
   });
@@ -1656,9 +1662,9 @@ globalStyleBtn.addEventListener('click', async ()=>{
       try{
         await metaDoc('theme').delete();
       }catch(err){ console.error(err); }
-      THEME_VARS.forEach(v=> document.documentElement.style.removeProperty(v));
-      document.documentElement.style.removeProperty('--font-display');
-      document.documentElement.style.removeProperty('--font-body');
+      THEME_VARS.forEach(v=> document.body.style.removeProperty(v));
+      document.body.style.removeProperty('--font-display');
+      document.body.style.removeProperty('--font-body');
       injectCustomFontFace(null);
       closeModal();
       toast('테마를 기본값으로 초기화했어요');
