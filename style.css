@@ -2450,32 +2450,49 @@ body.theme-light .mp-cover-bg.has-cover::after{
 body.theme-light .speech-card-cover-scrim{
   background: linear-gradient(180deg, rgba(255,255,255,0) 60%, rgba(255,255,255,0.45) 100%);
 }
-/* ---- ⑥ 참고 이미지 스타일(진한 컬러 글자 + 흰 그림자)에 맞춰, 사진 위
-   텍스트들을 "흰 글씨+진한 그림자"에서 "카네이션/달리아 글씨+흰 그림자"로
-   반전함. 검정 대신 흰색 그림자를 촘촘하게 겹쳐서(작은 blur의 진한 레이어 +
-   큰 blur의 옅은 레이어) 사진이 어떤 색이든 글자 테두리가 또렷하게 뜨게 함 */
+/* ---- ⑥ 참고 이미지 스타일(진한 컬러 글자 + 흰 테두리)에 맞춰, 사진 위
+   텍스트들을 "흰 글씨+진한 그림자"에서 "카네이션/달리아 글씨+흰 테두리"로
+   반전함. 처음엔 흰 text-shadow를 여러 겹 썼는데, blur가 낀 "빛 번짐"이라
+   진하게 겹쳐도 결국 흐릿하게 퍼지고, 사진에 밝은 영역이 섞이면 그 안에
+   묻혀버려서 대비를 못 잡아줌 — 그렇다고 그 뒤에 검정/잉크색을 더 깔면
+   이번엔 진한 글자 밑에 진한 그림자가 겹쳐 다시 뭉개져 보임(이전에 말풍선
+   에서 겪은 것과 같은 문제). 그래서 블러 대신 -webkit-text-stroke로 딱
+   붙는 흰 윤곽선을 두르는 방식으로 바꿈 — 블러가 없어서 안 번지고, 사진이
+   밝든 어둡든 컬러 글자와 항상 확실히 분리돼 보임. paint-order로 윤곽선을
+   글자 채움보다 뒤에 그려서 획이 가늘어지지 않게 하고, 원래 있던 흰
+   text-shadow는 아주 옅게만 남겨서 살짝 뜨는 느낌만 더함(대비 역할은
+   이제 안 함) */
 body.theme-light .slide-caption{
   color: var(--rose);
-  text-shadow: 0 1px 2px rgba(255,255,255,0.9), 0 1px 4px rgba(255,255,255,0.7), 0 0 10px rgba(255,255,255,0.5);
+  -webkit-text-stroke: 1.4px rgba(255,255,255,0.95);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 8px rgba(255,255,255,0.35);
 }
 body.theme-light .speech-card-cover-text{
   color: var(--rose);
-  text-shadow: 0 1px 2px rgba(255,255,255,0.9), 0 2px 8px rgba(255,255,255,0.6);
+  -webkit-text-stroke: 1px rgba(255,255,255,0.95);
+  paint-order: stroke fill;
+  text-shadow: 0 2px 6px rgba(255,255,255,0.3);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
   color: var(--rose);
-  text-shadow: 0 1px 2px rgba(255,255,255,0.9), 0 0 5px rgba(255,255,255,0.65);
+  -webkit-text-stroke: 1px rgba(255,255,255,0.95);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 4px rgba(255,255,255,0.3);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-artist{
   color: var(--rose);
-  text-shadow: 0 1px 2px rgba(255,255,255,0.9), 0 0 5px rgba(255,255,255,0.65);
+  -webkit-text-stroke: 1px rgba(255,255,255,0.95);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 4px rgba(255,255,255,0.3);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
   color: var(--rose);
-  text-shadow: 0 1px 3px rgba(255,255,255,0.7);
+  -webkit-text-stroke: 0.75px rgba(255,255,255,0.95);
+  paint-order: stroke fill;
 }
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 /* 말풍선 3종(스티커 말풍선/말풍선 위젯/프로필 간략보기 한마디)을 라이트모드에서
@@ -2533,7 +2550,9 @@ body.theme-light .site-banner-scrim{
 }
 body.theme-light .site-name{
   color: var(--ink);
-  text-shadow: 0 1px 2px rgba(255,255,255,0.9), 0 2px 8px rgba(255,255,255,0.65), 0 4px 16px rgba(255,255,255,0.4);
+  -webkit-text-stroke: 2.5px rgba(255,255,255,0.95);
+  paint-order: stroke fill;
+  text-shadow: 0 4px 16px rgba(255,255,255,0.3);
 }
 body.theme-light .banner-bottom-right .btn{
   background: rgba(255,255,255,0.12); color:#FBF7F8;
