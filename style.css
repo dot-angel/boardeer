@@ -2439,38 +2439,35 @@ body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; b
    색상만 팔레트의 잉크(Dahlia)로 바꿔서, 사진이 어떤 색이든 스크림 자체가
    테마 톤으로 자연스럽게 녹아들게 함 */
 body.theme-light .slide-viewport::after{
-  background: linear-gradient(180deg, rgba(239,244,240,0.5) 0%, rgba(239,244,240,0) 25%, rgba(239,244,240,0) 55%, rgba(239,244,240,0.78) 100%);
+  background: linear-gradient(180deg, rgba(247,176,183,0.5) 0%, rgba(247,176,183,0) 25%, rgba(247,176,183,0) 55%, rgba(247,176,183,0.78) 100%);
 }
 body.theme-light .mp-cover-bg.has-cover::after{
-  background: linear-gradient(180deg, rgba(239,244,240,0) 0%, rgba(239,244,240,0) 32%, rgba(239,244,240,0.7) 58%, rgba(239,244,240,0.92) 100%);
+  background: linear-gradient(180deg, rgba(247,176,183,0) 0%, rgba(247,176,183,0) 32%, rgba(247,176,183,0.7) 58%, rgba(247,176,183,0.92) 100%);
 }
 body.theme-light .speech-card-cover-scrim{
-  background: linear-gradient(180deg, rgba(239,244,240,0) 60%, rgba(239,244,240,0.78) 100%);
+  background: linear-gradient(180deg, rgba(247,176,183,0) 60%, rgba(247,176,183,0.78) 100%);
 }
-/* ---- ⑥ 위 스크림이 어두운 톤에서 뽀얀 톤으로 바뀌면서, 그 위 흰 글자·검은
-   그림자 조합이 더 이상 안 맞음(밝은 바탕 위에 흰 글자) → 글자는 잉크색,
-   그림자는 검정 대신 스크림과 같은 옅은 종이색으로 은은하게 감싸는 방식으로 */
+/* ---- ⑥ 검정 대신 팔레트의 레드(Carnation)를 그림자색으로 써서, 흰 글자를
+   그대로 유지해도 옅은 로즈솔리드 그라데이션 위에서 잘 읽히게 함 */
 body.theme-light .slide-caption{
-  color: var(--ink);
-  text-shadow: 0 1px 3px rgba(239,244,240,0.85), 0 0 10px rgba(239,244,240,0.6);
+  text-shadow: 0 6px 20px rgba(223,103,116,0.55), 0 1px 4px rgba(223,103,116,0.65);
 }
 body.theme-light .speech-card-cover-text{
-  color: var(--ink);
-  text-shadow: 0 1px 3px rgba(239,244,240,0.85), 0 0 8px rgba(239,244,240,0.6);
+  text-shadow: 0 1px 4px rgba(223,103,116,0.6);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
-  color: var(--ink);
-  text-shadow: 0 1px 2px rgba(239,244,240,0.85), 0 0 5px rgba(239,244,240,0.6);
+  color: rgba(255,255,255,0.95);
+  text-shadow: 0 1px 2px rgba(223,103,116,0.75), 0 0 4px rgba(223,103,116,0.55);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-artist{
-  color: var(--ink-soft);
-  text-shadow: 0 1px 2px rgba(239,244,240,0.85), 0 0 5px rgba(239,244,240,0.6);
+  color: rgba(255,255,255,0.88);
+  text-shadow: 0 1px 2px rgba(223,103,116,0.75), 0 0 4px rgba(223,103,116,0.55);
 }
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-title,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-track-artist{
-  text-shadow: 0 1px 2px rgba(239,244,240,0.6);
+  text-shadow: 0 1px 2px rgba(223,103,116,0.5);
 }
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 body.theme-light .sticker-bubble{ background: rgba(255,255,255,0.8); }
@@ -2520,12 +2517,17 @@ body.theme-light .speech-bubble{
    있든 없든 라이트모드 무드와 맞게 함. 제목 글자도 흰색 고정 대신
    잉크색 + 종이색 그림자로 바꿔서 밝아진 스크림 위에서도 읽히게 함 */
 body.theme-light .site-banner-scrim{
-  background: linear-gradient(180deg, rgba(239,244,240,0.12) 20%, rgba(239,244,240,0.88) 100%);
+  background: linear-gradient(180deg, rgba(247,176,183,0.12) 20%, rgba(247,176,183,0.88) 100%);
 }
 body.theme-light .site-name{
-  color: var(--ink);
-  text-shadow: 0 1px 3px rgba(239,244,240,0.85), 0 0 10px rgba(239,244,240,0.6);
+  text-shadow: 0 6px 24px rgba(223,103,116,0.55), 0 2px 10px rgba(223,103,116,0.6);
 }
+body.theme-light .banner-bottom-right .btn{
+  background: rgba(255,255,255,0.12); color:#FBF7F8;
+}
+body.theme-light .banner-bottom-right .btn:hover{ background: rgba(255,255,255,0.22); }
+body.theme-light .lock-badge{ background: rgba(255,255,255,0.1); color:#FBF7F8; }
+body.theme-light .lock-badge.unlocked{ color:#f4b6bd; border-color:#f4b6bd; }
 
 /* ---- ③ 검은 그림자가 스티커/말풍선처럼 작은 요소 여러 개에 걸려있어서,
    밝은 배경 위에서 특히 도드라지고 지저분해 보이던 부분 ----
@@ -2544,4 +2546,3 @@ body.theme-light .speech-bubble,
 body.theme-light .sticker-bubble{
   filter: drop-shadow(0 0 1px rgba(158,47,64,0.1)) drop-shadow(0 10px 22px rgba(158,47,64,0.18));
 }
-
