@@ -37,6 +37,31 @@ const bgImageLayerEl = document.getElementById('bgImageLayer');
 const bannerEditBtn = document.getElementById('bannerEditBtn');
 const bgEditBtn = document.getElementById('bgEditBtn');
 const globalStyleBtn = document.getElementById('globalStyleBtn');
+const themeModeBtn = document.getElementById('themeModeBtn');
+
+/* ---------------- 라이트/다크 모드 토글 ----------------
+   사이트 전체 색을 바꾸는 "테마 편집"(Firestore에 저장, 모든 방문자에게 동일하게
+   보임)과는 별개로, 이건 "지금 보는 내가 다크로 볼지 라이트로 볼지"를 정하는
+   개인 설정이라 방문자 브라우저의 localStorage에만 저장함(다른 사람에게는 영향
+   없음). 기본값은 다크. index.html <head>의 인라인 스크립트가 CSS 적용 전에
+   먼저 data-theme을 붙여둬서 새로고침 시 깜빡임은 없음 — 여기서는 버튼
+   라벨만 그 상태에 맞춰 동기화하고, 클릭 시 전환+저장을 담당함 */
+function currentThemeMode(){
+  return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+}
+function applyThemeModeButtonLabel(){
+  const mode = currentThemeMode();
+  themeModeBtn.textContent = mode === 'light' ? '☀️ 라이트' : '🌙 다크';
+}
+applyThemeModeButtonLabel();
+themeModeBtn.addEventListener('click', ()=>{
+  const next = currentThemeMode() === 'light' ? 'dark' : 'light';
+  if(next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  else document.documentElement.removeAttribute('data-theme');
+  try{ localStorage.setItem('noeunThemeMode', next); }catch(err){}
+  applyThemeModeButtonLabel();
+  applyBannerImageForCurrentTheme();
+});
 
 /* ---------------- 설정 미완료 안내 ---------------- */
 
@@ -1373,6 +1398,7 @@ bannerEditBtn.addEventListener('click', async ()=>{
   const doc = await db.collection('meta').doc('banner').get();
   const cur = doc.exists ? doc.data() : {};
   const curIsUrl = cur.image && !cur.image.startsWith('data:');
+  const curLightIsUrl = cur.imageLight && !cur.imageLight.startsWith('data:');
   openModal(`
     <h3>배너 편집</h3>
     <label>배너 사진 올리기 (기기에서 바로 선택)</label>
@@ -1381,38 +1407,52 @@ bannerEditBtn.addEventListener('click', async ()=>{
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="bImg" placeholder="https://..." value="${curIsUrl ? cur.image : ''}">
     <p class="hint">imgbb.com, postimages.org 등에 올린 "직접 링크" 주소를 붙여넣어도 돼요. 위에서 사진을 선택하면 이 URL 입력은 무시돼요.</p>
+    <label>라이트모드 전용 배너 사진 (선택, 안 정하면 위 사진을 그대로 씀)</label>
+    <input type="file" id="bImgFileLight" accept="image/*">
+    <input type="url" id="bImgLight" placeholder="https://..." value="${curLightIsUrl ? cur.imageLight : ''}">
+    <p class="hint">라이트모드일 때만 이 사진으로 바뀌어요. 예: 다크모드는 밤 사진, 라이트모드는 낮 사진처럼 분위기를 다르게 줄 수 있어요.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const file = m.querySelector('#bImgFile').files[0];
+      const fileLight = m.querySelector('#bImgFileLight').files[0];
       let image = normalizeImageUrl(m.querySelector('#bImg').value.trim());
-      if(file){
-        saveBtn.disabled = true;
-        saveBtn.textContent = '사진 처리 중…';
-        try{
-          image = await compressImageFile(file);
-        }catch(err){
-          toast(err.message || '이미지를 처리하지 못했어요');
-          saveBtn.disabled = false;
-          saveBtn.textContent = '저장';
-          return;
-        }
-      } else if(!image){
-        image = cur.image || '';
+      let imageLight = normalizeImageUrl(m.querySelector('#bImgLight').value.trim());
+      saveBtn.disabled = true;
+      saveBtn.textContent = '사진 처리 중…';
+      try{
+        if(file) image = await compressImageFile(file);
+        else if(!image) image = cur.image || '';
+        if(fileLight) imageLight = await compressImageFile(fileLight);
+        else if(!imageLight) imageLight = cur.imageLight || '';
+      }catch(err){
+        toast(err.message || '이미지를 처리하지 못했어요');
+        saveBtn.disabled = false;
+        saveBtn.textContent = '저장';
+        return;
       }
-      await db.collection('meta').doc('banner').set({ image }, {merge:true});
+      await db.collection('meta').doc('banner').set({ image, imageLight }, {merge:true});
       closeModal();
       toast('배너를 저장했어요');
     };
   });
 });
 
+// 마지막으로 받은 배너 문서를 기억해뒀다가, Firestore 데이터가 바뀔 때뿐 아니라
+// (라이트/다크 토글처럼) 데이터는 그대로인데 "지금 보여줄 이미지"만 바뀌어야 할
+// 때도 같은 함수로 다시 적용할 수 있게 함
+let lastBannerDocData = {};
+function applyBannerImageForCurrentTheme(){
+  const isLight = currentThemeMode() === 'light';
+  const image = (isLight && lastBannerDocData.imageLight) ? lastBannerDocData.imageLight : lastBannerDocData.image;
+  if(image) setElementBgImageWithFallback(siteBannerEl, image);
+}
 db.collection('meta').doc('banner').onSnapshot(doc=>{
   if(!doc.exists) return;
-  const d = doc.data();
-  if(d.image) setElementBgImageWithFallback(siteBannerEl, d.image);
+  lastBannerDocData = doc.data();
+  applyBannerImageForCurrentTheme();
 });
 
 /* ---------------- 홈페이지 전체 배경 이미지 (배너와 별개) ---------------- */

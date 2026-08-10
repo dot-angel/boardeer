@@ -59,6 +59,36 @@
   --font-body: 'ZEN SERIF', 'Noto Sans KR', serif;
   --radius: 16px;
 }
+/* ---- 라이트 모드 ----
+   참고로 받은 컬러 팔레트 3장에서 뽑음:
+   - 배경/카드 밝은 톤: Noguchi "White Color Palettes"의 #f5f5f5 · #d9d5cf
+   - 포인트 레드: 같은 팔레트의 #cd2e3d (다크모드 --rose와 같은 체리 계열이라 톤이 이어짐)
+   - 진한 텍스트/버튼: Garnet 팔레트의 Dark Carmine(#590808)·Black Cherry Stone(#380507),
+     그리고 Ballroom-Blush 팔레트의 Heirloom Red(#7F1D25)
+   - 보조 톤(sage): 같은 팔레트의 Pizza Pie(#9F6162)
+   다크모드처럼 documentElement에 인라인으로 --rose/--sage/--gold/--paper/--card-bg/
+   --card-bg2/--ink를 직접 지정해둔 상태(테마 편집 모달에서 커스텀한 경우)라면 인라인
+   스타일이 더 우선순위가 높아서 그 값이 유지됨 — 사이트 전체 커스텀 테마가 라이트/다크
+   전환보다 항상 우선됨 */
+[data-theme="light"]{
+  color-scheme: light;
+  --paper: #F7F3F0;
+  --paper-deep: #ECE4DE;
+  --ink: #2D211C;
+  --ink-soft: rgba(45,33,28,0.62);
+  --rose: #B8324B;
+  --rose-solid: #7F1D25;
+  --rose-soft: rgba(184,50,75,0.14);
+  --sage: #9F6162;
+  --gold: #8C7A72;
+  --gold-soft: rgba(140,122,114,0.28);
+  --card-bg: rgba(255,255,255,0.55);
+  --card-bg2: rgba(255,255,255,0.35);
+  --card-border: rgba(45,33,28,0.13);
+  --card-hi: rgba(255,255,255,0.65);
+  --shadow: 0 12px 28px rgba(89,8,11,0.10);
+  --shadow-press: 0 6px 14px rgba(89,8,11,0.14);
+}
 *{ box-sizing: border-box; }
 html,body{ margin:0; padding:0; min-height:100%; }
 body{
@@ -77,12 +107,23 @@ body{
   background-size: cover; background-position: center;
   filter: brightness(0.42) saturate(1.15);
 }
+[data-theme="light"] .bg-image-layer{
+  /* 다크모드는 사진을 짙게 눌러서 그 위에 밝은 글자가 뜨게 하지만, 라이트모드는
+     반대로 카드/글자가 어두운 톤이라 사진을 눌러 어둡게 만들 필요가 없음 —
+     원본에 가깝게 밝게 두고 채도만 살짝 낮춰 은은하게 함 */
+  filter: brightness(0.98) saturate(0.92);
+}
 .bg-image-layer.has-image::after{
   content:"";
   position:absolute; inset:0;
   background:
     radial-gradient(ellipse at 25% 0%, rgba(101,25,38,0.22), transparent 60%),
     linear-gradient(165deg, rgba(15,4,6,0.35) 0%, rgba(15,4,6,0.78) 100%);
+}
+[data-theme="light"] .bg-image-layer.has-image::after{
+  background:
+    radial-gradient(ellipse at 25% 0%, rgba(184,50,75,0.10), transparent 60%),
+    linear-gradient(165deg, rgba(247,243,240,0.25) 0%, rgba(247,243,240,0.72) 100%);
 }
 /* 배경 사진이 없을 때도(혹은 있어도 은은하게 더해져) 고급스러운 느낌을 주는 컬러 글로우 */
 body::before{
@@ -94,6 +135,13 @@ body::before{
     radial-gradient(ellipse 720px 620px at 82% 6%, rgba(101,25,38,0.22), transparent 65%);
   filter: blur(70px);
   pointer-events: none;
+}
+[data-theme="light"] body::before{
+  /* 밝은 바탕에서는 같은 세기의 글로우가 탁해 보여서 옅게 낮춤 */
+  background:
+    radial-gradient(ellipse 560px 460px at 10% 6%, rgba(184,50,75,0.14), transparent 60%),
+    radial-gradient(ellipse 520px 460px at 90% 86%, rgba(159,97,98,0.12), transparent 62%),
+    radial-gradient(ellipse 720px 620px at 82% 6%, rgba(127,29,37,0.10), transparent 65%);
 }
 /* ---------- 배너 (제목 + 잠금/테마 버튼이 하단에 통합, 별도 상단바 없음) ---------- */
 .site-banner{
@@ -154,6 +202,13 @@ body::before{
   border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink-soft);
 }
 .lock-badge.unlocked{ border-color: var(--rose); color: var(--rose); }
+/* 배너는 사진 위에 항상 어두운 스크림(.site-banner-scrim)을 깔아 글자를 읽히게
+   하는 구조라, 사이트 테마와 무관하게 그 안 글자색은 항상 밝게 유지해야 함.
+   라이트모드에서 --ink/--rose가 어두운 톤으로 바뀌면 어두운 스크림 위에서
+   글자가 안 보이게 되므로, 배너 안 요소들만 고정 밝은 색으로 잡아줌 */
+[data-theme="light"] .banner-bottom .btn{ color:#FBF7F8; }
+[data-theme="light"] .lock-badge{ color: rgba(251,247,248,0.72); }
+[data-theme="light"] .lock-badge.unlocked{ color:#E8899C; border-color:#E8899C; }
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
 .board-tabs{ position: relative; }
 /* .slide-dots(위젯 안 슬라이드 위치 표시 — 배경 없이 작은 점만 나열)와 헷갈리지 않도록,
@@ -1494,6 +1549,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   width:100%; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
   font-family: var(--font-body); font-size:.82rem; background: rgba(255,255,255,0.05); color: var(--ink);
 }
+[data-theme="light"] .gb-form input, [data-theme="light"] .gb-form textarea{
+  background: rgba(45,33,28,0.045);
+}
 .gb-form input::placeholder, .gb-form textarea::placeholder{ color: var(--ink-soft); }
 .gb-form textarea{ min-height:48px; resize:vertical; }
 .gb-form .btn{ align-self:flex-end; }
@@ -2049,6 +2107,12 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 var(--card-hi);
   animation: popIn .18s ease; color: var(--ink);
 }
+[data-theme="light"] .modal{
+  /* 라이트모드에서도 모달 자체는 어두운 유리 패널로 고정하지 않고, 사이트
+     톤에 맞는 밝은 유리 패널로 바꿔서 편집 화면이 튀지 않게 함 */
+  background: rgba(255,255,255,0.82);
+  box-shadow: 0 20px 60px rgba(89,8,11,0.16), inset 0 1px 0 var(--card-hi);
+}
 @keyframes popIn{ from{ transform: translateY(10px); opacity:0 } to{ transform: translateY(0); opacity:1 } }
 .modal h3{ font-family: var(--font-display); margin-top:0; color: var(--rose); }
 .modal label{ display:block; font-size:.8rem; color:var(--ink-soft); margin: 10px 0 4px; }
@@ -2058,8 +2122,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   width:100%; padding:9px 11px; border-radius:12px; border:1px solid var(--card-border);
   font-family: var(--font-body); font-size:.85rem; background: rgba(255,255,255,0.05); color: var(--ink);
 }
+[data-theme="light"] .modal input[type=text], [data-theme="light"] .modal input[type=password], [data-theme="light"] .modal input[type=date],
+[data-theme="light"] .modal input[type=url], [data-theme="light"] .modal input[type=number], [data-theme="light"] .modal textarea, [data-theme="light"] .modal select,
+[data-theme="light"] .modal input[type=file]{
+  background: rgba(45,33,28,0.045);
+}
 .modal input::placeholder, .modal textarea::placeholder{ color: var(--ink-soft); }
 .modal select option{ background: #1a0b0f; color: var(--ink); }
+[data-theme="light"] .modal select option{ background: #F7F3F0; }
 .modal textarea{ min-height:80px; resize:vertical; }
 .modal .row{ display:flex; gap:8px; }
 .modal .row > *{ flex:1; }

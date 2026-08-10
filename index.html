@@ -7,6 +7,15 @@
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="stylesheet" href="style.css">
+<script>
+// CSS가 적용되기 전에 미리 테마를 정해둬서, 라이트모드로 저장해둔 사람이
+// 새로고침할 때마다 다크(기본값)로 잠깐 번쩍였다가 라이트로 바뀌는 깜빡임을 막음.
+// 기본값은 다크 — 한 번도 안 바꿨거나 로컬 저장이 안 되는 환경이면 항상 다크로 보임
+try{
+  var savedThemeMode = localStorage.getItem('noeunThemeMode');
+  if(savedThemeMode === 'light') document.documentElement.setAttribute('data-theme', 'light');
+}catch(err){}
+</script>
 </head>
 <body>
 
@@ -22,6 +31,7 @@
       </div>
       <div class="banner-bottom-right">
         <span class="lock-badge" id="lockBadge">🔒 보기 전용</span>
+        <button class="btn small" id="themeModeBtn" title="라이트/다크 모드 전환">🌙 다크</button>
         <button class="btn small" id="globalStyleBtn">🎨 테마 편집</button>
         <button class="btn small banner-edit-btn" id="bannerEditBtn" style="display:none;">배너 이미지</button>
         <button class="btn small bg-edit-btn" id="bgEditBtn" style="display:none;">배경 이미지</button>
