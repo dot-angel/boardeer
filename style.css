@@ -89,7 +89,7 @@ body.theme-light{
   --rose: #DF6774;             /* Carnation — 라인·텍스트 포인트, 면적에는 안 씀 */
   --rose-solid: #F7B0B7;       /* Chantilly — 버튼 등 단색 채움용(파스텔) */
   --rose-soft: rgba(223,103,116,0.14);
-  --sage: #D9D3C3;             /* Green Sage — 아주 작은 라벨/아이콘 포인트 전용 */
+  --sage: #d7d9c3;             /* Green Sage — 작은 라벨/아이콘 포인트 + 사진 위 스크림 톤 */
   --gold: #DADBD4;             /* Mr. Kitty — 중립 라인/보조 텍스트 */
   --gold-soft: rgba(218,219,212,0.5);
   --card-bg: rgba(239,244,240,0.55);   /* 배경이 비치는 반투명 유리 카드(밝은 버전) */
@@ -2436,16 +2436,16 @@ body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; b
 /* ---- ⑤ 사진이 카드 하나를 꽉 채우는 위젯(이미지/음악/말풍선 커버)의
    글자 가독성용 스크림 — 원래는 다크모드 기준의 무채색 검정이라 라이트모드
    에서는 사진 위에 검은 얼룩처럼 붕 뜸. 어둡기(하단 불투명도)는 그대로 두고
-   색상만 팔레트의 잉크(Dahlia)로 바꿔서, 사진이 어떤 색이든 스크림 자체가
+   색상만 팔레트의 그린세이지로 바꿔서, 사진이 어떤 색이든 스크림 자체가
    테마 톤으로 자연스럽게 녹아들게 함 */
 body.theme-light .slide-viewport::after{
-  background: linear-gradient(180deg, rgba(247,176,183,0.5) 0%, rgba(247,176,183,0) 25%, rgba(247,176,183,0) 55%, rgba(247,176,183,0.78) 100%);
+  background: linear-gradient(180deg, rgba(215,217,195,0.5) 0%, rgba(215,217,195,0) 25%, rgba(215,217,195,0) 55%, rgba(215,217,195,0.78) 100%);
 }
 body.theme-light .mp-cover-bg.has-cover::after{
-  background: linear-gradient(180deg, rgba(247,176,183,0) 0%, rgba(247,176,183,0) 32%, rgba(247,176,183,0.7) 58%, rgba(247,176,183,0.92) 100%);
+  background: linear-gradient(180deg, rgba(215,217,195,0) 0%, rgba(215,217,195,0) 32%, rgba(215,217,195,0.7) 58%, rgba(215,217,195,0.92) 100%);
 }
 body.theme-light .speech-card-cover-scrim{
-  background: linear-gradient(180deg, rgba(247,176,183,0) 60%, rgba(247,176,183,0.78) 100%);
+  background: linear-gradient(180deg, rgba(215,217,195,0) 60%, rgba(215,217,195,0.78) 100%);
 }
 /* ---- ⑥ 검정 대신 팔레트의 레드(Carnation)를 그림자색으로 써서, 흰 글자를
    그대로 유지해도 옅은 로즈솔리드 그라데이션 위에서 잘 읽히게 함 */
