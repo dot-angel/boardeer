@@ -7255,7 +7255,16 @@ function shakerFrameResized(){
 // 문제가 생김(아래 SHAKER_PIECE_RESTITUTION 주석 참고). 최종적으로는 "부딪히는
 // 순간엔 확실히 딱딱하게 튕기되, 중력·마찰 때문에 튕긴 후엔 금방 잦아드는" 쪽으로
 // 반발력만 다시 올려 균형을 잡음.
-const SHAKER_GRAVITY = 0.6;
+// 자유낙하 자체(마찰 없이 중력만 받게 고친 뒤)는 맞게 고쳤는데도, 조각들이
+// 떨어지는 모습이 여전히 깃털처럼 가볍게 팔랑이는 느낌이라는 피드백을 받음.
+// 원인은 두 가지: (1) 중력 자체가 프레임 크기에 비해 약해서 종단속도까지
+// 도달하는 데 시간이 걸리다 보니, 짧은 낙하 구간 대부분이 "가속되는 중"인
+// 완만한 구간으로 보임 — 중력을 올려 더 빨리 무겁게 떨어지게 함.
+// (2) 부딪힐 때마다 회전이 꽤 크게 실려서(아래 jag), 떨어지면서 계속 팽이처럼
+// 돌아 마치 공기 저항을 받는 나뭇잎/깃털처럼 보임 — 회전 실리는 양 자체를
+// 줄여서 딱딱한 조각이 툭 떨어지는 느낌에 더 가깝게 함(회전이 아예 없어지진
+// 않게, 절반 정도로만 낮춤)
+const SHAKER_GRAVITY = 0.95;
 const SHAKER_FRICTION = 0.9;
 // 회전은 이동보다 더 빨리 잦아들되, 부딪히는 순간엔 매끈한 스핀이 아니라
 // 툭툭 꺾이듯 불규칙하게 튀는 편이 "말랑한 공"이 아니라 "딱딱한 조각"처럼
@@ -7281,7 +7290,7 @@ const SHAKER_PIECE_RESTITUTION = 0.8;
 // 벽에 부딪히는 순간엔 접선 방향 속도도 같이 깎아서, 벽을 타고 미끄러지지
 // 않고 걸리는 느낌이 나게 함
 const SHAKER_WALL_TANGENT_FRICTION = 0.75;
-const SHAKER_MAX_SPEED = 20;
+const SHAKER_MAX_SPEED = 26;
 const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
 // 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
 // 튀거나 도는 상태가 남는데(부동소수점 특성상), 이 정도로 작아지면 그냥 확
@@ -7406,8 +7415,8 @@ function stepShakerPhysics(){
             // 불규칙하게 튀는 느낌
             const tx = -ny, ty = nx;
             const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
-            const jag = Math.min(1, Math.abs(relVel)*0.08) * (Math.random()-0.5) * 2;
-            a.vr -= relVelT * 0.05 + jag; b.vr -= relVelT * 0.05 - jag;
+            const jag = Math.min(1, Math.abs(relVel)*0.045) * (Math.random()-0.5) * 1.1;
+            a.vr -= relVelT * 0.028 + jag; b.vr -= relVelT * 0.028 - jag;
             boundedPairs.add(pairKey); // 이 짝은 이번 프레임엔 더 이상 안 튕김(중복 방지)
           }
         }
@@ -7463,7 +7472,9 @@ function shakerWobbleTarget(){
   if(shakerFullOpen){
     return document.querySelector('.modal-shaker-full') || document.getElementById('cardShaker');
   }
-  return document.getElementById('cardShaker');
+  // 카드 전체(.w-shaker)가 아니라 프레임(.shaker-frame)에만 흔들림을 걺 — 이유는
+  // style.css의 .shaker-frame 흔들림 애니메이션 주석 참고(마스크+블러 렌더링 버그 회피)
+  return document.getElementById('shakerFrame') || document.getElementById('cardShaker');
 }
 function closeShakerFullscreen(){
   if(!shakerFullOpen) return;
