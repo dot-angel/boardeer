@@ -2518,12 +2518,12 @@ body.theme-light .row-refpair.video-open .video-title{
   color:#FBF7F8;
 }
 
-/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 톤으로: 어둡기(하단
-   불투명도)는 유지하면서 색상만 뽀얀 종이색(Linen)으로 바꿔서 사진이
-   있든 없든 라이트모드 무드와 맞게 함. 제목 글자도 흰색 고정 대신
-   잉크색 + 종이색 그림자로 바꿔서 밝아진 스크림 위에서도 읽히게 함 */
+/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 톤(그린세이지)으로: 어둡기
+   (하단 불투명도)는 유지하면서 색상만 바꿔서 사진이 있든 없든 라이트모드
+   무드와 맞게 함. 제목 글자도 흰색 고정 대신 잉크색 + 종이색 그림자로 바꿔서
+   밝아진 스크림 위에서도 읽히게 함 */
 body.theme-light .site-banner-scrim{
-  background: linear-gradient(180deg, rgba(247,176,183,0.12) 20%, rgba(247,176,183,0.88) 100%);
+  background: linear-gradient(180deg, rgba(215,217,195,0.12) 20%, rgba(215,217,195,0.88) 100%);
 }
 body.theme-light .site-name{
   text-shadow: 0 6px 24px rgba(167,26,54,0.55), 0 2px 10px rgba(167,26,54,0.6);
