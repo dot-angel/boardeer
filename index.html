@@ -1,140 +1,139 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>Document</title></head><body><pre>&lt;!DOCTYPE html&gt;
-&lt;html lang=&quot;ko&quot;&gt;
-&lt;head&gt;
-&lt;meta charset=&quot;UTF-8&quot;&gt;
-&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;
-&lt;title&gt;노은&lt;/title&gt;
-&lt;link rel=&quot;icon&quot; href=&quot;favicon.ico&quot; sizes=&quot;any&quot;&gt;
-&lt;link rel=&quot;icon&quot; type=&quot;image/png&quot; href=&quot;favicon.png&quot;&gt;
-&lt;link rel=&quot;stylesheet&quot; href=&quot;style.css&quot;&gt;
-&lt;/head&gt;
-&lt;body&gt;
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>노은</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
 
-  &lt;!-- 홈페이지 전체 배경 이미지 레이어 (배너와 별개, 페이지 전체 뒤에 깔림) --&gt;
-  &lt;div class=&quot;bg-image-layer&quot; id=&quot;bgImageLayer&quot;&gt;&lt;/div&gt;
+  <!-- 홈페이지 전체 배경 이미지 레이어 (배너와 별개, 페이지 전체 뒤에 깔림) -->
+  <div class="bg-image-layer" id="bgImageLayer"></div>
 
-  &lt;!-- 배너: 제목/잠금/테마 버튼이 전부 여기 하단에 함께 있어요 (별도 제목바 없음) --&gt;
-  &lt;div class=&quot;site-banner&quot; id=&quot;siteBanner&quot;&gt;
-    &lt;div class=&quot;site-banner-scrim&quot;&gt;&lt;/div&gt;
-    &lt;div class=&quot;banner-bottom&quot;&gt;
-      &lt;div class=&quot;banner-bottom-left&quot;&gt;
-        &lt;div class=&quot;site-name&quot; id=&quot;siteName&quot; contenteditable=&quot;false&quot;&gt;노은&lt;/div&gt;
-      &lt;/div&gt;
-      &lt;div class=&quot;banner-bottom-right&quot;&gt;
-        &lt;span class=&quot;lock-badge&quot; id=&quot;lockBadge&quot;&gt;🔒 보기 전용&lt;/span&gt;
-        &lt;button class=&quot;btn small&quot; id=&quot;globalStyleBtn&quot;&gt;🎨 테마 편집&lt;/button&gt;
-        &lt;button class=&quot;btn small banner-edit-btn&quot; id=&quot;bannerEditBtn&quot; style=&quot;display:none;&quot;&gt;배너 이미지&lt;/button&gt;
-        &lt;button class=&quot;btn small bg-edit-btn&quot; id=&quot;bgEditBtn&quot; style=&quot;display:none;&quot;&gt;배경 이미지&lt;/button&gt;
-        &lt;button class=&quot;btn small&quot; id=&quot;lockBtn&quot;&gt;잠금 해제&lt;/button&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
-  &lt;/div&gt;
+  <!-- 배너: 제목/잠금/테마 버튼이 전부 여기 하단에 함께 있어요 (별도 제목바 없음) -->
+  <div class="site-banner" id="siteBanner">
+    <div class="site-banner-scrim"></div>
+    <div class="banner-bottom">
+      <div class="banner-bottom-left">
+        <div class="site-name" id="siteName" contenteditable="false">노은</div>
+      </div>
+      <div class="banner-bottom-right">
+        <span class="lock-badge" id="lockBadge">🔒 보기 전용</span>
+        <button class="btn small" id="globalStyleBtn">🎨 테마 편집</button>
+        <button class="btn small banner-edit-btn" id="bannerEditBtn" style="display:none;">배너 이미지</button>
+        <button class="btn small bg-edit-btn" id="bgEditBtn" style="display:none;">배경 이미지</button>
+        <button class="btn small" id="lockBtn">잠금 해제</button>
+      </div>
+    </div>
+  </div>
 
-  &lt;!-- 탭으로 나뉜 고정 레이아웃: 좌우로 슬라이드하면 탭이 넘어감. 위젯 제목은 전부 없앰(애플 위젯 스타일) --&gt;
-  &lt;div class=&quot;board-tabs&quot;&gt;
-    &lt;div class=&quot;board-tab-dots&quot; id=&quot;boardTabNav&quot;&gt;
-      &lt;button class=&quot;board-tab-dot active&quot; type=&quot;button&quot; data-tab=&quot;0&quot; aria-label=&quot;위젯 탭&quot;&gt;&lt;/button&gt;
-      &lt;button class=&quot;board-tab-dot&quot; type=&quot;button&quot; data-tab=&quot;1&quot; aria-label=&quot;갤러리 탭&quot;&gt;&lt;/button&gt;
-    &lt;/div&gt;
-    &lt;button class=&quot;board-tab-arrow prev disabled&quot; type=&quot;button&quot; id=&quot;boardTabPrev&quot; aria-label=&quot;이전 탭&quot;&gt;‹&lt;/button&gt;
-    &lt;button class=&quot;board-tab-arrow next&quot; type=&quot;button&quot; id=&quot;boardTabNext&quot; aria-label=&quot;다음 탭&quot;&gt;›&lt;/button&gt;
+  <!-- 탭으로 나뉜 고정 레이아웃: 좌우로 슬라이드하면 탭이 넘어감. 위젯 제목은 전부 없앰(애플 위젯 스타일) -->
+  <div class="board-tabs">
+    <div class="board-tab-dots" id="boardTabNav">
+      <button class="board-tab-dot active" type="button" data-tab="0" aria-label="위젯 탭"></button>
+      <button class="board-tab-dot" type="button" data-tab="1" aria-label="갤러리 탭"></button>
+    </div>
+    <button class="board-tab-arrow prev disabled" type="button" id="boardTabPrev" aria-label="이전 탭">‹</button>
+    <button class="board-tab-arrow next" type="button" id="boardTabNext" aria-label="다음 탭">›</button>
 
-    &lt;div class=&quot;board-viewport&quot; id=&quot;boardViewport&quot;&gt;
+    <div class="board-viewport" id="boardViewport">
 
-      &lt;!-- 탭 1: 갤러리를 제외한 나머지 위젯들 --&gt;
-      &lt;div class=&quot;board-page&quot; data-page=&quot;0&quot;&gt;
-       &lt;div class=&quot;board&quot;&gt;
+      <!-- 탭 1: 갤러리를 제외한 나머지 위젯들 -->
+      <div class="board-page" data-page="0">
+       <div class="board">
 
-        &lt;div class=&quot;row row-images&quot;&gt;
-          &lt;div class=&quot;w-card w-images&quot; id=&quot;cardImages&quot;&gt;&lt;/div&gt;
-        &lt;/div&gt;
+        <div class="row row-images">
+          <div class="w-card w-images" id="cardImages"></div>
+        </div>
 
-        &lt;div class=&quot;row row-strip&quot;&gt;
-          &lt;div class=&quot;w-card w-music&quot; id=&quot;cardMusic&quot;&gt;&lt;/div&gt;
-          &lt;div class=&quot;w-card w-profile&quot; id=&quot;cardProfile&quot;&gt;&lt;/div&gt;
-          &lt;div class=&quot;row-strip-right&quot;&gt;
-            &lt;div class=&quot;w-card w-guestbook gb-collapsed&quot; id=&quot;cardGuestbook&quot;&gt;
-              &lt;button class=&quot;gb-toggle&quot; id=&quot;gbToggle&quot; type=&quot;button&quot; aria-expanded=&quot;false&quot;&gt;
-                &lt;span&gt;방명록&lt;/span&gt;
-                &lt;span class=&quot;gb-toggle-arrow&quot;&gt;▾&lt;/span&gt;
-              &lt;/button&gt;
-              &lt;div class=&quot;w-body scroll&quot; id=&quot;guestbookBody&quot;&gt;&lt;/div&gt;
-              &lt;div class=&quot;gb-form&quot; id=&quot;guestbookForm&quot;&gt;
-                &lt;input type=&quot;text&quot; id=&quot;gbName&quot; placeholder=&quot;이름&quot;&gt;
-                &lt;textarea id=&quot;gbMsg&quot; placeholder=&quot;메시지를 남겨주세요&quot;&gt;&lt;/textarea&gt;
-                &lt;button class=&quot;btn small primary&quot; id=&quot;gbSubmit&quot;&gt;남기기&lt;/button&gt;
-              &lt;/div&gt;
-            &lt;/div&gt;
-            &lt;div class=&quot;w-card w-speech&quot; id=&quot;cardSpeech&quot;&gt;&lt;/div&gt;
-            &lt;div class=&quot;w-card w-shaker&quot; id=&quot;cardShaker&quot;&gt;
-              &lt;div class=&quot;shaker-frame&quot; id=&quot;shakerFrame&quot;&gt;
-                &lt;div class=&quot;shaker-empty&quot; id=&quot;shakerEmpty&quot;&gt;아직 이미지가 없어요&lt;/div&gt;
-                &lt;button class=&quot;icon-btn shaker-manage-btn&quot; id=&quot;shakerManageBtn&quot; title=&quot;이미지 관리&quot; style=&quot;display:none;&quot;&gt;✎&lt;/button&gt;
-              &lt;/div&gt;
-            &lt;/div&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
+        <div class="row row-strip">
+          <div class="w-card w-music" id="cardMusic"></div>
+          <div class="w-card w-profile" id="cardProfile"></div>
+          <div class="row-strip-right">
+            <div class="w-card w-guestbook gb-collapsed" id="cardGuestbook">
+              <button class="gb-toggle" id="gbToggle" type="button" aria-expanded="false">
+                <span>방명록</span>
+                <span class="gb-toggle-arrow">▾</span>
+              </button>
+              <div class="w-body scroll" id="guestbookBody"></div>
+              <div class="gb-form" id="guestbookForm">
+                <input type="text" id="gbName" placeholder="이름">
+                <textarea id="gbMsg" placeholder="메시지를 남겨주세요"></textarea>
+                <button class="btn small primary" id="gbSubmit">남기기</button>
+              </div>
+            </div>
+            <div class="w-card w-speech" id="cardSpeech"></div>
+            <div class="w-card w-shaker" id="cardShaker">
+              <div class="shaker-frame" id="shakerFrame">
+                <div class="shaker-empty" id="shakerEmpty">아직 이미지가 없어요</div>
+                <button class="icon-btn shaker-manage-btn" id="shakerManageBtn" title="이미지 관리" style="display:none;">✎</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        &lt;div class=&quot;row row-2&quot;&gt;
-          &lt;div class=&quot;w-card w-sessions&quot; id=&quot;cardSessions&quot;&gt;
-            &lt;div class=&quot;session-grid&quot; id=&quot;sessionGrid&quot;&gt;&lt;/div&gt;
-            &lt;div class=&quot;w-edit-row&quot; id=&quot;sessionAddWrap&quot;&gt;&lt;/div&gt;
-          &lt;/div&gt;
-          &lt;div class=&quot;row-2-right&quot;&gt;
-            &lt;div class=&quot;w-card w-docs&quot; id=&quot;cardDocs&quot;&gt;
-              &lt;div class=&quot;tag-filter&quot; id=&quot;docFilter&quot; style=&quot;display:none;&quot;&gt;&lt;/div&gt;
-              &lt;div class=&quot;doc-list&quot; id=&quot;docList&quot;&gt;&lt;/div&gt;
-              &lt;div class=&quot;w-edit-row&quot; id=&quot;docAddWrap&quot;&gt;&lt;/div&gt;
-            &lt;/div&gt;
-            &lt;div class=&quot;w-card w-checklist&quot; id=&quot;cardChecklist&quot;&gt;
-              &lt;div class=&quot;checklist&quot; id=&quot;checklistBody&quot;&gt;&lt;/div&gt;
-              &lt;div class=&quot;check-add-row&quot; id=&quot;checklistAddWrap&quot; style=&quot;display:none;&quot;&gt;&lt;/div&gt;
-            &lt;/div&gt;
-          &lt;/div&gt;
-          &lt;div class=&quot;w-card w-calendar&quot; id=&quot;cardCalendar&quot;&gt;
-            &lt;div class=&quot;cal-dday-strip w-dday&quot; id=&quot;calDdayStrip&quot;&gt;
-              &lt;div class=&quot;w-body&quot; id=&quot;ddayBody&quot;&gt;&lt;/div&gt;
-              &lt;div class=&quot;w-edit-row&quot; id=&quot;ddayAddWrap&quot;&gt;&lt;/div&gt;
-            &lt;/div&gt;
-            &lt;div class=&quot;cal-content&quot; id=&quot;calContent&quot;&gt;&lt;/div&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
+        <div class="row row-2">
+          <div class="w-card w-sessions" id="cardSessions">
+            <div class="session-grid" id="sessionGrid"></div>
+            <div class="w-edit-row" id="sessionAddWrap"></div>
+          </div>
+          <div class="row-2-right">
+            <div class="w-card w-docs" id="cardDocs">
+              <div class="tag-filter" id="docFilter" style="display:none;"></div>
+              <div class="doc-list" id="docList"></div>
+              <div class="w-edit-row" id="docAddWrap"></div>
+            </div>
+            <div class="w-card w-checklist" id="cardChecklist">
+              <div class="checklist" id="checklistBody"></div>
+              <div class="check-add-row" id="checklistAddWrap" style="display:none;"></div>
+            </div>
+          </div>
+          <div class="w-card w-calendar" id="cardCalendar">
+            <div class="cal-dday-strip w-dday" id="calDdayStrip">
+              <div class="w-body" id="ddayBody"></div>
+              <div class="w-edit-row" id="ddayAddWrap"></div>
+            </div>
+            <div class="cal-content" id="calContent"></div>
+          </div>
+        </div>
 
-       &lt;/div&gt;
-      &lt;/div&gt;
+       </div>
+      </div>
 
-      &lt;!-- 탭 2: 갤러리 위젯들 --&gt;
-      &lt;div class=&quot;board-page&quot; data-page=&quot;1&quot;&gt;
-       &lt;div class=&quot;board&quot;&gt;
+      <!-- 탭 2: 갤러리 위젯들 -->
+      <div class="board-page" data-page="1">
+       <div class="board">
 
-        &lt;div class=&quot;row row-3&quot;&gt;
-          &lt;div class=&quot;w-card w-gallery&quot; id=&quot;cardGallery&quot;&gt;&lt;/div&gt;
-        &lt;/div&gt;
+        <div class="row row-3">
+          <div class="w-card w-gallery" id="cardGallery"></div>
+        </div>
 
-        &lt;div class=&quot;row row-refpair&quot; id=&quot;refpairRow&quot;&gt;
-          &lt;div class=&quot;w-card w-gallery&quot; id=&quot;cardGallery2&quot;&gt;&lt;/div&gt;
-          &lt;div class=&quot;w-card w-refgallery&quot; id=&quot;cardRefGallery&quot;&gt;&lt;/div&gt;
-          &lt;div class=&quot;w-card w-video&quot; id=&quot;cardVideo&quot;&gt;
-            &lt;div class=&quot;video-player&quot; id=&quot;videoPlayer&quot;&gt;&lt;/div&gt;
-            &lt;div class=&quot;video-list&quot; id=&quot;videoList&quot;&gt;&lt;/div&gt;
-            &lt;div class=&quot;w-edit-row&quot; id=&quot;videoAddWrap&quot;&gt;&lt;/div&gt;
-          &lt;/div&gt;
-        &lt;/div&gt;
+        <div class="row row-refpair" id="refpairRow">
+          <div class="w-card w-gallery" id="cardGallery2"></div>
+          <div class="w-card w-refgallery" id="cardRefGallery"></div>
+          <div class="w-card w-video" id="cardVideo">
+            <div class="video-player" id="videoPlayer"></div>
+            <div class="video-list" id="videoList"></div>
+            <div class="w-edit-row" id="videoAddWrap"></div>
+          </div>
+        </div>
 
-       &lt;/div&gt;
-      &lt;/div&gt;
+       </div>
+      </div>
 
-    &lt;/div&gt;
-  &lt;/div&gt;
+    </div>
+  </div>
 
-  &lt;div id=&quot;modalRoot&quot;&gt;&lt;/div&gt;
+  <div id="modalRoot"></div>
 
-  &lt;!-- Firebase (compat SDK) --&gt;
-  &lt;script src=&quot;https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js&quot;&gt;&lt;/script&gt;
-  &lt;script src=&quot;https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js&quot;&gt;&lt;/script&gt;
-  &lt;script src=&quot;https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js&quot;&gt;&lt;/script&gt;
-  &lt;script src=&quot;firebase-config.js&quot;&gt;&lt;/script&gt;
-  &lt;script src=&quot;app.js&quot;&gt;&lt;/script&gt;
-&lt;/body&gt;
-&lt;/html&gt;
-</pre></body></html>
+  <!-- Firebase (compat SDK) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
