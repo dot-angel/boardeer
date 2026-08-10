@@ -1611,6 +1611,25 @@ modeToggleBtn.addEventListener('click', ()=>{
   toast(siteMode === 'light' ? '라이트모드로 전환했어요' : '다크모드로 전환했어요');
 });
 
+const DEFAULT_THEME_BY_MODE = {
+  dark:  { rose:'#C4425F', sage:'#A9727F', gold:'#95929C', paper:'#0F0406', ink:'#F3ECEE',
+           'card-bg':'rgba(32,16,20,0.075)', 'card-bg2':'rgba(32,16,20,0.045)',
+           fontDisplay:'ZEN SERIF', fontBody:'ZEN SERIF' },
+  light: { rose:'#DF688F', sage:'#d7d9c3', gold:'#DADBD4', paper:'#EFF4F0', ink:'#a71a36',
+           'card-bg':'rgba(239,244,240,0.55)', 'card-bg2':'rgba(239,244,240,0.38)',
+           fontDisplay:'ZEN SERIF', fontBody:'ZEN SERIF' }
+};
+const HEX_COLOR_RE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+// 컴퓨티드 스타일 값이 타이밍 문제 등으로 비거나 깨져서 들어오면 <input type="color">가
+// 조용히 검정(#000000)으로 표시되고, 그 상태로 저장하면 진짜 검정이 그대로 박제됨.
+// 그래서 여기서 미리 "유효한 hex인지" 검증하고, 아니면 저장된 문서값 → 코드 기본값 순으로
+// 대체해서 절대 빈 값/이상한 값이 색상 피커에 그대로 들어가지 않게 함.
+function safeThemeHex(computedVal, savedVal, key){
+  if(HEX_COLOR_RE.test((computedVal||'').trim())) return computedVal.trim();
+  if(HEX_COLOR_RE.test((savedVal||'').trim())) return savedVal.trim();
+  return (DEFAULT_THEME_BY_MODE[siteMode] || DEFAULT_THEME_BY_MODE.dark)[key];
+}
+
 globalStyleBtn.addEventListener('click', async ()=>{
   if(!editMode){ toast('잠금 해제 후 편집모드에서 변경할 수 있어요'); return; }
   // 라이트모드 기본 팔레트는 body.theme-light 클래스로만 지정돼 있어서(html이 아니라
@@ -1618,10 +1637,14 @@ globalStyleBtn.addEventListener('click', async ()=>{
   // 아니라 body에서 계산된 스타일을 읽어야 함(저장된 커스텀 색이 있으면 그 값이,
   // 없으면 현재 모드의 기본 팔레트 값이 그대로 잡힘).
   const cs = getComputedStyle(document.body);
-  const cur = {};
-  THEME_VARS.forEach(v=> cur[v.replace('--','')] = cs.getPropertyValue(v).trim());
+  const rawCur = {};
+  THEME_VARS.forEach(v=> rawCur[v.replace('--','')] = cs.getPropertyValue(v).trim());
   const themeDoc = await metaDoc('theme').get();
   const saved = themeDoc.exists ? themeDoc.data() : {};
+  const cur = { ...rawCur };
+  ['rose','sage','gold','paper','ink'].forEach(key=>{
+    cur[key] = safeThemeHex(rawCur[key], saved[key], key);
+  });
   const cardBgParsed = parseColorToHexAlpha(cur['card-bg']);
   const cardBgAlphaPct = Math.round(cardBgParsed.alpha*100);
   openModal(`
@@ -1675,9 +1698,19 @@ globalStyleBtn.addEventListener('click', async ()=>{
       toast('커스텀 폰트를 해제했어요');
     };
     m.querySelector('#tReset').onclick = async ()=>{
+      const defaults = DEFAULT_THEME_BY_MODE[siteMode] || DEFAULT_THEME_BY_MODE.dark;
       try{
-        await metaDoc('theme').delete();
-      }catch(err){ console.error(err); }
+        // delete()는 문서를 지우는 거라, 혹시 실패하거나 그 사이 리스너가 예전
+        // 값을 다시 읽어오면 화면이 순간 기본값처럼 보였다가 곧바로 예전 커스텀
+        // 값으로 되돌아가버릴 수 있음. 그 대신 기본값 자체를 문서에 확실히
+        // 써넣으면(set, merge 없이 통째로 교체) 이후에 리스너가 몇 번을 다시
+        // 읽어와도 항상 같은 기본값이라 되돌아갈 예전 값 자체가 없음.
+        await metaDoc('theme').set(defaults);
+      }catch(err){
+        console.error(err);
+        toast('초기화 중 오류가 발생했어요. 콘솔을 확인해주세요.');
+        return;
+      }
       THEME_VARS.forEach(v=> document.body.style.removeProperty(v));
       document.body.style.removeProperty('--ink-rgb');
       document.body.style.removeProperty('--font-display');
