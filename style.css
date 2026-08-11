@@ -522,12 +522,12 @@ body::before{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
   max-width:320px; width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color: var(--ink);
+  background: rgba(20,9,11,0.5); color:#FBF7F8;
   border-radius:18px; padding:13px 18px 22px 18px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:1rem; line-height:1.45; text-align:center;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.55);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 1px 8px rgba(0,0,0,0.4);
   opacity:0;
   transition: opacity .16s ease, transform .16s ease;
 }
@@ -2392,7 +2392,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
      브라우저가 지원하는 선에서 알아서 피해줌 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color: var(--ink);
+  background: rgba(20,9,11,0.5); color:#FBF7F8;
   border-radius:16px; padding:9px 13px 17px 13px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* border+box-shadow 대신 filter:drop-shadow 두 개를 겹쳐서 씀 — clip-path로
@@ -2400,7 +2400,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      있던 큰 그림자(2번째, --shadow와 동일 값)를 매끄럽게 한 번에 둘러줌 */
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:.82rem; line-height:1.4; text-align:center;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.55);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 1px 8px rgba(0,0,0,0.4);
   opacity:0; pointer-events:none;
   transition: opacity .3s ease, transform .3s ease;
 }
@@ -2576,13 +2576,10 @@ body.theme-light .shaker-piece.shaker-piece-plain img{
 }
 body.theme-light .speech-bubble,
 body.theme-light .sticker-bubble{
-  color: var(--rose);
   filter: drop-shadow(0 0 1px rgba(var(--ink-rgb),0.1)) drop-shadow(0 10px 22px rgba(var(--ink-rgb),0.18));
-  /* 글자색을 카네이션(--rose)으로 바꾼 채로 검정 text-shadow를 그대로 두면
-     역시 진하게 뭉개져 보여서, 흰색 그림자로 바꿔 반투명 흰 유리 배경 위에서
-     글자가 또렷하게 떠 보이게 함 */
-  text-shadow: 0 1px 2px rgba(255,255,255,0.75), 0 1px 1px rgba(255,255,255,0.5);
 }
 body.theme-light .profile-compact-oneliner{
+  color:#FBF7F8;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 1px 8px rgba(0,0,0,0.4);
   filter: drop-shadow(0 0 1px rgba(var(--ink-rgb),0.1)) drop-shadow(0 10px 22px rgba(var(--ink-rgb),0.18));
 }
