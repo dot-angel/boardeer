@@ -7450,7 +7450,7 @@ function syncShakerPieces(){
       // 청크(조각) 저장된 사진은 로딩이 끝나도 콜백 인자로 실제 주소가 넘어오지
       // 않고, chunkedImageCache에 다시 채워넣는 방식이라(다른 갤러리 위젯들도
       // 전부 이 패턴을 씀) 콜백 인자를 그대로 쓰면 안 되고 캐시에서 다시 읽어와야 함
-      const resolved = resolveGalleryItemUrl(p, ()=> setSrc(chunkedImageCache.get(p.fileId) || ''));
+      const resolved = resolveGalleryItemUrl(p, ()=> setSrc(chunkedImageCache.get(p.fileId) || ''), true);
       if(resolved) setSrc(resolved);
     }
   });
@@ -7930,7 +7930,7 @@ function openShakerManageModal(){
         for(let i=0;i<files.length;i++){
           saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
           try{
-            const compressed = await compressImageFile(files[i], 1200, 300000);
+            const compressed = await compressImageFile(files[i], 480, 90000);
             newItems.push(await storeGalleryImage(compressed));
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
         }
