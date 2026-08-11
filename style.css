@@ -2645,6 +2645,7 @@ body.theme-light .banner-bottom-right .btn{
   background: rgba(255,255,255,0.12); color:#FBF7F8;
 }
 body.theme-light .banner-bottom-right .btn:hover{ background: rgba(255,255,255,0.22); }
+body.theme-light .mode-toggle{ color:#FBF7F8; }
 body.theme-light .lock-badge{ background: rgba(255,255,255,0.1); color:#FBF7F8; }
 body.theme-light .lock-badge.unlocked{ color:#f4b6bd; border-color:#f4b6bd; }
 

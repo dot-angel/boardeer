@@ -1674,7 +1674,7 @@ function setSiteMode(newMode){
   localStorage.setItem('gh_mode', siteMode);
   applyModeClass();
   subscribeModeMeta();
-  toast(MODE_LABELS[siteMode] + '으로 전환했어요');
+  toast(MODE_LABELS[siteMode] + '으로 이동했어요');
 }
 
 // ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
