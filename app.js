@@ -50,15 +50,27 @@ let siteMode = localStorage.getItem('gh_mode') === 'light' ? 'light' : 'dark';
 function metaDoc(base){
   return db.collection('meta').doc(siteMode === 'light' ? base + 'Light' : base);
 }
+const MODE_LABELS = { dark: '멧돼지관', light: '사슴관' };
+const MODE_ICONS  = { dark: '🌙', light: '☀️' };
+// 매번 innerHTML을 통째로 새로 그리면 .mt-thumb가 매번 새 DOM 노드가 되어버려서
+// CSS의 left 트랜지션이 재생될 새가 없이(이미 최종 위치로 그려진 새 엘리먼트라)
+// 그냥 순간이동처럼 보임. 그래서 마크업은 처음 한 번만 만들고, 이후로는 같은
+// 노드의 텍스트/아이콘만 갈아끼워서 위치(left) 변화가 실제로 애니메이션되게 함.
+function ensureModeToggleMarkup(){
+  if(!modeToggleBtn || modeToggleBtn.querySelector('.mt-thumb')) return;
+  modeToggleBtn.classList.remove('btn','small');
+  modeToggleBtn.classList.add('mode-toggle');
+  modeToggleBtn.innerHTML =
+    '<span class="mt-thumb"><span class="mt-icon"></span></span>' +
+    '<span class="mt-label"></span>';
+}
 function applyModeClass(){
   document.body.classList.toggle('theme-light', siteMode === 'light');
   if(modeToggleBtn){
-    modeToggleBtn.classList.remove('btn','small');
-    modeToggleBtn.classList.add('mode-toggle');
-    modeToggleBtn.setAttribute('aria-label', siteMode === 'light' ? '라이트모드 (클릭하면 다크모드로 전환)' : '다크모드 (클릭하면 라이트모드로 전환)');
-    modeToggleBtn.innerHTML =
-      '<span class="mt-thumb"><span class="mt-icon">' + (siteMode === 'light' ? '☀️' : '🌙') + '</span></span>' +
-      '<span class="mt-label">' + (siteMode === 'light' ? '라이트' : '다크') + '</span>';
+    ensureModeToggleMarkup();
+    modeToggleBtn.querySelector('.mt-icon').textContent = MODE_ICONS[siteMode];
+    modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[siteMode];
+    modeToggleBtn.setAttribute('aria-label', MODE_LABELS[siteMode] + ' 적용 중 · 눌러서 전환');
   }
 }
 applyModeClass();
@@ -1310,9 +1322,9 @@ function refreshLockUI(){
   if(shakerManageBtn) shakerManageBtn.style.display = editMode ? 'inline-flex' : 'none';
   const shakerBgBtn = document.getElementById('shakerBgBtn');
   if(shakerBgBtn) shakerBgBtn.style.display = editMode ? 'inline-flex' : 'none';
-  lockBadge.textContent = editMode ? '🔓 편집 가능' : '🔒 보기 전용';
   lockBadge.classList.toggle('unlocked', editMode);
-  lockBtn.textContent = editMode ? '잠그기' : '잠금 해제';
+  lockBtn.textContent = editMode ? '🔓' : '🔒';
+  lockBtn.setAttribute('aria-label', editMode ? '잠그기' : '잠금 해제');
 }
 
 function renderAllModules(){
@@ -1629,12 +1641,59 @@ function subscribeModeMeta(){
 }
 subscribeModeMeta();
 
-modeToggleBtn.addEventListener('click', ()=>{
-  siteMode = siteMode === 'light' ? 'dark' : 'light';
+function setSiteMode(newMode){
+  if(newMode !== 'light' && newMode !== 'dark') return;
+  if(newMode === siteMode) return;
+  siteMode = newMode;
   localStorage.setItem('gh_mode', siteMode);
   applyModeClass();
   subscribeModeMeta();
-  toast(siteMode === 'light' ? '라이트모드로 전환했어요' : '다크모드로 전환했어요');
+  toast(MODE_LABELS[siteMode] + '으로 전환했어요');
+}
+
+// ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
+// 따라 전환 — 모바일에서 스위치를 직접 밀어서 바꿀 수 있게. 드래그가 실제로
+// 일정 거리 이상 움직였을 때만 뒤이어 발생하는 click 이벤트를 무시해서
+// 드래그 종료 시 토글이 두 번 겹쳐 일어나지 않게 함.
+let mtDrag = null;
+let mtSuppressClick = false;
+modeToggleBtn.addEventListener('pointerdown', (e)=>{
+  const rect = modeToggleBtn.getBoundingClientRect();
+  mtDrag = { startX: e.clientX, moved:false, width: rect.width, startMode: siteMode };
+  try{ modeToggleBtn.setPointerCapture(e.pointerId); }catch(_){}
+  modeToggleBtn.classList.add('dragging');
+});
+modeToggleBtn.addEventListener('pointermove', (e)=>{
+  if(!mtDrag) return;
+  const dx = e.clientX - mtDrag.startX;
+  if(Math.abs(dx) > 4) mtDrag.moved = true;
+  const thumb = modeToggleBtn.querySelector('.mt-thumb');
+  if(!thumb) return;
+  const min = -3, max = mtDrag.width - 33;
+  const base = mtDrag.startMode === 'light' ? max : min;
+  const next = Math.min(max, Math.max(min, base + dx));
+  thumb.style.left = next + 'px';
+});
+function mtEndDrag(e){
+  if(!mtDrag) return;
+  const thumb = modeToggleBtn.querySelector('.mt-thumb');
+  if(thumb) thumb.style.left = '';
+  if(mtDrag.moved){
+    mtSuppressClick = true;
+    const dx = (e.clientX || 0) - mtDrag.startX;
+    if(Math.abs(dx) > mtDrag.width * 0.28){
+      setSiteMode(dx > 0 ? 'light' : 'dark');
+    }
+  }
+  modeToggleBtn.classList.remove('dragging');
+  mtDrag = null;
+}
+modeToggleBtn.addEventListener('pointerup', mtEndDrag);
+modeToggleBtn.addEventListener('pointercancel', mtEndDrag);
+
+modeToggleBtn.addEventListener('click', ()=>{
+  if(mtSuppressClick){ mtSuppressClick = false; return; }
+  setSiteMode(siteMode === 'light' ? 'dark' : 'light');
 });
 
 const DEFAULT_THEME_BY_MODE = {
