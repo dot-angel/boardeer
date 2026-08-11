@@ -189,16 +189,16 @@ body::before{
    배너 자체가 190px로 낮아지므로 그 절반에 맞춰 따로 줄임) */
 /* 배너 왼쪽 제목 로고 — 색이 박힌 이미지 파일을 쓰는 대신, 투명도만 있는
    마스크 파일(banner-title-mask.png)을 CSS mask-image로 씌우고 실제 색은
-   background-color(팔레트의 로즈)로 채움. 이러면 나중에 테마 편집에서
-   포인트색을 바꿀 때 로고 색도 같이 따라가고, 그림자 색과도 항상 어긋나지
-   않게 자동으로 맞음. 크기는 배너 높이의 절반 정도(모바일은 배너가
-   190px로 낮아지므로 그 절반에 맞춰 따로 줄임) */
+   background-color로 채움. 배너는 사진이 깔릴 수 있어 항상 어둡게 유지되는
+   영역이라, 다른 배너 요소(제목 글자·버튼)와 마찬가지로 테마를 안 따라가고
+   흰색으로 고정함. 크기는 배너 높이의 절반 정도(모바일은 배너가 190px로
+   낮아지므로 그 절반에 맞춰 따로 줄임) */
 .site-name-img{
   height: 280px;
   width: 528px;
   max-width: 100%;
   align-self: flex-start;
-  background-color: var(--rose);
+  background-color: #FBF7F8;
   -webkit-mask-image: url('banner-title-mask.png');
   mask-image: url('banner-title-mask.png');
   -webkit-mask-repeat: no-repeat;
