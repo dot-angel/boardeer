@@ -67,7 +67,7 @@
   --tab-dot-hover: rgba(255,255,255,0.5);
   --arrow-color: #fff;
   --arrow-shadow: 0 2px 10px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.8);
-  --scroll-thumb: rgba(255,255,255,0.15);
+  --scroll-thumb: rgba(196,66,95,0.55);
   /* 카드/보드 표면 위에 바로 놓이는 행(row) hover/기본 틴트용 RGB 트리플.
      사진 위 배지·모달·배너처럼 늘 어둡게 유지하는 요소들은 이 값을 쓰지 않음 */
   --row-tint: 255,255,255;
@@ -105,7 +105,7 @@ body.theme-light{
   --tab-dot-hover: rgba(223,103,116,0.5);
   --arrow-color: #a71a36;
   --arrow-shadow: 0 2px 10px rgba(255,255,255,0.6), 0 1px 3px rgba(255,255,255,0.7);
-  --scroll-thumb: rgba(218,219,212,0.45);
+  --scroll-thumb: rgba(223,104,143,0.55);
   --row-tint: 218,219,212;
 }
 /* 은은한 글로우도 같은 두 팔레트 안의 레드 계열(Red Trillium/Playful Pink/
@@ -719,7 +719,7 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
   transition: transform .12s ease, background .2s ease;
 }
 .w-body.scroll{ overflow-y:auto; }
-.w-body.scroll::-webkit-scrollbar{ width:5px; }
+.w-body.scroll::-webkit-scrollbar{ width:4px; }
 .w-body.scroll::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .w-empty{ font-size:.78rem; color:var(--ink-soft); text-align:center; padding: 18px 0; }
 /* 편집모드 전용 작은 버튼 배치용 */
@@ -909,7 +909,7 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
 }
 .mp-play-btn:hover{ filter:none; opacity:.8; }
 .player-tracks{ flex:0 1 auto; min-height:0; max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
-.player-tracks::-webkit-scrollbar{ width:5px; }
+.player-tracks::-webkit-scrollbar{ width:4px; }
 .player-tracks::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .player-track{
   display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:10px; cursor:pointer; font-size:.8rem;
@@ -1088,7 +1088,7 @@ body.edit-mode .dday-item{ padding-right: 34px; }
   .w-profile{ padding:10px; }
 }
 .profile-viewport{ position:relative; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:12px; padding:6px 4px; min-height:0; overflow-y:auto; }
-.profile-viewport::-webkit-scrollbar{ width:5px; }
+.profile-viewport::-webkit-scrollbar{ width:4px; }
 .profile-viewport::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 /* 요청: 세로 스크롤은 해시태그(성격) 아래부터만 생기게. 데스크톱(카드 높이가
    app.js에서 음악 위젯 기준으로 고정된 상태)에서는 사진/이름/나이/성격까지의
@@ -1761,7 +1761,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      너무 길다는 요청으로 380px로 줄임(다른 두 갤러리보다는 여전히 좀 더 크게 유지). */
   .pin-grid-scroll{ max-height: 380px; }
 }
-.pin-grid-scroll::-webkit-scrollbar{ width:5px; }
+.pin-grid-scroll::-webkit-scrollbar{ width:4px; }
 .pin-grid-scroll::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 /* 예전엔 column-count(다단)로 매스너리를 흉내냈는데, 이 방식은 브라우저가 전체 높이를
    "균형있게" 나눠서 다단을 채우기 때문에 배열 앞쪽(최신) 사진이 2번째/3번째 열 중간쯤에
@@ -1939,7 +1939,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .gallery2-col .pin-item-dense:not(:first-child){
   margin-top: var(--gallery2-overlap-px, -12px);
 }
-.gallery2-grid::-webkit-scrollbar{ width:5px; }
+.gallery2-grid::-webkit-scrollbar{ width:4px; }
 .gallery2-grid::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .pin-item-dense{
   aspect-ratio: 1/1; border-radius:8px; overflow:hidden; cursor:pointer; position:relative;
@@ -1988,7 +1988,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .ref-gallery-col .pin-item-dense:not(:first-child){
   margin-top: var(--ref-overlap-px, -12px);
 }
-.ref-gallery-grid::-webkit-scrollbar{ width:5px; }
+.ref-gallery-grid::-webkit-scrollbar{ width:4px; }
 .ref-gallery-grid::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .w-refgallery .gallery-add-fab{ width:38px; height:38px; font-size:1rem; right:14px; bottom:14px; }
 /* ---------- 영상전용 플레이어 (갤러리 탭, 유튜브 여러 개를 목록에서 골라 재생) ---------- */
@@ -2010,7 +2010,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .video-list{
   display:flex; flex-direction:column; gap:8px; overflow-y:auto; max-height:420px; padding-right:2px;
 }
-.video-list::-webkit-scrollbar{ width:5px; }
+.video-list::-webkit-scrollbar{ width:4px; }
 .video-list::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .video-item{
   position:relative; flex:0 0 auto; width:100%; cursor:pointer; border-radius:10px; overflow:hidden;
@@ -2050,7 +2050,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 @media (max-width: 900px){
   .doc-list{ max-height: 320px; }
 }
-.doc-list::-webkit-scrollbar{ width:5px; }
+.doc-list::-webkit-scrollbar{ width:4px; }
 .doc-list::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .doc-row{
   display:flex; align-items:center; gap:10px;
@@ -2144,7 +2144,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 @media (max-width: 900px){
   .session-grid{ max-height: 320px; }
 }
-.session-grid::-webkit-scrollbar{ width:5px; }
+.session-grid::-webkit-scrollbar{ width:4px; }
 .session-grid::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .session-card{
   position:relative; border-radius:18px; overflow:hidden; cursor:pointer;
