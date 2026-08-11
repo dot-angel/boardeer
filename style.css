@@ -309,6 +309,9 @@ body::before{
   font-size: 1rem;
   transition: left .4s cubic-bezier(.34,1.56,.64,1);
 }
+/* 스위치 자체엔 테두리를 안 그림 — 트랙의 실제 테두리 선이 스위치 뒤로 지나가는
+   구간은 스위치의 backdrop-filter(블러)가 알아서 흐리게 비쳐 보여줌. 가짜로
+   블러 자국을 따로 그릴 필요 없이, 진짜 겹치는 라인이 블러 규칙을 그대로 탐 */
 /* 드래그 중엔 손가락/포인터를 그대로 따라가야 하므로 트랜지션을 잠깐 꺼줌
    (JS가 pointermove마다 left를 인라인으로 직접 바꿔서 실시간으로 따라오게 함) */
 .mode-toggle.dragging .mt-thumb{ transition: none; }
