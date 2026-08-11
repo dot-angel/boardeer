@@ -275,7 +275,7 @@ body::before{
   min-width: 100px;
   padding: 0 14px 0 36px;
   border-radius: 999px;
-  border: 1px solid transparent;
+  border: 1px solid var(--card-border);
   background: var(--card-bg);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: none;
@@ -290,7 +290,9 @@ body::before{
   transition: padding .35s ease, border-color .15s ease;
 }
 .mode-toggle:hover{ border-color: var(--ink-soft); }
-/* 트랙 자체는 라인 없이 배경만 남기고, 라인은 안쪽 세로캡슐 스위치(.mt-thumb)에만 둠 */
+/* 트랙 라인은 항상 켜둠 — 스위치(.mt-thumb)가 이 위에서 블러로 겹칠 때, 트랙 라인이
+   유리 너머로 은은하게 비쳐 보이는 게 "스위치 안의 라인"으로 보이는 원리라서, 호버 때만
+   나오면 평소(터치 기기 포함)엔 스위치 안에 비칠 라인 자체가 없어져 버림 */
 .mode-toggle .mt-label{ white-space: nowrap; }
 .mode-toggle .mt-thumb{
   position: absolute;
@@ -301,7 +303,7 @@ body::before{
   transform: translateY(-50%);
   border-radius: 999px;
   background: rgba(255,255,255,0.16);
-  border: 1px solid var(--card-border);
+  border: none;
   backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem;
