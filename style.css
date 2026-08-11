@@ -280,9 +280,12 @@ body::before{
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* 이 버튼은 페이지 로드 후 JS가 innerHTML로 새로 그려 넣는 요소라, 정적으로
      처음부터 박혀있는 .btn들과 달리 브라우저가 backdrop-filter용 합성 레이어를
-     제때 안 만들어서 블러가 안 먹는 경우가 있음 — will-change로 레이어 생성을
-     강제해서 이를 방지 */
+     제때 안 만들어서 블러가 안 먹는 경우가 있음 — will-change만으론 부족해서,
+     translateZ(0)로 강제로 별도 GPU 레이어를 만들고 isolation:isolate로 그
+     레이어 안에서 배경 합성이 확실히 새로 계산되게 함 */
   will-change: backdrop-filter;
+  transform: translateZ(0);
+  isolation: isolate;
   box-shadow: none;
   color: var(--ink);
   font-family: var(--font-body);
@@ -311,6 +314,7 @@ body::before{
   border: none;
   backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
   will-change: backdrop-filter;
+  isolation: isolate;
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem;
   transition: left .4s cubic-bezier(.34,1.56,.64,1);
