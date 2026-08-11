@@ -264,7 +264,9 @@ body::before{
    트랙은 두꺼운 유리 필이 아니라 얇은 테두리 선 하나로만 존재하고, 움직이는
    스위치는 원형 구슬 대신 세로로 긴 캡슐(알약) 모양으로, 안쪽은 블러(간유리)
    먹인 반투명으로 채움. 화려한 굴절 하이라이트/발광 효과는 걷어내고 테두리
-   선 + 블러만 남겨서 담백하게 감 */
+   선 + 블러만 남겨서 담백하게 감. 트랙 안쪽도 완전 투명이면 스위치만 붕 떠
+   보여서, 위젯 카드와 같은 톤/세기(--card-bg + --glass-blur)로 옅게 블러를 걸어
+   스위치와 트랙이 한 덩어리처럼 보이게 함 */
 .mode-toggle{
   position: relative;
   display: inline-flex;
@@ -274,7 +276,8 @@ body::before{
   padding: 0 14px 0 36px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  background: transparent;
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: none;
   color: var(--ink);
   font-family: var(--font-body);
@@ -461,9 +464,8 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
       "profile profile profile profile profile profile profile profile profile profile"
       "gb gb gb gb gb speech speech speech speech speech"
       "shaker shaker shaker shaker shaker shaker shaker shaker shaker shaker"
-      "cal cal cal docs docs docs docs docs docs docs"
-      "checklist checklist checklist checklist checklist checklist checklist checklist checklist checklist"
-      "sessions sessions sessions sessions sessions sessions sessions sessions sessions sessions";
+      "cal cal cal checklist checklist checklist checklist checklist checklist checklist"
+      "docs docs docs docs docs sessions sessions sessions sessions sessions";
   }
   .board-page[data-page="0"] .row-images,
   .board-page[data-page="0"] .row-strip,
