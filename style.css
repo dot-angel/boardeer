@@ -416,6 +416,7 @@ body::before{
   position:relative; z-index:1; align-self:flex-end; width:100%;
   padding:14px 16px; color:#fff; font-family: var(--font-display); font-size:.92rem;
   text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  text-align:center;
 }
 /* 톱니바퀴(카드 겉모습: 사진/문구)와 연필(대사·탭 내용)은 서로 완전히 다른 걸 편집하는
    거라, 아이콘뿐 아니라 자리도 겹치지 않게 나란히 둠 — 헷갈려서 잘못 누르는 일이 없도록 */
@@ -520,7 +521,7 @@ body::before{
    본체+꼬리를 SVG path 하나로 합쳐 clip-path로 오려내는 방식(app.js의 shapeSpeechBubble) */
 .speech-bubble{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
-  max-width:320px; width:max-content;
+  max-width: min(320px, 82vw); width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
   background: rgba(20,9,11,0.5); color:#FBF7F8;
   border-radius:18px; padding:13px 18px 22px 18px;
@@ -2546,12 +2547,6 @@ body.theme-light .row-refpair.video-open .video-title{
    가독성은 아래 텍스트 그림자가 담당)로 통일 */
 body.theme-light .site-banner-scrim{
   background: linear-gradient(180deg, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.42) 100%);
-}
-body.theme-light .site-name{
-  color: var(--ink);
-  -webkit-text-stroke: 2.5px rgba(255,255,255,0.95);
-  paint-order: stroke fill;
-  text-shadow: 0 4px 16px rgba(255,255,255,0.3);
 }
 body.theme-light .banner-bottom-right .btn{
   background: rgba(255,255,255,0.12); color:#FBF7F8;
