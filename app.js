@@ -1676,7 +1676,7 @@ modeToggleBtn.addEventListener('pointermove', (e)=>{
   if(Math.abs(dx) > 4) mtDrag.moved = true;
   const thumb = modeToggleBtn.querySelector('.mt-thumb');
   if(!thumb) return;
-  const min = -3, max = mtDrag.width - 33;
+  const min = -6, max = mtDrag.width - 40;
   const base = mtDrag.startMode === 'light' ? max : min;
   const next = Math.min(max, Math.max(min, base + dx));
   thumb.style.left = next + 'px';
