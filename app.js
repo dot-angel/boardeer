@@ -1452,24 +1452,33 @@ bannerEditBtn.addEventListener('click', async ()=>{
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
       const file = m.querySelector('#bImgFile').files[0];
-      let image = normalizeImageUrl(m.querySelector('#bImg').value.trim());
-      if(file){
-        saveBtn.disabled = true;
-        saveBtn.textContent = '사진 처리 중…';
-        try{
-          image = await compressImageFile(file);
-        }catch(err){
-          toast(err.message || '이미지를 처리하지 못했어요');
-          saveBtn.disabled = false;
-          saveBtn.textContent = '저장';
-          return;
+      const urlInput = normalizeImageUrl(m.querySelector('#bImg').value.trim());
+      const oldChunked = !!cur.chunked, oldFileId = cur.fileId || '', oldChunkTotal = cur.chunkTotal || 0;
+      if(!file && !urlInput){ closeModal(); return; }
+      saveBtn.disabled = true;
+      saveBtn.textContent = file ? '사진 처리 중…' : '저장 중…';
+      try{
+        if(file){
+          // 배너는 사이트에서 가장 크고 눈에 띄는 사진이라 다른 썸네일용 압축보다
+          // 해상도/용량 목표치를 훨씬 넉넉하게 줌. Firestore 문서 하나엔 1MB 제한이
+          // 있어서 예전엔 그 한도에 맞추려고 압축을 심하게 걸었었는데(700KB), 그러다
+          // 보니 사진이 큼직하게 깔리는 배너 특성상 화질이 눈에 띄게 뭉개졌음. 이제는
+          // 다른 큰 사진들과 같은 방식(fileChunks 컬렉션에 조각내어 저장)을 배너에도
+          // 써서 문서 크기 제한 없이 고화질 그대로 저장함.
+          const compressed = await compressImageFile(file, 2400, 3000000);
+          const { fileId, total } = await saveFileChunked(compressed);
+          await metaDoc('banner').set({ image:'', chunked:true, fileId, chunkTotal: total }, {merge:true});
+        } else {
+          await metaDoc('banner').set({ image: urlInput, chunked:false, fileId:'', chunkTotal:0 }, {merge:true});
         }
-      } else if(!image){
-        image = cur.image || '';
+        if(oldChunked && oldFileId) deleteFileChunked(oldFileId, oldChunkTotal).catch(()=>{});
+        closeModal();
+        toast('배너를 저장했어요');
+      }catch(err){
+        toast(err.message || '이미지를 처리하지 못했어요');
+        saveBtn.disabled = false;
+        saveBtn.textContent = '저장';
       }
-      await metaDoc('banner').set({ image }, {merge:true});
-      closeModal();
-      toast('배너를 저장했어요');
     };
   });
 });
@@ -1620,10 +1629,18 @@ function subscribeModeMeta(){
   if(unsubBackground) unsubBackground();
   if(unsubTheme) unsubTheme();
 
-  unsubBanner = metaDoc('banner').onSnapshot(doc=>{
+  unsubBanner = metaDoc('banner').onSnapshot(async doc=>{
     const d = doc.exists ? doc.data() : {};
-    if(d.image) setElementBgImageWithFallback(siteBannerEl, d.image);
-    else siteBannerEl.style.backgroundImage = '';
+    if(d.chunked && d.fileId){
+      try{
+        const dataUrl = await loadFileChunked(d.fileId, d.chunkTotal || 0);
+        setElementBgImageWithFallback(siteBannerEl, dataUrl);
+      }catch(e){ siteBannerEl.style.backgroundImage = ''; }
+    } else if(d.image){
+      setElementBgImageWithFallback(siteBannerEl, d.image);
+    } else {
+      siteBannerEl.style.backgroundImage = '';
+    }
   });
 
   unsubBackground = metaDoc('background').onSnapshot(doc=>{
