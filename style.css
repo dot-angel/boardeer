@@ -235,23 +235,22 @@ body::before{
 .icon-accent{ color: var(--rose); display:inline-flex; vertical-align:-3px; }
 .icon-svg{ width:16px; height:16px; display:block; }
 
-/* ---------- 다크/라이트 토글: 유리질 캡슐 스위치 ----------
-   레퍼런스처럼 트랙보다 확실히 큰 유리 구슬이 위아래로 넉넉히 삐져나오게
-   겹쳐 앉고, 좌상단에 밝은 하이라이트가 몰리고 우하단으로 갈수록 어두워지는
-   굴절 느낌 + 바닥에 깔리는 은은한 그림자로 입체감을 냄. 구슬 안엔 아이콘
-   (달/해)이 들어가며, 남은 트랙 공간에는 현재 모드 이름을 라벨로 보여줌. */
+/* ---------- 다크/라이트 토글: 얇은 라인 트랙 + 블러 세로캡슐 스위치 ----------
+   트랙은 두꺼운 유리 필이 아니라 얇은 테두리 선 하나로만 존재하고, 움직이는
+   스위치는 원형 구슬 대신 세로로 긴 캡슐(알약) 모양으로, 안쪽은 블러(간유리)
+   먹인 반투명으로 채움. 화려한 굴절 하이라이트/발광 효과는 걷어내고 테두리
+   선 + 블러만 남겨서 담백하게 감 */
 .mode-toggle{
   position: relative;
   display: inline-flex;
   align-items: center;
-  height: 34px;
+  height: 32px;
   min-width: 100px;
-  padding: 0 16px 0 46px;
+  padding: 0 14px 0 36px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  background: var(--card-bg2);
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
-  box-shadow: var(--shadow), inset 0 1px 0 var(--card-hi);
+  background: transparent;
+  box-shadow: none;
   color: var(--ink);
   font-family: var(--font-body);
   font-size: .8rem;
@@ -260,59 +259,32 @@ body::before{
   overflow: visible;
   touch-action: none;
   user-select: none;
-  transition: padding .35s ease, background .15s ease;
+  transition: padding .35s ease, border-color .15s ease;
 }
-.mode-toggle:hover{ background: var(--card-bg); }
+.mode-toggle:hover{ border-color: var(--ink-soft); }
 .mode-toggle .mt-label{ white-space: nowrap; }
 .mode-toggle .mt-thumb{
   position: absolute;
   top: 50%;
-  left: -6px;
-  width: 46px;
-  height: 46px;
+  left: 4px;
+  width: 24px;
+  height: 40px;
   transform: translateY(-50%);
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 26%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.4) 20%, rgba(255,255,255,0.05) 44%, rgba(255,255,255,0) 60%),
-    linear-gradient(155deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.04) 45%, rgba(0,0,0,0.08) 100%);
-  border: 1px solid rgba(255,255,255,0.55);
-  box-shadow:
-    0 12px 18px -6px rgba(0,0,0,0.4),
-    0 3px 6px rgba(0,0,0,0.22),
-    inset 0 1px 3px rgba(255,255,255,0.85),
-    inset 0 -8px 12px rgba(0,0,0,0.14);
-  backdrop-filter: blur(8px) saturate(160%); -webkit-backdrop-filter: blur(8px) saturate(160%);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.16);
+  border: 1px solid var(--card-border);
+  backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem;
   transition: left .4s cubic-bezier(.34,1.56,.64,1);
 }
-/* 유리에 비쳐 굴절되는 듯한 얇은 초승달 하이라이트 띠 */
-.mode-toggle .mt-thumb::before{
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: linear-gradient(205deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 38%);
-  pointer-events: none;
-}
-/* 구슬 뒤로 은은하게 번지는 포인트색 발광 */
-.mode-toggle .mt-thumb::after{
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(223,103,116,0.35) 0%, rgba(223,103,116,0) 70%);
-  z-index: -1;
-  pointer-events: none;
-}
 /* 드래그 중엔 손가락/포인터를 그대로 따라가야 하므로 트랜지션을 잠깐 꺼줌
    (JS가 pointermove마다 left를 인라인으로 직접 바꿔서 실시간으로 따라오게 함) */
 .mode-toggle.dragging .mt-thumb{ transition: none; }
-.mode-toggle .mt-icon{ color: var(--rose); display:flex; position:relative; z-index:1; filter: drop-shadow(0 0 4px rgba(255,255,255,0.9)); }
-.mode-toggle .mt-icon .icon-svg{ width:18px; height:18px; }
-body.theme-light .mode-toggle{ padding: 0 46px 0 16px; }
-body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 40px); }
-body.theme-light .mode-toggle .mt-icon{ filter: drop-shadow(0 0 4px rgba(255,255,255,0.9)); }
+.mode-toggle .mt-icon{ color: var(--rose); display:flex; position:relative; z-index:1; }
+.mode-toggle .mt-icon .icon-svg{ width:16px; height:16px; }
+body.theme-light .mode-toggle{ padding: 0 36px 0 14px; }
+body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
 
 
 
