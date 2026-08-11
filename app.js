@@ -52,7 +52,14 @@ function metaDoc(base){
 }
 function applyModeClass(){
   document.body.classList.toggle('theme-light', siteMode === 'light');
-  if(modeToggleBtn) modeToggleBtn.textContent = siteMode === 'light' ? '🌙 다크모드' : '☀️ 라이트모드';
+  if(modeToggleBtn){
+    modeToggleBtn.classList.remove('btn','small');
+    modeToggleBtn.classList.add('mode-toggle');
+    modeToggleBtn.setAttribute('aria-label', siteMode === 'light' ? '라이트모드 (클릭하면 다크모드로 전환)' : '다크모드 (클릭하면 라이트모드로 전환)');
+    modeToggleBtn.innerHTML =
+      '<span class="mt-thumb"><span class="mt-icon">' + (siteMode === 'light' ? '☀️' : '🌙') + '</span></span>' +
+      '<span class="mt-label">' + (siteMode === 'light' ? '라이트' : '다크') + '</span>';
+  }
 }
 applyModeClass();
 

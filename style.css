@@ -220,6 +220,55 @@ body::before{
   border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink-soft);
 }
 .lock-badge.unlocked{ border-color: var(--rose); color: var(--rose); }
+
+/* ---------- 다크/라이트 토글: 유리질 캡슐 스위치 ----------
+   참고 영상처럼 알약 모양 트랙 한쪽 끝에 트랙보다 살짝 큰 유리 원(엄지)이
+   위아래로 살짝 삐져나오게 겹쳐 앉고, 그 안에 아이콘(달/해)이 들어가며,
+   남은 트랙 공간에는 현재 모드 이름을 라벨로 보여줌. 다크→라이트 전환 시
+   엄지가 반대쪽 끝으로 슬라이드되고 라벨/아이콘도 같이 바뀜. */
+.mode-toggle{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  min-width: 96px;
+  padding: 0 14px 0 38px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg2);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  box-shadow: var(--shadow), inset 0 1px 0 var(--card-hi);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  overflow: visible;
+  transition: padding .35s ease, background .15s ease;
+}
+.mode-toggle:hover{ background: var(--card-bg); }
+.mode-toggle .mt-label{ white-space: nowrap; }
+.mode-toggle .mt-thumb{
+  position: absolute;
+  top: 50%;
+  left: -3px;
+  width: 36px;
+  height: 36px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: linear-gradient(150deg, rgba(255,255,255,0.55), rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.22));
+  border: 1px solid rgba(255,255,255,0.55);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 3px rgba(255,255,255,0.6), inset 0 -2px 4px rgba(0,0,0,0.12);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .95rem;
+  transition: left .4s cubic-bezier(.34,1.56,.64,1);
+}
+.mode-toggle .mt-icon{ filter: drop-shadow(0 0 5px rgba(255,255,255,0.85)); }
+body.theme-light .mode-toggle{ padding: 0 38px 0 14px; }
+body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 33px); }
+body.theme-light .mode-toggle .mt-icon{ filter: drop-shadow(0 0 5px rgba(247,176,183,0.9)); }
+
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
 .board-tabs{ position: relative; }
 /* .slide-dots(위젯 안 슬라이드 위치 표시 — 배경 없이 작은 점만 나열)와 헷갈리지 않도록,
