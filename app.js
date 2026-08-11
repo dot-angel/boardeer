@@ -1323,7 +1323,7 @@ function refreshLockUI(){
   const shakerBgBtn = document.getElementById('shakerBgBtn');
   if(shakerBgBtn) shakerBgBtn.style.display = editMode ? 'inline-flex' : 'none';
   lockBadge.classList.toggle('unlocked', editMode);
-  lockBtn.textContent = editMode ? '🔓' : '🔒';
+  lockBtn.innerHTML = '<span class="icon-mono">' + (editMode ? '🔓' : '🔒') + '</span>';
   lockBtn.setAttribute('aria-label', editMode ? '잠그기' : '잠금 해제');
 }
 
