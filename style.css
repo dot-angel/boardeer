@@ -276,8 +276,13 @@ body::before{
   padding: 0 14px 0 36px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  background: var(--card-bg);
+  background: rgba(255,255,255,0.14);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  /* 이 버튼은 페이지 로드 후 JS가 innerHTML로 새로 그려 넣는 요소라, 정적으로
+     처음부터 박혀있는 .btn들과 달리 브라우저가 backdrop-filter용 합성 레이어를
+     제때 안 만들어서 블러가 안 먹는 경우가 있음 — will-change로 레이어 생성을
+     강제해서 이를 방지 */
+  will-change: backdrop-filter;
   box-shadow: none;
   color: var(--ink);
   font-family: var(--font-body);
