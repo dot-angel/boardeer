@@ -6730,6 +6730,17 @@ function openSpeechOverlay(initialTabId){
     requestAnimationFrame(()=>{
       shapeSpeechBubble(bubbleEl, { radius:18, tailLeft:(w)=> (w-18)/2, tailWidth:18, tailHeight:9 });
       bubbleEl.classList.add('show');
+      // 캐릭터를 화면 가장자리 가까이에서 눌렀을 때, 말풍선이 그 지점을 중심으로
+      // 뜨다 보니 텍스트가 길면 화면 밖으로 잘리는 문제가 있었음 — 뜬 직후 실제
+      // 화면상 좌우 위치를 재서, 화면 밖으로 넘치는 만큼만 앵커를 안쪽으로 밀어줌
+      // (꼬리는 여전히 그 앵커를 가리키므로, 많이 밀렸을 때만 꼬리 위치가 클릭
+      // 지점에서 살짝 벗어나 보일 수 있지만 텍스트가 잘리는 것보단 나음)
+      const margin = 14;
+      const rect = bubbleEl.getBoundingClientRect();
+      let dx = 0;
+      if(rect.left < margin) dx = margin - rect.left;
+      else if(rect.right > window.innerWidth - margin) dx = (window.innerWidth - margin) - rect.right;
+      if(dx) anchor.style.left = (parseFloat(anchor.style.left) + dx) + 'px';
     });
   };
 

@@ -521,7 +521,7 @@ body::before{
    본체+꼬리를 SVG path 하나로 합쳐 clip-path로 오려내는 방식(app.js의 shapeSpeechBubble) */
 .speech-bubble{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
-  max-width: min(320px, 82vw); width:max-content;
+  max-width: min(260px, 70vw); width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
   background: rgba(20,9,11,0.5); color:#FBF7F8;
   border-radius:18px; padding:13px 18px 22px 18px;
