@@ -298,6 +298,9 @@ body::before{
   border-radius: inherit;
   background: var(--card-bg);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  will-change: backdrop-filter;
+  transform: translateZ(0);
+  isolation: isolate;
   z-index: 0;
   pointer-events: none;
 }
