@@ -220,6 +220,14 @@ body::before{
   border: 1px solid var(--card-border); background: rgba(255,255,255,0.06); color: var(--ink-soft);
 }
 .lock-badge.unlocked{ border-color: var(--rose); color: var(--rose); }
+/* "보기 전용" 상태 배지는 더 이상 안 보여줌 — 잠금 아이콘 버튼 하나로 충분함 */
+.lock-badge{ display:none; }
+/* 잠금 버튼: 문구 없이 자물쇠 아이콘만 보여주는 원형 버튼으로 */
+#lockBtn{
+  width:32px; height:32px; padding:0; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:.9rem;
+}
 
 /* ---------- 다크/라이트 토글: 유리질 캡슐 스위치 ----------
    참고 영상처럼 알약 모양 트랙 한쪽 끝에 트랙보다 살짝 큰 유리 원(엄지)이
@@ -244,6 +252,8 @@ body::before{
   font-weight: 700;
   cursor: pointer;
   overflow: visible;
+  touch-action: none;
+  user-select: none;
   transition: padding .35s ease, background .15s ease;
 }
 .mode-toggle:hover{ background: var(--card-bg); }
@@ -264,10 +274,14 @@ body::before{
   font-size: .95rem;
   transition: left .4s cubic-bezier(.34,1.56,.64,1);
 }
+/* 드래그 중엔 손가락/포인터를 그대로 따라가야 하므로 트랜지션을 잠깐 꺼줌
+   (JS가 pointermove마다 left를 인라인으로 직접 바꿔서 실시간으로 따라오게 함) */
+.mode-toggle.dragging .mt-thumb{ transition: none; }
 .mode-toggle .mt-icon{ filter: drop-shadow(0 0 5px rgba(255,255,255,0.85)); }
 body.theme-light .mode-toggle{ padding: 0 38px 0 14px; }
 body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 33px); }
 body.theme-light .mode-toggle .mt-icon{ filter: drop-shadow(0 0 5px rgba(247,176,183,0.9)); }
+
 
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
 .board-tabs{ position: relative; }
