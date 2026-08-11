@@ -296,7 +296,7 @@ body::before{
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: var(--card-bg);
+  background: rgba(255,255,255,0.14);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   will-change: backdrop-filter;
   transform: translateZ(0);
