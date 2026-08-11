@@ -189,16 +189,16 @@ body::before{
    배너 자체가 190px로 낮아지므로 그 절반에 맞춰 따로 줄임) */
 /* 배너 왼쪽 제목 로고 — 색이 박힌 이미지 파일을 쓰는 대신, 투명도만 있는
    마스크 파일(banner-title-mask.png)을 CSS mask-image로 씌우고 실제 색은
-   background-color로 채움. 배너는 사진이 깔릴 수 있어 항상 어둡게 유지되는
-   영역이라, 다른 배너 요소(제목 글자·버튼)와 마찬가지로 테마를 안 따라가고
-   흰색으로 고정함. 크기는 배너 높이의 절반 정도(모바일은 배너가 190px로
-   낮아지므로 그 절반에 맞춰 따로 줄임) */
+   background-color(팔레트의 로즈)로 채움. 이러면 테마 편집에서 포인트색을
+   바꿀 때 로고 색도 같이 따라가고, 라이트모드에서 배너가 밝은 톤일 때도
+   잉크/로즈 계열이라 묻히지 않음. 크기는 배너 높이의 절반 정도(모바일은
+   배너가 190px로 낮아지므로 그 절반에 맞춰 따로 줄임) */
 .site-name-img{
   height: 280px;
   width: 528px;
   max-width: 100%;
   align-self: flex-start;
-  background-color: #FBF7F8;
+  background-color: var(--rose);
   -webkit-mask-image: url('banner-title-mask.png');
   mask-image: url('banner-title-mask.png');
   -webkit-mask-repeat: no-repeat;
@@ -2637,17 +2637,12 @@ body.theme-light .row-refpair.video-open .video-title{
 }
 
 /* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 원리(흰색 + 낮은 알파,
-   가독성은 아래 텍스트 그림자가 담당)로 통일 */
+   가독성은 아래 텍스트 그림자가 담당)로 통일. 스크림 자체가 이제 밝은 톤이라,
+   그 위 글자/로고도 고정된 흰색이 아니라 테마를 따라가는 잉크색이어야
+   보임(원래 배너가 항상 어둡던 시절 값을 고정해뒀던 게 문제였음) */
 body.theme-light .site-banner-scrim{
   background: linear-gradient(180deg, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.42) 100%);
 }
-body.theme-light .banner-bottom-right .btn{
-  background: rgba(255,255,255,0.12); color:#FBF7F8;
-}
-body.theme-light .banner-bottom-right .btn:hover{ background: rgba(255,255,255,0.22); }
-body.theme-light .mode-toggle{ color:#FBF7F8; }
-body.theme-light .lock-badge{ background: rgba(255,255,255,0.1); color:#FBF7F8; }
-body.theme-light .lock-badge.unlocked{ color:#f4b6bd; border-color:#f4b6bd; }
 
 /* ---- ③ 검은 그림자가 스티커/말풍선처럼 작은 요소 여러 개에 걸려있어서,
    밝은 배경 위에서 특히 도드라지고 지저분해 보이던 부분 ----
