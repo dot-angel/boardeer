@@ -175,6 +175,25 @@ function buildBubbleTailPath(w, bodyH, radius, tailLeft, tailWidth, tailHeight){
   ].join(' ');
 }
 
+// 말풍선처럼 "폭이 넘치면 줄바꿈, 안 넘치면 내용에 딱 맞게"가 필요한 요소용 헬퍼.
+// width:max-content + max-width만 쓰면, 줄바꿈이 필요한 경우 브라우저가 폭을
+// max-width 값 그대로 써버려서(그 줄 수를 유지하는 더 좁은 폭이 있어도) 짧은
+// 줄 옆에 불필요한 여백이 남음 — 그래서 줄바꿈이 필요한 경우엔 "같은 줄 수를
+// 유지하는 가장 좁은 폭"을 이분탐색으로 찾아 실제 폭으로 줌.
+function shrinkToFitWidth(el, maxW, minW){
+  el.style.width = 'max-content';
+  el.style.maxWidth = maxW + 'px';
+  if(el.scrollWidth <= maxW){ el.style.width = ''; return; } // 안 넘치면 max-content가 이미 딱 맞음
+  const targetH = el.offsetHeight; // maxW 폭일 때 줄 수(=높이) — 이걸 유지하는 선에서 최대한 좁힘
+  let lo = minW, hi = maxW, best = maxW;
+  for(let i=0;i<8;i++){
+    const mid = Math.round((lo+hi)/2);
+    el.style.width = mid + 'px';
+    if(el.offsetHeight <= targetH){ best = mid; hi = mid - 1; }
+    else{ lo = mid + 1; }
+  }
+  el.style.width = best + 'px';
+}
 // opts.tailLeft: 꼬리 왼쪽 끝의 x좌표(px) 또는 실제 렌더링 폭(w)을 받아 x좌표를
 // 반환하는 함수(가운데 정렬 등 폭에 따라 위치가 달라질 때 사용)
 function shapeSpeechBubble(el, opts){
@@ -6725,14 +6744,23 @@ function openSpeechOverlay(initialTabId){
     bubbleEl = document.createElement('div');
     bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
     bubbleEl.textContent = text;
+    // 말풍선은 누른 지점을 중심으로 좌우 반반씩 퍼지므로, 단순히 폭을 고정값으로
+    // 줄이기만 하면 캐릭터가 화면 가장자리 쪽에 있을 때(둘이 나란히 있는 화면이라
+    // 흔함) 여전히 한쪽만 화면 밖으로 넘치고, 반대쪽엔 다 못 쓴 여백만 남음.
+    // 그래서 CSS 고정값 대신, 누른 지점에서 화면 양쪽 가장자리까지 각각 남은
+    // 공간을 재서 그 중 더 좁은 쪽을 기준으로 폭을 미리 정함 — 그래야 여백을
+    // 낭비하지 않으면서도 애초에 화면 밖으로 나갈 일이 없음.
+    const edgeMargin = 14;
+    const roomEachSide = Math.min(e.clientX, window.innerWidth - e.clientX) - edgeMargin;
+    const maxW = Math.max(160, Math.min(280, roomEachSide * 2));
     anchor.appendChild(bubbleEl);
     stage.appendChild(anchor);
+    shrinkToFitWidth(bubbleEl, maxW, 120);
     requestAnimationFrame(()=>{
       shapeSpeechBubble(bubbleEl, { radius:18, tailLeft:(w)=> (w-18)/2, tailWidth:18, tailHeight:9 });
       bubbleEl.classList.add('show');
-      // 캐릭터를 화면 가장자리 가까이에서 눌렀을 때, 말풍선이 그 지점을 중심으로
-      // 뜨다 보니 텍스트가 길면 화면 밖으로 잘리는 문제가 있었음 — 뜬 직후 실제
-      // 화면상 좌우 위치를 재서, 화면 밖으로 넘치는 만큼만 앵커를 안쪽으로 밀어줌
+      // 폭을 미리 딱 맞게 계산해뒀지만, 혹시 모를 반올림 오차 등으로 아주 살짝
+      // 남는 경우를 대비한 최종 안전장치 — 화면 밖으로 넘치면 그만큼만 안쪽으로 밀어줌
       // (꼬리는 여전히 그 앵커를 가리키므로, 많이 밀렸을 때만 꼬리 위치가 클릭
       // 지점에서 살짝 벗어나 보일 수 있지만 텍스트가 잘리는 것보단 나음)
       const margin = 14;
