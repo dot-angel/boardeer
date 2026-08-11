@@ -614,11 +614,11 @@ body::before{
    한 겹 더 깔아서 "두께"가 있는 것처럼 보이게 함. (.w-card 바로 다음에 둬야
    .w-card의 border/box-shadow/backdrop-filter/padding에 덮여씌워지지 않음) */
 .w-speech{
-  border-width:2px; border-color: rgba(255,255,255,0.22);
+  border-width:2px; border-color: rgba(255,255,255,0.3);
   box-shadow:
-    0 18px 34px rgba(0,0,0,0.45),
-    inset 0 2px 0 rgba(255,255,255,0.22),
-    inset 0 -10px 16px rgba(0,0,0,0.35);
+    0 18px 34px rgba(0,0,0,0.48),
+    inset 0 2px 0 rgba(255,255,255,0.32),
+    inset 0 -10px 16px rgba(0,0,0,0.42);
   backdrop-filter: blur(22px) saturate(1.3);
   -webkit-backdrop-filter: blur(22px) saturate(1.3);
   padding:12px; align-items:center; justify-content:center; cursor:pointer; height:130px;
@@ -1482,7 +1482,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .shaker-piece{
   position:absolute; top:0; left:0; border-radius:50%; overflow:hidden;
   border:2px solid rgba(255,255,255,0.78);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.4);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.55);
   pointer-events:none;
 }
 .shaker-piece img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -2505,10 +2505,13 @@ body.theme-light .w-card:hover{
   box-shadow: 0 16px 36px rgba(var(--ink-rgb),0.16), inset 0 0 0 0.6px var(--card-hi);
 }
 body.theme-light .w-speech{
+  background: rgba(239,244,240,0.3);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
   box-shadow:
-    0 18px 34px rgba(var(--ink-rgb),0.18),
-    inset 0 2px 0 rgba(255,255,255,0.5),
-    inset 0 -10px 16px rgba(var(--ink-rgb),0.10);
+    0 18px 34px rgba(var(--ink-rgb),0.2),
+    inset 0 2px 0 rgba(255,255,255,0.7),
+    inset 0 -10px 16px rgba(var(--ink-rgb),0.14);
 }
 
 /* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(사진 위 배지/전체화면
@@ -2549,8 +2552,9 @@ body.theme-light .lock-badge.unlocked{ color:#f4b6bd; border-color:#f4b6bd; }
    반대로(테두리는 안 보이고 그림자만 얼룩처럼 남아) 작동해서, 둘 다
    라이트모드용 톤으로 바꿈 */
 body.theme-light .shaker-piece:not(.shaker-piece-plain){
-  box-shadow: 0 4px 10px rgba(var(--ink-rgb),0.22), inset 0 1px 0 rgba(255,255,255,0.6);
+  box-shadow: 0 4px 10px rgba(var(--ink-rgb),0.26), inset 0 1px 0 rgba(255,255,255,0.75);
 }
+body.theme-light .modal.modal-shaker-full{ background: rgba(255,255,255,0.3); }
 body.theme-light .shaker-piece.shaker-piece-plain img{
   filter: drop-shadow(0 3px 6px rgba(var(--ink-rgb),0.22));
 }
