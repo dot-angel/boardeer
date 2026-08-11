@@ -191,6 +191,7 @@ body::before{
   height: 280px;
   width: auto;
   max-width: 100%;
+  align-self: flex-start;
   display: block;
   object-fit: contain;
   filter: drop-shadow(0 6px 20px rgba(0,0,0,0.5)) drop-shadow(0 2px 8px rgba(0,0,0,0.4));
