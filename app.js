@@ -51,7 +51,14 @@ function metaDoc(base){
   return db.collection('meta').doc(siteMode === 'light' ? base + 'Light' : base);
 }
 const MODE_LABELS = { dark: '멧돼지관', light: '사슴관' };
-const MODE_ICONS  = { dark: '🌙', light: '☀️' };
+const MODE_ICONS = {
+  dark: '<svg class="icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  light: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>'
+};
+const ICONS = {
+  lock: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  unlock: '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'
+};
 // 매번 innerHTML을 통째로 새로 그리면 .mt-thumb가 매번 새 DOM 노드가 되어버려서
 // CSS의 left 트랜지션이 재생될 새가 없이(이미 최종 위치로 그려진 새 엘리먼트라)
 // 그냥 순간이동처럼 보임. 그래서 마크업은 처음 한 번만 만들고, 이후로는 같은
@@ -68,7 +75,7 @@ function applyModeClass(){
   document.body.classList.toggle('theme-light', siteMode === 'light');
   if(modeToggleBtn){
     ensureModeToggleMarkup();
-    modeToggleBtn.querySelector('.mt-icon').textContent = MODE_ICONS[siteMode];
+    modeToggleBtn.querySelector('.mt-icon').innerHTML = MODE_ICONS[siteMode];
     modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[siteMode];
     modeToggleBtn.setAttribute('aria-label', MODE_LABELS[siteMode] + ' 적용 중 · 눌러서 전환');
   }
@@ -1323,7 +1330,7 @@ function refreshLockUI(){
   const shakerBgBtn = document.getElementById('shakerBgBtn');
   if(shakerBgBtn) shakerBgBtn.style.display = editMode ? 'inline-flex' : 'none';
   lockBadge.classList.toggle('unlocked', editMode);
-  lockBtn.innerHTML = '<span class="icon-mono">' + (editMode ? '🔓' : '🔒') + '</span>';
+  lockBtn.innerHTML = '<span class="icon-accent">' + (editMode ? ICONS.unlock : ICONS.lock) + '</span>';
   lockBtn.setAttribute('aria-label', editMode ? '잠그기' : '잠금 해제');
 }
 
