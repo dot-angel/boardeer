@@ -1320,7 +1320,7 @@ function openDataUrlAsBlob(dataUrl){
 
 function refreshLockUI(){
   document.body.classList.toggle('edit-mode', editMode);
-  siteNameEl.setAttribute('contenteditable', editMode ? 'true' : 'false');
+  if(siteNameEl) siteNameEl.setAttribute('contenteditable', editMode ? 'true' : 'false');
   bannerEditBtn.style.display = editMode ? 'inline-flex' : 'none';
   bgEditBtn.style.display = editMode ? 'inline-flex' : 'none';
   globalStyleBtn.style.display = editMode ? 'inline-flex' : 'none';
@@ -1422,13 +1422,15 @@ lockBtn.addEventListener('click', async ()=>{
   });
 });
 
-siteNameEl.addEventListener('blur', ()=>{
-  if(!editMode) return;
-  db.collection('meta').doc('site').set({ name: siteNameEl.textContent.trim() || '노은' }, {merge:true});
-});
-db.collection('meta').doc('site').onSnapshot(doc=>{
-  if(doc.exists && doc.data().name && document.activeElement !== siteNameEl){ siteNameEl.textContent = doc.data().name; }
-});
+if(siteNameEl){
+  siteNameEl.addEventListener('blur', ()=>{
+    if(!editMode) return;
+    db.collection('meta').doc('site').set({ name: siteNameEl.textContent.trim() || '노은' }, {merge:true});
+  });
+  db.collection('meta').doc('site').onSnapshot(doc=>{
+    if(doc.exists && doc.data().name && document.activeElement !== siteNameEl){ siteNameEl.textContent = doc.data().name; }
+  });
+}
 
 /* ---------------- 배너 (항상 최상단 고정) ---------------- */
 

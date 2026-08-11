@@ -185,6 +185,16 @@ body::before{
 }
 .banner-bottom-left{ display:flex; flex-direction:column; gap:4px; min-width:0; }
 .banner-bottom-right{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+/* 배너 왼쪽 제목 이미지 — 배너 높이의 절반 정도를 차지하도록 (모바일에서는
+   배너 자체가 190px로 낮아지므로 그 절반에 맞춰 따로 줄임) */
+.site-name-img{
+  height: 280px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 20px rgba(0,0,0,0.5)) drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+}
 .site-name{
   font-family: 'Zhi Mang Xing', var(--font-display), cursive;
   font-size: clamp(3.2rem, 8vw, 6.5rem);
@@ -201,6 +211,7 @@ body::before{
   .site-banner{ height: 190px; }
   .banner-bottom{ padding: 15px 18px 15px; gap:10px; }
   .site-name{ font-size: clamp(1.9rem, 10vw, 3rem); }
+  .site-name-img{ height: 95px; }
 }
 .btn{
   font-family: var(--font-body);
