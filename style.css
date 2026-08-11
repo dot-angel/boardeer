@@ -2506,8 +2506,8 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 /* =========================================================
    라이트모드 보정 — 위의 팔레트 변수 교체만으로는 안 잡히던,
    "다크모드용 값이 그대로 박혀있던" 부분들을 모아서 고침.
-   두 가지 패턴으로 나뉨:
-   ① 모달/토스트/스티커 말풍선처럼 원래 배경 위에 바로 뜨는 요소인데
+   아래 6가지 패턴으로 나뉨(번호 순서대로 배치):
+   ① 모달/토스트/말풍선처럼 원래 배경 위에 바로 뜨는 요소인데
       배경색이 다크모드 값(#1a0b0f 계열)으로 하드코딩돼 있어서,
       라이트모드에서 글자색만 어두운 톤을 따라가고 배경은 그대로 어두운
       채로 남아 "어두운 칠판에 어두운 글씨" 같은 대비 문제가 나던 것.
@@ -2516,6 +2516,19 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
       의도인 요소인데, 글자/아이콘 색이 var(--ink)를 따라가버려서
       라이트모드에선 어두운 배경 위에 어두운 글자가 얹히던 것.
       → 이런 요소는 배경은 그대로 두고 글자색만 고정된 밝은 색으로 되돌림.
+   ③ 검은 그림자가 스티커/말풍선/카드처럼 작은 요소 여러 개에 걸려있어서,
+      밝은 배경 위에서 특히 도드라지고 얼룩처럼 보이던 것.
+      → 팔레트 톤(--ink-rgb)의 옅은 그림자로 교체.
+   ④ 배너 스크림 — 로고/글자가 항상 보이게 해주던 어두운 그라데이션이
+      라이트모드에서도 그대로 어두워서 배경과 따로 놀던 것.
+      → 다른 유리 요소들과 같은 흰색 그라데이션으로 통일.
+   ⑤ 사진이 카드 하나를 꽉 채우는 위젯(이미지/음악/말풍선 커버)의
+      글자 가독성용 스크림 — 다크모드용 어두운 그라데이션이 그대로 남아있던 것.
+      → 흰색 그라데이션으로 바꾸되 알파는 낮게 유지해 사진이 비치게 함.
+   ⑥ 사진(자켓/슬라이드/스피치카드 표지) 위에 얹히는 글자·아이콘 색 —
+      가독성이 최우선인 자리라 모드와 무관하게 톤을 고정해야 했던 것.
+   그 외 번호 없는 규칙들(맨 끝 "기타")은 "다크모드 값이 박혀있던 버그"가
+   아니라 라이트모드에서만 필요한 추가 톤 보정(버튼/보조 UI 등)임.
    ========================================================= */
 
 /* ---- ① 배경이 다크모드 값으로 고정돼 있던 요소들 ---- */
@@ -2537,15 +2550,87 @@ body.theme-light .modal select, body.theme-light .modal input[type=file]{
   background: rgba(var(--ink-rgb),0.05);
 }
 body.theme-light .modal select option{ background:#EFF4F0; color:#a71a36; }
-/* :where()로 감싸서 이 규칙 자체의 우선순위를 0으로 만듦 — 안 그러면
-   "body.theme-light" 조상 선택자 때문에 명시도가 올라가서, 뒤에 나오는
-   .btn.ghost/.btn.primary 같은 동일 명시도 규칙을 소스 순서와 무관하게
-   덮어써버리는 문제가 생김 */
-:where(body.theme-light) .btn{ background: rgba(var(--ink-rgb),0.06); }
-:where(body.theme-light) .btn:hover{ background: rgba(var(--ink-rgb),0.14); }
-body.theme-light .btn.primary{ color: var(--ink); }
-body.theme-light .btn.primary:hover{ background:#f4a0a8; }
-body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; border-color: rgba(196,77,80,0.35); }
+/* 쉐이커 전체화면 — 라이트박스와 다크모드 배경값이 완전히 같아서(둘 다
+   rgba(10,5,6,0.5)) 같은 값으로 맞춤 */
+body.theme-light .modal.modal-shaker-full{ background: rgba(255,255,255,0.15); }
+/* 토스트도 말풍선 계열(뜨는 유리 알약 모양)과 같은 규칙으로: 다크모드 원본이
+   진한 잉크색 반투명(0.75)이었다고 라이트모드에서 그대로 흰색 0.88을 넣으면
+   거의 불투명한 단색 알약이 돼버림 — 말풍선(0.5→0.2)과 같은 비율로 낮춰서
+   뒤 배경이 은은히 비치는 유리 느낌을 유지함 */
+body.theme-light .toast{ background: rgba(255,255,255,0.2); }
+/* 말풍선 3종(스티커 말풍선/말풍선 위젯/프로필 간략보기 한마디)을 라이트모드에서
+   같은 디자인으로 통일: 모두 같은 반투명 흰 배경 + 잉크색 글자 + 아래 ③의 동일한
+   팔레트 톤 테두리·그림자를 씀. 이전에는 .speech-bubble만 배경이 다크모드 값
+   그대로 남고 글자만 흰색으로 고정돼서, 배경이 바뀌는 .sticker-bubble과 서로
+   달라 보였음 */
+body.theme-light .sticker-bubble,
+body.theme-light .speech-bubble,
+body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.2); }
+/* 모달 뒤 전체화면 백드롭(.modal-overlay)이 다크모드용 어두운 색으로
+   고정돼 있어서, 정작 모달/쉐이커 박스 자체를 아무리 투명하게 만들어도
+   그 뒤로 보이는 게 실제 밝은 페이지가 아니라 이 어두운 스크림이라
+   "불투명하다"고 느껴졌던 것 — 라이트모드용 밝은 스크림을 새로 추가함 */
+body.theme-light .modal-overlay,
+body.theme-light .modal-overlay.modal-overlay-plain{
+  background: rgba(255,255,255,0.16);
+}
+
+/* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(사진 위 배지/전체화면
+   오버레이 안) 요소들 — 배경은 그대로 두고, 라이트모드를 따라가 버려
+   안 보이던 글자·아이콘 색만 고정된 밝은 색으로 되돌림. 배너 쪽 컨트롤은
+   아래 ④에서 스크림 자체를 뽀얗게 바꾸면서 기본 잉크색 글자로도 충분히
+   읽히게 됐으므로 여기서 제외함 ---- */
+body.theme-light .speech-card-cover-btn,
+body.theme-light .speech-card-edit-btn,
+body.theme-light .video-collapse,
+body.theme-light .row-refpair.video-open .video-title{
+  color:#FBF7F8;
+}
+
+/* ---- ③ 검은 그림자가 스티커/말풍선처럼 작은 요소 여러 개에 걸려있어서,
+   밝은 배경 위에서 특히 도드라지고 지저분해 보이던 부분 ----
+   쉐이커 조각은 한 화면에 여러 개가 겹쳐 있어서 검은 그림자가 쌓이면
+   더 티가 남 → 팔레트 톤의 옅은 그림자로. 말풍선은 검은 확산 그림자 +
+   원래 어두운 배경을 전제로 넣어둔 흰 테두리 하이라이트가 밝은 배경에서는
+   반대로(테두리는 안 보이고 그림자만 얼룩처럼 남아) 작동해서, 둘 다
+   라이트모드용 톤으로 바꿈 */
+body.theme-light .shaker-piece:not(.shaker-piece-plain){
+  box-shadow: 0 4px 10px rgba(var(--ink-rgb),0.26), inset 0 1px 0 rgba(255,255,255,0.75);
+}
+body.theme-light .shaker-piece.shaker-piece-plain img{
+  filter: drop-shadow(0 3px 6px rgba(var(--ink-rgb),0.22));
+}
+body.theme-light .speech-bubble,
+body.theme-light .sticker-bubble{
+  filter: drop-shadow(0 0 1px rgba(var(--ink-rgb),0.1)) drop-shadow(0 10px 22px rgba(var(--ink-rgb),0.18));
+}
+/* 카드 호버 그림자 / 말풍선 위젯의 "두꺼운 유리" 그림자 — 검은 그림자 대신
+   팔레트 톤(짙은 캐러멜레드)의 은은한 그림자로, 밝은 배경에서 얼룩처럼
+   보이지 않게 함 */
+body.theme-light .w-card:hover{
+  box-shadow: 0 16px 36px rgba(var(--ink-rgb),0.16), inset 0 0 0 0.6px var(--card-hi);
+}
+body.theme-light .w-speech{
+  box-shadow:
+    0 18px 34px rgba(var(--ink-rgb),0.2),
+    inset 0 2px 0 rgba(255,255,255,0.7),
+    inset 0 -10px 16px rgba(var(--ink-rgb),0.14);
+}
+body.theme-light .w-shaker{
+  box-shadow:
+    0 18px 34px rgba(var(--ink-rgb),0.2),
+    inset 0 2px 0 rgba(255,255,255,0.7),
+    inset 0 -10px 16px rgba(var(--ink-rgb),0.14);
+}
+
+/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 원리(흰색 + 낮은 알파,
+   가독성은 아래 텍스트 그림자가 담당)로 통일. 스크림 자체가 이제 밝은 톤이라,
+   그 위 글자/로고도 고정된 흰색이 아니라 테마를 따라가는 잉크색이어야
+   보임(원래 배너가 항상 어둡던 시절 값을 고정해뒀던 게 문제였음) */
+body.theme-light .site-banner-scrim{
+  background: linear-gradient(180deg, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.42) 100%);
+}
+
 /* ---- ⑤ 사진이 카드 하나를 꽉 채우는 위젯(이미지/음악/말풍선 커버)의
    글자 가독성용 스크림 — 팔레트에 없는 임의의 짙은 올리브색을 쓰는 대신,
    다른 유리 요소들(모달/토스트/말풍선)과 통일감 있게 흰색 그라데이션을 씀.
@@ -2561,6 +2646,7 @@ body.theme-light .mp-cover-bg.has-cover::after{
 body.theme-light .speech-card-cover-scrim{
   background: linear-gradient(180deg, rgba(255,255,255,0) 60%, rgba(255,255,255,0.45) 100%);
 }
+
 /* ---- ⑥ 참고 이미지 스타일(진한 컬러 글자 + 흰 테두리)에 맞춰, 사진 위
    텍스트들을 "흰 글씨+진한 그림자"에서 "카네이션/달리아 글씨+흰 테두리"로
    반전함. 처음엔 흰 text-shadow를 여러 겹 썼는데, blur가 낀 "빛 번짐"이라
@@ -2572,7 +2658,11 @@ body.theme-light .speech-card-cover-scrim{
    밝든 어둡든 컬러 글자와 항상 확실히 분리돼 보임. paint-order로 윤곽선을
    글자 채움보다 뒤에 그려서 획이 가늘어지지 않게 하고, 원래 있던 흰
    text-shadow는 아주 옅게만 남겨서 살짝 뜨는 느낌만 더함(대비 역할은
-   이제 안 함) */
+   이제 안 함)
+   ⚠️ 정리 중 발견: 아래 실제 규칙은 이 설명과 다르게 -webkit-text-stroke를
+   쓰지 않고 단순 color 교체만 함 — 이후 "사진 위 글자는 모드 상관없이 흰색
+   고정"으로 방침이 바뀌면서 이 설명만 남고 실제 구현은 안 따라간 것으로 보임.
+   실제 동작에 문제는 없지만 설명이 낡았으니 다음에 정리할 때 참고할 것 */
 /* 사진(자켓/슬라이드/스피치카드 표지) 위에 얹히는 글자는 사진 톤이 밝든 어둡든
    항상 또렷하게 보여야 해서, 라이트모드에서도 로즈색으로 바꾸지 않고 다크모드와
    동일하게 흰 글씨 + 검은 그림자로 고정함(가독성이 최우선인 자리라 모드별로
@@ -2581,19 +2671,18 @@ body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
   color: var(--rose);
 }
-/* 토스트도 말풍선 계열(뜨는 유리 알약 모양)과 같은 규칙으로: 다크모드 원본이
-   진한 잉크색 반투명(0.75)이었다고 라이트모드에서 그대로 흰색 0.88을 넣으면
-   거의 불투명한 단색 알약이 돼버림 — 말풍선(0.5→0.2)과 같은 비율로 낮춰서
-   뒤 배경이 은은히 비치는 유리 느낌을 유지함 */
-body.theme-light .toast{ background: rgba(255,255,255,0.2); }
-/* 말풍선 3종(스티커 말풍선/말풍선 위젯/프로필 간략보기 한마디)을 라이트모드에서
-   같은 디자인으로 통일: 모두 같은 반투명 흰 배경 + 잉크색 글자 + 아래 ③의 동일한
-   팔레트 톤 테두리·그림자를 씀. 이전에는 .speech-bubble만 배경이 다크모드 값
-   그대로 남고 글자만 흰색으로 고정돼서, 배경이 바뀌는 .sticker-bubble과 서로
-   달라 보였음 */
-body.theme-light .sticker-bubble,
-body.theme-light .speech-bubble,
-body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.2); }
+
+/* ---- 기타: 다크모드 값이 박혀있던 버그가 아니라, 라이트모드에서만 필요한
+   추가 톤 보정(버튼/보조 UI) ---- */
+/* :where()로 감싸서 이 규칙 자체의 우선순위를 0으로 만듦 — 안 그러면
+   "body.theme-light" 조상 선택자 때문에 명시도가 올라가서, 뒤에 나오는
+   .btn.ghost/.btn.primary 같은 동일 명시도 규칙을 소스 순서와 무관하게
+   덮어써버리는 문제가 생김 */
+:where(body.theme-light) .btn{ background: rgba(var(--ink-rgb),0.06); }
+:where(body.theme-light) .btn:hover{ background: rgba(var(--ink-rgb),0.14); }
+body.theme-light .btn.primary{ color: var(--ink); }
+body.theme-light .btn.primary:hover{ background:#f4a0a8; }
+body.theme-light .btn.danger{ background: rgba(196,77,80,0.12); color:#a3182f; border-color: rgba(196,77,80,0.35); }
 body.theme-light .sec-order-row{ background: rgba(var(--ink-rgb),0.05); }
 body.theme-light .sec-order-row.viewonly:hover{ background: rgba(var(--ink-rgb),0.1); }
 body.theme-light .sec-order-list .icon-btn{ background: rgba(var(--ink-rgb),0.06); }
@@ -2608,69 +2697,4 @@ body.theme-light .shaker-manage-btn:hover, body.theme-light .shaker-bg-btn:hover
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   body.theme-light .w-card, body.theme-light .modal, body.theme-light .btn{ background:#EFF4F0; }
-}
-/* 카드 호버 그림자 / 말풍선 위젯의 "두꺼운 유리" 그림자 — 검은 그림자 대신
-   팔레트 톤(짙은 캐러멜레드)의 은은한 그림자로, 밝은 배경에서 얼룩처럼
-   보이지 않게 함 */
-body.theme-light .w-card:hover{
-  box-shadow: 0 16px 36px rgba(var(--ink-rgb),0.16), inset 0 0 0 0.6px var(--card-hi);
-}
-/* 모달 뒤 전체화면 백드롭(.modal-overlay)이 다크모드용 어두운 색으로
-   고정돼 있어서, 정작 모달/쉐이커 박스 자체를 아무리 투명하게 만들어도
-   그 뒤로 보이는 게 실제 밝은 페이지가 아니라 이 어두운 스크림이라
-   "불투명하다"고 느껴졌던 것 — 라이트모드용 밝은 스크림을 새로 추가함 */
-body.theme-light .modal-overlay,
-body.theme-light .modal-overlay.modal-overlay-plain{
-  background: rgba(255,255,255,0.16);
-}
-body.theme-light .w-speech{
-  box-shadow:
-    0 18px 34px rgba(var(--ink-rgb),0.2),
-    inset 0 2px 0 rgba(255,255,255,0.7),
-    inset 0 -10px 16px rgba(var(--ink-rgb),0.14);
-}
-body.theme-light .w-shaker{
-  box-shadow:
-    0 18px 34px rgba(var(--ink-rgb),0.2),
-    inset 0 2px 0 rgba(255,255,255,0.7),
-    inset 0 -10px 16px rgba(var(--ink-rgb),0.14);
-}
-
-/* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(사진 위 배지/전체화면
-   오버레이 안) 요소들 — 배경은 그대로 두고, 라이트모드를 따라가 버려
-   안 보이던 글자·아이콘 색만 고정된 밝은 색으로 되돌림. 배너 쪽 컨트롤은
-   아래 ④에서 스크림 자체를 뽀얗게 바꾸면서 기본 잉크색 글자로도 충분히
-   읽히게 됐으므로 여기서 제외함 ---- */
-body.theme-light .speech-card-cover-btn,
-body.theme-light .speech-card-edit-btn,
-body.theme-light .video-collapse,
-body.theme-light .row-refpair.video-open .video-title{
-  color:#FBF7F8;
-}
-
-/* ---- ④ 배너 스크림 — 다른 사진 채움 위젯들과 같은 원리(흰색 + 낮은 알파,
-   가독성은 아래 텍스트 그림자가 담당)로 통일. 스크림 자체가 이제 밝은 톤이라,
-   그 위 글자/로고도 고정된 흰색이 아니라 테마를 따라가는 잉크색이어야
-   보임(원래 배너가 항상 어둡던 시절 값을 고정해뒀던 게 문제였음) */
-body.theme-light .site-banner-scrim{
-  background: linear-gradient(180deg, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.42) 100%);
-}
-
-/* ---- ③ 검은 그림자가 스티커/말풍선처럼 작은 요소 여러 개에 걸려있어서,
-   밝은 배경 위에서 특히 도드라지고 지저분해 보이던 부분 ----
-   쉐이커 조각은 한 화면에 여러 개가 겹쳐 있어서 검은 그림자가 쌓이면
-   더 티가 남 → 팔레트 톤의 옅은 그림자로. 말풍선은 검은 확산 그림자 +
-   원래 어두운 배경을 전제로 넣어둔 흰 테두리 하이라이트가 밝은 배경에서는
-   반대로(테두리는 안 보이고 그림자만 얼룩처럼 남아) 작동해서, 둘 다
-   라이트모드용 톤으로 바꿈 */
-body.theme-light .shaker-piece:not(.shaker-piece-plain){
-  box-shadow: 0 4px 10px rgba(var(--ink-rgb),0.26), inset 0 1px 0 rgba(255,255,255,0.75);
-}
-body.theme-light .modal.modal-shaker-full{ background: rgba(255,255,255,0.15); }
-body.theme-light .shaker-piece.shaker-piece-plain img{
-  filter: drop-shadow(0 3px 6px rgba(var(--ink-rgb),0.22));
-}
-body.theme-light .speech-bubble,
-body.theme-light .sticker-bubble{
-  filter: drop-shadow(0 0 1px rgba(var(--ink-rgb),0.1)) drop-shadow(0 10px 22px rgba(var(--ink-rgb),0.18));
 }
