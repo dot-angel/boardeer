@@ -757,9 +757,11 @@ body::before{
    밝은 색이라 우연히 괜찮아 보였을 뿐, 실제로는 사진 위 어두운 스크림과
    짝을 맞춰 항상 밝게 고정해야 하는 자리라 라이트모드에서 글자가 어두운
    스크림 위에 어두운 글자로 묻혀 보이던 문제였음 */
-.w-music:has(.mp-cover-bg.has-cover) .mp-title,
 .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
 .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
+  color: rgba(255,255,255,0.95);
+}
+.w-music:has(.mp-cover-bg.has-cover) .mp-title{
   color: rgba(255,255,255,0.95);
   text-shadow: 0 1px 4px rgba(0,0,0,0.6), 0 1px 10px rgba(0,0,0,0.4);
 }
@@ -2468,6 +2470,10 @@ body.theme-light .speech-card-cover-scrim{
    항상 또렷하게 보여야 해서, 라이트모드에서도 로즈색으로 바꾸지 않고 다크모드와
    동일하게 흰 글씨 + 검은 그림자로 고정함(가독성이 최우선인 자리라 모드별로
    색이 달라지면 오히려 사진 위에서 묻히는 경우가 생김) */
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
+  color: var(--rose);
+}
 body.theme-light .toast{ background: rgba(255,255,255,0.88); }
 /* 말풍선 3종(스티커 말풍선/말풍선 위젯/프로필 간략보기 한마디)을 라이트모드에서
    같은 디자인으로 통일: 모두 같은 반투명 흰 배경 + 잉크색 글자 + 아래 ③의 동일한
