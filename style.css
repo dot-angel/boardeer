@@ -269,13 +269,29 @@ body::before{
    스위치와 트랙이 한 덩어리처럼 보이게 함 */
 .mode-toggle{
   position: relative;
-  /* background, backdrop-filter는 여기서 제거 → 아래 .mt-track-fill로 이동 */
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  min-width: 100px;
+  padding: 0 14px 0 36px;
+  border-radius: 999px;
   border: 1px solid var(--card-border);
-  /* height, padding, border-radius 등 레이아웃 속성은 기존 그대로 유지 */
+  /* background, backdrop-filter는 .mt-track-fill로 이동된 상태 유지 */
+  will-change: backdrop-filter;
+  transform: translateZ(0);
+  isolation: isolate;
+  box-shadow: none;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+  overflow: visible;
+  touch-action: none;
+  user-select: none;
+  transition: padding .35s ease, border-color .15s ease;
 }
 
-/* 트랙 전용 블러 레이어 — .mode-toggle의 자식이지만, .mode-toggle 자체엔
-   backdrop-filter가 없으므로 "중첩"이 아님. .mt-thumb의 형제(sibling)로 존재 */
 .mt-track-fill{
   position: absolute;
   inset: 0;
@@ -288,22 +304,21 @@ body::before{
 
 .mode-toggle .mt-thumb{
   position: absolute;
-  z-index: 1;              /* 기존 속성 유지, z-index만 추가 */
-  /* left/top/width/height/transform/transition 등 나머지는 기존 그대로 */
+  top: 50%;
+  left: 4px;
+  width: 24px;
+  height: 40px;
+  transform: translateY(-50%);
+  border-radius: 999px;
   background: rgba(255,255,255,0.16);
+  border: none;
+  z-index: 1;
   backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
-}
-  transform: 
-  box-shadow: none;
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: .8rem;
-  font-weight: 700;
-  cursor: pointer;
-  overflow: visible;
-  touch-action: none;
-  user-select: none;
-  transition: padding .35s ease, border-color .15s ease;
+  will-change: backdrop-filter;
+  isolation: isolate;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  transition: left .4s cubic-bezier(.34,1.56,.64,1);
 }
 .mode-toggle:hover{ border-color: var(--ink-soft); }
 /* 트랙 라인은 항상 켜둠 — 스위치(.mt-thumb)가 이 위에서 블러로 겹칠 때, 트랙 라인이
