@@ -269,23 +269,31 @@ body::before{
    스위치와 트랙이 한 덩어리처럼 보이게 함 */
 .mode-toggle{
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  height: 32px;
-  min-width: 100px;
-  padding: 0 14px 0 36px;
-  border-radius: 999px;
+  /* background, backdrop-filter는 여기서 제거 → 아래 .mt-track-fill로 이동 */
   border: 1px solid var(--card-border);
-  background: rgba(255,255,255,0.14);
+  /* height, padding, border-radius 등 레이아웃 속성은 기존 그대로 유지 */
+}
+
+/* 트랙 전용 블러 레이어 — .mode-toggle의 자식이지만, .mode-toggle 자체엔
+   backdrop-filter가 없으므로 "중첩"이 아님. .mt-thumb의 형제(sibling)로 존재 */
+.mt-track-fill{
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--card-bg);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  /* 이 버튼은 페이지 로드 후 JS가 innerHTML로 새로 그려 넣는 요소라, 정적으로
-     처음부터 박혀있는 .btn들과 달리 브라우저가 backdrop-filter용 합성 레이어를
-     제때 안 만들어서 블러가 안 먹는 경우가 있음 — will-change만으론 부족해서,
-     translateZ(0)로 강제로 별도 GPU 레이어를 만들고 isolation:isolate로 그
-     레이어 안에서 배경 합성이 확실히 새로 계산되게 함 */
-  will-change: backdrop-filter;
-  transform: translateZ(0);
-  isolation: isolate;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.mode-toggle .mt-thumb{
+  position: absolute;
+  z-index: 1;              /* 기존 속성 유지, z-index만 추가 */
+  /* left/top/width/height/transform/transition 등 나머지는 기존 그대로 */
+  background: rgba(255,255,255,0.16);
+  backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+  transform: 
   box-shadow: none;
   color: var(--ink);
   font-family: var(--font-body);
