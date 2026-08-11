@@ -2522,6 +2522,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 body.theme-light .modal{
   background: rgba(255,255,255,0.82);
 }
+/* 라이트박스는 원래(다크모드) 배경값이 쉐이커 전체화면(.modal-shaker-full)과
+   완전히 같은 rgba(10,5,6,0.5) — 사진을 보여주는 "뷰어" 계열이라 입력폼 모달보다
+   훨씬 투명해야 했던 것. 그런데 라이트모드에서는 이 요소만 따로 못 바꿔서 위
+   .modal 규칙(0.82)에 딸려 들어가 사실상 불투명한 흰 박스로 보였음 — 쉐이커
+   전체화면에 이미 적용한 것과 똑같이 rgba(255,255,255,0.15)로 맞춤 */
+body.theme-light .modal.modal-lightbox{
+  background: rgba(255,255,255,0.15);
+}
 body.theme-light .modal input[type=text], body.theme-light .modal input[type=password],
 body.theme-light .modal input[type=date], body.theme-light .modal input[type=url],
 body.theme-light .modal input[type=number], body.theme-light .modal textarea,
@@ -2573,7 +2581,11 @@ body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
   color: var(--rose);
 }
-body.theme-light .toast{ background: rgba(255,255,255,0.88); }
+/* 토스트도 말풍선 계열(뜨는 유리 알약 모양)과 같은 규칙으로: 다크모드 원본이
+   진한 잉크색 반투명(0.75)이었다고 라이트모드에서 그대로 흰색 0.88을 넣으면
+   거의 불투명한 단색 알약이 돼버림 — 말풍선(0.5→0.2)과 같은 비율로 낮춰서
+   뒤 배경이 은은히 비치는 유리 느낌을 유지함 */
+body.theme-light .toast{ background: rgba(255,255,255,0.2); }
 /* 말풍선 3종(스티커 말풍선/말풍선 위젯/프로필 간략보기 한마디)을 라이트모드에서
    같은 디자인으로 통일: 모두 같은 반투명 흰 배경 + 잉크색 글자 + 아래 ③의 동일한
    팔레트 톤 테두리·그림자를 씀. 이전에는 .speech-bubble만 배경이 다크모드 값
