@@ -97,7 +97,7 @@ body.theme-light{
   --card-bg: rgba(239,244,240,0.55);   /* 배경이 비치는 반투명 유리 카드(밝은 버전) */
   --card-bg2: rgba(239,244,240,0.38);
   --card-border: rgba(218,219,212,0.4);
-  --card-hi: rgba(255,255,255,0.65);   /* 유리 상단 하이라이트 라인 */
+  --card-hi: rgba(255,255,255,0.38);   /* 유리 상단 하이라이트 라인 */
   --shadow: 0 12px 28px rgba(var(--ink-rgb),0.1);
   --shadow-press: 0 6px 14px rgba(var(--ink-rgb),0.13);
   --tab-chip-bg: rgba(218,219,212,0.2);
@@ -595,7 +595,7 @@ body::before{
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--card-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow), inset 0 0 0 1px var(--card-hi);
+  box-shadow: var(--shadow), inset 0 0 0 0.6px var(--card-hi);
   overflow: hidden;
   display:flex; flex-direction:column;
   padding: 18px;
@@ -607,7 +607,7 @@ body::before{
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .w-card, .modal, .btn{ background: #1c0e12; }
 }
-.w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 0 0 1px var(--card-hi); border-color: rgba(196,66,95,0.4); }
+.w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 0 0 0.6px var(--card-hi); border-color: rgba(196,66,95,0.4); }
 
 /* 말풍선 위젯만 다른 위젯들의 얇은 유리와 달리 두꺼운 유리 덩어리처럼 보이게 함 —
    테두리를 더 두껍고 밝게, 위쪽 하이라이트는 더 세게, 아래쪽엔 그림자를 안쪽으로
@@ -2130,7 +2130,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--card-border); border-radius: 24px; padding: 24px;
   width: min(440px, 90vw); max-height: 85vh; overflow:auto;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 0 0 1px var(--card-hi);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 0 0 0.6px var(--card-hi);
   animation: popIn .18s ease; color: var(--ink);
 }
 @keyframes popIn{ from{ transform: translateY(10px); opacity:0 } to{ transform: translateY(0); opacity:1 } }
@@ -2502,7 +2502,7 @@ body.theme-light .shaker-manage-btn:hover, body.theme-light .shaker-bg-btn:hover
    팔레트 톤(짙은 캐러멜레드)의 은은한 그림자로, 밝은 배경에서 얼룩처럼
    보이지 않게 함 */
 body.theme-light .w-card:hover{
-  box-shadow: 0 16px 36px rgba(var(--ink-rgb),0.16), inset 0 0 0 1px var(--card-hi);
+  box-shadow: 0 16px 36px rgba(var(--ink-rgb),0.16), inset 0 0 0 0.6px var(--card-hi);
 }
 body.theme-light .w-speech{
   box-shadow:
