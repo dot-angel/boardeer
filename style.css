@@ -2487,7 +2487,7 @@ body.theme-light .toast{ background: rgba(255,255,255,0.88); }
    달라 보였음 */
 body.theme-light .sticker-bubble,
 body.theme-light .speech-bubble,
-body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.8); }
+body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.2); }
 body.theme-light .sec-order-row{ background: rgba(var(--ink-rgb),0.05); }
 body.theme-light .sec-order-row.viewonly:hover{ background: rgba(var(--ink-rgb),0.1); }
 body.theme-light .sec-order-list .icon-btn{ background: rgba(var(--ink-rgb),0.06); }
