@@ -3817,7 +3817,7 @@ function openMusicTrackModal(existing){
       if(coverFile){
         saveBtn.disabled = true; saveBtn.textContent = '이미지 처리 중…';
         let dataUrl;
-        try{ dataUrl = await compressImageFile(coverFile, 800, 180000, COVER_CHUNKED_MAX_BYTES); }
+        try{ dataUrl = await compressImageFile(coverFile, 1200, 260000, COVER_CHUNKED_MAX_BYTES); }
         catch(err){ toast(`이미지 처리 실패: ${err.message || err}`); resetBtn(); return; }
         if(coverChunked) oldCoverChunkToDelete = { fileId: coverFileId, total: coverChunkTotal };
         if(dataUrl.length > COVER_INLINE_MAX_BYTES){
