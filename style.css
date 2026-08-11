@@ -413,7 +413,7 @@ body::before{
   background: linear-gradient(180deg, rgba(15,4,6,0) 60%, rgba(10,3,5,0.55) 100%);
 }
 .speech-card-cover-text{
-  position:relative; z-index:1; align-self:flex-end; width:100%;
+  position:relative; z-index:1; margin-top:auto; width:100%;
   padding:14px 16px; color:#fff; font-family: var(--font-display); font-size:.92rem;
   text-shadow: 0 1px 4px rgba(0,0,0,0.5);
   text-align:center;
