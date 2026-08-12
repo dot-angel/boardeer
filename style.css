@@ -486,7 +486,8 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: 
       "gb gb gb gb gb speech speech speech speech speech"
       "shaker shaker shaker shaker shaker shaker shaker shaker shaker shaker"
       "cal cal cal docs docs docs docs docs docs docs"
-      "checklist checklist checklist checklist checklist sessions sessions sessions sessions sessions";
+      "checklist checklist checklist checklist checklist checklist checklist checklist checklist checklist"
+      "sessions sessions sessions sessions sessions sessions sessions sessions sessions sessions";
   }
   .board-page[data-page="0"] .row-images,
   .board-page[data-page="0"] .row-strip,
@@ -1239,6 +1240,10 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-section-tab.active{ color: var(--ink); font-weight:700; border-bottom-color: var(--rose); }
 .profile-section-tab .ps-edit{ border:none; background:none; color:inherit; font-size:.72rem; opacity:.7; cursor:pointer; padding:0; }
 .profile-section-tab .ps-edit:hover{ opacity:1; }
+/* 드래그로 AU 탭 순서 바꾸기(뮤직 재생목록/사진 그리드와 동일한 방식) */
+.profile-section-tab[draggable="true"]{ cursor: grab; }
+.profile-section-tab.dragging{ opacity:.4; cursor: grabbing; }
+.profile-section-tab.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; border-radius:6px; }
 .profile-section-add{
   width:30px; height:30px; border-radius:50%; border:1px solid var(--card-border); background: rgba(var(--row-tint),0.05);
   color: var(--ink-soft); font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -2098,6 +2103,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   border:1px solid var(--card-border); background: rgba(var(--row-tint),0.06); color: var(--ink-soft); font-size:.7rem;
 }
 .doc-row .doc-edit:hover{ color: var(--rose); }
+/* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
+.doc-row.dragging{ opacity:.4; }
+.doc-row.drag-over{ outline: 2px dashed var(--rose); outline-offset: -2px; }
+.doc-drag-handle{
+  flex:0 0 auto; width:14px; text-align:center; font-size:.8rem; color: var(--ink-soft);
+  cursor: grab; line-height:1;
+}
+.doc-drag-handle:active{ cursor: grabbing; }
 .doc-add{ margin-top:10px; align-self:flex-start; }
 .doc-add-row{ display:flex; gap:8px; margin-top:10px; flex:0 0 auto; flex-wrap:wrap; }
 .opt-list{ display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; }
@@ -2165,7 +2178,16 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
 .session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 @media (max-width: 900px){
-  .session-grid{ max-height: 320px; }
+  /* 모바일에서는 세로로 길게 쌓이던 자료 목록 대신, 카드를 한 줄로 나란히 놓고
+     옆으로 밀어서 보는 형태로 바꿈(카드 크기/모양은 그대로, 쌓이는 방향만 전환) */
+  .session-grid{
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 150px;
+    overflow-x: auto; overflow-y: hidden;
+    max-height: none; padding-right:0; padding-bottom:4px;
+  }
+  .session-grid::-webkit-scrollbar{ width:auto; height:4px; }
 }
 .session-grid::-webkit-scrollbar{ width:4px; }
 .session-grid::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
@@ -2175,6 +2197,10 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   transition: transform .15s ease; min-width:0;
 }
 .session-card:hover{ transform: scale(1.03); }
+/* 드래그로 순서 바꾸기(뮤직 재생목록/사진 그리드와 동일한 방식) */
+.session-card[draggable="true"]{ cursor: grab; }
+.session-card.dragging{ opacity:.4; cursor: grabbing; }
+.session-card.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; }
 .session-card img{ width:100%; height:100%; object-fit:cover; display:block; }
 .session-noimg{
   width:100%; height:100%; display:flex; align-items:center; justify-content:center;
@@ -2221,6 +2247,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .check-item .del:hover{ color:#ff8f9e; }
 .check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
 .check-item .check-link-edit:hover{ color:var(--ink); }
+/* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
+.check-item.dragging{ opacity:.4; }
+.check-item.drag-over{ outline: 2px dashed var(--rose); outline-offset: -2px; border-radius:12px; }
+.check-item-drag-handle{
+  flex:0 0 auto; width:14px; text-align:center; font-size:.8rem; color: var(--ink-soft);
+  cursor: grab; line-height:1;
+}
+.check-item-drag-handle:active{ cursor: grabbing; }
 /* 폭이 좁은 폰에서는 2열로 나누면 각 칸이 너무 좁아져서 글자가 답답하게 접힘.
    이 폭에서는 1열로 위/아래로 쌓음 */
 @media (max-width: 520px){

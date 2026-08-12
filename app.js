@@ -2437,7 +2437,7 @@ function renderProfile(){
   const auHeaderHtml = (slides.length > 1 || editMode) ? `
       <div class="profile-au-bar" id="profAuTabs">
         ${slides.map((s,i)=> `
-          <span class="profile-section-tab ${i===profileSlideIndex?'active':''}" data-au="${i}">
+          <span class="profile-section-tab ${i===profileSlideIndex?'active':''}" data-au="${i}" data-idx="${i}">
             ${escapeHtml(s.label || 'AU')}
             ${editMode ? `<button class="ps-edit" data-auedit="${i}" title="AU 이름 수정">✎</button>` : ''}
           </span>
@@ -2589,6 +2589,25 @@ function bindProfile(slides){
     deleteAvatarChunksInSections(slides[profileSlideIndex] && slides[profileSlideIndex].sections);
     profileSlideIndex = 0; profileSectionIndex = 0;
   };
+
+  // 편집모드에서 드래그로 AU 탭 순서를 바꿀 수 있게 함(다른 위젯의 사진 순서 변경과
+  // 동일한 방식). 지금 보고 있던 AU가 이동한 뒤에도 같은 AU가 계속 선택된 채로
+  // 보이도록, 임시 표식(_dragFrom)을 붙여뒀다가 옮겨진 뒤의 새 위치를 찾아 반영함
+  const auBar = box.querySelector('#profAuTabs');
+  if(auBar){
+    bindPinDragReorder(
+      auBar, '.profile-section-tab',
+      ()=> cloneSlides(slides).map((s,i)=> ({...s, _dragFrom:i})),
+      async (arr)=>{
+        const fromIdx = profileSlideIndex;
+        const landedAt = arr.findIndex(s=> s._dragFrom === fromIdx);
+        const clean = arr.map(({_dragFrom, ...rest})=> rest);
+        await docRef('profile').set({slides:clean}, {merge:true});
+        if(landedAt !== -1) profileSlideIndex = landedAt;
+      },
+      { pointerLine: true, axis: 'x' }
+    );
+  }
   const addBtn = box.querySelector('#profAddBtn');
   if(addBtn) addBtn.onclick = async ()=>{
     const arr = [...slides, { label:'', kind:'if', sections:[{name:'', peopleFields:[freshPersonFieldSet(), freshPersonFieldSet()]}], people:[{name:'',role:'',avatar:''},{name:'',role:'',avatar:''}] }];
@@ -5610,14 +5629,32 @@ let docFilterOpt = null;
 const DOC_FILE_MAX_BYTES = 650000; // 이 크기까지는 카드 문서 안에 바로 저장(가장 빠름)
 const DOC_FILE_CHUNKED_MAX_BYTES = 8 * 1024 * 1024; // 이보다 크면 여러 문서로 나눠 저장(파이어스토리지 없이 8MB까지)
 
+/* 문서목록은 (1) 태그 필터로 일부만 보이고 (2) 최신 문서가 위로 오도록 뒤집혀 보이므로,
+   화면에 보이는 순서 그대로 드래그해서 재배열한 뒤 이걸 실제 저장 배열(오래된 게 앞)로
+   되돌려야 함. 필터에 걸려 화면에 안 보이던 문서는 원래 있던 자리에 그대로 두고,
+   화면에 보였던 문서들끼리만 자리를 바꿔치기함 */
+function docsDisplayToRaw(displayCards){
+  const rawOrder = displayCards.slice().reverse();
+  const all = docsData.cards || [];
+  const passFilter = c=> !docFilterOpt || (c.opts||(c.opt?[c.opt]:[])).includes(docFilterOpt);
+  const slots = [];
+  all.forEach((c,i)=>{ if(passFilter(c)) slots.push(i); });
+  const result = [...all];
+  slots.forEach((slotIdx, k)=>{ result[slotIdx] = rawOrder[k]; });
+  return result;
+}
+
 function renderDocs(){
   const list = document.getElementById('docList');
   const allCards = docsData.cards || [];
   renderOptionFilterChips(document.getElementById('docFilter'), docOptionsData.options, docFilterOpt, (opt)=>{ docFilterOpt = opt; renderDocs(); });
   // 새로 추가한 문서가 배열 맨 뒤에 붙는 구조라, 화면에는 최신 문서가 위로 오도록 뒤집어서 보여줌
   const pairs = allCards.map((c,i)=>({c,i})).filter(({c})=> !docFilterOpt || (c.opts||(c.opt?[c.opt]:[])).includes(docFilterOpt)).reverse();
-  list.innerHTML = pairs.map(({c,i})=> `
-    <div class="doc-row" data-idx="${i}">
+  // data-idx는 드래그 순서변경용 "화면에 보이는 위치"(k), data-abs는 기존 클릭/수정/삭제가
+  // 쓰는 "원본 배열 위치"(i) — 서로 다른 용도라 따로 둠
+  list.innerHTML = pairs.map(({c,i}, k)=> `
+    <div class="doc-row" data-idx="${k}" data-abs="${i}">
+      ${editMode ? `<span class="doc-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
       <span class="doc-icon">${escapeHtml(c.icon || '📄')}</span>
       <div class="doc-main">
         <div class="doc-title">${escapeHtml(c.title)}</div>
@@ -5630,8 +5667,8 @@ function renderDocs(){
   `).join('') || `<div class="w-empty">${docFilterOpt ? '이 옵션에 해당하는 문서가 없어요' : '정리된 문서가 없어요'}</div>`;
 
   list.querySelectorAll('.doc-row').forEach(row=> row.addEventListener('click', async (e)=>{
-    if(e.target.closest('[data-edit]') || e.target.closest('[data-del]')) return;
-    const idx = Number(row.dataset.idx);
+    if(e.target.closest('[data-edit]') || e.target.closest('[data-del]') || e.target.closest('.doc-drag-handle')) return;
+    const idx = Number(row.dataset.abs);
     const c = docsData.cards[idx];
     if(!c) return;
     if(c.chunked){
@@ -5669,6 +5706,15 @@ function renderDocs(){
   if(addBtn) addBtn.onclick = openDocAddModal;
   const optsBtn = document.getElementById('docOptsBtn');
   if(optsBtn) optsBtn.onclick = openDocOptionsModal;
+
+  // 편집모드에서 드래그로 순서를 바꿀 수 있게 함(다른 위젯의 사진 순서 변경과 동일한
+  // 방식). 화면에 보이는 순서대로 재배열한 뒤 docsDisplayToRaw로 저장 배열에 반영함
+  bindPinDragReorder(
+    list, '.doc-row',
+    ()=> pairs.map(({c})=> c),
+    async (arr)=> docRef('documents').set({cards: docsDisplayToRaw(arr)}, {merge:true}),
+    { pointerLine: true }
+  );
 }
 
 function openDocAddModal(){
@@ -5909,6 +5955,16 @@ function renderSessions(){
   wrap.innerHTML = editMode ? `<button class="btn small session-add" id="sessAddBtn">+ 자료 추가</button>` : '';
   const addBtn = document.getElementById('sessAddBtn');
   if(addBtn) addBtn.onclick = openSessionAddModal;
+
+  // 편집모드에서 드래그로 순서를 바꿀 수 있게 함(다른 위젯의 사진 순서 변경과 동일한 방식).
+  // 모바일에서는 가로로 눕혀 보여주므로(가로 스크롤) 좌우 기준으로, PC에서는 세로로
+  // 쌓이므로 위아래 기준으로 삽입 위치선을 표시함
+  bindPinDragReorder(
+    grid, '.session-card',
+    ()=> (sessionsData.cards || []).slice(),
+    async (arr)=> docRef('sessions').set({cards:arr}, {merge:true}),
+    { pointerLine: true, axis: window.innerWidth <= 900 ? 'x' : 'y' }
+  );
 }
 
 function openSessionAddModal(){
@@ -6106,6 +6162,7 @@ function renderChecklist(){
           ${(subtitle || editMode) ? `<span class="check-item-subtitle ${editMode ? 'editable' : ''} ${!subtitle ? 'empty-hint' : ''}" ${editMode ? `data-subedit="${it._i}"` : ''}>${subtitle ? escapeHtml(subtitle) : (editMode ? '+ 부제목 추가' : '')}</span>` : ''}
         </div>
         ${editMode ? `<button class="check-link-edit" data-linkedit="${it._i}" title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
+        ${editMode ? `<span class="check-item-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
         ${editMode ? `<button class="del">✕</button>` : ''}
       </div>
     `;
@@ -6161,6 +6218,17 @@ function renderChecklist(){
   };
   addBtn.onclick = submit;
   input.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+
+  // 편집모드에서 드래그로 순서를 바꿀 수 있게 함(체크된 항목이 자동으로 아래로 몰리는
+  // 정렬은 그대로 유지된 채, 그 안에서의 순서만 바뀜). data-idx가 화면에 보이는 위치가
+  // 아니라 원본 배열 위치(it._i)라서, 정렬로 화면 순서가 바뀌어도 항상 올바른 자리로
+  // 반영됨. 폭이 좁아 1열로 쌓이는 화면에서는 좌우 대신 위아래 기준으로 표시함
+  bindPinDragReorder(
+    body, '.check-item',
+    ()=> (checklistData.items || []).slice(),
+    async (arr)=> docRef('checklist').set({items:arr}, {merge:true}),
+    { pointerLine: true, axis: window.innerWidth <= 520 ? 'y' : 'x' }
+  );
 }
 
 docRef('checklist').onSnapshot(doc=>{ checklistData = doc.exists ? doc.data() : {items:[]}; renderChecklist(); });
