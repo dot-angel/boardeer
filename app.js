@@ -359,6 +359,52 @@ function openOptionsManagerModal(storeName, currentOptions, onSaved){
       workingOptions = Array.from(listEl.querySelectorAll('.opt-input')).map(inp=> inp.value);
     };
     let dragIdx = null;
+    let dragEl = null;
+    let liveTiles = [];
+    let originalTiles = [];
+    let dropped = false;
+    const FLIP_MS = 220;
+    const FLIP_EASE = 'cubic-bezier(.22,1,.36,1)';
+    // 여기도 다른 위젯들과 똑같이, 옮기는 동안 나머지 줄들이 실시간으로 자리를
+    // 비켜주며 미끄러지게 함(FLIP 애니메이션). 입력창 내용을 잃지 않도록 draw()로
+    // 다시 그리지 않고 실제 DOM 노드를 그대로 옮김
+    const flip = (tiles, fn)=>{
+      const before = new Map();
+      tiles.forEach(t=> before.set(t, t.getBoundingClientRect()));
+      fn();
+      tiles.forEach(t=>{
+        if(t === dragEl) return;
+        const firstRect = before.get(t);
+        if(!firstRect) return;
+        const lastRect = t.getBoundingClientRect();
+        const dy = firstRect.top - lastRect.top;
+        if(!dy) return;
+        if(t._flipCleanup) t._flipCleanup();
+        t.style.transition = 'none';
+        t.style.transform = `translateY(${dy}px)`;
+        void t.offsetWidth; // 강제 리플로우: 순간이동을 먼저 적용한 뒤에 트랜지션이 걸리게 함
+        t.style.transition = `transform ${FLIP_MS}ms ${FLIP_EASE}`;
+        t.style.transform = '';
+        const cleanup = ()=>{
+          t.style.transition = '';
+          t.removeEventListener('transitionend', onEnd);
+          clearTimeout(timer);
+          t._flipCleanup = null;
+        };
+        const onEnd = (e)=>{ if(e.target === t) cleanup(); };
+        const timer = setTimeout(cleanup, FLIP_MS + 80);
+        t.addEventListener('transitionend', onEnd);
+        t._flipCleanup = cleanup;
+      });
+    };
+    const restoreOriginalOrder = ()=>{
+      if(!originalTiles.length) return;
+      flip(liveTiles, ()=>{
+        const parent = originalTiles[0] && originalTiles[0].parentNode;
+        if(parent) originalTiles.forEach(t=> parent.appendChild(t));
+      });
+      liveTiles = originalTiles.slice();
+    };
     const draw = ()=>{
       listEl.innerHTML = workingOptions.map((opt,i)=> `
         <div class="opt-row" data-idx="${i}">
@@ -380,33 +426,44 @@ function openOptionsManagerModal(storeName, currentOptions, onSaved){
           // 손잡이(⠿)에서 시작한 드래그만 순서 변경으로 처리 — 입력창 텍스트 드래그(선택)와 안 겹치게
           if(!e.target.closest('.opt-drag-handle')){ e.preventDefault(); return; }
           dragIdx = Number(row.dataset.idx);
+          dragEl = row;
+          dropped = false;
           row.classList.add('dragging');
           e.dataTransfer.effectAllowed = 'move';
           try{ e.dataTransfer.setData('text/plain', String(dragIdx)); }catch(_){}
+          originalTiles = Array.from(listEl.querySelectorAll('.opt-row'));
+          liveTiles = originalTiles.slice();
         });
         row.addEventListener('dragend', ()=>{
           row.classList.remove('dragging');
-          listEl.querySelectorAll('.drag-over').forEach(x=> x.classList.remove('drag-over'));
-          dragIdx = null;
+          if(!dropped) restoreOriginalOrder();
+          dragEl = null; dragIdx = null; dropped = false;
+          liveTiles = []; originalTiles = [];
         });
         row.addEventListener('dragover', e=>{
-          if(dragIdx === null) return;
+          if(dragIdx === null || !dragEl) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
-          listEl.querySelectorAll('.drag-over').forEach(x=>{ if(x!==row) x.classList.remove('drag-over'); });
-          row.classList.add('drag-over');
+          const rect = row.getBoundingClientRect();
+          const before = (e.clientY - rect.top) < rect.height / 2;
+          const srcPos = liveTiles.indexOf(dragEl);
+          const targetPos = liveTiles.indexOf(row);
+          if(srcPos === -1 || targetPos === -1) return;
+          let insertPos = before ? targetPos : targetPos + 1;
+          if(srcPos < insertPos) insertPos--;
+          if(insertPos === srcPos) return; // 이미 그 자리라 다시 배치할 필요 없음
+          flip(liveTiles, ()=>{
+            liveTiles.splice(srcPos, 1);
+            liveTiles.splice(insertPos, 0, dragEl);
+            liveTiles.forEach(t=> listEl.appendChild(t));
+          });
         });
-        row.addEventListener('dragleave', ()=> row.classList.remove('drag-over'));
         row.addEventListener('drop', e=>{
           e.preventDefault();
-          row.classList.remove('drag-over');
-          const targetIdx = Number(row.dataset.idx);
-          const srcIdx = dragIdx;
-          dragIdx = null;
-          if(srcIdx === null || srcIdx === targetIdx) return;
+          dropped = true;
+          // 드래그하는 동안 이미 DOM 순서 자체가 실시간으로 바뀌어 있으므로, 화면에
+          // 보이는 순서 그대로 읽어서 반영하면 됨
           syncFromInputs();
-          const [moved] = workingOptions.splice(srcIdx, 1);
-          workingOptions.splice(targetIdx, 0, moved);
           draw();
         });
       });
@@ -873,114 +930,172 @@ function openGalleryLightboxCore(clickedSrcIdx, { getItems, normalize, save, get
 }
 
 
-/* opts.pointerLine: true면 사각 테두리 대신, 커서가 타일의 왼쪽/오른쪽 중 어디 있는지 봐서
-   그 사진의 "앞" 또는 "뒤" 자리에 정확히 세로선 하나로 표시함(핀터레스트 그리드용).
-   지정 안 하면(음악 재생목록처럼 세로로 쌓인 목록) 예전 그대로 사각 테두리로 표시함 */
+/* 예전엔 드래그로 옮길 때 "여기로 들어갑니다"라는 선(pin-drop-line)만 보여주고,
+   실제 재배치는 drop이 끝난 뒤에야 눈에 보였음. 이제는 그 선 대신, 커서가 지나가는
+   동안 다른 타일들이 그 자리에서 실시간으로 밀려나는 모습을 바로 보여줌(FLIP 기법:
+   ①옮기기 전 위치를 재고 ②실제로 DOM 순서를 바꾼 뒤 ③바뀐 위치를 다시 재서
+   ④그 차이만큼 순간이동시켜뒀다가 곧바로 원래 자리로 트랜지션을 걸어 자연스럽게
+   미끄러져 들어가는 것처럼 보이게 함). 여러 열로 나뉜 그리드(갤러리2/레퍼런스
+   갤러리)는 열마다 별도의 목록으로 추적해서, 다른 열로 넘어가는 이동도 그 자리에서
+   바로 따라와 보이게 함. 저장(drop) 시점의 최종 순서 계산 로직 자체는 예전 그대로임 */
 function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts = {}){
   if(!editMode) return;
   const pointerLine = !!opts.pointerLine;
-  // axis 'x': 사진 그리드처럼 칸이 가로로 늘어서 있어 왼쪽/오른쪽을 나눠 세로선을 그림.
-  // axis 'y': 음악 재생목록처럼 항목이 세로로 쌓여 있어 위/아래를 나눠 가로선을 그림
+  // axis 'x': 사진 그리드처럼 칸이 가로로 늘어서 있어 커서가 타일 왼쪽/오른쪽 중
+  // 어디 있는지로 "앞/뒤"를 가름. axis 'y': 음악 재생목록처럼 세로로 쌓인 목록이라
+  // 커서가 위/아래 중 어디 있는지로 "앞/뒤"를 가름
   const axis = opts.axis || 'x';
+  const FLIP_MS = 260;
+  const FLIP_EASE = 'cubic-bezier(.22,1,.36,1)';
+  // 핀터레스트식 매스너리 그리드(메인 갤러리)는 layoutPinMasonry가 타일 위치를
+  // transform으로 직접 계산해 넣으므로, 순서가 바뀔 때마다 그 계산을 다시 불러줘야
+  // 실시간 위치가 맞게 나옴. 그 외(재생목록/문서/일정/체크리스트/탭 등)는 그냥
+  // flex/flow 레이아웃이라 DOM 순서만 바꿔주면 브라우저가 알아서 다시 배치함
+  const masonryRoot = container.classList.contains('pin-grid')
+    ? container
+    : (container.querySelector(':scope > .pin-grid') ? container : null);
+
+  let dragEl = null;
   let dragIdx = null;
-  // 핀터레스트식 매스너리 그리드는 실제 타일이 container의 직계 자식이 아니라 안쪽
-  // .pin-grid(타일들의 좌표 기준이 되는 position:relative 요소)의 자식일 수 있음
-  // (layoutPinMasonry와 동일한 방식으로 찾음). 표시선을 타일과 같은 좌표계에
-  // 그려야 어긋나지 않고 정확히 겹쳐 보임
-  const posRoot = pointerLine
-    ? (container.classList.contains('pin-grid') ? container : (container.querySelector(':scope > .pin-grid') || container))
-    : null;
-  // 갤러리2/레퍼런스 갤러리, 음악 재생목록은 (매스너리처럼 절대좌표가 아니라) 그냥
-  // flex로 짜여 있어서 기준 요소에 position이 안 걸려있을 수 있음 — 표시선이
-  // 엉뚱한 조상 기준으로 어긋나 그려지지 않도록, 정적(static)이면 여기서 relative로 만들어줌
-  if(posRoot && getComputedStyle(posRoot).position === 'static'){
-    posRoot.style.position = 'relative';
-  }
-  let dropLine = null;
-  if(pointerLine){
-    dropLine = posRoot.querySelector(':scope > .pin-drop-line');
-    if(!dropLine){
-      dropLine = document.createElement('div');
-      dropLine.className = 'pin-drop-line';
-      posRoot.appendChild(dropLine);
-    }
-  }
-  const hideDropLine = ()=>{ if(dropLine) dropLine.style.opacity = '0'; };
-  // el(지금 커서가 올라간 항목) 기준으로, before(=이 항목의 앞자리)면 그 항목의 앞쪽
-  // 틈 한가운데에, 아니면 뒤쪽 틈 한가운데에 항목 크기만큼 선을 그려줌(가로 배치면
-  // 세로선, 세로 배치면 가로선)
-  const showDropLineAt = (el, before)=>{
-    const cRect = posRoot.getBoundingClientRect();
-    const tRect = el.getBoundingClientRect();
-    // 그리드/목록마다 칸 사이 간격이 달라서(매스너리 12px, 갤러리2/레퍼런스 6px,
-    // 재생목록 2px 등) 하드코딩하지 않고 실제 CSS gap 값을 읽어서 그 간격
-    // 한가운데에 선이 오게 함
-    const gapVal = parseFloat(getComputedStyle(posRoot).rowGap)
-      || parseFloat(getComputedStyle(posRoot).columnGap)
-      || parseFloat(getComputedStyle(posRoot).gap)
-      || PIN_MASONRY_GAP;
-    if(axis === 'y'){
-      const centerY = before ? (tRect.top - cRect.top - gapVal/2) : (tRect.bottom - cRect.top + gapVal/2);
-      dropLine.style.left = (tRect.left - cRect.left) + 'px';
-      dropLine.style.width = tRect.width + 'px';
-      dropLine.style.height = '3px';
-      dropLine.style.top = (centerY - 1.5) + 'px';
-    } else {
-      const centerX = before ? (tRect.left - cRect.left - gapVal/2) : (tRect.right - cRect.left + gapVal/2);
-      dropLine.style.top = (tRect.top - cRect.top) + 'px';
-      dropLine.style.height = tRect.height + 'px';
-      dropLine.style.width = '3px';
-      dropLine.style.left = (centerX - 1.5) + 'px';
-    }
-    dropLine.style.opacity = '1';
+  let dropped = false;
+  let liveColumns = [];      // [[열1의 타일들…], [열2의 타일들…], …] — 드래그 중 실시간으로 바뀜
+  let colParents = [];       // liveColumns와 같은 순서의 실제 부모 엘리먼트(열 컨테이너)
+  let originalColumns = [];  // 드롭 없이 드래그가 취소됐을 때 되돌리기용 원래 배치
+
+  // 지금 화면에 있는 타일들을, 실제 부모(열 컨테이너)별로 묶어서 스냅샷을 뜸.
+  // 갤러리1처럼 열 구분 없이 전부 한 부모 밑에 있으면 결과는 그냥 [[전체 타일들]]이 됨
+  const snapshotColumns = ()=>{
+    const tiles = Array.from(container.querySelectorAll(tileSelector));
+    const cols = []; const parents = [];
+    tiles.forEach(t=>{
+      let ci = parents.indexOf(t.parentNode);
+      if(ci === -1){ ci = parents.length; parents.push(t.parentNode); cols.push([]); }
+      cols[ci].push(t);
+    });
+    return { cols, parents };
   };
+
+  const applyColumnsToDom = (cols, parents)=>{
+    cols.forEach((colTiles, ci)=>{
+      const parent = parents[ci];
+      colTiles.forEach(t=> parent.appendChild(t));
+    });
+  };
+
+  // rects를 잰 뒤 fn()으로 실제 DOM(과 필요하면 매스너리 위치)을 바꾸고, 바뀌기
+  // 전/후 위치 차이만큼 순간이동 → 트랜지션으로 되돌리는 고전적인 FLIP 기법
+  const flip = (tiles, fn)=>{
+    const before = new Map();
+    tiles.forEach(t=> before.set(t, t.getBoundingClientRect()));
+    fn();
+    if(masonryRoot) layoutPinMasonry(container);
+    tiles.forEach(t=>{
+      if(t === dragEl) return; // 드래그 중인 타일 자체는 커서를 따라가는 브라우저 기본 드래그 이미지로 이미 보이는 중이라 애니메이션 대상에서 뺌
+      const firstRect = before.get(t);
+      if(!firstRect) return;
+      const lastRect = t.getBoundingClientRect();
+      const dx = firstRect.left - lastRect.left;
+      const dy = firstRect.top - lastRect.top;
+      if(!dx && !dy) return;
+      if(t._flipCleanup) t._flipCleanup();
+      const finalTransform = (t.style.transform || '').trim();
+      t.style.transition = 'none';
+      t.style.transform = `translate(${dx}px, ${dy}px) ${finalTransform}`.trim();
+      void t.offsetWidth; // 강제 리플로우: 위 순간이동을 먼저 적용한 뒤에 트랜지션이 걸리게 함
+      t.style.transition = `transform ${FLIP_MS}ms ${FLIP_EASE}`;
+      t.style.transform = finalTransform;
+      const cleanup = ()=>{
+        t.style.transition = '';
+        t.removeEventListener('transitionend', onEnd);
+        clearTimeout(timer);
+        t._flipCleanup = null;
+      };
+      const onEnd = (e)=>{ if(e.target === t) cleanup(); };
+      const timer = setTimeout(cleanup, FLIP_MS + 80);
+      t.addEventListener('transitionend', onEnd);
+      t._flipCleanup = cleanup;
+    });
+  };
+
+  const restoreOriginal = ()=>{
+    if(!originalColumns.length) return;
+    const allTiles = liveColumns.flat();
+    flip(allTiles, ()=> applyColumnsToDom(originalColumns, colParents));
+    liveColumns = originalColumns.map(c=> c.slice());
+  };
+
   container.querySelectorAll(tileSelector).forEach(el=>{
     el.setAttribute('draggable', 'true');
     el.addEventListener('dragstart', e=>{
       if(e.target.closest('button')){ e.preventDefault(); return; }
       dragIdx = Number(el.dataset.idx);
+      dragEl = el;
+      dropped = false;
       el.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
       try{ e.dataTransfer.setData('text/plain', String(dragIdx)); }catch(_){}
+      const snap = snapshotColumns();
+      liveColumns = snap.cols.map(c=> c.slice());
+      colParents = snap.parents;
+      originalColumns = snap.cols.map(c=> c.slice());
     });
     el.addEventListener('dragend', ()=>{
       el.classList.remove('dragging');
-      container.querySelectorAll('.drag-over').forEach(x=> x.classList.remove('drag-over'));
-      hideDropLine();
-      dragIdx = null;
+      if(!dropped) restoreOriginal();
+      dragEl = null; dragIdx = null; dropped = false;
+      liveColumns = []; colParents = []; originalColumns = [];
     });
     el.addEventListener('dragover', e=>{
-      if(dragIdx === null) return;
+      if(dragIdx === null || !dragEl) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      if(pointerLine){
-        const rect = el.getBoundingClientRect();
-        const before = axis === 'y'
-          ? (e.clientY - rect.top) < rect.height / 2
-          : (e.clientX - rect.left) < rect.width / 2;
-        el.dataset.dropBefore = before ? '1' : '0';
-        showDropLineAt(el, before);
+      const rect = el.getBoundingClientRect();
+      const before = axis === 'y'
+        ? (e.clientY - rect.top) < rect.height / 2
+        : (e.clientX - rect.left) < rect.width / 2;
+      el.dataset.dropBefore = before ? '1' : '0';
+
+      const targetColIdx = colParents.indexOf(el.parentNode);
+      const srcColIdx = liveColumns.findIndex(col=> col.includes(dragEl));
+      if(targetColIdx === -1 || srcColIdx === -1) return;
+      const targetPos = liveColumns[targetColIdx].indexOf(el);
+      let insertPos = before ? targetPos : targetPos + 1;
+
+      if(srcColIdx === targetColIdx){
+        const srcPos = liveColumns[srcColIdx].indexOf(dragEl);
+        if(srcPos < insertPos) insertPos--;
+        if(insertPos === srcPos) return; // 이미 그 자리라 다시 배치할 필요 없음
+        flip(liveColumns[targetColIdx], ()=>{
+          liveColumns[targetColIdx].splice(srcPos, 1);
+          liveColumns[targetColIdx].splice(insertPos, 0, dragEl);
+          applyColumnsToDom([liveColumns[targetColIdx]], [colParents[targetColIdx]]);
+        });
       } else {
-        container.querySelectorAll('.drag-over').forEach(x=>{ if(x!==el) x.classList.remove('drag-over'); });
-        el.classList.add('drag-over');
+        // 다른 열로 넘어가는 이동: 원래 열은 한 칸씩 당겨지고, 새 열은 그 자리만큼 밀려남
+        const affected = [...liveColumns[srcColIdx], ...liveColumns[targetColIdx]];
+        flip(affected, ()=>{
+          liveColumns[srcColIdx] = liveColumns[srcColIdx].filter(t=> t !== dragEl);
+          liveColumns[targetColIdx].splice(insertPos, 0, dragEl);
+          applyColumnsToDom(
+            [liveColumns[srcColIdx], liveColumns[targetColIdx]],
+            [colParents[srcColIdx], colParents[targetColIdx]]
+          );
+        });
       }
     });
-    el.addEventListener('dragleave', ()=>{ if(!pointerLine) el.classList.remove('drag-over'); });
     el.addEventListener('drop', async e=>{
       e.preventDefault();
-      el.classList.remove('drag-over');
-      hideDropLine();
+      dropped = true;
       const targetIdx = Number(el.dataset.idx);
       const srcIdx = dragIdx;
-      dragIdx = null;
       if(srcIdx === null || srcIdx === targetIdx) return;
       const arr = getItems();
       const [moved] = arr.splice(srcIdx, 1);
       let insertAt = targetIdx;
       if(pointerLine){
-        // 커서가 타일 왼쪽 절반이면 이 사진 "앞"(같은 인덱스 자리)에, 오른쪽 절반이면
-        // "뒤"(다음 인덱스 자리)에 넣음. 방금 srcIdx 자리를 빼냈으니, 그보다 뒤쪽으로
-        // 들어갈 땐 한 칸씩 당겨진 만큼 보정함
+        // 커서가 타일 왼쪽(위) 절반이면 이 항목 "앞"(같은 인덱스 자리)에, 오른쪽(아래)
+        // 절반이면 "뒤"(다음 인덱스 자리)에 넣음. 방금 srcIdx 자리를 빼냈으니, 그보다
+        // 뒤쪽으로 들어갈 땐 한 칸씩 당겨진 만큼 보정함
         const before = el.dataset.dropBefore === '1';
         insertAt = before ? targetIdx : targetIdx + 1;
         if(srcIdx < insertAt) insertAt--;

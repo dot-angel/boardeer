@@ -1873,17 +1873,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pin-item-dense .pin-del-btn{ width:20px; height:20px; font-size:.6rem; top:4px; left:4px; }
 /* 드래그로 순서 바꾸기 */
 .pin-item[draggable="true"], .pin-item-dense[draggable="true"]{ cursor: grab; }
+/* 드래그 중인 타일은 살짝 들어올려진 느낌으로 반투명하게 보이고, 나머지 타일들은
+   bindPinDragReorder가 실시간으로 자리를 비켜주며 미끄러져 들어감(FLIP 애니메이션) */
 .pin-item.dragging, .pin-item-dense.dragging{ opacity:.4; cursor: grabbing; }
-.pin-item.drag-over, .pin-item-dense.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; }
-/* 사진을 드래그해서 옮길 때, 사각 테두리 대신 "정확히 어느 사진과 어느 사진 사이로
-   들어가는지"를 세로선 하나로 보여줌(bindPinDragReorder의 pointerLine 모드) */
-.pin-drop-line{
-  position:absolute; width:3px; border-radius:3px;
-  background: var(--rose);
-  box-shadow: 0 0 6px 1px rgba(196,66,95,0.7);
-  opacity:0; pointer-events:none; z-index:5;
-  transition: left .08s ease, top .08s ease, height .08s ease, opacity .12s ease;
-}
 .pin-item.pin-loading, .pin-item-dense.pin-loading{
   display:flex; align-items:center; justify-content:center;
   background: var(--card-bg2); color: var(--ink-soft); font-size:.72rem; text-align:center; padding:8px;
@@ -2127,7 +2119,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   padding:0 4px; touch-action:none; user-select:none;
 }
 .opt-row.dragging{ opacity:.4; cursor:grabbing; }
-.opt-row.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; border-radius:8px; }
 /* 옵션 여러 개를 칩 형태 체크박스로 동시에 고르는 UI — 문서/갤러리 추가·수정 모달, 항목별 옵션 지정 모달에서 공용 */
 .opt-checkbox-group{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 10px; }
 .modal label.opt-checkbox{
