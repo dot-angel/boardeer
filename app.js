@@ -3147,10 +3147,6 @@ function openProfileSectionOrderModal(slideIdx, slides){
         <span class="sec-order-name ${!sec.name ? 'empty-hint' : ''}">${sec.name ? escapeHtml(sec.name) : '(이름 없음)'}</span>
         ${editMode ? `
           <button class="icon-btn sec-order-default ${i===defIdx ? 'active' : ''}" data-idx="${i}" title="${i===defIdx ? '이 AU를 열면 처음 보여지는 시점/IF예요' : '이 AU를 열었을 때 처음 보여줄 시점/IF로 지정'}">${i===defIdx ? '★' : '☆'}</button>
-          <div class="sec-order-btns">
-            <button class="icon-btn sec-order-up" data-idx="${i}" title="위로" ${i===0?'disabled':''}>▲</button>
-            <button class="icon-btn sec-order-down" data-idx="${i}" title="아래로" ${i===secs.length-1?'disabled':''}>▼</button>
-          </div>
           <span class="sec-order-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>
         ` : ''}
       </div>
@@ -3165,23 +3161,6 @@ function openProfileSectionOrderModal(slideIdx, slides){
     </div>
   `, m=>{
     const listEl = m.querySelector('#secOrderList');
-    const swap = async (i, j)=>{
-      const slideObj = workingSlides[slideIdx];
-      const secs = slideObj.sections;
-      [secs[i], secs[j]] = [secs[j], secs[i]];
-      // 순서를 바꿔도 "기본으로 보여줄 시점/IF"는 내용 기준으로 그대로 따라가야 하므로,
-      // 지정된 기본 인덱스가 이번에 맞바뀐 자리 중 하나라면 같이 옮겨줌.
-      const defIdx = slideObj.defaultSectionIndex || 0;
-      if(defIdx === i) slideObj.defaultSectionIndex = j;
-      else if(defIdx === j) slideObj.defaultSectionIndex = i;
-      await docRef('profile').set({slides:workingSlides}, {merge:true});
-      if(profileSlideIndex === slideIdx){
-        if(profileSectionIndex === i) profileSectionIndex = j;
-        else if(profileSectionIndex === j) profileSectionIndex = i;
-      }
-      listEl.innerHTML = renderRows();
-      bindRows();
-    };
     const setDefault = async (i)=>{
       workingSlides[slideIdx].defaultSectionIndex = i;
       await docRef('profile').set({slides:workingSlides}, {merge:true});
@@ -3193,15 +3172,7 @@ function openProfileSectionOrderModal(slideIdx, slides){
         listEl.querySelectorAll('.sec-order-default').forEach(btn=>{
           btn.onclick = (e)=>{ e.stopPropagation(); setDefault(Number(btn.dataset.idx)); };
         });
-        listEl.querySelectorAll('.sec-order-up').forEach(btn=>{
-          if(btn.disabled) return;
-          btn.onclick = (e)=>{ e.stopPropagation(); swap(Number(btn.dataset.idx), Number(btn.dataset.idx) - 1); };
-        });
-        listEl.querySelectorAll('.sec-order-down').forEach(btn=>{
-          if(btn.disabled) return;
-          btn.onclick = (e)=>{ e.stopPropagation(); swap(Number(btn.dataset.idx), Number(btn.dataset.idx) + 1); };
-        });
-        // 드래그로도 순서를 바꿀 수 있게 함(다른 위젯과 동일한 방식). 옮긴 뒤에도
+        // 드래그로 순서를 바꿈(다른 위젯과 동일한 방식). 옮긴 뒤에도
         // "기본으로 보여줄 시점/IF"와 "지금 보고 있는 시점/IF"가 같은 내용을 계속
         // 가리키도록, 임시 표식(_dragFrom)으로 원래 자리를 기억해뒀다가 새 자리를 찾아줌
         bindPinDragReorder(
@@ -4925,6 +4896,8 @@ const GALLERY2_OVERLAP_STEP = 0.03;
 const GALLERY2_OVERLAP_MAX = 0.28;
 function applyGallery2Overlap(gridEl, itemCount, colCount){
   if(!gridEl) return;
+  // 편집모드에서는 순서 변경(드래그) 작업을 하기 편하도록 겹침을 끄고 타일을 나란히 둠
+  if(editMode){ gridEl.style.setProperty('--gallery2-overlap-px', '0px'); return; }
   const firstTile = gridEl.querySelector('.pin-item-dense');
   if(!firstTile){ gridEl.style.setProperty('--gallery2-overlap-px', '0px'); return; }
   const tileSize = firstTile.getBoundingClientRect().height || firstTile.getBoundingClientRect().width;
@@ -5295,6 +5268,8 @@ function currentRefGalleryVisibleCount(){
 
 function applyRefGalleryOverlap(gridEl, itemCount, colCount){
   if(!gridEl) return;
+  // 편집모드에서는 순서 변경(드래그) 작업을 하기 편하도록 겹침을 끄고 타일을 나란히 둠
+  if(editMode){ gridEl.style.setProperty('--ref-overlap-px', '0px'); return; }
   colCount = colCount || refGalleryColumnCount();
   const firstTile = gridEl.querySelector('.pin-item-dense');
   if(!firstTile){ gridEl.style.setProperty('--ref-overlap-px', '0px'); return; }
@@ -5931,6 +5906,34 @@ const SESSION_PDF_MAX_BYTES = 650000; // 이 크기까지는 카드 문서 안�
 const SESSION_PDF_CHUNKED_MAX_BYTES = 8 * 1024 * 1024; // 이보다 크면 여러 문서로 나눠 저장(파이어스토리지 없이 8MB까지)
 const SESSION_THUMB_MAX_BYTES = 220000;
 
+// 자료 카드도 레퍼런스 갤러리·갤러리2와 같은 방식으로, 카드가 많아질수록 살짝씩 더
+// 겹치게 함. 다만 자료 카드는 한 줄(PC는 세로 한 열, 모바일은 가로 한 줄)짜리 목록이라
+// "행 수" 대신 카드 개수를 그대로 겹침 계산에 씀. PC에서는 위아래로(margin-top),
+// 모바일에서는 좌우로(margin-left) 겹치도록 방향을 나눔(레이아웃 자체도 CSS에서 같은
+// 기준(900px)으로 세로↔가로 전환됨)
+const SESSION_OVERLAP_STEP = 0.05;
+const SESSION_OVERLAP_MAX = 0.35;
+function sessionIsMobileLayout(){ return window.innerWidth <= 900; }
+let sessionLastIsMobile = sessionIsMobileLayout();
+
+function applySessionOverlap(gridEl, itemCount){
+  if(!gridEl) return;
+  // 편집모드에서는 순서 변경(드래그) 작업을 하기 편하도록 겹침을 끄고 카드를 나란히 둠
+  if(editMode){ gridEl.style.setProperty('--session-overlap-px', '0px'); return; }
+  const firstTile = gridEl.querySelector('.session-card');
+  if(!firstTile){ gridEl.style.setProperty('--session-overlap-px', '0px'); return; }
+  const isMobile = sessionIsMobileLayout();
+  const tileSize = isMobile ? firstTile.getBoundingClientRect().width : firstTile.getBoundingClientRect().height;
+  if(!tileSize) return;
+  const overlapRatio = Math.min(SESSION_OVERLAP_MAX, Math.max(0, (itemCount - 1) * SESSION_OVERLAP_STEP));
+  gridEl.style.setProperty('--session-overlap-px', `-${(tileSize * overlapRatio).toFixed(1)}px`);
+}
+window.addEventListener('resize', debounce(()=>{
+  const nowMobile = sessionIsMobileLayout();
+  if(nowMobile !== sessionLastIsMobile){ sessionLastIsMobile = nowMobile; renderSessions(); return; }
+  applySessionOverlap(document.getElementById('sessionGrid'), (sessionsData.cards || []).length);
+}, 150));
+
 function renderSessions(){
   const grid = document.getElementById('sessionGrid');
   const cards = sessionsData.cards || [];
@@ -5940,7 +5943,8 @@ function renderSessions(){
       ${editMode ? `<button class="edit" data-edit="${i}">✎</button>` : ''}
       ${editMode ? `<button class="del" data-del="${i}">✕</button>` : ''}
     </div>
-  `).join('') || `<div class="w-empty" style="grid-column:1/-1">등록된 자료가 없어요</div>`;
+  `).join('') || `<div class="w-empty">등록된 자료가 없어요</div>`;
+  applySessionOverlap(grid, cards.length);
 
   grid.querySelectorAll('.session-card').forEach(el=> el.addEventListener('click', async (e)=>{
     if(e.target.closest('[data-del]') || e.target.closest('[data-edit]')) return;

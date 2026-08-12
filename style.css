@@ -1201,10 +1201,6 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .sec-order-row.viewonly:hover{ background: rgba(255,255,255,0.1); }
 .sec-order-name{ flex:1; min-width:0; font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .sec-order-name.empty-hint{ color: var(--ink-soft); font-style:italic; }
-.sec-order-btns{ display:flex; gap:2px; flex:0 0 auto; }
-.sec-order-btns .icon-btn{ font-size:.8rem; }
-.sec-order-btns .icon-btn:disabled{ opacity:.25; cursor:default; }
-.sec-order-btns .icon-btn:disabled:hover{ background:none; }
 .sec-order-default{ font-size:.95rem; color: var(--gold-soft); flex:0 0 auto; }
 .sec-order-default.active{ color: var(--rose); }
 /* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
@@ -2184,17 +2180,16 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 .pin-opt-btn:hover{ background: rgba(196,66,95,0.7); }
 /* ---------- 자료 카드 (썸네일 이미지만 보이고, 누르면 PDF/링크로 연결 — 갤러리처럼) ---------- */
-.session-grid{ display:grid; grid-template-columns: 1fr; gap:10px; flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
+.session-grid{ display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; min-width:0; overflow-y:auto; overflow-x:hidden; padding-right:2px; }
 @media (max-width: 900px){
   /* 모바일에서는 세로로 길게 쌓이던 자료 목록 대신, 카드를 한 줄로 나란히 놓고
      옆으로 밀어서 보는 형태로 바꿈(카드 크기/모양은 그대로, 쌓이는 방향만 전환) */
   .session-grid{
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 150px;
+    flex-direction: row; align-items:flex-start;
     overflow-x: auto; overflow-y: hidden;
     max-height: none; padding-right:0; padding-bottom:4px;
   }
+  .session-card{ flex:0 0 150px; width:150px; }
   .session-grid::-webkit-scrollbar{ width:auto; height:4px; }
 }
 .session-grid::-webkit-scrollbar{ width:4px; }
@@ -2204,7 +2199,15 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   border:1px solid var(--card-border); aspect-ratio: 16/9; background: var(--card-bg2);
   transition: transform .15s ease; min-width:0;
 }
-.session-card:hover{ transform: scale(1.03); }
+/* 카드가 많아질수록(개수가 늘어날수록) 서로 조금씩 겹치게 함 — 겹치는 양(--session-overlap-px)은
+   app.js의 applySessionOverlap()이 계산해 넣어줌(레퍼런스 갤러리·갤러리2와 동일한 방식).
+   PC는 세로 한 열로 쌓이므로 위아래로(margin-top), 모바일은 가로 한 줄이므로 좌우로
+   (margin-left) 겹치도록 방향을 나눔. 편집모드에서는 0px라 겹치지 않음 */
+.session-card:not(:first-child){ margin-top: var(--session-overlap-px, -12px); }
+@media (max-width: 900px){
+  .session-card:not(:first-child){ margin-top:0; margin-left: var(--session-overlap-px, -12px); }
+}
+.session-card:hover{ transform: scale(1.03); z-index:1; }
 /* 드래그로 순서 바꾸기(뮤직 재생목록/사진 그리드와 동일한 방식) */
 .session-card[draggable="true"]{ cursor: grab; }
 .session-card.dragging{ opacity:.4; cursor: grabbing; }
