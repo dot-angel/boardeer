@@ -2473,6 +2473,13 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   font-size:.82rem; z-index: 300; animation: fadeIn .15s ease; box-shadow: var(--shadow);
 }
 
+/* 항목 삭제 확인 팝업(confirmDelete) — 이미 열려 있는 모달/라이트박스 위에도 항상
+   겹쳐 뜨도록 사이트에서 쓰는 다른 어떤 오버레이보다도 z-index를 높게 둠 */
+.confirm-delete-overlay{ z-index: 500; }
+.confirm-delete-modal{ width: min(360px, 88vw); text-align: center; }
+.confirm-delete-msg{ margin: 4px 0 0; font-size:.88rem; line-height:1.55; color: var(--ink); white-space: pre-wrap; }
+.confirm-delete-modal .modal-actions{ justify-content: center; }
+
 /* ---------- 캐릭터 스티커(장식) ---------- */
 .site-sticker{
   position: fixed; width: 160px; height: 206px; z-index: 150;

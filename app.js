@@ -103,6 +103,42 @@ function toast(msg){
   setTimeout(()=> t.remove(), 1800);
 }
 
+// 위젯 항목을 지울 때 공통으로 쓰는 삭제 확인 팝업 — 브라우저 기본 confirm() 대신
+// 사이트 톤에 맞는 커스텀 UI로 통일함. modalRoot가 아니라 document.body에 직접
+// 붙여서(toast와 같은 방식) 이미 다른 모달/라이트박스가 열려 있는 위에서 띄워도
+// 그 아래 모달을 지우지 않고 그대로 겹쳐 뜸. Promise<boolean>으로 사용:
+//   if(!(await confirmDelete('정말 삭제할까요?'))) return;
+// message는 이미 escapeHtml된 텍스트(또는 고정 문구)만 넘겨야 함 — innerHTML로 들어감.
+function confirmDelete(message){
+  return new Promise(resolve=>{
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay confirm-delete-overlay';
+    overlay.innerHTML = `
+      <div class="modal confirm-delete-modal">
+        <p class="confirm-delete-msg">${message}</p>
+        <div class="modal-actions">
+          <button class="btn ghost" id="cdCancel" type="button">취소</button>
+          <button class="btn danger" id="cdOk" type="button">삭제</button>
+        </div>
+      </div>
+    `;
+    let done = false;
+    const finish = (result)=>{
+      if(done) return;
+      done = true;
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const onKey = (e)=>{ if(e.key === 'Escape') finish(false); };
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) finish(false); });
+    overlay.querySelector('#cdCancel').onclick = ()=> finish(false);
+    overlay.querySelector('#cdOk').onclick = ()=> finish(true);
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+  });
+}
+
 async function sha256(str){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -619,6 +655,7 @@ function openImageLightbox(cfg){
       m.querySelector('#c').onclick = closeModal;
       if(url) attachImgFallback(m.querySelector('.lightbox-img'));
       if(cfg.onDelete) m.querySelector('#del').onclick = async ()=>{
+        if(!(await confirmDelete('이 사진을 정말 삭제할까요?<br>되돌릴 수 없어요.'))) return;
         await cfg.onDelete(index);
         items.splice(index,1);
         render();
@@ -1969,6 +2006,7 @@ function bindImages(){
   const del = box.querySelector('#imgDelBtn');
   if(del) del.onclick = async (e)=>{
     e.stopPropagation();
+    if(!(await confirmDelete('이 사진을 정말 삭제할까요?<br>되돌릴 수 없어요.'))) return;
     const arr = [...items]; deleteGalleryImageIfChunked(arr[imgSlideIndex]); arr.splice(imgSlideIndex,1);
     await docRef('images').set({items:arr}, {merge:true});
   };
@@ -2545,7 +2583,7 @@ function bindProfile(slides){
   if(auDelBtn) auDelBtn.onclick = async (e)=>{
     e.stopPropagation();
     const auName = slides[profileSlideIndex] && slides[profileSlideIndex].label;
-    if(!confirm(`"${auName || 'AU'}"를 정말 삭제하시겠어요? 이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`)) return;
+    if(!(await confirmDelete(`"${escapeHtml(auName || 'AU')}"를 정말 삭제하시겠어요?<br>이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`))) return;
     const arr = [...slides]; arr.splice(profileSlideIndex,1);
     await docRef('profile').set({slides:arr}, {merge:true});
     deleteAvatarChunksInSections(slides[profileSlideIndex] && slides[profileSlideIndex].sections);
@@ -2624,7 +2662,7 @@ function bindProfile(slides){
   if(secDelBtn) secDelBtn.onclick = async (e)=>{
     e.stopPropagation();
     const secName = slide.sections[profileSectionIndex] && slide.sections[profileSectionIndex].name;
-    if(!confirm(`"${secName || '이 시점/IF'}"를 정말 삭제하시겠어요? 되돌릴 수 없어요.`)) return;
+    if(!(await confirmDelete(`"${escapeHtml(secName || '이 시점/IF')}"를 정말 삭제하시겠어요?<br>되돌릴 수 없어요.`))) return;
     const arr = cloneSlides(slides);
     const targetSlide = arr[profileSlideIndex];
     const removedSections = targetSlide.sections.splice(profileSectionIndex, 1);
@@ -3054,7 +3092,7 @@ function openProfileSlideModal(slideIdx, slides){
     m.querySelector('#c').onclick = closeModal;
     const delBtn = m.querySelector('#d');
     if(delBtn) delBtn.onclick = async ()=>{
-      if(!confirm(`"${slide.label || 'AU'}"를 정말 삭제하시겠어요? 이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`)) return;
+      if(!(await confirmDelete(`"${escapeHtml(slide.label || 'AU')}"를 정말 삭제하시겠어요?<br>이 AU에 담긴 모든 시점/IF와 정보가 함께 지워지고, 되돌릴 수 없어요.`))) return;
       const arr = [...slides]; arr.splice(slideIdx,1);
       await docRef('profile').set({slides:arr}, {merge:true});
       deleteAvatarChunksInSections(slides[slideIdx] && slides[slideIdx].sections);
@@ -3447,6 +3485,8 @@ function renderMusicList(){
   }));
   listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async e=>{
     e.stopPropagation();
+    const t = tracks.find(x=>x.id===btn.dataset.del);
+    if(!(await confirmDelete(`"${escapeHtml(t && t.title || '이 곡')}"을 정말 삭제할까요?`))) return;
     await mpDeleteTrack(btn.dataset.del);
   }));
   // 편집모드에서 드래그로 재생목록 순서를 바꿀 수 있게 함(다른 위젯의 사진 순서 변경과 동일한 방식)
@@ -3895,6 +3935,8 @@ function renderDday(){
   `).join('') || `<div class="w-empty">등록된 디데이가 없어요</div>`;
   body.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async ()=>{
     const idx = Number(btn.dataset.del);
+    const target = ddayData.items[idx];
+    if(!(await confirmDelete(`"${escapeHtml(target && target.label || '이 디데이')}"를 정말 삭제할까요?`))) return;
     const arr = [...ddayData.items]; arr.splice(idx,1);
     await docRef('dday').set({items:arr}, {merge:true});
   }));
@@ -3941,6 +3983,7 @@ function renderGuestbook(){
     </div>
   `).join('') || `<div class="w-empty">아직 남겨진 방명록이 없어요</div>`;
   body.querySelectorAll('.gb-del').forEach(btn=> btn.addEventListener('click', async ()=>{
+    if(!(await confirmDelete('이 방명록을 정말 삭제할까요?'))) return;
     const id = btn.closest('.gb-entry').dataset.id;
     const arr = (guestbookData.entries||[]).filter(x=> x.id !== id);
     await docRef('guestbook').set({entries: arr}, {merge:true});
@@ -4597,7 +4640,8 @@ function fillGalleryTile(tile, idx, url, it){
     }
   }
 }
-function handleGalleryDelete(idx){
+async function handleGalleryDelete(idx){
+  if(!(await confirmDelete('이 사진을 정말 삭제할까요?<br>되돌릴 수 없어요.'))) return;
   const items = (galleryData.items || []).map(normalizeGalleryItem);
   const arr = items.slice();
   const [removed] = arr.splice(idx,1);
@@ -4904,7 +4948,8 @@ function fillGallery2Tile(tile, idx, url, it){
   if(it.group) loadGalleryGroupStrips(tile, it);
   else attachImgFallback(tile.querySelector('img'));
 }
-function handleGallery2Delete(idx){
+async function handleGallery2Delete(idx){
+  if(!(await confirmDelete('이 사진을 정말 삭제할까요?<br>되돌릴 수 없어요.'))) return;
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
   const arr = items.slice();
   const [removed] = arr.splice(idx,1);
@@ -5350,7 +5395,8 @@ function fillRefGalleryTile(tile, idx, url, it){
   else attachImgFallback(tile.querySelector('img'));
 }
 
-function handleRefGalleryDelete(idx){
+async function handleRefGalleryDelete(idx){
+  if(!(await confirmDelete('이 사진을 정말 삭제할까요?<br>되돌릴 수 없어요.'))) return;
   const items = (refGalleryData.items || []).map(normalizeRefGalleryItem);
   const removed = items[idx];
   const arr = items.slice(); arr.splice(idx,1);
@@ -5512,6 +5558,8 @@ function renderVideos(){
   list.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', async (e)=>{
     e.stopPropagation();
     const idx = Number(btn.dataset.del);
+    const target = items[idx];
+    if(!(await confirmDelete(`"${escapeHtml(target && target.title || '이 영상')}"을 정말 삭제할까요?`))) return;
     if(videoExpanded && idx === currentVideoIdx) videoExpanded = false;
     const arr = [...(videosData.items||[])];
     arr.splice(idx, 1);
@@ -5609,6 +5657,7 @@ function renderDocs(){
     e.stopPropagation();
     const idx = Number(btn.dataset.del);
     const removed = docsData.cards[idx];
+    if(!(await confirmDelete(`"${escapeHtml(removed && removed.title || '이 문서')}"를 정말 삭제할까요?`))) return;
     const arr = [...docsData.cards]; arr.splice(idx,1);
     await docRef('documents').set({cards:arr}, {merge:true});
     if(removed && removed.chunked) deleteFileChunked(removed.fileId, removed.chunkTotal).catch(()=>{});
@@ -5850,6 +5899,7 @@ function renderSessions(){
     e.stopPropagation();
     const idx = Number(btn.dataset.del);
     const removed = sessionsData.cards[idx];
+    if(!(await confirmDelete(`"${escapeHtml(removed && removed.title || '이 자료')}"를 정말 삭제할까요?`))) return;
     const arr = [...sessionsData.cards]; arr.splice(idx,1);
     await docRef('sessions').set({cards:arr}, {merge:true});
     if(removed && removed.chunked) deleteFileChunked(removed.fileId, removed.chunkTotal).catch(()=>{});
@@ -6090,6 +6140,8 @@ function renderChecklist(){
     if(subEdit) subEdit.addEventListener('click', (e)=>{ e.stopPropagation(); openChecklistItemSubtitleModal(idx); });
     const del = el.querySelector('.del');
     if(del) del.addEventListener('click', async ()=>{
+      const target = checklistData.items[idx];
+      if(!(await confirmDelete(`"${escapeHtml(target && target.text || '이 항목')}"을 정말 삭제할까요?`))) return;
       const arr = [...checklistData.items]; arr.splice(idx,1);
       await docRef('checklist').set({items:arr}, {merge:true});
     });
@@ -7305,6 +7357,7 @@ function renderEditorRegionList(modal, tab, idx){
 
   list.querySelectorAll('[data-del]').forEach(btn=>{
     btn.onclick = async ()=>{
+      if(!(await confirmDelete('이 영역을 정말 삭제할까요?'))) return;
       tab.regions = tab.regions.filter(r=> r.id !== btn.dataset.del);
       await saveSpeechWidget();
       renderEditorCharStage(modal, tab, idx, null);
@@ -7900,6 +7953,7 @@ function openShakerManageModal(){
     });
     m.querySelectorAll('.shaker-manage-del').forEach(btn=>{
       btn.onclick = async ()=>{
+        if(!(await confirmDelete('이 이미지를 정말 삭제할까요?'))) return;
         const idx = Number(btn.dataset.idx);
         const arr = [...items];
         deleteGalleryImageIfChunked(arr[idx]);
