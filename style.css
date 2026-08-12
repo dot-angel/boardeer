@@ -2300,7 +2300,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   font-size:.7rem; color:var(--ink-soft); cursor:pointer; white-space:nowrap;
 }
 .pe-bulk-row input[type=checkbox]{ width:auto; margin:0; accent-color: var(--rose-solid); }
-.pf-edit-row{ flex-wrap:wrap; }
 /* 체크박스(일괄적용)와 삭제 버튼을 한 줄로 묶어서, 항목명/내용 입력칸 "아래"에 창 너비와
    무관하게 항상 오도록 함 */
 .pf-edit-row-actions{
