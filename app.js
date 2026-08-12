@@ -3151,6 +3151,7 @@ function openProfileSectionOrderModal(slideIdx, slides){
             <button class="icon-btn sec-order-up" data-idx="${i}" title="위로" ${i===0?'disabled':''}>▲</button>
             <button class="icon-btn sec-order-down" data-idx="${i}" title="아래로" ${i===secs.length-1?'disabled':''}>▼</button>
           </div>
+          <span class="sec-order-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>
         ` : ''}
       </div>
     `).join('');
@@ -3200,6 +3201,27 @@ function openProfileSectionOrderModal(slideIdx, slides){
           if(btn.disabled) return;
           btn.onclick = (e)=>{ e.stopPropagation(); swap(Number(btn.dataset.idx), Number(btn.dataset.idx) + 1); };
         });
+        // 드래그로도 순서를 바꿀 수 있게 함(다른 위젯과 동일한 방식). 옮긴 뒤에도
+        // "기본으로 보여줄 시점/IF"와 "지금 보고 있는 시점/IF"가 같은 내용을 계속
+        // 가리키도록, 임시 표식(_dragFrom)으로 원래 자리를 기억해뒀다가 새 자리를 찾아줌
+        bindPinDragReorder(
+          listEl, '.sec-order-row',
+          ()=> workingSlides[slideIdx].sections.map((s,i)=> ({...s, _dragFrom:i})),
+          async (arr)=>{
+            const slideObj = workingSlides[slideIdx];
+            const oldDefIdx = slideObj.defaultSectionIndex || 0;
+            const newDefIdx = arr.findIndex(s=> s._dragFrom === oldDefIdx);
+            const trackingThisSlide = profileSlideIndex === slideIdx;
+            const newSectionIdx = trackingThisSlide ? arr.findIndex(s=> s._dragFrom === profileSectionIndex) : -1;
+            slideObj.sections = arr.map(({_dragFrom, ...rest})=> rest);
+            if(newDefIdx !== -1) slideObj.defaultSectionIndex = newDefIdx;
+            await docRef('profile').set({slides:workingSlides}, {merge:true});
+            if(trackingThisSlide && newSectionIdx !== -1) profileSectionIndex = newSectionIdx;
+            listEl.innerHTML = renderRows();
+            bindRows();
+          },
+          { pointerLine: true, axis: 'y' }
+        );
       } else {
         listEl.querySelectorAll('.sec-order-row.viewonly').forEach(row=>{
           row.onclick = ()=>{

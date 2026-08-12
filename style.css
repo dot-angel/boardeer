@@ -1207,6 +1207,14 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .sec-order-btns .icon-btn:disabled:hover{ background:none; }
 .sec-order-default{ font-size:.95rem; color: var(--gold-soft); flex:0 0 auto; }
 .sec-order-default.active{ color: var(--rose); }
+/* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
+.sec-order-row.dragging{ opacity:.4; }
+.sec-order-row.drag-over{ outline: 2px dashed var(--rose); outline-offset: -2px; }
+.sec-order-drag-handle{
+  flex:0 0 auto; width:14px; text-align:center; font-size:.8rem; color: var(--ink-soft);
+  cursor: grab; line-height:1;
+}
+.sec-order-drag-handle:active{ cursor: grabbing; }
 /* 시점/IF 이름 아래에 붙는 한두 줄짜리 짧은 설명(어떤 상황인지).
    AU/시점마다 설명 길이가 달라서 여기도 위젯 높이가 들쭉날쭉해지는 원인 중
    하나였음 — 항상 2줄 높이를 확보해두고(짧으면 빈 공간, 없으면 위 empty
