@@ -7,6 +7,55 @@
    ========================================================= */
 
 let editMode = sessionStorage.getItem('gh_edit') === '1';
+
+// ▼ 위젯별 "편집 잠금 해제" 상태.
+//   편집모드(editMode)에 들어와도 각 위젯의 삭제버튼·이동손잡이 등은 바로 보이지
+//   않고, 그 위젯의 연필(✎) 버튼을 한 번 눌러야만 나타남 — 실수로 건드리는 걸
+//   막기 위한 2단계 안전장치. 위젯 키(문자열) 단위로 관리하며, 잠금(로그아웃)
+//   하거나 새로고침하면 초기화됨(세션에 굳이 남길 필요 없는 임시 UI 상태).
+let widgetUnlocked = new Set();
+// 이 위젯 안의 삭제버튼/이동손잡이/개별 편집버튼 등을 지금 보여줘도 되는지.
+function isWidgetOpen(key){ return editMode && widgetUnlocked.has(key); }
+// 위젯 카드 우상단에 붙는 연필 버튼 HTML. key가 이미 열려있으면 active 스타일.
+// wCardEditKeys에 없는(=이미 자체 편집버튼이 있는 speech/shaker 같은) 위젯은
+// 이 함수를 안 쓰고 넘어가면 됨.
+function widgetEditToggleBtnHtml(key, label){
+  if(!editMode) return '';
+  const open = widgetUnlocked.has(key);
+  return `<button class="w-edit-toggle-btn ${open ? 'active' : ''}" data-wkey="${key}" title="${escapeHtml(label || '편집')}" aria-label="${escapeHtml(label || '편집')}">✎</button>`;
+}
+// 연필 버튼 클릭 → 해당 위젯만 잠금 해제 토글 후 전체 다시 그림(각 렌더 함수가
+// isWidgetOpen()을 참조하므로 renderAllModules 한 번이면 반영됨).
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.w-edit-toggle-btn');
+  if(!btn) return;
+  e.stopPropagation();
+  const key = btn.dataset.wkey;
+  if(widgetUnlocked.has(key)) widgetUnlocked.delete(key); else widgetUnlocked.add(key);
+  renderAllModules();
+});
+// 카드 자체는 index.html에 고정 마크업으로 있고(내부 리스트만 다시 그리는)
+// 위젯들(캘린더/방명록/세션카드 등)을 위한 공용 헬퍼 — 연필 버튼을 카드
+// 우상단에 붙였다 뗐다 하고, 열림 상태에 따라 active 클래스만 갱신함.
+function syncCardEditToggle(cardId, key, label){
+  const card = document.getElementById(cardId);
+  if(!card) return;
+  let btn = card.querySelector(':scope > .w-edit-toggle-btn');
+  if(!editMode){
+    if(btn) btn.remove();
+    return;
+  }
+  if(!btn){
+    btn = document.createElement('button');
+    btn.dataset.wkey = key;
+    card.prepend(btn);
+  }
+  btn.className = 'w-edit-toggle-btn' + (isWidgetOpen(key) ? ' active' : '');
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.textContent = '✎';
+}
+
 // 편집 비밀번호(해시)를 기억해뒀다가, 실제로 DB에 쓸 때마다 자동으로 같이 실어 보냄.
 // Firestore 보안 규칙이 이 값을 meta/lock에 저장된 해시와 대조해서, 비밀번호를 아는
 // 사람이 보낸 요청만 통과시킴. sessionStorage에 저장해 새로고침해도 편집 상태 유지.
@@ -939,7 +988,9 @@ function openGalleryLightboxCore(clickedSrcIdx, { getItems, normalize, save, get
    갤러리)는 열마다 별도의 목록으로 추적해서, 다른 열로 넘어가는 이동도 그 자리에서
    바로 따라와 보이게 함. 저장(drop) 시점의 최종 순서 계산 로직 자체는 예전 그대로임 */
 function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts = {}){
-  if(!editMode) return;
+  // opts.widgetKey를 넘기면, editMode여도 그 위젯이 연필 버튼으로 잠금해제된 상태일 때만
+  // 실제로 드래그가 가능해짐(이동손잡이가 안 보이는데 드래그만 되는 상황을 막기 위함)
+  if(!editMode || (opts.widgetKey && !isWidgetOpen(opts.widgetKey))) return;
   const pointerLine = !!opts.pointerLine;
   // axis 'x': 사진 그리드처럼 칸이 가로로 늘어서 있어 커서가 타일 왼쪽/오른쪽 중
   // 어디 있는지로 "앞/뒤"를 가름. axis 'y': 음악 재생목록처럼 세로로 쌓인 목록이라
@@ -1475,7 +1526,6 @@ function refreshLockUI(){
   bannerEditBtn.style.display = editMode ? 'inline-flex' : 'none';
   bgEditBtn.style.display = editMode ? 'inline-flex' : 'none';
   globalStyleBtn.style.display = editMode ? 'inline-flex' : 'none';
-  document.getElementById('checklistAddWrap').style.display = editMode ? 'flex' : 'none';
   const shakerManageBtn = document.getElementById('shakerManageBtn');
   if(shakerManageBtn) shakerManageBtn.style.display = editMode ? 'inline-flex' : 'none';
   const shakerBgBtn = document.getElementById('shakerBgBtn');
@@ -1495,6 +1545,7 @@ lockBtn.addEventListener('click', async ()=>{
   if(editMode){
     editMode = false;
     currentPwHash = null;
+    widgetUnlocked.clear();
     sessionStorage.removeItem('gh_edit');
     sessionStorage.removeItem('gh_pw');
     refreshLockUI();
@@ -2047,8 +2098,9 @@ function renderImages(){
   const items = (imagesData.items || []).map(normalizeImageItem);
   if(items.length === 0){
     box.innerHTML = `
+      ${widgetEditToggleBtnHtml('images', '사진 위젯 편집')}
       <div class="slide-empty">아직 사진이 없어요</div>
-      ${editMode ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
+      ${isWidgetOpen('images') ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
     `;
   } else {
     if(imgSlideIndex >= items.length) imgSlideIndex = 0;
@@ -2062,15 +2114,16 @@ function renderImages(){
       ? `<img src="${resolvedUrl}" id="slideImg" title="눌러서 크게 보기">`
       : `<div class="slide-loading">불러오는 중…</div>`;
     box.innerHTML = `
+      ${widgetEditToggleBtnHtml('images', '사진 위젯 편집')}
       <div class="slide-viewport" id="slideViewport">
         ${slideMediaHtml}
         ${['tl','tr','bl','br'].map(pos=> cur.captions[pos] ? `<div class="slide-caption cap-${pos}">${escapeHtml(cur.captions[pos]).replace(/\n/g,'<br>')}</div>` : '').join('')}
-        ${editMode ? `<button class="icon-btn slide-caption-btn" id="imgCaptionBtn" title="문구 편집">Aa</button>` : ''}
-        ${editMode ? `<button class="icon-btn slide-del" id="imgDelBtn" title="이 사진 삭제">✕</button>` : ''}
+        ${isWidgetOpen('images') ? `<button class="icon-btn slide-caption-btn" id="imgCaptionBtn" title="문구 편집">Aa</button>` : ''}
+        ${isWidgetOpen('images') ? `<button class="icon-btn slide-del" id="imgDelBtn" title="이 사진 삭제">✕</button>` : ''}
         ${items.length>1 ? `<button class="slide-nav prev" id="imgPrev">‹</button><button class="slide-nav next" id="imgNext">›</button>` : ''}
         ${items.length>1 ? `<div class="slide-dots slide-dots-overlay">${items.map((_,i)=>`<span class="dot ${i===imgSlideIndex?'active':''}" data-dot="${i}"></span>`).join('')}</div>` : ''}
       </div>
-      ${editMode ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
+      ${isWidgetOpen('images') ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
     `;
   }
   bindImages();
@@ -2137,7 +2190,7 @@ function bindImages(){
         items,
         index: imgSlideIndex,
         resolve: resolveGalleryItemUrl,
-        onDelete: editMode ? async (idx)=>{
+        onDelete: isWidgetOpen('images') ? async (idx)=>{
           const arr = [...items]; deleteGalleryImageIfChunked(arr[idx]); arr.splice(idx,1);
           await docRef('images').set({items:arr}, {merge:true});
         } : null
@@ -2437,8 +2490,9 @@ function renderProfile(){
 
   if(slides.length === 0){
     box.innerHTML = `
+      ${widgetEditToggleBtnHtml('profile', '프로필 위젯 편집')}
       <div class="slide-empty">아직 등록된 프로필이 없어요</div>
-      ${editMode ? `<button class="btn small slide-add" id="profAddBtn">+ AU 추가</button>` : ''}
+      ${isWidgetOpen('profile') ? `<button class="btn small slide-add" id="profAddBtn">+ AU 추가</button>` : ''}
     `;
     bindProfile(slides);
     return;
@@ -2467,7 +2521,7 @@ function renderProfile(){
     const linkFields = fields.filter(f=> f.type === 'link');
     const descField = textFields.find(f=> (f.label||'').trim() === '기타 설명');
     const listFields = textFields.filter(f=> f !== descField);
-    const visibleLinks = editMode ? linkFields : linkFields.filter(f=> f.link);
+    const visibleLinks = isWidgetOpen('profile') ? linkFields : linkFields.filter(f=> f.link);
 
     // 나이/생년월일, 키몸무게/BWH, 성격 — 이 세 줄은 "표"처럼 사람/시점마다 자리가
     // 고정돼야 하는 항목이라, listFields 전체(값 유무·편집모드 상관없이)에서 먼저
@@ -2506,7 +2560,7 @@ function renderProfile(){
 
     // 이 뒤로 붙는 건 사람마다 자유롭게 추가한 커스텀 항목(취향/무기 등)이라 개수 자체가
     // 달라서 "표"처럼 자리를 고정할 수 없음 — 예전처럼 값 있는 것만(또는 편집모드면 전부) 보여줌
-    const visibleCustom = editMode ? remaining : remaining.filter(f=> f.value);
+    const visibleCustom = isWidgetOpen('profile') ? remaining : remaining.filter(f=> f.value);
     const customHtml = visibleCustom.map(f=>{
       return `
         <div class="profile-field">
@@ -2532,8 +2586,8 @@ function renderProfile(){
     // 동일하게 profile-field-empty로 표시해서 PC에선 빈 자리 유지·모바일에선 숨김
     const descHasValue = !!(descField && descField.value);
     const descHtml = `
-        <div class="profile-desc-box ${editMode ? (descHasValue ? '' : 'empty-hint') : (descHasValue ? '' : 'profile-field-empty')}">
-          ${descHasValue ? escapeHtml(descField.value) : (editMode ? '+ 기타 설명 추가' : '&nbsp;')}
+        <div class="profile-desc-box ${isWidgetOpen('profile') ? (descHasValue ? '' : 'empty-hint') : (descHasValue ? '' : 'profile-field-empty')}">
+          ${descHasValue ? escapeHtml(descField.value) : (isWidgetOpen('profile') ? '+ 기타 설명 추가' : '&nbsp;')}
         </div>
       `;
     // 나이/생년월일·키몸무게/BWH·성격까지는 항상 같은 자리(고정 표)라 위젯 높이에
@@ -2549,16 +2603,16 @@ function renderProfile(){
   // AU가 여럿이거나 편집모드일 땐 눌러서 전환하는 탭 형태, AU가 하나뿐인 보기 모드에선
   // 탭 없이 이름표만 조용히 상단에 얹어서 보여줌 — 어느 쪽이든 세로 중앙 정렬되는
   // profile-viewport "밖"에 있어서 콘텐츠가 짧아도 아래로 처지지 않고 항상 맨 위에 붙음.
-  const auHeaderHtml = (slides.length > 1 || editMode) ? `
+  const auHeaderHtml = (slides.length > 1 || isWidgetOpen('profile')) ? `
       <div class="profile-au-bar" id="profAuTabs">
         ${slides.map((s,i)=> `
           <span class="profile-section-tab ${i===profileSlideIndex?'active':''}" data-au="${i}" data-idx="${i}">
             ${escapeHtml(s.label || 'AU')}
-            ${editMode ? `<button class="ps-edit" data-auedit="${i}" title="AU 이름 수정">✎</button>` : ''}
+            ${isWidgetOpen('profile') ? `<button class="ps-edit" data-auedit="${i}" title="AU 이름 수정">✎</button>` : ''}
           </span>
         `).join('')}
-        ${editMode ? `<button class="profile-section-add" id="profAuAddBtn" title="AU 추가">＋</button>` : ''}
-        ${editMode ? `<button class="icon-btn profile-au-del" id="profAuDelBtn" title="이 AU 전체 삭제">✕</button>` : ''}
+        ${isWidgetOpen('profile') ? `<button class="profile-section-add" id="profAuAddBtn" title="AU 추가">＋</button>` : ''}
+        ${isWidgetOpen('profile') ? `<button class="icon-btn profile-au-del" id="profAuDelBtn" title="이 AU 전체 삭제">✕</button>` : ''}
       </div>
     ` : (slide.label ? `
       <div class="profile-au-bar profile-au-bar-single">
@@ -2567,23 +2621,24 @@ function renderProfile(){
     ` : '');
 
   box.innerHTML = `
+    ${widgetEditToggleBtnHtml('profile', '프로필 위젯 편집')}
     ${auHeaderHtml}
     <div class="profile-viewport" id="profileViewport">
       <div class="profile-headline" id="profileHeadline">
         <div class="profile-section-header" id="profSecHeader">
-          <div class="profile-section-name ${(editMode && !section.name) ? 'empty-hint':''}" id="profSecLabelBtn" ${editMode ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
-            ${section.name ? escapeHtml(section.name) : (editMode ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '&nbsp;')}
+          <div class="profile-section-name ${(isWidgetOpen('profile') && !section.name) ? 'empty-hint':''}" id="profSecLabelBtn" ${isWidgetOpen('profile') ? 'title="눌러서 시점/IF 이름 수정"' : ''}>
+            ${section.name ? escapeHtml(section.name) : (isWidgetOpen('profile') ? '+ 시점/IF 이름 추가 (예: 첫 만남)' : '&nbsp;')}
           </div>
-          ${(slide.sections.length > 1 || editMode) ? `
+          ${(slide.sections.length > 1 || isWidgetOpen('profile')) ? `
             <div class="profile-section-actions">
               ${slide.sections.length > 1 ? `<button class="icon-btn profile-section-order" id="profSecOrderBtn" title="시점/IF 목록 보기">☰</button>` : ''}
-              ${editMode ? `<button class="icon-btn profile-section-add" id="profSecAddBtn" title="시점/IF 추가">＋</button>` : ''}
-              ${(editMode && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
+              ${isWidgetOpen('profile') ? `<button class="icon-btn profile-section-add" id="profSecAddBtn" title="시점/IF 추가">＋</button>` : ''}
+              ${(isWidgetOpen('profile') && slide.sections.length > 1) ? `<button class="icon-btn profile-section-del" id="profSecDelBtn" title="이 시점/IF 삭제">✕</button>` : ''}
             </div>
           ` : ''}
         </div>
-        <div class="profile-section-desc ${(editMode && !section.desc) ? 'empty-hint':''}" id="profSecDescBtn" ${editMode ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
-          ${section.desc ? escapeHtml(section.desc) : (editMode ? '+ 짧은 설명 추가' : '&nbsp;')}
+        <div class="profile-section-desc ${(isWidgetOpen('profile') && !section.desc) ? 'empty-hint':''}" id="profSecDescBtn" ${isWidgetOpen('profile') ? 'title="눌러서 시점/IF 설명 수정"' : ''}>
+          ${section.desc ? escapeHtml(section.desc) : (isWidgetOpen('profile') ? '+ 짧은 설명 추가' : '&nbsp;')}
         </div>
       </div>
       <div class="profile-pair">
@@ -2615,23 +2670,23 @@ function renderProfile(){
                 ${personalityField ? `<div class="profile-compact-personality">${personalityHashtagsHtml(personalityField.value)}</div>` : ''}
               </div>
               <div class="profile-full">
-                <div class="profile-basic ${editMode ? 'editable' : ''}" data-slot="${slot}">
+                <div class="profile-basic ${isWidgetOpen('profile') ? 'editable' : ''}" data-slot="${slot}">
                   <div class="profile-photo">
                     <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
                       ${avatar ? '' : '👤'}
                     </div>
                     <!-- 한마디도 나이/생년월일 등과 같은 "필수기재란" 취급 — 값이 없어도
                          자리를 그대로 차지함(편집모드가 아니면 blank 처리) -->
-                    <div class="profile-oneliner ${oneLiner ? '' : (editMode ? 'empty-hint' : 'profile-field-empty')}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (editMode ? '+ 한마디 추가' : '&nbsp;')}</div>
+                    <div class="profile-oneliner ${oneLiner ? '' : (isWidgetOpen('profile') ? 'empty-hint' : 'profile-field-empty')}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (isWidgetOpen('profile') ? '+ 한마디 추가' : '&nbsp;')}</div>
                   </div>
                   <div class="profile-info">
                     <!-- 한줄소개(역할)도 마찬가지 — 값 없으면 통째로 사라지는 대신 자리만 비움 -->
-                    <div class="profile-role ${role ? '' : (editMode ? 'empty-hint' : 'profile-field-empty')}">${role ? escapeHtml(role) : (editMode ? '+ 한줄소개 추가' : '&nbsp;')}</div>
+                    <div class="profile-role ${role ? '' : (isWidgetOpen('profile') ? 'empty-hint' : 'profile-field-empty')}">${role ? escapeHtml(role) : (isWidgetOpen('profile') ? '+ 한줄소개 추가' : '&nbsp;')}</div>
                     <!-- 이름은 원래대로 복구 -->
-                    <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (editMode ? '+ 프로필 추가' : '')}</div>
+                    <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (isWidgetOpen('profile') ? '+ 프로필 추가' : '')}</div>
                   </div>
                 </div>
-                <div class="profile-person-fields ${editMode ? 'editable' : ''}" data-fieldslot="${slot}">
+                <div class="profile-person-fields ${isWidgetOpen('profile') ? 'editable' : ''}" data-fieldslot="${slot}">
                   ${fieldsHtml(fields)}
                 </div>
               </div>
@@ -2720,7 +2775,7 @@ function bindProfile(slides){
         await docRef('profile').set({slides:clean}, {merge:true});
         if(landedAt !== -1) profileSlideIndex = landedAt;
       },
-      { pointerLine: true, axis: 'x' }
+      { pointerLine: true, axis: 'x', widgetKey: 'profile' }
     );
   }
   const addBtn = box.querySelector('#profAddBtn');
@@ -2773,9 +2828,9 @@ function bindProfile(slides){
   }
 
   const secLabelBtn = box.querySelector('#profSecLabelBtn');
-  if(secLabelBtn && editMode) secLabelBtn.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
+  if(secLabelBtn && isWidgetOpen('profile')) secLabelBtn.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
   const secDescBtn = box.querySelector('#profSecDescBtn');
-  if(secDescBtn && editMode) secDescBtn.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
+  if(secDescBtn && isWidgetOpen('profile')) secDescBtn.onclick = ()=> openProfileSectionModal(profileSlideIndex, profileSectionIndex, slides);
 
   const secAddBtn = box.querySelector('#profSecAddBtn');
   if(secAddBtn) secAddBtn.onclick = (e)=>{
@@ -2827,7 +2882,7 @@ function bindProfile(slides){
     });
   });
 
-  if(!editMode){
+  if(!isWidgetOpen('profile')){
     box.querySelectorAll('.profile-avatar.has-image').forEach(av=>{
       const photoWrap = av.closest('.profile-basic');
       if(!photoWrap) return;
@@ -3257,10 +3312,10 @@ function openProfileSectionOrderModal(slideIdx, slides){
     const secs = workingSlides[slideIdx].sections;
     const defIdx = workingSlides[slideIdx].defaultSectionIndex || 0;
     return secs.map((sec,i)=> `
-      <div class="sec-order-row ${!editMode ? 'viewonly' : ''}" data-idx="${i}">
+      <div class="sec-order-row ${!isWidgetOpen('profile') ? 'viewonly' : ''}" data-idx="${i}">
         <span class="sec-order-idx">${i+1}</span>
         <span class="sec-order-name ${!sec.name ? 'empty-hint' : ''}">${sec.name ? escapeHtml(sec.name) : '(이름 없음)'}</span>
-        ${editMode ? `
+        ${isWidgetOpen('profile') ? `
           <button class="icon-btn sec-order-default ${i===defIdx ? 'active' : ''}" data-idx="${i}" title="${i===defIdx ? '이 AU를 열면 처음 보여지는 시점/IF예요' : '이 AU를 열었을 때 처음 보여줄 시점/IF로 지정'}">${i===defIdx ? '★' : '☆'}</button>
           <span class="sec-order-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>
         ` : ''}
@@ -3268,8 +3323,8 @@ function openProfileSectionOrderModal(slideIdx, slides){
     `).join('');
   };
   openModal(`
-    <h3>시점/IF ${editMode ? '순서 편집' : '목록'}</h3>
-    <p class="hint">${editMode ? '▲▼로 순서를 옮기면 바로 저장돼요. ☆를 누르면 이 AU를 열었을 때 처음 보여줄 시점/IF로 지정돼요(지정 안 하면 첫 번째가 보여요).' : '눌러서 그 시점/IF로 바로 이동할 수 있어요.'}</p>
+    <h3>시점/IF ${isWidgetOpen('profile') ? '순서 편집' : '목록'}</h3>
+    <p class="hint">${isWidgetOpen('profile') ? '▲▼로 순서를 옮기면 바로 저장돼요. ☆를 누르면 이 AU를 열었을 때 처음 보여줄 시점/IF로 지정돼요(지정 안 하면 첫 번째가 보여요).' : '눌러서 그 시점/IF로 바로 이동할 수 있어요.'}</p>
     <div id="secOrderList" class="sec-order-list">${renderRows()}</div>
     <div class="modal-actions">
       <button class="btn primary" id="s">닫기</button>
@@ -3283,7 +3338,7 @@ function openProfileSectionOrderModal(slideIdx, slides){
       bindRows();
     };
     const bindRows = ()=>{
-      if(editMode){
+      if(isWidgetOpen('profile')){
         listEl.querySelectorAll('.sec-order-default').forEach(btn=>{
           btn.onclick = (e)=>{ e.stopPropagation(); setDefault(Number(btn.dataset.idx)); };
         });
@@ -3306,7 +3361,7 @@ function openProfileSectionOrderModal(slideIdx, slides){
             listEl.innerHTML = renderRows();
             bindRows();
           },
-          { pointerLine: true, axis: 'y' }
+          { pointerLine: true, axis: 'y', widgetKey: 'profile' }
         );
       } else {
         listEl.querySelectorAll('.sec-order-row.viewonly').forEach(row=>{
@@ -3503,10 +3558,13 @@ function mpFormatTime(sec){
 function renderMusic(){
   const box = document.getElementById('cardMusic');
   const tracks = mpTracks();
-  const needsSkeleton = !box.querySelector('.mp-player') || mpSkeletonEditMode !== editMode;
+  // 스켈레톤은 editMode 자체뿐 아니라 이 위젯의 잠금해제(isWidgetOpen) 상태가
+  // 바뀔 때도(연필 버튼이 새로 생기거나, "+ 곡 추가" 버튼이 나타나거나 사라질 때) 다시 그려야 함
+  const skeletonSig = editMode + ':' + isWidgetOpen('music');
+  const needsSkeleton = !box.querySelector('.mp-player') || mpSkeletonEditMode !== skeletonSig;
   if(needsSkeleton){
     buildMusicSkeleton(box);
-    mpSkeletonEditMode = editMode;
+    mpSkeletonEditMode = skeletonSig;
   }
   // 재생 중이던 곡이 (다른 기기에서) 삭제됐으면 정지
   if(mpCurrentId && !tracks.find(t=>t.id===mpCurrentId)){
@@ -3526,6 +3584,7 @@ function renderMusic(){
 
 function buildMusicSkeleton(box){
   box.innerHTML = `
+    ${widgetEditToggleBtnHtml('music', '음악 위젯 편집')}
     <div class="mp-cover-bg" id="mpCoverBg"></div>
     <div class="mp-player">
       <div class="mp-nowplaying" id="mpNowPlaying">
@@ -3545,7 +3604,7 @@ function buildMusicSkeleton(box){
       </div>
       <div class="mp-side">
         <div class="player-tracks" id="mpTrackList"></div>
-        ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
+        ${isWidgetOpen('music') ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
       </div>
       <div id="mpYtHolder" style="display:none;"></div>
       <audio id="mpAudioEl" preload="metadata" style="display:none;"></audio>
@@ -3593,9 +3652,9 @@ function renderMusicList(){
         <div class="mp-track-title">${escapeHtml(t.title)}</div>
         ${t.artist ? `<div class="mp-track-artist">${escapeHtml(t.artist)}</div>` : ''}
       </div>
-      ${editMode ? `<span class="mp-track-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
-      ${editMode ? `<button class="icon-btn" data-edit="${t.id}" title="수정" style="width:22px;height:22px;font-size:.6rem;">✎</button>` : ''}
-      ${editMode ? `<button class="icon-btn" data-del="${t.id}" title="삭제" style="width:22px;height:22px;font-size:.6rem;">✕</button>` : ''}
+      ${isWidgetOpen('music') ? `<span class="mp-track-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
+      ${isWidgetOpen('music') ? `<button class="icon-btn" data-edit="${t.id}" title="수정" style="width:22px;height:22px;font-size:.6rem;">✎</button>` : ''}
+      ${isWidgetOpen('music') ? `<button class="icon-btn" data-del="${t.id}" title="삭제" style="width:22px;height:22px;font-size:.6rem;">✕</button>` : ''}
     </div>
   `;
   }).join('') : `<div class="w-empty">등록된 곡이 없어요</div>`;
@@ -4048,11 +4107,12 @@ function ddayDateText(dateStr){
 }
 
 function renderDday(){
+  syncCalendarEditToggle();
   const items = (ddayData.items || []).map((it,i)=>({...it, _i:i})).sort((a,b)=> a.date.localeCompare(b.date));
   const body = document.getElementById('ddayBody');
   body.innerHTML = items.map(it=> `
     <div class="dday-item">
-      ${editMode ? `<button class="icon-btn" data-del="${it._i}">✕</button>` : ''}
+      ${isWidgetOpen('calendar') ? `<button class="icon-btn" data-del="${it._i}">✕</button>` : ''}
       <div class="dday-info">
         <div class="dday-label">${escapeHtml(it.label)}</div>
         <div class="dday-date">${ddayDateText(it.date)}</div>
@@ -4069,9 +4129,17 @@ function renderDday(){
   }));
 
   const wrap = document.getElementById('ddayAddWrap');
-  wrap.innerHTML = editMode ? `<button class="btn small" id="ddayAddBtn">+ 디데이 추가</button>` : '';
+  wrap.innerHTML = isWidgetOpen('calendar') ? `<button class="btn small" id="ddayAddBtn">+ 디데이 추가</button>` : '';
   const addBtn = document.getElementById('ddayAddBtn');
   if(addBtn) addBtn.onclick = openDdayAddModal;
+}
+
+// 디데이/캘린더는 한 위젯 카드(cardCalendar)를 같이 쓰지만 각자 다른 render 함수가
+// 그 안의 일부만 다시 그리기 때문에(ddayBody / calContent), 카드 우상단 연필 버튼은
+// 카드 전체에 한 번만 붙여두고 필요할 때만 만들거나 지움(중복 생성 방지를 위해
+// 매번 먼저 있는지 확인).
+function syncCalendarEditToggle(){
+  syncCardEditToggle('cardCalendar', 'calendar', '캘린더 위젯 편집');
 }
 
 function openDdayAddModal(){
@@ -4099,11 +4167,12 @@ docRef('dday').onSnapshot(doc=>{ ddayData = doc.exists ? doc.data() : {items:[]}
 let guestbookData = { entries: [] };
 
 function renderGuestbook(){
+  syncGuestbookEditToggle();
   const entries = (guestbookData.entries || []).slice().sort((a,b)=> (b.ts||0) - (a.ts||0));
   const body = document.getElementById('guestbookBody');
   body.innerHTML = entries.map(e=> `
     <div class="gb-entry" data-id="${e.id}">
-      ${editMode ? `<button class="gb-del">✕</button>` : ''}
+      ${isWidgetOpen('guestbook') ? `<button class="gb-del">✕</button>` : ''}
       <span class="gb-name">${escapeHtml(e.name||'익명')}</span>
       <span class="gb-time">${e.ts ? new Date(e.ts).toLocaleDateString('ko-KR') : ''}</span>
       <div class="gb-msg">${escapeHtml(e.message)}</div>
@@ -4115,6 +4184,13 @@ function renderGuestbook(){
     const arr = (guestbookData.entries||[]).filter(x=> x.id !== id);
     await docRef('guestbook').set({entries: arr}, {merge:true});
   }));
+}
+
+// 방명록 카드는 접기/펼치기(gbToggle)용 고정 마크업이라 이미지/음악처럼 카드
+// 전체를 매번 새로 그리지 않음 — 그래서 편집 연필 버튼도 캘린더와 같은 방식으로
+// 카드에 붙였다 뗐다만 함
+function syncGuestbookEditToggle(){
+  syncCardEditToggle('cardGuestbook', 'guestbook', '방명록 위젯 편집');
 }
 
 docRef('guestbook').onSnapshot(doc=>{ guestbookData = doc.exists ? doc.data() : {entries:[]}; renderGuestbook(); });
@@ -4333,7 +4409,7 @@ function openDayModal(dateStr){
   const events = calendarData.events || {};
   const manual = events[dateStr] || [];
   const ddayMarks = ddayMilestonesForDate(dateStr);
-  if(!editMode){
+  if(!isWidgetOpen('calendar')){
     if(!manual.length && !ddayMarks.length){ toast('이 날은 등록된 일정이 없어요'); return; }
     const lines = [...ddayMarks.map(t=>`🎉 ${t}`), ...manual];
     openModal(`<h3>${dateStr}</h3><div style="white-space:pre-wrap;font-size:.88rem;">${escapeHtml(lines.join('\n'))}</div>
@@ -4731,9 +4807,9 @@ function galleryTileMarkup(it, url, i){
       ${mediaHtml}
       ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery', i)}
-      ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+      ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
     </div>`;
 }
 function fillGalleryTile(tile, idx, url, it){
@@ -4747,9 +4823,9 @@ function fillGalleryTile(tile, idx, url, it){
     ${mediaHtml}
     ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery', idx)}
-    ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-    ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+    ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+    ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
   `;
   if(it.blur) tile.classList.add('blurred');
   const grid = tile.closest('#galleryGrid');
@@ -4825,10 +4901,11 @@ function renderGallery(){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
   const pairs = items.map((it,i)=>({it,i})).filter(({it})=> !galleryFilterOpt || (it.opts||[]).includes(galleryFilterOpt));
   box.innerHTML = `
+    ${widgetEditToggleBtnHtml('gallery', '갤러리 위젯 편집')}
     <div class="pin-toolbar">
       <div class="tag-filter" id="galleryFilterChips" style="display:none;"></div>
-      ${editMode ? `<button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>` : ''}
-      ${editMode ? galleryGroupPickToggleBtnHtml('gallery', 'galGroupPickBtn') : ''}
+      ${isWidgetOpen('gallery') ? `<button class="btn small ghost" id="galOptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${isWidgetOpen('gallery') ? galleryGroupPickToggleBtnHtml('gallery', 'galGroupPickBtn') : ''}
     </div>
     ${galleryGroupPickBarHtml('gallery')}
     <div class="pin-grid-scroll" id="galleryGrid">
@@ -4838,7 +4915,7 @@ function renderGallery(){
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
     ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
-    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
+    ${isWidgetOpen('gallery') ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#galleryGrid');
   restoreScrollPos(gridEl, savedScroll);
@@ -4884,7 +4961,7 @@ function renderGallery(){
     gridEl, '.pin-item',
     ()=> items.slice(),
     async (arr)=> docRef('gallery').set({items:arr}, {merge:true}),
-    { pointerLine: true }
+    { pointerLine: true, widgetKey: 'gallery' }
   );
   setupPinGalleryLazyLoad(gridEl, pairs, galleryObserverHolder, '.pin-item.pin-loading',
     (tile, idx, url, it)=> fillGalleryTile(tile, idx, url, it));
@@ -5053,9 +5130,9 @@ function gallery2TileMarkup(it, url, i){
       ${mediaHtml}
       ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery2', i)}
-      ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+      ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+      ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
     </div>`;
 }
 function fillGallery2Tile(tile, idx, url, it){
@@ -5069,9 +5146,9 @@ function fillGallery2Tile(tile, idx, url, it){
     ${mediaHtml}
     ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery2', idx)}
-    ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${(editMode && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-    ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+    ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
+    ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
   `;
   if(it.blur) tile.classList.add('blurred');
   if(it.group) loadGalleryGroupStrips(tile, it);
@@ -5143,10 +5220,11 @@ function renderGallery2(){
     ? cols.map(colArr=> `<div class="gallery2-col">${colArr.join('')}</div>`).join('')
     : '';
   box.innerHTML = `
+    ${widgetEditToggleBtnHtml('gallery2', '갤러리2 위젯 편집')}
     <div class="pin-toolbar">
       <div class="tag-filter" id="gallery2FilterChips" style="display:none;"></div>
-      ${editMode ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
-      ${editMode ? galleryGroupPickToggleBtnHtml('gallery2', 'gal2GroupPickBtn') : ''}
+      ${isWidgetOpen('gallery2') ? `<button class="btn small ghost" id="gal2OptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${isWidgetOpen('gallery2') ? galleryGroupPickToggleBtnHtml('gallery2', 'gal2GroupPickBtn') : ''}
     </div>
     ${galleryGroupPickBarHtml('gallery2')}
     <div class="gallery2-grid" id="gallery2Grid">
@@ -5154,7 +5232,7 @@ function renderGallery2(){
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
+    ${isWidgetOpen('gallery2') ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#gallery2Grid');
   restoreScrollPos(gridEl, savedScroll);
@@ -5204,7 +5282,7 @@ function renderGallery2(){
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('gallery2').set({items:arr}, {merge:true}),
-    { pointerLine: true }
+    { pointerLine: true, widgetKey: 'gallery2' }
   );
   setupPinGalleryLazyLoad(gridEl, pairs, gallery2ObserverHolder, '.pin-item-dense.pin-loading',
     (tile, idx, url, it)=> fillGallery2Tile(tile, idx, url, it));
@@ -5417,10 +5495,11 @@ function renderRefGallery(){
     ? cols.map(c=> `<div class="ref-gallery-col">${c.join('')}</div>`).join('')
     : '';
   box.innerHTML = `
+    ${widgetEditToggleBtnHtml('refgallery', '레퍼런스 갤러리 위젯 편집')}
     <div class="pin-toolbar">
       <div class="tag-filter" id="refGalleryFilterChips" style="display:none;"></div>
-      ${editMode ? `<button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>` : ''}
-      ${editMode ? galleryGroupPickToggleBtnHtml('refgallery', 'refGalGroupPickBtn') : ''}
+      ${isWidgetOpen('refgallery') ? `<button class="btn small ghost" id="refGalOptsBtn">⚙ 옵션 관리</button>` : ''}
+      ${isWidgetOpen('refgallery') ? galleryGroupPickToggleBtnHtml('refgallery', 'refGalGroupPickBtn') : ''}
     </div>
     ${galleryGroupPickBarHtml('refgallery')}
     <div class="ref-gallery-grid" id="refGalleryGrid">
@@ -5428,7 +5507,7 @@ function renderRefGallery(){
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
+    ${isWidgetOpen('refgallery') ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(gridEl, savedScroll);
@@ -5474,7 +5553,7 @@ function renderRefGallery(){
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('refgallery').set({items:arr}, {merge:true}),
-    { pointerLine: true }
+    { pointerLine: true, widgetKey: 'refgallery' }
   );
 
   setupRefGalleryLazyLoad(gridEl, pairs);
@@ -5497,8 +5576,8 @@ function refGalleryTileMarkup(it, url, i){
     <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       ${mediaHtml}
       ${galleryPickOverlayHtml('refgallery', i)}
-      ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+      ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
+      ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
     </div>`;
 }
 
@@ -5519,8 +5598,8 @@ function fillRefGalleryTile(tile, idx, url, it){
   tile.innerHTML = `
     ${mediaHtml}
     ${galleryPickOverlayHtml('refgallery', idx)}
-    ${(editMode && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${(editMode && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+    ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
+    ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
   `;
   if(it && it.group) loadGalleryGroupStrips(tile, it);
   else attachImgFallback(tile.querySelector('img'));
@@ -5664,6 +5743,7 @@ function renderVideoPlayer(){
 }
 
 function renderVideos(){
+  syncCardEditToggle('cardVideo', 'video', '영상 위젯 편집');
   renderVideoPlayer();
   const list = document.getElementById('videoList');
   const items = videosData.items || [];
@@ -5674,7 +5754,7 @@ function renderVideos(){
       <div class="video-item ${videoExpanded && i===currentVideoIdx ? 'active' : ''}" data-idx="${i}">
         <div class="video-thumb" style="background-image:url('https://img.youtube.com/vi/${extractYouTubeId(v.url) || ''}/hqdefault.jpg')"></div>
         <div class="video-title">${escapeHtml(v.title || '제목 없음')}</div>
-        ${editMode ? `<button class="video-del" data-del="${i}" type="button">✕</button>` : ''}
+        ${isWidgetOpen('video') ? `<button class="video-del" data-del="${i}" type="button">✕</button>` : ''}
       </div>
     `).join('');
   }
@@ -5698,8 +5778,8 @@ function renderVideos(){
     toast('영상을 삭제했어요');
   }));
   const addWrap = document.getElementById('videoAddWrap');
-  addWrap.innerHTML = editMode ? `<button class="btn small" id="videoAddBtn" type="button">+ 영상 추가</button>` : '';
-  if(editMode) document.getElementById('videoAddBtn').addEventListener('click', openVideoAddModal);
+  addWrap.innerHTML = isWidgetOpen('video') ? `<button class="btn small" id="videoAddBtn" type="button">+ 영상 추가</button>` : '';
+  if(isWidgetOpen('video')) document.getElementById('videoAddBtn').addEventListener('click', openVideoAddModal);
 }
 
 function openVideoAddModal(){
@@ -5757,6 +5837,7 @@ function docsDisplayToRaw(displayCards){
 }
 
 function renderDocs(){
+  syncCardEditToggle('cardDocs', 'docs', '문서 정리 위젯 편집');
   const list = document.getElementById('docList');
   const allCards = docsData.cards || [];
   renderOptionFilterChips(document.getElementById('docFilter'), docOptionsData.options, docFilterOpt, (opt)=>{ docFilterOpt = opt; renderDocs(); });
@@ -5766,15 +5847,15 @@ function renderDocs(){
   // 쓰는 "원본 배열 위치"(i) — 서로 다른 용도라 따로 둠
   list.innerHTML = pairs.map(({c,i}, k)=> `
     <div class="doc-row" data-idx="${k}" data-abs="${i}">
-      ${editMode ? `<span class="doc-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
+      ${isWidgetOpen('docs') ? `<span class="doc-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
       <span class="doc-icon">${escapeHtml(c.icon || '📄')}</span>
       <div class="doc-main">
         <div class="doc-title">${escapeHtml(c.title)}</div>
         ${(c.opts||(c.opt?[c.opt]:[])).length ? `<div class="doc-opt-row">${(c.opts||(c.opt?[c.opt]:[])).map(o=> `<span class="doc-opt">${escapeHtml(o)}</span>`).join('')}</div>` : ''}
         ${c.desc ? `<div class="doc-desc">${escapeHtml(c.desc)}</div>` : ''}
       </div>
-      ${editMode ? `<button class="doc-edit" data-edit="${i}">✎</button>` : ''}
-      ${editMode ? `<button class="doc-del" data-del="${i}">✕</button>` : ''}
+      ${isWidgetOpen('docs') ? `<button class="doc-edit" data-edit="${i}">✎</button>` : ''}
+      ${isWidgetOpen('docs') ? `<button class="doc-del" data-del="${i}">✕</button>` : ''}
     </div>
   `).join('') || `<div class="w-empty">${docFilterOpt ? '이 옵션에 해당하는 문서가 없어요' : '정리된 문서가 없어요'}</div>`;
 
@@ -5813,7 +5894,7 @@ function renderDocs(){
   }));
 
   const wrap = document.getElementById('docAddWrap');
-  wrap.innerHTML = editMode ? `<div class="doc-add-row"><button class="btn small doc-add" id="docAddBtn">+ 문서 추가</button><button class="btn small ghost" id="docOptsBtn">⚙ 옵션 관리</button></div>` : '';
+  wrap.innerHTML = isWidgetOpen('docs') ? `<div class="doc-add-row"><button class="btn small doc-add" id="docAddBtn">+ 문서 추가</button><button class="btn small ghost" id="docOptsBtn">⚙ 옵션 관리</button></div>` : '';
   const addBtn = document.getElementById('docAddBtn');
   if(addBtn) addBtn.onclick = openDocAddModal;
   const optsBtn = document.getElementById('docOptsBtn');
@@ -5825,7 +5906,7 @@ function renderDocs(){
     list, '.doc-row',
     ()=> pairs.map(({c})=> c),
     async (arr)=> docRef('documents').set({cards: docsDisplayToRaw(arr)}, {merge:true}),
-    { pointerLine: true }
+    { pointerLine: true, widgetKey: 'docs' }
   );
 }
 
@@ -6050,13 +6131,14 @@ window.addEventListener('resize', debounce(()=>{
 }, 150));
 
 function renderSessions(){
+  syncCardEditToggle('cardSessions', 'sessions', '세션카드 위젯 편집');
   const grid = document.getElementById('sessionGrid');
   const cards = sessionsData.cards || [];
   grid.innerHTML = cards.map((c,i)=> `
     <div class="session-card" data-idx="${i}" title="${escapeHtml(c.title||'')}">
       ${c.thumb ? `<img src="${escapeHtml(c.thumb)}" alt="${escapeHtml(c.title||'')}">` : `<div class="session-noimg">📄</div>`}
-      ${editMode ? `<button class="edit" data-edit="${i}">✎</button>` : ''}
-      ${editMode ? `<button class="del" data-del="${i}">✕</button>` : ''}
+      ${isWidgetOpen('sessions') ? `<button class="edit" data-edit="${i}">✎</button>` : ''}
+      ${isWidgetOpen('sessions') ? `<button class="del" data-del="${i}">✕</button>` : ''}
     </div>
   `).join('') || `<div class="w-empty">등록된 자료가 없어요</div>`;
   applySessionOverlap(grid, cards.length);
@@ -6093,7 +6175,7 @@ function renderSessions(){
   }));
 
   const wrap = document.getElementById('sessionAddWrap');
-  wrap.innerHTML = editMode ? `<button class="btn small session-add" id="sessAddBtn">+ 자료 추가</button>` : '';
+  wrap.innerHTML = isWidgetOpen('sessions') ? `<button class="btn small session-add" id="sessAddBtn">+ 자료 추가</button>` : '';
   const addBtn = document.getElementById('sessAddBtn');
   if(addBtn) addBtn.onclick = openSessionAddModal;
 
@@ -6104,7 +6186,7 @@ function renderSessions(){
     grid, '.session-card',
     ()=> (sessionsData.cards || []).slice(),
     async (arr)=> docRef('sessions').set({cards:arr}, {merge:true}),
-    { pointerLine: true, axis: window.innerWidth <= 900 ? 'x' : 'y' }
+    { pointerLine: true, axis: window.innerWidth <= 900 ? 'x' : 'y', widgetKey: 'sessions' }
   );
 }
 
@@ -6288,6 +6370,7 @@ function openSessionEditModal(idx){
 let checklistData = { items: [] };
 
 function renderChecklist(){
+  syncCardEditToggle('cardChecklist', 'checklist', '체크보드 위젯 편집');
   const body = document.getElementById('checklistBody');
   const all = (checklistData.items || []).map((it,i)=>({...it, _i:i}));
   const unchecked = all.filter(it=> !it.checked);
@@ -6295,16 +6378,17 @@ function renderChecklist(){
 
   function row(it){
     const subtitle = it.subtitle || '';
+    const open = isWidgetOpen('checklist');
     return `
       <div class="check-item ${it.checked?'checked':''}" data-idx="${it._i}">
         <input type="checkbox" ${it.checked?'checked':''} ${editMode?'':'disabled'}>
         <div class="check-item-main">
           <span class="check-item-text ${it.link ? 'has-link' : ''}" ${it.link ? `data-linkopen="${it._i}" title="${escapeHtml(it.link)}"` : ''}>${escapeHtml(it.text)}</span>
-          ${(subtitle || editMode) ? `<span class="check-item-subtitle ${editMode ? 'editable' : ''} ${!subtitle ? 'empty-hint' : ''}" ${editMode ? `data-subedit="${it._i}"` : ''}>${subtitle ? escapeHtml(subtitle) : (editMode ? '+ 부제목 추가' : '')}</span>` : ''}
+          ${(subtitle || open) ? `<span class="check-item-subtitle ${open ? 'editable' : ''} ${!subtitle ? 'empty-hint' : ''}" ${open ? `data-subedit="${it._i}"` : ''}>${subtitle ? escapeHtml(subtitle) : (open ? '+ 부제목 추가' : '')}</span>` : ''}
         </div>
-        ${editMode ? `<button class="check-link-edit" data-linkedit="${it._i}" title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
-        ${editMode ? `<span class="check-item-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
-        ${editMode ? `<button class="del">✕</button>` : ''}
+        ${open ? `<button class="check-link-edit" data-linkedit="${it._i}" title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
+        ${open ? `<span class="check-item-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
+        ${open ? `<button class="del">✕</button>` : ''}
       </div>
     `;
   }
@@ -6348,6 +6432,7 @@ function renderChecklist(){
   });
 
   const wrap = document.getElementById('checklistAddWrap');
+  wrap.style.display = isWidgetOpen('checklist') ? 'flex' : 'none';
   wrap.innerHTML = `<input type="text" id="checkNewInput" placeholder="새 항목"><button class="btn small primary" id="checkAddBtn">추가</button>`;
   const addBtn = document.getElementById('checkAddBtn');
   const input = document.getElementById('checkNewInput');
@@ -6368,7 +6453,7 @@ function renderChecklist(){
     body, '.check-item',
     ()=> (checklistData.items || []).slice(),
     async (arr)=> docRef('checklist').set({items:arr}, {merge:true}),
-    { pointerLine: true, axis: window.innerWidth <= 520 ? 'y' : 'x' }
+    { pointerLine: true, axis: window.innerWidth <= 520 ? 'y' : 'x', widgetKey: 'checklist' }
   );
 }
 
