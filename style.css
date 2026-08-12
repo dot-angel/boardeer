@@ -337,11 +337,10 @@ body::before{
 .mode-toggle.dragging .mt-thumb{ transition: none; }
 .mode-toggle .mt-icon{ color: var(--rose); display:flex; position:relative; z-index:1; }
 .mode-toggle .mt-icon .icon-svg{ width:16px; height:16px; }
-body.theme-light .mode-toggle{ padding: 0 36px 0 14px; }
-body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
-/* 도어가 화면을 덮기 전, 스위치가 먼저 슥 움직이는 걸 보여주기 위한 독립 클래스.
-   body.theme-light는 도어가 다 닫힌 뒤에야 바뀌므로, 스위치 프리롤은 이 클래스로
-   따로 조작함(JS가 도어를 닫기 직전에 미리 붙임) */
+/* 스위치 위치는 body.theme-light가 아니라 이 클래스 하나로만 결정함(JS가 항상 동기화).
+   예전엔 body.theme-light 기준 규칙이 따로 있었는데, 다크로 갈 땐 도어가 닫히기 전까지
+   body.theme-light가 아직 안 바뀐 상태라 그 규칙이 이 규칙과 동시에 매치되면서 스위치가
+   안 움직이는 버그가 있었음 — 그래서 기준을 하나로 합침 */
 .mode-toggle.mt-target-light{ padding: 0 36px 0 14px; }
 .mode-toggle.mt-target-light .mt-thumb{ left: calc(100% - 28px); }
 /* 도어 연출이 진행 중일 땐 스위치를 다시 눌러도 겹쳐 실행되지 않도록 잠가둠 */

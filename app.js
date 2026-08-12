@@ -127,6 +127,7 @@ function applyModeClass(){
   document.body.classList.toggle('theme-light', siteMode === 'light');
   if(modeToggleBtn){
     ensureModeToggleMarkup();
+    modeToggleBtn.classList.toggle('mt-target-light', siteMode === 'light');
     modeToggleBtn.querySelector('.mt-icon').innerHTML = MODE_ICONS[siteMode];
     modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[siteMode];
     modeToggleBtn.setAttribute('aria-label', MODE_LABELS[siteMode] + ' 적용 중 · 눌러서 전환');
