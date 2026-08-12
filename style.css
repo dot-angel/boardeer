@@ -299,8 +299,9 @@ body::before{
    트랙 블러를 형제로 떼어내야 스위치의 backdrop-filter가 정상적으로 작동함 */
 .mode-toggle .mt-track-fill{
   position: absolute;
-  inset: -1px; /* 테두리(1px) 밑까지 채워서, 원래 .mode-toggle 자체 배경이
-                  border-box로 테두리 아래까지 깔리던 것과 동일하게 재현 */
+  inset: 0; /* 테두리 밑까지 채우면(-1px) z-index상 부모 테두리보다 나중에 그려져서
+               테두리를 덮어버림 → 호버 시 border-color 변화가 안 보이게 됨.
+               테두리 안쪽만 채워서 테두리 자체는 항상 최상단에 그대로 보이게 함 */
   border-radius: inherit;
   background: var(--card-bg);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
@@ -318,22 +319,21 @@ body::before{
   transform: translateY(-50%);
   border-radius: 999px;
   background: rgba(255,255,255,0.16);
-  border: none;
+  border: 1px solid rgba(255,255,255,0.26);
   backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem;
   transition: left .4s cubic-bezier(.34,1.56,.64,1);
 }
-/* 스위치 자체엔 테두리를 안 그림 — 트랙의 실제 테두리 선이 스위치 뒤로 지나가는
-   구간은 스위치의 backdrop-filter(블러)가 알아서 흐리게 비쳐 보여줌. 가짜로
-   블러 자국을 따로 그릴 필요 없이, 진짜 겹치는 라인이 블러 규칙을 그대로 탐 */
+/* 스위치 자체에 옅은 테두리를 상시로 둬서, 트랙 선이 겹치는 순간에만 의존하지 않고
+   평소에도 "이건 잡고 미는 조작 요소"라는 인지를 줌. 화려한 발광 대신 얇은 선 하나로만 */
 /* 드래그 중엔 손가락/포인터를 그대로 따라가야 하므로 트랜지션을 잠깐 꺼줌
    (JS가 pointermove마다 left를 인라인으로 직접 바꿔서 실시간으로 따라오게 함) */
 .mode-toggle.dragging .mt-thumb{ transition: none; }
 .mode-toggle .mt-icon{ color: var(--rose); display:flex; position:relative; z-index:1; }
 .mode-toggle .mt-icon .icon-svg{ width:16px; height:16px; }
 body.theme-light .mode-toggle{ padding: 0 36px 0 14px; }
-body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
+body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: rgba(20,16,14,0.16); }
 
 
 
