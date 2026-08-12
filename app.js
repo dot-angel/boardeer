@@ -6666,8 +6666,28 @@ function initBoardTabs(){
   btns.forEach(btn=>{
     btn.addEventListener('click', ()=> goTo(Number(btn.dataset.tab)));
   });
-  if(prevBtn) prevBtn.addEventListener('click', ()=> goTo(currentIdx() - 1));
-  if(nextBtn) nextBtn.addEventListener('click', ()=> goTo(currentIdx() + 1));
+  // 화살표(prev/next)는 화면 세로 전체(56px 폭)를 덮고 있어서, 그 폭 안쪽에 있는
+  // 카드의 연필 버튼 같은 위젯 아이콘과 자리가 겹칠 수 있음. .w-card가 자체
+  // 스태킹 컨텍스트를 만드는 탓에 z-index만으로는 우선순위를 못 정하므로,
+  // 클릭 지점에 실제로 깔려있는 버튼이 있으면 탭 이동 대신 그 버튼 쪽 클릭을
+  // 우선시켜서 대신 눌러줌.
+  function arrowClick(step, arrowEl){
+    return (e)=>{
+      const stack = typeof document.elementsFromPoint === 'function'
+        ? document.elementsFromPoint(e.clientX, e.clientY) : [];
+      const covered = stack.find(el=> el !== arrowEl && el.closest &&
+        el.closest('.board-viewport') &&
+        (el.tagName === 'BUTTON' || el.tagName === 'A' || el.classList.contains('btn')));
+      if(covered){
+        e.preventDefault();
+        covered.click();
+        return;
+      }
+      goTo(currentIdx() + step);
+    };
+  }
+  if(prevBtn) prevBtn.addEventListener('click', arrowClick(-1, prevBtn));
+  if(nextBtn) nextBtn.addEventListener('click', arrowClick(1, nextBtn));
 
   // 스와이프/스크롤로 탭이 넘어갔을 때 활성 점/화살표 상태도 같이 맞춰줌
   let scrollTimer = null;

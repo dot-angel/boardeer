@@ -388,8 +388,11 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: 
   }
 }
 /* 화살표가 화면 세로 전체(56px 폭)를 차지하는 건 의도된 디자인이라 그대로 둠.
-   대신 그 폭 안에 위젯 아이콘이 겹치는 경우, 아이콘 쪽이 항상 클릭에서 이기도록
-   z-index로 우선순위만 화살표보다 높여둠(위치/크기는 전혀 안 건드림) */
+   그 폭 안에 위젯 아이콘이 겹치는 경우 아이콘 쪽이 클릭에서 이겨야 하는데,
+   .w-card가 contain:paint로 자체 스태킹 컨텍스트를 만들어서 카드 안쪽 버튼의
+   z-index는 카드 밖(화살표)과 직접 비교되지 않음 — 그래서 여기 z-index는
+   보조적으로만 두고, 실제 우선순위는 initBoardTabs()의 클릭 핸들러(app.js)에서
+   좌표 기반으로 화살표보다 아이콘을 우선시키도록 처리함 */
 .board-viewport button,
 .board-viewport .btn,
 .board-viewport a{
@@ -728,13 +731,11 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: 
 .w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 0 0 0.6px var(--card-hi); border-color: rgba(196,66,95,0.4); }
 
 /* 위젯별 "편집 잠금 해제" 연필 버튼 — 편집모드에 들어와도 이 버튼을 눌러야만
-   그 위젯 안의 삭제버튼/이동손잡이/개별 편집버튼 등이 나타남. 각 위젯 안쪽
-   콘텐츠는 대부분 우상단(삭제✕, 옵션 관리 등)에 자기 버튼들을 두고 있어서,
-   이 버튼은 겹치지 않게 반대쪽인 좌상단 코너에 둠(쉐이커 위젯의 배경 버튼과
-   같은 자리 규칙). 말풍선/쉐이커 위젯은 이미 자체 편집 버튼이 있어서 이 클래스를
-   안 씀. */
+   그 위젯 안의 삭제버튼/이동손잡이/개별 편집버튼 등이 나타남. 우상단 코너에
+   둠(사용자 요청으로 좌상단 → 우상단으로 변경). 말풍선/쉐이커 위젯은 이미 자체
+   편집 버튼이 있어서 이 클래스를 안 씀. */
 .w-edit-toggle-btn{
-  position:absolute; top:8px; left:8px; z-index:6;
+  position:absolute; top:8px; right:8px; z-index:6;
   width:28px; height:28px; border-radius:50%;
   border:1px solid var(--card-border); background: rgba(15,4,6,0.55);
   color: var(--ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
@@ -744,6 +745,13 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: 
    삭제/이동 등이 가능한 상태라는 걸 계속 인지할 수 있게 함 */
 .w-edit-toggle-btn.active{
   background: rgba(196,66,95,0.75); border-color: rgba(255,255,255,0.4);
+}
+/* 연필 버튼이 우상단으로 오면서, 각 위젯 안쪽 맨 위 줄(툴바/탭/사진 우상단 버튼
+   등)과 같은 자리에서 겹칠 수 있어서 — 이 버튼이 직접 자식으로 붙어있는 카드에
+   한해 편집모드일 때만 위쪽 여백을 넉넉히 줘서 겹치지 않게 함(뷰어 모드에서는
+   버튼 자체가 없으니 원래 여백 그대로 유지됨) */
+body.edit-mode .w-card:has(> .w-edit-toggle-btn){
+  padding-top: 46px;
 }
 
 
