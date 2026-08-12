@@ -339,7 +339,87 @@ body::before{
 .mode-toggle .mt-icon .icon-svg{ width:16px; height:16px; }
 body.theme-light .mode-toggle{ padding: 0 36px 0 14px; }
 body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
+/* 도어가 화면을 덮기 전, 스위치가 먼저 슥 움직이는 걸 보여주기 위한 독립 클래스.
+   body.theme-light는 도어가 다 닫힌 뒤에야 바뀌므로, 스위치 프리롤은 이 클래스로
+   따로 조작함(JS가 도어를 닫기 직전에 미리 붙임) */
+.mode-toggle.mt-target-light{ padding: 0 36px 0 14px; }
+.mode-toggle.mt-target-light .mt-thumb{ left: calc(100% - 28px); }
+/* 도어 연출이 진행 중일 땐 스위치를 다시 눌러도 겹쳐 실행되지 않도록 잠가둠 */
+.mode-toggle.mt-busy{ pointer-events: none; }
 
+
+/* ---------- 라이트(사슴관)·다크(멧돼지관) 전환 연출: 관과 관 사이를 지나는 도어 ----------
+   화면을 완전히 덮은 순간에 실제 테마/배경/배너를 바꿔치기해서, 위젯마다 전환이
+   끝나는 타이밍이 제각각이어도 방문자 눈엔 보이지 않게 함 */
+.door{
+  position: fixed; top:0; bottom:0; width:50%; z-index:600;
+  pointer-events:none; overflow:hidden;
+  background-size: 160% 160%;
+  transition: transform .5s cubic-bezier(.65,0,.35,1);
+}
+.door-left{ left:0; transform: translateX(-100%); background-position: 100% 50%; }
+.door-right{ right:0; transform: translateX(100%); background-position: 0% 50%; }
+.door.to-light{
+  background-image:
+    radial-gradient(ellipse 60% 55% at 15% 10%, rgba(247,176,183,0.4), transparent 60%),
+    radial-gradient(ellipse 55% 60% at 90% 90%, rgba(223,103,116,0.32), transparent 62%),
+    radial-gradient(ellipse 70% 60% at 50% 0%, rgba(223,103,116,0.22), transparent 68%);
+  background-color:#EFF4F0;
+}
+.door.to-dark{
+  background-image:
+    radial-gradient(ellipse 60% 55% at 15% 10%, rgba(196,66,95,0.5), transparent 60%),
+    radial-gradient(ellipse 55% 60% at 90% 90%, rgba(101,25,38,0.42), transparent 62%),
+    radial-gradient(ellipse 70% 60% at 50% 0%, rgba(196,66,95,0.35), transparent 68%);
+  background-color:#0F0406;
+}
+.door.closed{ transform: translateX(0); }
+/* 문이 닫혀 있는 동안 배경이 아주 천천히 일렁이게 해서, 정지된 화면처럼 심심해 보이지 않게 함 */
+.door.closed.to-light, .door.closed.to-dark{ animation: doorShimmer 3.2s ease-in-out infinite alternate; }
+@keyframes doorShimmer{
+  from{ background-position: 0% 40%; }
+  to{ background-position: 100% 60%; }
+}
+.door-left.closed{ border-right:1px solid rgba(255,255,255,0.15); }
+.door-right.closed{ border-left:1px solid rgba(255,255,255,0.15); }
+
+/* 도어 표면에 흩어진 입자 — 디졸브 시안의 도트 연출과 톤을 맞춰서 밋밋하지 않게 함 */
+.door-dot{
+  position:absolute; border-radius:50%; background: rgba(255,255,255,0.5);
+  opacity:0; transform: scale(.4);
+  transition: opacity .6s ease, transform .6s ease;
+}
+.door.to-light .door-dot{ background: rgba(167,26,54,0.32); }
+/* 다크(멧돼지관)로 갈 땐 도트를 빼고, 라이트(사슴관)로 갈 때만 입자가 떠오르게 함 */
+.door.closed.to-light .door-dot{ opacity:.55; transform: scale(1); }
+
+/* 두 문이 맞닿는 틈에서 잠깐 스파크처럼 빛이 새어나오는 심(seam) 글로우 —
+   닫히는 순간에만 반짝하고, 문이 완전히 닫혀 문구가 뜨기 직전에 사라짐 */
+.door-seam{
+  position:fixed; top:0; bottom:0; left:50%; width:6px; z-index:602;
+  transform: translateX(-50%) scaleX(0.3);
+  opacity:0; pointer-events:none;
+  filter: blur(6px);
+  transition: opacity .45s ease, transform .45s ease;
+}
+.door-seam.to-light{ background: linear-gradient(180deg, transparent, rgba(255,255,255,0.95) 40%, rgba(255,255,255,0.95) 60%, transparent); }
+.door-seam.to-dark{ background: linear-gradient(180deg, transparent, rgba(247,176,183,0.9) 40%, rgba(247,176,183,0.9) 60%, transparent); }
+.door-seam.show{ opacity:1; transform: translateX(-50%) scaleX(1); }
+
+.door-text{
+  position:fixed; top:50%; left:50%; z-index:601;
+  transform: translate(-50%,-50%) translateY(8px);
+  font-family: var(--font-display);
+  font-size: 1.4rem; letter-spacing:.02em;
+  opacity:0; pointer-events:none; text-align:center; width:88%;
+  transition: opacity .4s ease, transform .4s ease;
+  color:#fff; text-shadow: 0 2px 14px rgba(0,0,0,0.4);
+}
+.door-text.to-light{
+  color:#a71a36;
+  text-shadow: 0 2px 16px rgba(255,255,255,0.75), 0 1px 0 rgba(255,255,255,0.4);
+}
+.door-text.show{ opacity:1; transform: translate(-50%,-50%) translateY(0); }
 
 
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */

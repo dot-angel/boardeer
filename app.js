@@ -86,6 +86,10 @@ const bannerEditBtn = document.getElementById('bannerEditBtn');
 const bgEditBtn = document.getElementById('bgEditBtn');
 const globalStyleBtn = document.getElementById('globalStyleBtn');
 const modeToggleBtn = document.getElementById('modeToggleBtn');
+const doorLeftEl = document.getElementById('doorLeft');
+const doorRightEl = document.getElementById('doorRight');
+const doorSeamEl = document.getElementById('doorSeam');
+const doorTextEl = document.getElementById('doorText');
 
 /* ---------------- 라이트모드 / 다크모드 ----------------
    방문자마다 원하는 모드를 볼 수 있도록 이 브라우저(localStorage)에만 저장하고,
@@ -1859,14 +1863,96 @@ function subscribeModeMeta(){
 }
 subscribeModeMeta();
 
+/* ---------------- 모드 전환 연출: 관과 관 사이를 지나는 도어 ----------------
+   1) 스위치 썸이 먼저 슥 움직이는 걸 보여줌(프리롤)
+   2) 그 뒤 도어가 닫혀 화면을 완전히 덮음
+   3) 완전히 덮인 순간에만 실제 테마/배경/배너(applyModeClass+subscribeModeMeta)를
+      바꿔치기함 — 위젯마다 전환이 끝나는 타이밍이 제각각이어도 안 보이게 하는 핵심
+   4) 문구를 충분히 읽을 시간을 준 뒤 도어가 다시 열림
+   숫자를 조절하고 싶으면 이 세 상수만 만지면 됨 */
+const DOOR_PREROLL_MS = 260;   // 스위치 프리롤 ~ 도어 시작 사이 간격
+const DOOR_CLOSE_MS = 500;     // 도어가 닫히는 시간(= style.css .door 트랜지션 시간과 맞춰야 함)
+const DOOR_TEXT_READ_MS = 1450; // 문구를 읽을 수 있게 주는 시간
+
+let modeTransitionBusy = false;
+
+// 도어 표면에 흩어질 입자(도트)를 딱 한 번만 생성해서 두 패널에 나눠 심어둠
+function ensureDoorDots(){
+  if(!doorLeftEl || doorLeftEl.querySelector('.door-dot')) return;
+  [doorLeftEl, doorRightEl].forEach(panel=>{
+    for(let i=0; i<7; i++){
+      const dot = document.createElement('span');
+      dot.className = 'door-dot';
+      const size = 3 + Math.random()*7;
+      dot.style.width = dot.style.height = size + 'px';
+      dot.style.left = (Math.random()*100) + '%';
+      dot.style.top = (Math.random()*100) + '%';
+      dot.style.transitionDelay = (Math.random()*.3) + 's';
+      panel.appendChild(dot);
+    }
+  });
+}
+ensureDoorDots();
+
+function runDoorTransition(newMode){
+  const cls = newMode === 'light' ? 'to-light' : 'to-dark';
+  [doorLeftEl, doorRightEl, doorSeamEl, doorTextEl].forEach(el=>{
+    if(!el) return;
+    el.classList.remove('to-light','to-dark');
+    el.classList.add(cls);
+  });
+  if(doorTextEl) doorTextEl.textContent = MODE_LABELS[newMode] + '에 오신 것을 환영합니다';
+
+  requestAnimationFrame(()=>{
+    if(doorLeftEl) doorLeftEl.classList.add('closed');
+    if(doorRightEl) doorRightEl.classList.add('closed');
+    // 문이 맞닿는 순간을 향해 심(seam)이 잠깐 반짝임
+    if(doorSeamEl) doorSeamEl.classList.add('show');
+  });
+
+  setTimeout(()=>{
+    // 도어가 완전히 닫혀 화면을 다 가린 시점에만 실제 테마를 바꿔치기함
+    applyModeClass();
+    subscribeModeMeta();
+    if(doorTextEl) doorTextEl.classList.add('show');
+    if(doorSeamEl) doorSeamEl.classList.remove('show'); // 다 닫혔으니 스파크는 사라짐
+  }, DOOR_CLOSE_MS);
+
+  setTimeout(()=>{ if(doorTextEl) doorTextEl.classList.remove('show'); }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS);
+
+  setTimeout(()=>{
+    if(doorLeftEl) doorLeftEl.classList.remove('closed');
+    if(doorRightEl) doorRightEl.classList.remove('closed');
+    if(doorSeamEl) doorSeamEl.classList.add('show'); // 다시 열릴 때도 한 번 더 반짝
+  }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS + 80);
+
+  setTimeout(()=>{ if(doorSeamEl) doorSeamEl.classList.remove('show'); }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS + 80 + DOOR_CLOSE_MS);
+
+  setTimeout(()=>{
+    modeTransitionBusy = false;
+    modeToggleBtn.classList.remove('mt-busy');
+  }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS + 80 + DOOR_CLOSE_MS);
+}
+
+
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
   if(newMode === siteMode) return;
+  if(modeTransitionBusy) return;
+  modeTransitionBusy = true;
+  modeToggleBtn.classList.add('mt-busy');
+
   siteMode = newMode;
   localStorage.setItem('gh_mode', siteMode);
-  applyModeClass();
-  subscribeModeMeta();
-  toast(MODE_LABELS[siteMode] + '으로 이동했어요');
+
+  // 프리롤: 도어를 열기 전에 스위치 썸/라벨부터 먼저 움직여 보여줌
+  ensureModeToggleMarkup();
+  modeToggleBtn.classList.toggle('mt-target-light', newMode === 'light');
+  modeToggleBtn.querySelector('.mt-icon').innerHTML = MODE_ICONS[newMode];
+  modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[newMode];
+  modeToggleBtn.setAttribute('aria-label', MODE_LABELS[newMode] + ' 적용 중 · 눌러서 전환');
+
+  setTimeout(()=> runDoorTransition(newMode), DOOR_PREROLL_MS);
 }
 
 // ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
