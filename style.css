@@ -276,13 +276,7 @@ body::before{
   padding: 0 14px 0 36px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  background: rgba(255,255,255,0.14);
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  /* 이 버튼은 페이지 로드 후 JS가 innerHTML로 새로 그려 넣는 요소라, 정적으로
-     처음부터 박혀있는 .btn들과 달리 브라우저가 backdrop-filter용 합성 레이어를
-     제때 안 만들어서 블러가 안 먹는 경우가 있음 — will-change만으론 부족해서,
-     translateZ(0)로 강제로 별도 GPU 레이어를 만들고 isolation:isolate로 그
-     레이어 안에서 배경 합성이 확실히 새로 계산되게 함 */
+  /* background, backdrop-filter는 .mt-track-fill로 이동된 상태 유지 */
   will-change: backdrop-filter;
   transform: translateZ(0);
   isolation: isolate;
@@ -297,11 +291,20 @@ body::before{
   user-select: none;
   transition: padding .35s ease, border-color .15s ease;
 }
-.mode-toggle:hover{ border-color: var(--ink-soft); }
-/* 트랙 라인은 항상 켜둠 — 스위치(.mt-thumb)가 이 위에서 블러로 겹칠 때, 트랙 라인이
-   유리 너머로 은은하게 비쳐 보이는 게 "스위치 안의 라인"으로 보이는 원리라서, 호버 때만
-   나오면 평소(터치 기기 포함)엔 스위치 안에 비칠 라인 자체가 없어져 버림 */
-.mode-toggle .mt-label{ white-space: nowrap; }
+
+.mt-track-fill{
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255,255,255,0.14);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  will-change: backdrop-filter;
+  transform: translateZ(0);
+  isolation: isolate;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .mode-toggle .mt-thumb{
   position: absolute;
   top: 50%;
@@ -312,6 +315,7 @@ body::before{
   border-radius: 999px;
   background: rgba(255,255,255,0.16);
   border: none;
+  z-index: 1;
   backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
   will-change: backdrop-filter;
   isolation: isolate;
@@ -319,6 +323,11 @@ body::before{
   font-size: 1rem;
   transition: left .4s cubic-bezier(.34,1.56,.64,1);
 }
+.mode-toggle:hover{ border-color: var(--ink-soft); }
+/* 트랙 라인은 항상 켜둠 — 스위치(.mt-thumb)가 이 위에서 블러로 겹칠 때, 트랙 라인이
+   유리 너머로 은은하게 비쳐 보이는 게 "스위치 안의 라인"으로 보이는 원리라서, 호버 때만
+   나오면 평소(터치 기기 포함)엔 스위치 안에 비칠 라인 자체가 없어져 버림 */
+.mode-toggle .mt-label{ white-space: nowrap; position: relative; z-index: 1; }
 /* 스위치 자체엔 테두리를 안 그림 — 트랙의 실제 테두리 선이 스위치 뒤로 지나가는
    구간은 스위치의 backdrop-filter(블러)가 알아서 흐리게 비쳐 보여줌. 가짜로
    블러 자국을 따로 그릴 필요 없이, 진짜 겹치는 라인이 블러 규칙을 그대로 탐 */
