@@ -68,6 +68,7 @@ function ensureModeToggleMarkup(){
   modeToggleBtn.classList.remove('btn','small');
   modeToggleBtn.classList.add('mode-toggle');
   modeToggleBtn.innerHTML =
+    '<span class="mt-track-fill"></span>' +
     '<span class="mt-thumb"><span class="mt-icon"></span></span>' +
     '<span class="mt-label"></span>';
 }

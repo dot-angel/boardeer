@@ -276,8 +276,8 @@ body::before{
   padding: 0 14px 0 36px;
   border-radius: 999px;
   border: 1px solid var(--card-border);
-  background: var(--card-bg);
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  background: transparent; /* 브라우저 기본 <button> 배경(연회색)이 .mt-track-fill
+                               뒤에서 비치지 않도록 명시적으로 투명 처리 */
   box-shadow: none;
   color: var(--ink);
   font-family: var(--font-body);
@@ -293,9 +293,24 @@ body::before{
 /* 트랙 라인은 항상 켜둠 — 스위치(.mt-thumb)가 이 위에서 블러로 겹칠 때, 트랙 라인이
    유리 너머로 은은하게 비쳐 보이는 게 "스위치 안의 라인"으로 보이는 원리라서, 호버 때만
    나오면 평소(터치 기기 포함)엔 스위치 안에 비칠 라인 자체가 없어져 버림 */
-.mode-toggle .mt-label{ white-space: nowrap; }
+/* 트랙 배경/블러 전용 레이어 — .mode-toggle(버튼) 자신에는 더 이상 backdrop-filter를
+   두지 않고, .mt-thumb과 형제(sibling)인 이 레이어로 분리함. 같은 요소 안에 backdrop-filter가
+   두 겹(부모+자식)으로 중첩되면 브라우저가 자식 쪽 블러 계산을 스킵해버리는 문제가 있어서,
+   트랙 블러를 형제로 떼어내야 스위치의 backdrop-filter가 정상적으로 작동함 */
+.mode-toggle .mt-track-fill{
+  position: absolute;
+  inset: -1px; /* 테두리(1px) 밑까지 채워서, 원래 .mode-toggle 자체 배경이
+                  border-box로 테두리 아래까지 깔리던 것과 동일하게 재현 */
+  border-radius: inherit;
+  background: var(--card-bg);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  z-index: 0;
+  pointer-events: none;
+}
+.mode-toggle .mt-label{ position: relative; z-index: 1; white-space: nowrap; }
 .mode-toggle .mt-thumb{
   position: absolute;
+  z-index: 1;
   top: 50%;
   left: 4px;
   width: 24px;
