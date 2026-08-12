@@ -324,7 +324,7 @@ body::before{
   transform: translateY(-50%);
   border-radius: 999px;
   background: rgba(255,255,255,0.16);
-  border: 1px solid rgba(255,255,255,0.26);
+  border: 1px solid rgba(255,255,255,0.4);
   backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem;
@@ -338,7 +338,7 @@ body::before{
 .mode-toggle .mt-icon{ color: var(--rose); display:flex; position:relative; z-index:1; }
 .mode-toggle .mt-icon .icon-svg{ width:16px; height:16px; }
 body.theme-light .mode-toggle{ padding: 0 36px 0 14px; }
-body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: rgba(20,16,14,0.16); }
+body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
 
 
 
@@ -742,14 +742,14 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: 
 .w-edit-toggle-btn{
   position:absolute; top:8px; right:8px; z-index:6;
   width:28px; height:28px; border-radius:50%;
-  border:1px solid var(--card-border); background: rgba(15,4,6,0.55);
-  color: var(--badge-ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  border:1px solid var(--card-border); background: rgba(var(--row-tint),0.06);
+  color: var(--ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
 }
-.w-edit-toggle-btn:hover{ background: rgba(196,66,95,0.5); }
+.w-edit-toggle-btn:hover{ background: rgba(var(--row-tint),0.14); }
 /* 활성(잠금 해제) 상태 — 켜져 있는 동안엔 눈에 띄는 색으로 유지해서, 지금
    삭제/이동 등이 가능한 상태라는 걸 계속 인지할 수 있게 함 */
 .w-edit-toggle-btn.active{
-  background: rgba(196,66,95,0.75); border-color: rgba(255,255,255,0.4);
+  background: rgba(196,66,95,0.75); border-color: rgba(255,255,255,0.4); color: var(--badge-ink);
 }
 /* 연필 버튼이 우상단으로 오면서, 각 위젯 안쪽 맨 위 줄(툴바/탭/사진 우상단 버튼
    등)과 같은 자리에서 겹칠 수 있어서 — 이 버튼이 직접 자식으로 붙어있는 카드에
