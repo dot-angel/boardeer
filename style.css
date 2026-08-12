@@ -71,6 +71,11 @@
   /* 카드/보드 표면 위에 바로 놓이는 행(row) hover/기본 틴트용 RGB 트리플.
      사진 위 배지·모달·배너처럼 늘 어둡게 유지하는 요소들은 이 값을 쓰지 않음 */
   --row-tint: 255,255,255;
+  /* 사진 위에 뜨는 원형 배지(연필/톱니/접기 버튼 등)는 배경이 항상 어두운 유리라,
+     아이콘 색도 모드를 안 따라가고 항상 밝게 고정해야 함. var(--ink)를 쓰면 라이트
+     모드에서 어두운 배경 위에 어두운 글자가 얹혀버리므로, 이 전용 토큰 하나로
+     통일해서 씀(라이트모드에서 따로 뒤집을 필요 없이 항상 같은 값) */
+  --badge-ink: #FBF7F8;
 }
 /* =========================================================
    라이트모드 — 다크모드와 동일한 편집 자유도(배너/배경/색상)를 갖되,
@@ -543,7 +548,7 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: 
 .speech-card-cover-btn, .speech-card-edit-btn{
   position:absolute; top:8px; width:28px; height:28px; border-radius:50%;
   border:1px solid var(--card-border); background: rgba(15,4,6,0.55);
-  color: var(--ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  color: var(--badge-ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
   z-index:2;
 }
 .speech-card-cover-btn{ right:42px; }
@@ -738,7 +743,7 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); border-color: 
   position:absolute; top:8px; right:8px; z-index:6;
   width:28px; height:28px; border-radius:50%;
   border:1px solid var(--card-border); background: rgba(15,4,6,0.55);
-  color: var(--ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  color: var(--badge-ink); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
 }
 .w-edit-toggle-btn:hover{ background: rgba(196,66,95,0.5); }
 /* 활성(잠금 해제) 상태 — 켜져 있는 동안엔 눈에 띄는 색으로 유지해서, 지금
@@ -2055,7 +2060,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .video-player .w-empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:0; }
 .video-collapse{
   position:absolute; top:8px; right:8px; z-index:2; width:28px; height:28px; border-radius:50%;
-  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.75); color:var(--ink); font-size:.8rem;
+  border:1px solid rgba(255,255,255,0.25); background: rgba(20,10,12,0.75); color:var(--badge-ink); font-size:.8rem;
   display:flex; align-items:center; justify-content:center;
 }
 /* 평소엔 레퍼런스갤러리 옆 좁은 칸에 세로로 쌓인 목록(제목은 자리가 없어 생략) */
@@ -2084,7 +2089,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 .row-refpair.video-open .video-item{ width:150px; flex:0 0 auto; }
 .row-refpair.video-open .video-title{
-  display:block; font-size:.7rem; color: var(--ink); padding:4px 6px; white-space:nowrap; overflow:hidden;
+  display:block; font-size:.7rem; color: var(--badge-ink); padding:4px 6px; white-space:nowrap; overflow:hidden;
   text-overflow:ellipsis; background: rgba(0,0,0,0.35);
 }
 .w-video .w-edit-row button{ width:100%; white-space:normal; line-height:1.3; }
@@ -2610,7 +2615,8 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    ② 배너/사진 위 배지처럼 반대로 배경은 "항상 어둡게" 유지하는 게
       의도인 요소인데, 글자/아이콘 색이 var(--ink)를 따라가버려서
       라이트모드에선 어두운 배경 위에 어두운 글자가 얹히던 것.
-      → 이런 요소는 배경은 그대로 두고 글자색만 고정된 밝은 색으로 되돌림.
+      → 라이트모드 예외 규칙을 매번 추가하는 대신, --badge-ink 토큰(:root)을
+      색으로 쓰도록 원래 규칙 자체를 고쳐서 모드와 무관하게 통일함.
    ③ 검은 그림자가 스티커/말풍선/카드처럼 작은 요소 여러 개에 걸려있어서,
       밝은 배경 위에서 특히 도드라지고 얼룩처럼 보이던 것.
       → 팔레트 톤(--ink-rgb)의 옅은 그림자로 교체.
@@ -2671,16 +2677,13 @@ body.theme-light .modal-overlay.modal-overlay-plain{
 }
 
 /* ---- ② 배경은 항상 어둡게 유지하는 게 맞는(사진 위 배지/전체화면
-   오버레이 안) 요소들 — 배경은 그대로 두고, 라이트모드를 따라가 버려
-   안 보이던 글자·아이콘 색만 고정된 밝은 색으로 되돌림. 배너 쪽 컨트롤은
-   아래 ④에서 스크림 자체를 뽀얗게 바꾸면서 기본 잉크색 글자로도 충분히
-   읽히게 됐으므로 여기서 제외함 ---- */
-body.theme-light .speech-card-cover-btn,
-body.theme-light .speech-card-edit-btn,
-body.theme-light .video-collapse,
-body.theme-light .row-refpair.video-open .video-title{
-  color:#FBF7F8;
-}
+   오버레이 안) 요소들 — 예전엔 여기서 라이트모드일 때만 글자·아이콘 색을
+   따로 뒤집어줬는데, 새 배지가 추가될 때마다 이 목록에 안 넣으면 또
+   "어두운 배경에 어두운 글자"가 재발하는 구조였음(w-edit-toggle-btn이 실제로
+   그렇게 빠져서 안 보인 적 있음). 그래서 라이트모드 예외로 두는 대신, 이런
+   요소들은 처음부터 :root의 --badge-ink 토큰(항상 밝은 고정값)을 색으로 쓰도록
+   바꿔서 모드와 무관하게 하나의 규칙으로 통일함 — 그래서 여기엔 더 이상
+   별도 규칙이 없음(해당 요소들은 위쪽 :root 및 각자 위치의 기본 규칙 참고) ---- */
 
 /* ---- ③ 검은 그림자가 스티커/말풍선처럼 작은 요소 여러 개에 걸려있어서,
    밝은 배경 위에서 특히 도드라지고 지저분해 보이던 부분 ----
