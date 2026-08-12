@@ -88,7 +88,6 @@ const globalStyleBtn = document.getElementById('globalStyleBtn');
 const modeToggleBtn = document.getElementById('modeToggleBtn');
 const doorLeftEl = document.getElementById('doorLeft');
 const doorRightEl = document.getElementById('doorRight');
-const doorSeamEl = document.getElementById('doorSeam');
 const doorTextEl = document.getElementById('doorText');
 
 /* ---------------- 라이트모드 / 다크모드 ----------------
@@ -1896,7 +1895,7 @@ ensureDoorDots();
 
 function runDoorTransition(newMode){
   const cls = newMode === 'light' ? 'to-light' : 'to-dark';
-  [doorLeftEl, doorRightEl, doorSeamEl, doorTextEl].forEach(el=>{
+  [doorLeftEl, doorRightEl, doorTextEl].forEach(el=>{
     if(!el) return;
     el.classList.remove('to-light','to-dark');
     el.classList.add(cls);
@@ -1906,8 +1905,6 @@ function runDoorTransition(newMode){
   requestAnimationFrame(()=>{
     if(doorLeftEl) doorLeftEl.classList.add('closed');
     if(doorRightEl) doorRightEl.classList.add('closed');
-    // 문이 맞닿는 순간을 향해 심(seam)이 잠깐 반짝임
-    if(doorSeamEl) doorSeamEl.classList.add('show');
   });
 
   setTimeout(()=>{
@@ -1915,7 +1912,6 @@ function runDoorTransition(newMode){
     applyModeClass();
     subscribeModeMeta();
     if(doorTextEl) doorTextEl.classList.add('show');
-    if(doorSeamEl) doorSeamEl.classList.remove('show'); // 다 닫혔으니 스파크는 사라짐
   }, DOOR_CLOSE_MS);
 
   setTimeout(()=>{ if(doorTextEl) doorTextEl.classList.remove('show'); }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS);
@@ -1923,10 +1919,7 @@ function runDoorTransition(newMode){
   setTimeout(()=>{
     if(doorLeftEl) doorLeftEl.classList.remove('closed');
     if(doorRightEl) doorRightEl.classList.remove('closed');
-    if(doorSeamEl) doorSeamEl.classList.add('show'); // 다시 열릴 때도 한 번 더 반짝
   }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS + 80);
-
-  setTimeout(()=>{ if(doorSeamEl) doorSeamEl.classList.remove('show'); }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS + 80 + DOOR_CLOSE_MS);
 
   setTimeout(()=>{
     modeTransitionBusy = false;

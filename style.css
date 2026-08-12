@@ -393,19 +393,6 @@ body.theme-light .mode-toggle .mt-thumb{ left: calc(100% - 28px); }
 /* 다크(멧돼지관)로 갈 땐 도트를 빼고, 라이트(사슴관)로 갈 때만 입자가 떠오르게 함 */
 .door.closed.to-light .door-dot{ opacity:.55; transform: scale(1); }
 
-/* 두 문이 맞닿는 틈에서 잠깐 스파크처럼 빛이 새어나오는 심(seam) 글로우 —
-   닫히는 순간에만 반짝하고, 문이 완전히 닫혀 문구가 뜨기 직전에 사라짐 */
-.door-seam{
-  position:fixed; top:0; bottom:0; left:50%; width:6px; z-index:602;
-  transform: translateX(-50%) scaleX(0.3);
-  opacity:0; pointer-events:none;
-  filter: blur(6px);
-  transition: opacity .45s ease, transform .45s ease;
-}
-.door-seam.to-light{ background: linear-gradient(180deg, transparent, rgba(255,255,255,0.95) 40%, rgba(255,255,255,0.95) 60%, transparent); }
-.door-seam.to-dark{ background: linear-gradient(180deg, transparent, rgba(247,176,183,0.9) 40%, rgba(247,176,183,0.9) 60%, transparent); }
-.door-seam.show{ opacity:1; transform: translateX(-50%) scaleX(1); }
-
 .door-text{
   position:fixed; top:50%; left:50%; z-index:601;
   transform: translate(-50%,-50%) translateY(8px);
