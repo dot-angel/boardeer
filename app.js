@@ -1255,6 +1255,37 @@ function extractYouTubeId(url){
   return m ? m[1] : null;
 }
 
+/* 캔버스에 실제로 투명한(완전 불투명이 아닌) 픽셀이 있는지 검사.
+   WebP를 못 쓰는 폴백 경로에서, 투명도가 없는 "사진"은 JPEG로 보내 해상도
+   손실을 피하고, 진짜 투명 PNG(스티커/로고 등)만 PNG로 남기기 위한 판단용. */
+function canvasHasTransparency(canvas){
+  const ctx = canvas.getContext('2d');
+  let data;
+  try{ data = ctx.getImageData(0, 0, canvas.width, canvas.height).data; }
+  catch(e){ return true; } // 픽셀을 못 읽으면 안전하게 "투명 있음"으로 간주해 PNG 경로 유지
+  for(let i = 3; i < data.length; i += 4){
+    if(data[i] < 255) return true;
+  }
+  return false;
+}
+
+/* 이 브라우저가 캔버스에서 WebP로 인코딩할 수 있는지 검사(결과는 캐싱).
+   WebP를 지원 안 하는 구형 브라우저(특히 오래된 Safari)는 toDataURL('image/webp')를
+   호출해도 에러 없이 조용히 PNG를 돌려주는 경우가 있어서, try/catch가 아니라
+   실제 반환된 data URL이 "data:image/webp"로 시작하는지를 직접 확인해야 함. */
+let _webpSupportCache = null;
+function supportsWebP(){
+  if(_webpSupportCache !== null) return _webpSupportCache;
+  try{
+    const canvas = document.createElement('canvas');
+    canvas.width = 1; canvas.height = 1;
+    _webpSupportCache = canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+  }catch(e){
+    _webpSupportCache = false;
+  }
+  return _webpSupportCache;
+}
+
 /* 사진을 화면에서 바로 올릴 수 있도록 브라우저에서 리사이즈+압축 후 base64로 변환.
    Firestore 문서 1건당 최대 1MB라서, 별도 유료 스토리지 없이 쓰려면 이렇게 줄여서 저장해야 함. */
 function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=700000){
@@ -1274,10 +1305,11 @@ function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=70000
       reader.readAsDataURL(file);
       return;
     }
-    // 원본이 PNG면(투명한 부분이 있을 수 있음) JPEG로 인코딩하지 않고 PNG로 그대로
-    // 인코딩함 — JPEG는 투명도를 지원하지 않아서 투명했던 부분이 검게 덮여버림.
-    // PNG는 화질(quality) 옵션이 없으므로, 용량이 목표치를 넘으면 화질을 낮추는 대신
-    // 해상도를 단계적으로 줄여가며 목표 용량에 맞춤.
+    // 원본이 PNG면(투명한 부분이 있을 수 있음) 브라우저가 WebP 인코딩을 지원할 때
+    // WebP로 압축함 — WebP는 JPEG처럼 quality로 용량을 조절하면서도 PNG처럼
+    // 투명도(알파 채널)도 그대로 유지되기 때문에, 해상도를 깎지 않고도 용량을
+    // 줄일 수 있음. WebP를 지원 안 하는 구형 브라우저에서는 기존 방식(PNG 유지 +
+    // 목표 용량 못 맞추면 해상도를 단계적으로 축소)으로 폴백함.
     const isPng = file.type === 'image/png';
     const reader = new FileReader();
     reader.onload = ()=>{
@@ -1300,15 +1332,42 @@ function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=70000
           return canvas;
         };
         if(isPng){
-          let w = width, h = height, dim = maxDim;
-          let dataUrl = drawAt(w, h).toDataURL('image/png');
-          while(dataUrl.length > maxBytes * 1.37 && dim > 200){
-            dim = Math.round(dim * 0.8);
-            if(w > h){ h = Math.round(h * (dim/w)); w = dim; }
-            else{ w = Math.round(w * (dim/h)); h = dim; }
-            dataUrl = drawAt(w, h).toDataURL('image/png');
+          const canvas = drawAt(width, height);
+          if(supportsWebP()){
+            // WebP는 손실 압축이어도 알파 채널은 별도로 무손실에 가깝게 보존되므로,
+            // 투명 여부를 따로 검사할 필요 없이 항상 이 경로를 타도 됨.
+            let quality = 0.85;
+            let dataUrl = canvas.toDataURL('image/webp', quality);
+            while(dataUrl.length > maxBytes * 1.37 && quality > 0.25){
+              quality -= 0.1;
+              dataUrl = canvas.toDataURL('image/webp', quality);
+            }
+            resolve(dataUrl);
+          } else {
+            // 폴백: WebP 미지원 브라우저. 투명 영역이 없으면(대부분 사진 PNG)
+            // JPEG로 quality를 조절해 해상도 손실 없이 압축하고, 진짜 투명이
+            // 있는 PNG(스티커/로고 등)만 화질 옵션이 없는 PNG로 남기되 목표
+            // 용량을 못 맞추면 해상도를 단계적으로 줄임.
+            if(!canvasHasTransparency(canvas)){
+              let quality = 0.85;
+              let dataUrl = canvas.toDataURL('image/jpeg', quality);
+              while(dataUrl.length > maxBytes * 1.37 && quality > 0.25){
+                quality -= 0.1;
+                dataUrl = canvas.toDataURL('image/jpeg', quality);
+              }
+              resolve(dataUrl);
+            } else {
+              let w = width, h = height, dim = maxDim;
+              let dataUrl = canvas.toDataURL('image/png');
+              while(dataUrl.length > maxBytes * 1.37 && dim > 200){
+                dim = Math.round(dim * 0.8);
+                if(w > h){ h = Math.round(h * (dim/w)); w = dim; }
+                else{ w = Math.round(w * (dim/h)); h = dim; }
+                dataUrl = drawAt(w, h).toDataURL('image/png');
+              }
+              resolve(dataUrl);
+            }
           }
-          resolve(dataUrl);
         } else {
           const canvas = drawAt(width, height);
           let quality = 0.85;
