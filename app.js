@@ -642,12 +642,24 @@ function updateLightboxBlurFrame(modalEl){
   }
   const rect = modalEl.getBoundingClientRect();
   const vw = window.innerWidth, vh = window.innerHeight;
+  // 모달 "바깥 여백 전체"에 블러를 거는 원래 방식은, 화면이 커지면(특히 PC, 그중에서도
+  // 와이드 모니터) 그 여백 자체가 넓어져서 스트립의 실제 블러 면적이 화면 크기에 비례해
+  // 다시 커짐 — 이 스트립을 만든 이유(면적을 줄여서 가볍게)가 큰 화면에서는 오히려
+  // 무색해지는 셈. 사진 가장자리를 일정 두께(STRIP)만큼만 감싸듯 블러를 둘러도 시각적으론
+  // 화면 전체를 블러 처리한 것과 구분이 안 되고(그 바깥은 이미 깔린 어두운 반투명
+  // 오버레이만 보임), 그 너머 여백엔 블러를 아예 안 걸어서 블러 면적이 화면 크기와
+  // 무관하게 늘 일정하게 유지됨. 모바일처럼 여백이 원래 이 두께보다 작으면 min()에 의해
+  // 원래 여백 그대로 쓰이므로 결과가 이전과 완전히 동일함(모바일은 아무 변화 없음).
+  const STRIP = 220;
   const top = Math.max(0, rect.top), bottom = Math.max(0, vh - rect.bottom);
   const left = Math.max(0, rect.left), right = Math.max(0, vw - rect.right);
-  frame.querySelector('.lbf-top').style.cssText = `top:0; left:0; width:100%; height:${top}px;`;
-  frame.querySelector('.lbf-bottom').style.cssText = `bottom:0; left:0; width:100%; height:${bottom}px;`;
-  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:0; width:${left}px; height:${rect.height}px;`;
-  frame.querySelector('.lbf-right').style.cssText = `top:${rect.top}px; right:0; width:${right}px; height:${rect.height}px;`;
+  const capTop = Math.min(STRIP, top), capBottom = Math.min(STRIP, bottom);
+  const capLeft = Math.min(STRIP, left), capRight = Math.min(STRIP, right);
+  const haloLeft = rect.left - capLeft, haloRight = rect.right + capRight;
+  frame.querySelector('.lbf-top').style.cssText = `top:${rect.top - capTop}px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${capTop}px;`;
+  frame.querySelector('.lbf-bottom').style.cssText = `top:${rect.bottom}px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${capBottom}px;`;
+  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:${haloLeft}px; width:${capLeft}px; height:${rect.height}px;`;
+  frame.querySelector('.lbf-right').style.cssText = `top:${rect.top}px; left:${rect.right}px; width:${capRight}px; height:${rect.height}px;`;
 }
 
 function openImageLightbox(cfg){
