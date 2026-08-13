@@ -2575,7 +2575,12 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   .lightbox-carousel.is-stack .lightbox-carousel-peek.pk-1{ height:34px; }
   .lightbox-carousel.is-stack .lightbox-carousel-peek.pk-2{ height:18px; }
   .lightbox-carousel.is-stack .lightbox-carousel-more{ width:min(84vw, 420px); height:14px; }
-  .modal.modal-lightbox .lightbox-carousel.is-stack .lightbox-img{ max-width:88vw; max-height:46vh; }
+  /* 세로로 긴 이미지가 46vh 높이 제한에 먼저 걸려 폭이 88vw보다 좁게 렌더링되면서
+     위아래 대기 캐러셀(폭 고정)과 폭이 어긋나던 문제 수정. 높이 제한을 없애서(기본
+     .lightbox-img 규칙의 max-height:80vh를 그대로 물려받음) 폭이 항상 88vw로 맞춰지게
+     하고, 그 결과 라이트박스가 위아래로 넘치면 박스 자체(.modal의 overflow:auto)가
+     스크롤되도록 함 */
+  .modal.modal-lightbox .lightbox-carousel.is-stack .lightbox-img{ max-width:88vw; }
   /* 좌우 절반을 눌러 넘기던 탭 영역도 위/아래 절반으로 바꿔서, 스와이프 방향과 손으로
      누르는 위치가 서로 어긋나지 않게 맞춤 */
   .lightbox-carousel.is-stack .lightbox-zone{ left:0; right:0; width:auto; height:38%; }
