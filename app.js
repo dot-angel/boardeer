@@ -32,7 +32,17 @@ document.addEventListener('click', (e)=>{
   e.stopPropagation();
   const key = btn.dataset.wkey;
   if(widgetUnlocked.has(key)) widgetUnlocked.delete(key); else widgetUnlocked.add(key);
+  // 연필 버튼 하나만 눌러도 renderAllModules()가 위젯 13개의 innerHTML을 전부
+  // 통째로 새로 그림 — 이때 브라우저의 스크롤 앵커링(Scroll Anchoring)이 기준으로
+  // 삼고 있던 옛 DOM 노드들이 한꺼번에 사라졌다가 새 노드로 바뀌면서 앵커를 놓쳐,
+  // 스크롤 위치가 엉뚱한 곳으로 훅 튀는 현상이 있었음. 다시 그리기 직전 스크롤
+  // 위치를 기억해뒀다가, 그린 직후와 다음 프레임에 한 번 더 그대로 되돌려줌
+  // (다음 프레임까지 보는 이유는 위젯 높이가 막 반영되는 그 찰나에 브라우저가
+  // 다시 한번 앵커를 다시 잡으며 위치를 흔드는 경우가 있어서임).
+  const scrollY = window.scrollY;
   renderAllModules();
+  window.scrollTo(0, scrollY);
+  requestAnimationFrame(()=> window.scrollTo(0, scrollY));
 });
 // 카드 자체는 index.html에 고정 마크업으로 있고(내부 리스트만 다시 그리는)
 // 위젯들(캘린더/방명록/세션카드 등)을 위한 공용 헬퍼 — 연필 버튼을 카드
