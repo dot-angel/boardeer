@@ -348,15 +348,23 @@ function layoutPinMasonry(gridEl){
   if(!width){ ensurePinMasonryResizeWatch(gridEl); return; }
   const cols = pinMasonryColumnCount(width);
   const colW = (width - PIN_MASONRY_GAP * (cols - 1)) / cols;
+  // 타일마다 "폭 쓰기 → 높이 읽기"를 번갈아 하면(예전 방식), 폭 쓰기가 레이아웃을
+  // 무효화시켜서 그 다음 높이 읽기(getBoundingClientRect)마다 강제 동기 리플로우가
+  // 발생함 — 사진이 N장이면 리플로우도 N번. 모든 타일 폭이 사실 다 똑같은 colW이므로
+  // (1) 폭 쓰기를 전부 먼저 끝내고 (2) 그 다음에 높이를 한 번에 몰아서 읽고
+  // (3) 마지막으로 위치(transform)만 계산해서 쓰면, 강제 리플로우가 1번으로 줄어듦
+  // (transform 쓰기는 레이아웃에 영향을 안 주는 속성이라 다음 읽기를 무효화하지 않음).
+  // 사진이 많이 쌓인 갤러리일수록 체감 차이가 커짐.
+  tiles.forEach(tile=>{ tile.style.width = colW + 'px'; });
+  const tileHeights = tiles.map(tile=> tile.getBoundingClientRect().height);
   const colHeights = new Array(cols).fill(0);
-  tiles.forEach(tile=>{
-    tile.style.width = colW + 'px';
+  tiles.forEach((tile, i)=>{
     let target = 0;
     for(let c = 1; c < cols; c++){ if(colHeights[c] < colHeights[target]) target = c; }
     const x = target * (colW + PIN_MASONRY_GAP);
     const y = colHeights[target];
     tile.style.transform = `translate(${x}px, ${y}px)`;
-    colHeights[target] = y + tile.getBoundingClientRect().height + PIN_MASONRY_GAP;
+    colHeights[target] = y + tileHeights[i] + PIN_MASONRY_GAP;
   });
   inner.style.height = Math.max(0, Math.max(...colHeights) - PIN_MASONRY_GAP) + 'px';
 }
@@ -766,13 +774,17 @@ function openImageLightbox(cfg){
       // 모바일 스와이프: 이미지 영역을 좌우(넓은 화면)/위아래(좁은 화면)로 밀면 이전/다음 사진으로 이동
       const imgWrap = m.querySelector('#lbImgWrap');
       if(imgWrap && items.length > 1){
-        let touchStartX = 0, touchStartY = 0, touchTracking = false, touchLocked = false;
+        let touchStartX = 0, touchStartY = 0, touchTracking = false, touchLocked = false, touchVertical = false;
         imgWrap.addEventListener('touchstart', e=>{
           if(e.touches.length !== 1) return;
           touchStartX = e.touches[0].clientX;
           touchStartY = e.touches[0].clientY;
           touchTracking = true;
           touchLocked = false;
+          // matchMedia는 스타일 재계산이 걸리는 호출이라, 손가락이 움직이는 동안(touchmove)
+          // 매번 다시 물으면 스와이프 한 번에 수십 번씩 불필요하게 반복됨. 제스처 시작
+          // 시점에 딱 한 번만 물어서 저장해두고, 같은 제스처 안에서는 그 값을 재사용함
+          touchVertical = window.matchMedia('(max-width: 640px)').matches;
         }, { passive:true });
         // touchend에서만 preventDefault를 걸면 그땐 이미 브라우저가 배경 페이지를
         // 스크롤시켜버린 뒤라 늦음. 드래그 중(touchmove)에 방향이 스와이프 축(모바일=세로,
@@ -782,9 +794,8 @@ function openImageLightbox(cfg){
           if(!touchTracking || touchLocked || e.touches.length !== 1) return;
           const dx = e.touches[0].clientX - touchStartX;
           const dy = e.touches[0].clientY - touchStartY;
-          const vertical = window.matchMedia('(max-width: 640px)').matches;
-          const swipeAxisDist = vertical ? Math.abs(dy) : Math.abs(dx);
-          const otherAxisDist = vertical ? Math.abs(dx) : Math.abs(dy);
+          const swipeAxisDist = touchVertical ? Math.abs(dy) : Math.abs(dx);
+          const otherAxisDist = touchVertical ? Math.abs(dx) : Math.abs(dy);
           if(swipeAxisDist > 10 && swipeAxisDist > otherAxisDist * 1.2){
             touchLocked = true; // 한 번 스와이프 축으로 확정되면 손을 뗄 때까지 계속 막음
           }
@@ -798,8 +809,7 @@ function openImageLightbox(cfg){
           const dy = touch.clientY - touchStartY;
           // 모바일 화면 폭에서는 캐러셀도 세로로 눕혀 보여주므로, 스와이프도 위/아래로
           // 받아야 손가락 방향과 화면에 보이는 방향이 서로 맞음(넓은 화면에서는 계속 좌우로)
-          const vertical = window.matchMedia('(max-width: 640px)').matches;
-          if(vertical){
+          if(touchVertical){
             // 세로로 충분히(40px 이상) 움직였고, 가로 움직임보다 뚜렷하게 세로 움직임이 클 때만 스와이프로 인식
             if(Math.abs(dy) > 40 && Math.abs(dy) > Math.abs(dx) * 1.5){
               e.preventDefault();
@@ -6661,7 +6671,10 @@ function initRowStripHeightSync(){
     ro.observe(music);
     if(stripRight) ro.observe(stripRight); // 방명록 접힘/펼침, 말풍선 위젯 커버 설정 등으로 이 칸 높이가 바뀔 때도 다시 맞춤
   }
-  window.addEventListener('resize', syncRowStripHeight);
+  // resize는 창을 드래그하는 동안 한 프레임에도 여러 번 발생함 — 이 함수는 호출마다
+  // getBoundingClientRect(강제 리플로우)를 포함하므로, 다른 resize 핸들러들처럼
+  // debounce로 묶어 드래그가 끝난 뒤 한 번만 계산하게 함
+  window.addEventListener('resize', debounce(syncRowStripHeight, 80));
   syncRowStripHeight();
 }
 
@@ -6702,7 +6715,8 @@ function initRow2HeightSync(){
       syncRow2Height();
     }).observe(cal);
   }
-  window.addEventListener('resize', syncRow2Height);
+  // 위와 같은 이유로(강제 리플로우 포함) resize는 debounce로 묶음
+  window.addEventListener('resize', debounce(syncRow2Height, 80));
   syncRow2Height();
 }
 
@@ -6776,8 +6790,10 @@ function initBoardTabs(){
     }, 80);
   });
 
-  // 화면 크기가 바뀌어도(예: 회전) 현재 보고 있던 탭 위치를 그대로 유지
-  window.addEventListener('resize', ()=> goTo(currentIdx(), false));
+  // 화면 크기가 바뀌어도(예: 회전) 현재 보고 있던 탭 위치를 그대로 유지.
+  // goTo 안에서 scrollTo + 매스너리 재배치까지 같이 도므로, 다른 resize
+  // 핸들러들처럼 debounce로 묶어 드래그 중 반복 호출을 피함
+  window.addEventListener('resize', debounce(()=> goTo(currentIdx(), false), 80));
 
   setActive(0);
 }

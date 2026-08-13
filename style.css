@@ -1039,7 +1039,6 @@ body.edit-mode .w-card:has(> .w-edit-toggle-btn){
 }
 .player-track.active{ background: var(--rose-soft); font-weight:600; color: var(--rose); }
 .player-track.dragging{ opacity:.4; }
-.player-track.drag-over{ outline: 2px dashed var(--rose); outline-offset: -2px; border-radius:10px; }
 .mp-track-drag-handle{
   flex:0 0 auto; width:18px; text-align:center; font-size:.85rem; color: var(--ink-soft);
   cursor: grab; line-height:1;
@@ -1304,7 +1303,6 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .sec-order-default.active{ color: var(--rose); }
 /* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
 .sec-order-row.dragging{ opacity:.4; }
-.sec-order-row.drag-over{ outline: 2px dashed var(--rose); outline-offset: -2px; }
 .sec-order-drag-handle{
   flex:0 0 auto; width:14px; text-align:center; font-size:.8rem; color: var(--ink-soft);
   cursor: grab; line-height:1;
@@ -1346,7 +1344,6 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 /* 드래그로 AU 탭 순서 바꾸기(뮤직 재생목록/사진 그리드와 동일한 방식) */
 .profile-section-tab[draggable="true"]{ cursor: grab; }
 .profile-section-tab.dragging{ opacity:.4; cursor: grabbing; }
-.profile-section-tab.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; border-radius:6px; }
 .profile-section-add{
   width:30px; height:30px; border-radius:50%; border:1px solid var(--card-border); background: rgba(var(--row-tint),0.05);
   color: var(--ink-soft); font-size:1rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -1418,8 +1415,6 @@ body:not(.edit-mode) .profile-fields-scroll{
 }
 a.pf-link-item:hover{ background: rgba(var(--row-tint),0.1); }
 .pf-link-item.empty-hint{ opacity:.6; cursor:default; }
-.profile-slide-desc.empty-hint{ text-align:center; cursor:pointer; opacity:.65; font-size:.68rem; color: var(--ink-soft); }
-.profile-slide-desc.empty-hint:hover{ opacity:1; }
 .profile-pair{ display:flex; flex-direction:row; align-items:flex-start; justify-content:center; gap:14px; width:100%; }
 .profile-person{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:5px; padding:6px; border-radius:16px; }
 /* 모바일에서는 2단(가로) 배치를 그대로 유지하되(세로로 쌓으면 스크롤이 너무
@@ -1980,17 +1975,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   background: var(--card-bg2); color: var(--ink-soft); font-size:.72rem; text-align:center; padding:8px;
 }
 .pin-item.pin-loading{ min-height:150px; }
-/* 여러 장을 하나로 묶어 올린 카드는 대표(첫 장) 사진만 썸네일로 보이므로,
-   왼쪽 아래에 작은 배지로 "총 몇 장"인지 알려줌 — 세 갤러리 모두 이 자리는
-   다른 버튼(삭제/블러/옵션)이 안 쓰는 빈 자리라 겹치지 않음 */
-.pin-group-badge{
-  position:absolute; left:8px; bottom:8px; z-index:2;
-  background: rgba(15,4,6,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
-  border:1px solid var(--card-border); color:#fff; font-size:.68rem; font-weight:700;
-  padding:2px 8px; border-radius:999px; display:flex; align-items:center; gap:3px;
-  pointer-events:none;
-}
-.pin-item-dense .pin-group-badge{ left:4px; bottom:4px; font-size:.6rem; padding:1px 6px; }
 /* 정사각형(빽빽한) 그리드에서 모아올리기 묶음은 "N장" 배지 대신, 대표 사진 옆에
    다음 사진들을 세로로 가늘게 잘라 이어 붙여서 한 칸을 나눠 채움(최대 3장, 그
    이상은 마지막 칸이 "···" 생략 표시). 칸 전체(.pin-item-dense)는 그대로 정사각형을
@@ -2200,7 +2184,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .doc-row .doc-edit:hover{ color: var(--rose); }
 /* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
 .doc-row.dragging{ opacity:.4; }
-.doc-row.drag-over{ outline: 2px dashed var(--rose); outline-offset: -2px; }
 .doc-drag-handle{
   flex:0 0 auto; width:14px; text-align:center; font-size:.8rem; color: var(--ink-soft);
   cursor: grab; line-height:1;
@@ -2301,7 +2284,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 /* 드래그로 순서 바꾸기(뮤직 재생목록/사진 그리드와 동일한 방식) */
 .session-card[draggable="true"]{ cursor: grab; }
 .session-card.dragging{ opacity:.4; cursor: grabbing; }
-.session-card.drag-over{ outline: 2px dashed var(--rose); outline-offset: 2px; }
 .session-card img{ width:100%; height:100%; object-fit:cover; display:block; }
 .session-noimg{
   width:100%; height:100%; display:flex; align-items:center; justify-content:center;
@@ -2350,7 +2332,6 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .check-item .check-link-edit:hover{ color:var(--ink); }
 /* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
 .check-item.dragging{ opacity:.4; }
-.check-item.drag-over{ outline: 2px dashed var(--rose); outline-offset: -2px; border-radius:12px; }
 .check-item-drag-handle{
   flex:0 0 auto; width:14px; text-align:center; font-size:.8rem; color: var(--ink-soft);
   cursor: grab; line-height:1;
