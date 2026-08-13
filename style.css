@@ -2341,8 +2341,10 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    이 폭에서는 1열로 위/아래로 쌓음 */
 @media (max-width: 520px){
   .checklist{ grid-template-columns: minmax(0,1fr); }
+  .check-add-row{ flex-direction:column; }
+  .check-add-row input{ width:100%; }
 }
-.check-add-row{ display:flex; gap:6px; margin-top:10px; flex:0 0 auto; }
+.check-add-row{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; flex:0 0 auto; }
 .check-add-row input{
   flex:1; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
   font-family: var(--font-body); font-size:.82rem; background: rgba(var(--row-tint),0.05); color: var(--ink);

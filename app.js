@@ -1278,7 +1278,14 @@ function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=70000
         const drawAt = (w, h)=>{
           const canvas = document.createElement('canvas');
           canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          // 여러 장을 한꺼번에 올릴 때도 화질이 떨어지지 않도록, 캔버스 축소
+          // 리샘플링 품질을 명시적으로 "high"로 지정함(지정 안 하면 브라우저마다
+          // 기본값이 달라서, 사진을 여러 장 연달아 처리할 때 저품질 리샘플링이
+          // 섞여 들어가는 경우가 있었음)
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, w, h);
           return canvas;
         };
         if(isPng){
@@ -1384,7 +1391,10 @@ function compressAvatarImageFile(file, maxDim=900, maxBytes=320000, gifMaxBytes=
             else if(height >= width && height > dim){ width = Math.round(width * (dim/height)); height = dim; }
             const canvas = document.createElement('canvas');
             canvas.width = width; canvas.height = height;
-            canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, width, height);
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, width, height);
             return canvas;
           };
           let dim = maxDim;
@@ -1401,7 +1411,10 @@ function compressAvatarImageFile(file, maxDim=900, maxBytes=320000, gifMaxBytes=
             else if(height >= width && height > dim){ width = Math.round(width * (dim/height)); height = dim; }
             const canvas = document.createElement('canvas');
             canvas.width = width; canvas.height = height;
-            canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
             return canvas;
           };
           const canvas = drawAt(maxDim);
@@ -2163,7 +2176,7 @@ function renderImages(){
     box.innerHTML = `
       ${widgetEditToggleBtnHtml('images', '사진 위젯 편집')}
       <div class="slide-empty">아직 사진이 없어요</div>
-      ${isWidgetOpen('images') ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
+      ${editMode ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
     `;
   } else {
     if(imgSlideIndex >= items.length) imgSlideIndex = 0;
@@ -2186,7 +2199,7 @@ function renderImages(){
         ${items.length>1 ? `<button class="slide-nav prev" id="imgPrev">‹</button><button class="slide-nav next" id="imgNext">›</button>` : ''}
         ${items.length>1 ? `<div class="slide-dots slide-dots-overlay">${items.map((_,i)=>`<span class="dot ${i===imgSlideIndex?'active':''}" data-dot="${i}"></span>`).join('')}</div>` : ''}
       </div>
-      ${isWidgetOpen('images') ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
+      ${editMode ? `<button class="btn small slide-add" id="imgAddBtn">+ 사진 추가</button>` : ''}
     `;
   }
   bindImages();
@@ -2323,6 +2336,10 @@ function openImagesAddModal(){
             newItems.push({ ...(await storeGalleryImage(compressed)), captions:{ tl:'', tr:'', bl:'', br:'' } });
           }
           catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
+          // 사진을 여러 장 연달아 압축할 때 브라우저(특히 모바일)가 메모리 정리를
+          // 못 따라가면서 다음 사진 압축 품질이 낮아지는 경우가 있어, 한 장 처리
+          // 후 잠깐 쉬어가며 정리할 틈을 줌
+          await new Promise(r=> setTimeout(r, 0));
         }
       } else if(url){
         newItems.push({ url, caption:'' });
@@ -2555,7 +2572,7 @@ function renderProfile(){
     box.innerHTML = `
       ${widgetEditToggleBtnHtml('profile', '프로필 위젯 편집')}
       <div class="slide-empty">아직 등록된 프로필이 없어요</div>
-      ${isWidgetOpen('profile') ? `<button class="btn small slide-add" id="profAddBtn">+ AU 추가</button>` : ''}
+      ${editMode ? `<button class="btn small slide-add" id="profAddBtn">+ AU 추가</button>` : ''}
     `;
     bindProfile(slides);
     return;
@@ -3667,7 +3684,7 @@ function buildMusicSkeleton(box){
       </div>
       <div class="mp-side">
         <div class="player-tracks" id="mpTrackList"></div>
-        ${isWidgetOpen('music') ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
+        ${editMode ? `<button class="btn small music-add" id="musicAddBtn">+ 곡 추가</button>` : ''}
       </div>
       <div id="mpYtHolder" style="display:none;"></div>
       <audio id="mpAudioEl" preload="metadata" style="display:none;"></audio>
@@ -4196,7 +4213,7 @@ function renderDday(){
   }));
 
   const wrap = document.getElementById('ddayAddWrap');
-  wrap.innerHTML = isWidgetOpen('calendar') ? `<button class="btn small" id="ddayAddBtn">+ 디데이 추가</button>` : '';
+  wrap.innerHTML = editMode ? `<button class="btn small" id="ddayAddBtn">+ 디데이 추가</button>` : '';
   const addBtn = document.getElementById('ddayAddBtn');
   if(addBtn) addBtn.onclick = openDdayAddModal;
 }
@@ -4982,7 +4999,7 @@ function renderGallery(){
     </div>
     ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
     ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
-    ${isWidgetOpen('gallery') ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
+    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#galleryGrid');
   restoreScrollPos(gridEl, savedScroll);
@@ -5084,6 +5101,7 @@ function openGalleryAddModal(){
             const stored = await storeGalleryImage(dataUrl);
             newItems.push({ ...stored, blur, opts });
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
+          await new Promise(r=> setTimeout(r, 0));
         }
       } else if(url){
         newItems.push({ url, blur, opts });
@@ -5318,7 +5336,7 @@ function renderGallery2(){
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${isWidgetOpen('gallery2') ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
+    ${editMode ? `<button class="gallery-add-fab" id="galAddBtn2" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#gallery2Grid');
   restoreScrollPos(gridEl, savedScroll);
@@ -5424,6 +5442,7 @@ function openGallery2AddModal(){
             const stored = await storeGalleryImage(dataUrl);
             newItems.push({ ...stored, blur, opts });
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
+          await new Promise(r=> setTimeout(r, 0));
         }
       } else if(url){
         newItems.push({ url, blur, opts });
@@ -5593,7 +5612,7 @@ function renderRefGallery(){
       ${items.length===0 ? `<div class="w-empty">아직 사진이 없어요</div>` : ''}
       ${pairs.length===0 && items.length>0 ? `<div class="w-empty">이 옵션에 해당하는 사진이 없어요</div>` : ''}
     </div>
-    ${isWidgetOpen('refgallery') ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
+    ${editMode ? `<button class="gallery-add-fab" id="refGalAddBtn" title="사진 추가">＋</button>` : ''}
   `;
   const gridEl = box.querySelector('#refGalleryGrid');
   restoreScrollPos(gridEl, savedScroll);
@@ -5756,6 +5775,7 @@ function openRefGalleryAddModal(){
             const stored = await storeGalleryImage(dataUrl);
             newItems.push({ ...stored, opts });
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
+          await new Promise(r=> setTimeout(r, 0));
         }
       } else if(url){
         newItems.push({ url, opts });
@@ -5864,8 +5884,8 @@ function renderVideos(){
     toast('영상을 삭제했어요');
   }));
   const addWrap = document.getElementById('videoAddWrap');
-  addWrap.innerHTML = isWidgetOpen('video') ? `<button class="btn small" id="videoAddBtn" type="button">+ 영상 추가</button>` : '';
-  if(isWidgetOpen('video')) document.getElementById('videoAddBtn').addEventListener('click', openVideoAddModal);
+  addWrap.innerHTML = editMode ? `<button class="btn small" id="videoAddBtn" type="button">+ 영상 추가</button>` : '';
+  if(editMode) document.getElementById('videoAddBtn').addEventListener('click', openVideoAddModal);
 }
 
 function openVideoAddModal(){
@@ -5980,7 +6000,7 @@ function renderDocs(){
   }));
 
   const wrap = document.getElementById('docAddWrap');
-  wrap.innerHTML = isWidgetOpen('docs') ? `<div class="doc-add-row"><button class="btn small doc-add" id="docAddBtn">+ 문서 추가</button><button class="btn small ghost" id="docOptsBtn">⚙ 옵션 관리</button></div>` : '';
+  wrap.innerHTML = editMode ? `<div class="doc-add-row"><button class="btn small doc-add" id="docAddBtn">+ 문서 추가</button>${isWidgetOpen('docs') ? `<button class="btn small ghost" id="docOptsBtn">⚙ 옵션 관리</button>` : ''}</div>` : '';
   const addBtn = document.getElementById('docAddBtn');
   if(addBtn) addBtn.onclick = openDocAddModal;
   const optsBtn = document.getElementById('docOptsBtn');
@@ -6261,7 +6281,7 @@ function renderSessions(){
   }));
 
   const wrap = document.getElementById('sessionAddWrap');
-  wrap.innerHTML = isWidgetOpen('sessions') ? `<button class="btn small session-add" id="sessAddBtn">+ 자료 추가</button>` : '';
+  wrap.innerHTML = editMode ? `<button class="btn small session-add" id="sessAddBtn">+ 자료 추가</button>` : '';
   const addBtn = document.getElementById('sessAddBtn');
   if(addBtn) addBtn.onclick = openSessionAddModal;
 
@@ -6518,18 +6538,33 @@ function renderChecklist(){
   });
 
   const wrap = document.getElementById('checklistAddWrap');
-  wrap.style.display = isWidgetOpen('checklist') ? 'flex' : 'none';
-  wrap.innerHTML = `<input type="text" id="checkNewInput" placeholder="새 항목"><button class="btn small primary" id="checkAddBtn">추가</button>`;
+  wrap.style.display = editMode ? 'flex' : 'none';
+  // 항목이 단순해서 접어둘 필요 없이, 부제목/링크 입력칸을 처음부터 항상 보이게 둠
+  wrap.innerHTML = `
+    <input type="text" id="checkNewInput" placeholder="새 항목">
+    <input type="text" id="checkNewSubtitle" placeholder="부제목 (선택)">
+    <input type="url" id="checkNewLink" placeholder="링크 (선택)">
+    <button class="btn small primary" id="checkAddBtn">추가</button>
+  `;
   const addBtn = document.getElementById('checkAddBtn');
   const input = document.getElementById('checkNewInput');
+  const subInput = document.getElementById('checkNewSubtitle');
+  const linkInput = document.getElementById('checkNewLink');
   const submit = async ()=>{
     const text = input.value.trim();
     if(!text) return;
-    await docRef('checklist').set({ items: [...(checklistData.items||[]), {text, checked:false}] }, {merge:true});
-    input.value = '';
+    const subtitle = subInput.value.trim();
+    const link = linkInput.value.trim();
+    const newItem = { text, checked:false };
+    if(subtitle) newItem.subtitle = subtitle;
+    if(link) newItem.link = link;
+    await docRef('checklist').set({ items: [...(checklistData.items||[]), newItem] }, {merge:true});
+    input.value = ''; subInput.value = ''; linkInput.value = '';
   };
   addBtn.onclick = submit;
   input.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+  subInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+  linkInput.addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
 
   // 편집모드에서 드래그로 순서를 바꿀 수 있게 함(체크된 항목이 자동으로 아래로 몰리는
   // 정렬은 그대로 유지된 채, 그 안에서의 순서만 바뀜). data-idx가 화면에 보이는 위치가
@@ -8405,6 +8440,7 @@ function openShakerManageModal(){
             const compressed = await compressImageFile(files[i], 1200, 300000);
             newItems.push(await storeGalleryImage(compressed));
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
+          await new Promise(r=> setTimeout(r, 0));
         }
       } else if(url){
         newItems.push({ url });
