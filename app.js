@@ -978,7 +978,6 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
   // opts.widgetKey를 넘기면, editMode여도 그 위젯이 연필 버튼으로 잠금해제된 상태일 때만
   // 실제로 드래그가 가능해짐(이동손잡이가 안 보이는데 드래그만 되는 상황을 막기 위함)
   if(!editMode || (opts.widgetKey && !isWidgetOpen(opts.widgetKey))) return;
-  const pointerLine = !!opts.pointerLine;
   // axis 'x': 사진 그리드처럼 칸이 가로로 늘어서 있어 커서가 타일 왼쪽/오른쪽 중
   // 어디 있는지로 "앞/뒤"를 가름. axis 'y': 음악 재생목록처럼 세로로 쌓인 목록이라
   // 커서가 위/아래 중 어디 있는지로 "앞/뒤"를 가름
@@ -1124,21 +1123,33 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
     el.addEventListener('drop', async e=>{
       e.preventDefault();
       dropped = true;
-      const targetIdx = Number(el.dataset.idx);
-      const srcIdx = dragIdx;
-      if(srcIdx === null || srcIdx === targetIdx) return;
-      const arr = getItems();
-      const [moved] = arr.splice(srcIdx, 1);
-      let insertAt = targetIdx;
-      if(pointerLine){
-        // 커서가 타일 왼쪽(위) 절반이면 이 항목 "앞"(같은 인덱스 자리)에, 오른쪽(아래)
-        // 절반이면 "뒤"(다음 인덱스 자리)에 넣음. 방금 srcIdx 자리를 빼냈으니, 그보다
-        // 뒤쪽으로 들어갈 땐 한 칸씩 당겨진 만큼 보정함
-        const before = el.dataset.dropBefore === '1';
-        insertAt = before ? targetIdx : targetIdx + 1;
-        if(srcIdx < insertAt) insertAt--;
+      if(dragIdx === null) return;
+      // dragover 도중 liveColumns는 이미 "지금 화면에 실제로 보이는 열 배치"를 그대로
+      // 반영해왔음(같은 열 안에서 움직였으면 그 열 안에서, 다른 열로 넘어갔으면 두 열
+      // 사이에서 계속 갱신됨). 예전엔 여기서 드롭한 타일 하나의 인덱스(targetIdx)만 보고
+      // "그 앞/뒤"로 한 줄짜리 배열에 끼워넣었는데, 갤러리2/레퍼런스 갤러리처럼 여러 열로
+      // 라운드로빈 배치되는 위젯은 저장 순서(한 줄)와 화면 배치(N열) 규칙이 서로 달라서,
+      // 방금 세로로(같은 열 안에서) 옮긴 사진이 저장 후 다시 불러오면 전혀 다른 열/행으로
+      // 튀어버리는(순서가 꼬이는) 문제가 있었음. liveColumns를 렌더링 때와 똑같은
+      // 라운드로빈 규칙(왼쪽 열부터 한 칸씩 채우고, 다 채우면 다음 행)으로 다시 한 줄로
+      // 풀어서 저장하면, 화면에서 본 배치가 그대로 저장 순서가 됨(열이 하나뿐인 위젯은
+      // 그 열 순서를 그대로 쓰는 셈이라 기존 동작과 동일함).
+      const rowMajorTiles = [];
+      const maxLen = Math.max(0, ...liveColumns.map(col=> col.length));
+      for(let row = 0; row < maxLen; row++){
+        for(let c = 0; c < liveColumns.length; c++){
+          const t = liveColumns[c][row];
+          if(t) rowMajorTiles.push(t);
+        }
       }
-      arr.splice(insertAt, 0, moved);
+      const newOrderIdxs = rowMajorTiles.map(t=> Number(t.dataset.idx));
+      const visibleSlots = newOrderIdxs.slice().sort((a,b)=> a - b);
+      if(newOrderIdxs.every((idx,k)=> idx === visibleSlots[k])) return; // 순서가 그대로면 저장 생략
+      const arr = getItems();
+      // 필터링 등으로 화면에 없는(숨겨진) 항목은 원래 자리 그대로 두고, 보이는 항목끼리만
+      // 새 순서로 맞바꿔 끼워 넣음 — 절대 인덱스(slot) 자체는 유지하고 값만 재배치
+      const newValuesInOrder = rowMajorTiles.map(t=> arr[Number(t.dataset.idx)]);
+      visibleSlots.forEach((slot, k)=>{ arr[slot] = newValuesInOrder[k]; });
       await saveItems(arr);
     });
   });
@@ -1245,21 +1256,14 @@ function extractYouTubeId(url){
 }
 
 /* 사진을 화면에서 바로 올릴 수 있도록 브라우저에서 리사이즈+압축 후 base64로 변환.
-   Firestore 문서 1건당 최대 1MB라서, 별도 유료 스토리지 없이 쓰려면 이렇게 줄여서 저장해야 함.
-   여러 장을 연달아 처리할 때(예: 갤러리 묶어올리기) 뒤쪽 사진일수록 화질이 떨어지는 문제가
-   있었음 — <img>로 디코딩하면 브라우저가 그 디코딩 결과를 언제 메모리에서 치울지 GC에
-   맡기게 되는데, 폰 카메라 사진(수천만 화소)을 여러 장 연이어 디코딩하면 정리가 못
-   따라가서 메모리가 쌓이고, 그 압박 때문에 뒤로 갈수록 캔버스 렌더 품질이 낮아짐.
-   createImageBitmap은 디코딩 결과를 bitmap.close()로 즉시(동기적으로) 해제할 수 있어서
-   이 누적을 막아줌 — 지원하는 브라우저에서는 이 경로를 쓰고, 옛날 브라우저 대비용으로
-   <img> 방식 폴백을 남겨둠. */
+   Firestore 문서 1건당 최대 1MB라서, 별도 유료 스토리지 없이 쓰려면 이렇게 줄여서 저장해야 함. */
 function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=700000){
-  // GIF는 캔버스로 다시 그리면 첫 프레임만 남고 움직임이 사라져버려서,
-  // 압축(리사이즈)을 건너뛰고 원본 그대로 base64로 저장해 애니메이션을 보존함.
-  // 사진용 압축 목표치(maxBytes)는 GIF에 쓰기엔 너무 작아서(예: 260KB) 대부분의
-  // 움직이는 GIF가 거절됐었음 — GIF는 별도의 더 넉넉한 한도(gifMaxBytes)를 씀.
-  if(file.type === 'image/gif'){
-    return new Promise((resolve, reject)=>{
+  return new Promise((resolve, reject)=>{
+    // GIF는 캔버스로 다시 그리면 첫 프레임만 남고 움직임이 사라져버려서,
+    // 압축(리사이즈)을 건너뛰고 원본 그대로 base64로 저장해 애니메이션을 보존함.
+    // 사진용 압축 목표치(maxBytes)는 GIF에 쓰기엔 너무 작아서(예: 260KB) 대부분의
+    // 움직이는 GIF가 거절됐었음 — GIF는 별도의 더 넉넉한 한도(gifMaxBytes)를 씀.
+    if(file.type === 'image/gif'){
       if(file.size > gifMaxBytes){
         reject(new Error(`GIF 용량이 너무 커요(최대 약 ${Math.round(gifMaxBytes/1024)}KB). 더 작은 GIF를 쓰거나, URL 방식(Giphy/Tenor/imgur 등)을 이용해주세요.`));
         return;
@@ -1268,75 +1272,13 @@ function compressImageFile(file, maxDim=1600, maxBytes=700000, gifMaxBytes=70000
       reader.onload = ()=> resolve(reader.result);
       reader.onerror = ()=> reject(new Error('파일을 읽지 못했어요'));
       reader.readAsDataURL(file);
-    });
-  }
-  // 원본이 PNG면(투명한 부분이 있을 수 있음) JPEG로 인코딩하지 않고 PNG로 그대로
-  // 인코딩함 — JPEG는 투명도를 지원하지 않아서 투명했던 부분이 검게 덮여버림.
-  // PNG는 화질(quality) 옵션이 없으므로, 용량이 목표치를 넘으면 화질을 낮추는 대신
-  // 해상도를 단계적으로 줄여가며 목표 용량에 맞춤.
-  const isPng = file.type === 'image/png';
-
-  function drawSource(source, w, h){
-    const canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    // 리샘플링 품질을 명시적으로 "high"로 지정 — 지정 안 하면 브라우저마다
-    // 기본값이 달라서, 사진을 여러 장 연달아 처리할 때 저품질 리샘플링이
-    // 섞여 들어가는 경우가 있었음
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(source, 0, 0, w, h);
-    return canvas;
-  }
-
-  // 캔버스는 다 쓰고 나면 width/height를 0으로 만들어, GC를 기다리지 않고
-  // 그 캔버스가 들고 있던 픽셀 메모리를 바로 비워줌(다음 사진 처리에 영향 안 주도록)
-  function releaseCanvas(canvas){ canvas.width = 0; canvas.height = 0; }
-
-  function encode(source, width, height){
-    if(isPng){
-      let w = width, h = height, dim = maxDim;
-      let canvas = drawSource(source, w, h);
-      let dataUrl = canvas.toDataURL('image/png');
-      while(dataUrl.length > maxBytes * 1.37 && dim > 200){
-        dim = Math.round(dim * 0.8);
-        if(w > h){ h = Math.round(h * (dim/w)); w = dim; }
-        else{ w = Math.round(w * (dim/h)); h = dim; }
-        releaseCanvas(canvas);
-        canvas = drawSource(source, w, h);
-        dataUrl = canvas.toDataURL('image/png');
-      }
-      releaseCanvas(canvas);
-      return dataUrl;
-    } else {
-      const canvas = drawSource(source, width, height);
-      let quality = 0.85;
-      let dataUrl = canvas.toDataURL('image/jpeg', quality);
-      while(dataUrl.length > maxBytes * 1.37 && quality > 0.25){
-        quality -= 0.1;
-        dataUrl = canvas.toDataURL('image/jpeg', quality);
-      }
-      releaseCanvas(canvas);
-      return dataUrl;
+      return;
     }
-  }
-
-  if(typeof createImageBitmap === 'function'){
-    return createImageBitmap(file).then(bitmap=>{
-      let { width, height } = bitmap;
-      if(width > height && width > maxDim){ height = Math.round(height * (maxDim/width)); width = maxDim; }
-      else if(height >= width && height > maxDim){ width = Math.round(width * (maxDim/height)); height = maxDim; }
-      const dataUrl = encode(bitmap, width, height);
-      bitmap.close(); // 다음 사진 처리 전에 이 사진의 디코딩 메모리를 바로 해제
-      return dataUrl;
-    }).catch(()=> compressImageFileViaImageEl(file, maxDim, maxBytes, encode));
-  }
-  return compressImageFileViaImageEl(file, maxDim, maxBytes, encode);
-}
-
-// createImageBitmap을 지원하지 않는(또는 실패한) 브라우저를 위한 폴백 경로
-function compressImageFileViaImageEl(file, maxDim, maxBytes, encode){
-  return new Promise((resolve, reject)=>{
+    // 원본이 PNG면(투명한 부분이 있을 수 있음) JPEG로 인코딩하지 않고 PNG로 그대로
+    // 인코딩함 — JPEG는 투명도를 지원하지 않아서 투명했던 부분이 검게 덮여버림.
+    // PNG는 화질(quality) 옵션이 없으므로, 용량이 목표치를 넘으면 화질을 낮추는 대신
+    // 해상도를 단계적으로 줄여가며 목표 용량에 맞춤.
+    const isPng = file.type === 'image/png';
     const reader = new FileReader();
     reader.onload = ()=>{
       const img = new Image();
@@ -1344,9 +1286,39 @@ function compressImageFileViaImageEl(file, maxDim, maxBytes, encode){
         let { width, height } = img;
         if(width > height && width > maxDim){ height = Math.round(height * (maxDim/width)); width = maxDim; }
         else if(height >= width && height > maxDim){ width = Math.round(width * (maxDim/height)); height = maxDim; }
-        const dataUrl = encode(img, width, height);
-        img.src = ''; // 디코딩된 픽셀을 붙들고 있지 않도록 참조를 바로 끊음
-        resolve(dataUrl);
+        const drawAt = (w, h)=>{
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          // 여러 장을 한꺼번에 올릴 때도 화질이 떨어지지 않도록, 캔버스 축소
+          // 리샘플링 품질을 명시적으로 "high"로 지정함(지정 안 하면 브라우저마다
+          // 기본값이 달라서, 사진을 여러 장 연달아 처리할 때 저품질 리샘플링이
+          // 섞여 들어가는 경우가 있었음)
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, w, h);
+          return canvas;
+        };
+        if(isPng){
+          let w = width, h = height, dim = maxDim;
+          let dataUrl = drawAt(w, h).toDataURL('image/png');
+          while(dataUrl.length > maxBytes * 1.37 && dim > 200){
+            dim = Math.round(dim * 0.8);
+            if(w > h){ h = Math.round(h * (dim/w)); w = dim; }
+            else{ w = Math.round(w * (dim/h)); h = dim; }
+            dataUrl = drawAt(w, h).toDataURL('image/png');
+          }
+          resolve(dataUrl);
+        } else {
+          const canvas = drawAt(width, height);
+          let quality = 0.85;
+          let dataUrl = canvas.toDataURL('image/jpeg', quality);
+          while(dataUrl.length > maxBytes * 1.37 && quality > 0.25){
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+          }
+          resolve(dataUrl);
+        }
       };
       img.onerror = ()=> reject(new Error('이미지를 불러오지 못했어요'));
       img.src = reader.result;
@@ -5425,7 +5397,7 @@ function renderGallery2(){
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('gallery2').set({items:arr}, {merge:true}),
-    { pointerLine: true, widgetKey: 'gallery2' }
+    { pointerLine: true, axis: 'y', widgetKey: 'gallery2' }
   );
   setupPinGalleryLazyLoad(gridEl, pairs, gallery2ObserverHolder, '.pin-item-dense.pin-loading',
     (tile, idx, url, it)=> fillGallery2Tile(tile, idx, url, it));
@@ -5697,7 +5669,7 @@ function renderRefGallery(){
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('refgallery').set({items:arr}, {merge:true}),
-    { pointerLine: true, widgetKey: 'refgallery' }
+    { pointerLine: true, axis: 'y', widgetKey: 'refgallery' }
   );
 
   setupRefGalleryLazyLoad(gridEl, pairs);
