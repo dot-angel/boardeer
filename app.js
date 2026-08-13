@@ -594,20 +594,21 @@ function openItemOptEditModal(currentOpts, optionsList, onSave){
   });
 }
 
-/* 블러 처리된 썸네일 위에 (기본 눈 이모지 문구 대신) 원하는 문구를 직접 넣을 수 있게
-   하는 작은 편집 모달. 비워두고 저장하면 기본 문구("눌러서 보기")로 표시됨 */
-function openBlurTextEditModal(currentText, onSave){
+/* 여러 장 선택한 상태(사진 묶기와 같은 선택 모드)에서 한꺼번에 태그를 추가하는 모달.
+   기존에 각 사진에 붙어있던 태그는 그대로 두고, 여기서 고른 태그만 추가로 더함 */
+function openBulkOptAddModal(optionsList, onSave){
   openModal(`
-    <h3>블러 문구 편집</h3>
-    <p class="hint">블러 처리된 썸네일 위에 보여줄 문구예요. 비워두면 기본 문구가 표시돼요.</p>
-    <input type="text" id="blurTextInput" placeholder="예: 나중에 공개!" maxlength="40" value="${escapeHtml(currentText || '')}">
-    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
+    <h3>선택한 사진에 태그 추가</h3>
+    <p class="hint">선택한 사진들에 아래 태그를 추가해요. 기존 태그는 그대로 유지돼요.</p>
+    <div id="bulkOptBox">${renderOptionCheckboxes(optionsList, [])}</div>
+    <p class="hint">옵션 목록 자체를 늘리거나 고치려면 위젯의 "⚙ 옵션 관리"를 이용해주세요.</p>
+    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
-    const input = m.querySelector('#blurTextInput');
-    input.focus();
     m.querySelector('#c').onclick = closeModal;
-    m.querySelector('#s').onclick = ()=>{
-      onSave(input.value.trim());
+    m.querySelector('#s').onclick = async ()=>{
+      const opts = getCheckedOptionValues(m.querySelector('#bulkOptBox'));
+      if(!opts.length){ toast('추가할 태그를 선택해주세요'); return; }
+      await onSave(opts);
       closeModal();
     };
   });
@@ -4695,28 +4696,33 @@ function cancelGalleryGroupPick(renderFn){
   galleryGroupPick = { key: null, selected: new Set() };
   renderFn();
 }
+// items: 지금 화면에 쓰인(정규화된) 전체 배열, saveFn(newArr): 저장 함수, renderFn: 다시 그리기.
+// 선택된 사진들 각각에 골라둔 태그를 추가함(기존 태그는 유지, 중복 태그는 합쳐짐).
+// "사진 묶기"와 같은 선택 모드를 그대로 재사용해서, 여러 장 고르는 방식은 동일하고
+// 마지막에 "묶기" 대신 "태그 추가"를 고르는 것만 다름
+function confirmGalleryGroupTag(key, items, saveFn, renderFn){
+  const idxs = Array.from(galleryGroupPick.selected);
+  if(idxs.length < 1){ toast('사진을 선택해주세요'); return; }
+  openBulkOptAddModal(sharedGalleryOptionsData.options, async (newOpts)=>{
+    const arr = items.slice();
+    idxs.forEach(i=>{
+      const merged = Array.from(new Set([...(arr[i].opts || []), ...newOpts]));
+      arr[i] = { ...arr[i], opts: merged };
+    });
+    galleryGroupPick = { key: null, selected: new Set() };
+    await saveFn(arr);
+    renderFn();
+  });
+}
 // 타일 위에 얹는 선택 체크 표시(선택 모드가 아니면 빈 문자열)
 function galleryPickOverlayHtml(key, idx){
   if(galleryGroupPick.key !== key) return '';
   const picked = galleryGroupPick.selected.has(idx);
   return `<div class="pin-pick-check ${picked ? 'picked' : ''}"></div>`;
 }
-// 블러 처리된 썸네일 위에 얹는 문구(직접 입력한 문구가 있을 때만) + 편집모드일 때만
-// 보이는 문구 편집 버튼. blur가 아니면 빈 문자열. 문구도 없고 편집 버튼도 안 뜰
-// 상황(보기 전용 + 문구 미입력)이면 아예 아무것도 그리지 않음
-function pinBlurLabelHtml(it, picking, idx){
-  if(!it.blur) return '';
-  const showEditBtn = editMode && !picking;
-  if(!it.blurText && !showEditBtn) return '';
-  return `
-    <div class="pin-blur-label">
-      ${it.blurText ? `<span class="pin-blur-label-text">${escapeHtml(it.blurText)}</span>` : ''}
-      ${showEditBtn ? `<button class="pin-blur-edit-btn" data-blur-text-edit="${idx}" title="문구 편집">✎</button>` : ''}
-    </div>`;
-}
 // 선택 모드 툴바 버튼 + 확정/취소 바(선택 모드가 아니면 버튼만)
 function galleryGroupPickToggleBtnHtml(key, idLabel){
-  return `<button class="btn small ghost" id="${idLabel}">${isGalleryGroupPicking(key) ? '묶기 모드 종료' : '🖼 사진 묶기'}</button>`;
+  return `<button class="btn small ghost" id="${idLabel}">${isGalleryGroupPicking(key) ? '선택 모드 종료' : '🖼 사진 선택'}</button>`;
 }
 function galleryGroupPickBarHtml(key){
   if(!isGalleryGroupPicking(key)) return '';
@@ -4725,6 +4731,7 @@ function galleryGroupPickBarHtml(key){
     <div class="gallery-pick-bar">
       <span>${n}장 선택됨</span>
       <button class="btn small ghost" id="galPickCancel">취소</button>
+      <button class="btn small ghost" id="galPickTag" ${n < 1 ? 'disabled' : ''}>🏷 태그 추가</button>
       <button class="btn small primary" id="galPickConfirm" ${n < 2 ? 'disabled' : ''}>선택한 사진 묶기</button>
     </div>
   `;
@@ -5019,7 +5026,6 @@ function galleryTileMarkup(it, url, i){
   return `
     <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       ${mediaHtml}
-      ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery', i)}
       ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -5035,7 +5041,6 @@ function fillGalleryTile(tile, idx, url, it){
   const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
     ${mediaHtml}
-    ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery', idx)}
     ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -5075,27 +5080,9 @@ function handleGalleryBlurToggle(idx){
     tile.classList.toggle('blurred', arr[idx].blur);
     const blurBtn = tile.querySelector('[data-blur]');
     if(blurBtn){ blurBtn.textContent = arr[idx].blur ? '🙈' : '👁'; blurBtn.title = arr[idx].blur ? '블러 해제' : '블러 처리'; }
-    const oldLabel = tile.querySelector('.pin-blur-label');
-    if(oldLabel) oldLabel.remove();
-    if(arr[idx].blur) tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery'), idx));
   }
   skipNextGalleryRender = true;
   docRef('gallery').set({ items: arr }, {merge:true});
-}
-function handleGalleryBlurTextEdit(idx){
-  const items = (galleryData.items || []).map(normalizeGalleryItem);
-  openBlurTextEditModal(items[idx].blurText, (blurText)=>{
-    const arr = items.slice();
-    arr[idx] = { ...arr[idx], blurText };
-    skipNextGalleryRender = true;
-    docRef('gallery').set({ items: arr }, {merge:true});
-    const tile = document.querySelector(`#galleryGrid .pin-item[data-idx="${idx}"]`);
-    if(tile){
-      const oldLabel = tile.querySelector('.pin-blur-label');
-      if(oldLabel) oldLabel.remove();
-      tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery'), idx));
-    }
-  });
 }
 function handleGalleryOptEdit(idx){
   const items = (galleryData.items || []).map(normalizeGalleryItem);
@@ -5152,8 +5139,6 @@ function renderGallery(){
     if(delBtn){ e.stopPropagation(); handleGalleryDelete(Number(delBtn.dataset.del)); return; }
     const blurBtn = e.target.closest('[data-blur]');
     if(blurBtn){ e.stopPropagation(); handleGalleryBlurToggle(Number(blurBtn.dataset.blur)); return; }
-    const blurTextBtn = e.target.closest('[data-blur-text-edit]');
-    if(blurTextBtn){ e.stopPropagation(); handleGalleryBlurTextEdit(Number(blurTextBtn.dataset.blurTextEdit)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGalleryOptEdit(Number(optBtn.dataset.optEdit)); return; }
     if(tile) openGalleryViewModal(Number(tile.dataset.idx));
@@ -5167,6 +5152,8 @@ function renderGallery(){
   if(groupPickBtn) groupPickBtn.onclick = ()=> toggleGalleryGroupPickMode('gallery', renderGallery);
   const pickCancelBtn = box.querySelector('#galPickCancel');
   if(pickCancelBtn) pickCancelBtn.onclick = ()=> cancelGalleryGroupPick(renderGallery);
+  const pickTagBtn = box.querySelector('#galPickTag');
+  if(pickTagBtn) pickTagBtn.onclick = ()=> confirmGalleryGroupTag('gallery', items, (arr)=> docRef('gallery').set({items:arr}, {merge:true}), renderGallery);
   const pickConfirmBtn = box.querySelector('#galPickConfirm');
   if(pickConfirmBtn) pickConfirmBtn.onclick = ()=> confirmGalleryGroupPick('gallery', items, (arr)=> docRef('gallery').set({items:arr}, {merge:true}), renderGallery);
   // 드래그 순서 변경은 로딩 중인 타일까지 포함해서 한 번만 걸어둠. 타일 엘리먼트 자체는
@@ -5362,7 +5349,6 @@ function gallery2TileMarkup(it, url, i){
   return `
     <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
       ${mediaHtml}
-      ${pinBlurLabelHtml(it, picking, i)}
       ${galleryPickOverlayHtml('gallery2', i)}
       ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
       ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -5378,7 +5364,6 @@ function fillGallery2Tile(tile, idx, url, it){
   const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
     ${mediaHtml}
-    ${pinBlurLabelHtml(it, picking, idx)}
     ${galleryPickOverlayHtml('gallery2', idx)}
     ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
     ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
@@ -5405,27 +5390,9 @@ function handleGallery2BlurToggle(idx){
     tile.classList.toggle('blurred', arr[idx].blur);
     const blurBtn = tile.querySelector('[data-blur]');
     if(blurBtn){ blurBtn.textContent = arr[idx].blur ? '🙈' : '👁'; blurBtn.title = arr[idx].blur ? '블러 해제' : '블러 처리'; }
-    const oldLabel = tile.querySelector('.pin-blur-label');
-    if(oldLabel) oldLabel.remove();
-    if(arr[idx].blur) tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery2'), idx));
   }
   skipNextGallery2Render = true;
   docRef('gallery2').set({ items: arr }, {merge:true});
-}
-function handleGallery2BlurTextEdit(idx){
-  const items = (gallery2Data.items || []).map(normalizeGalleryItem);
-  openBlurTextEditModal(items[idx].blurText, (blurText)=>{
-    const arr = items.slice();
-    arr[idx] = { ...arr[idx], blurText };
-    skipNextGallery2Render = true;
-    docRef('gallery2').set({ items: arr }, {merge:true});
-    const tile = document.querySelector(`#gallery2Grid .pin-item-dense[data-idx="${idx}"]`);
-    if(tile){
-      const oldLabel = tile.querySelector('.pin-blur-label');
-      if(oldLabel) oldLabel.remove();
-      tile.insertAdjacentHTML('beforeend', pinBlurLabelHtml(arr[idx], isGalleryGroupPicking('gallery2'), idx));
-    }
-  });
 }
 function handleGallery2OptEdit(idx){
   const items = (gallery2Data.items || []).map(normalizeGalleryItem);
@@ -5495,8 +5462,6 @@ function renderGallery2(){
     if(delBtn){ e.stopPropagation(); handleGallery2Delete(Number(delBtn.dataset.del)); return; }
     const blurBtn = e.target.closest('[data-blur]');
     if(blurBtn){ e.stopPropagation(); handleGallery2BlurToggle(Number(blurBtn.dataset.blur)); return; }
-    const blurTextBtn = e.target.closest('[data-blur-text-edit]');
-    if(blurTextBtn){ e.stopPropagation(); handleGallery2BlurTextEdit(Number(blurTextBtn.dataset.blurTextEdit)); return; }
     const optBtn = e.target.closest('[data-opt-edit]');
     if(optBtn){ e.stopPropagation(); handleGallery2OptEdit(Number(optBtn.dataset.optEdit)); return; }
     if(tile) openGallery2ViewModal(Number(tile.dataset.idx));
@@ -5510,6 +5475,8 @@ function renderGallery2(){
   if(groupPickBtn2) groupPickBtn2.onclick = ()=> toggleGalleryGroupPickMode('gallery2', renderGallery2);
   const pickCancelBtn2 = box.querySelector('#galPickCancel');
   if(pickCancelBtn2) pickCancelBtn2.onclick = ()=> cancelGalleryGroupPick(renderGallery2);
+  const pickTagBtn2 = box.querySelector('#galPickTag');
+  if(pickTagBtn2) pickTagBtn2.onclick = ()=> confirmGalleryGroupTag('gallery2', items, (arr)=> docRef('gallery2').set({items:arr}, {merge:true}), renderGallery2);
   const pickConfirmBtn2 = box.querySelector('#galPickConfirm');
   if(pickConfirmBtn2) pickConfirmBtn2.onclick = ()=> confirmGalleryGroupPick('gallery2', items, (arr)=> docRef('gallery2').set({items:arr}, {merge:true}), renderGallery2);
   if(!isGalleryGroupPicking('gallery2')) bindPinDragReorder(
@@ -5779,6 +5746,8 @@ function renderRefGallery(){
   if(groupPickBtnRef) groupPickBtnRef.onclick = ()=> toggleGalleryGroupPickMode('refgallery', renderRefGallery);
   const pickCancelBtnRef = box.querySelector('#galPickCancel');
   if(pickCancelBtnRef) pickCancelBtnRef.onclick = ()=> cancelGalleryGroupPick(renderRefGallery);
+  const pickTagBtnRef = box.querySelector('#galPickTag');
+  if(pickTagBtnRef) pickTagBtnRef.onclick = ()=> confirmGalleryGroupTag('refgallery', items, (arr)=> docRef('refgallery').set({items:arr}, {merge:true}), renderRefGallery);
   const pickConfirmBtnRef = box.querySelector('#galPickConfirm');
   if(pickConfirmBtnRef) pickConfirmBtnRef.onclick = ()=> confirmGalleryGroupPick('refgallery', items, (arr)=> docRef('refgallery').set({items:arr}, {merge:true}), renderRefGallery);
 
