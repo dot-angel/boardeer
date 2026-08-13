@@ -621,12 +621,15 @@ function openBlurTextEditModal(currentText, onSave){
    }
    화살표 버튼/키보드 ←→로 같은 목록 안에서 트위터처럼 옆 사진으로 바로 넘어갈 수 있음 */
 /* 라이트박스 뒤 전체화면 오버레이는 블러를 빼서 가볍게 하되(모달 자체 블러는 유지),
-   모달 박스 "바깥" 여백 전체(화면 가장자리까지)에는 별도로 블러 조각 4개(위/아래/좌/우)를
-   깔아서 화면을 통째로 블러 처리한 것처럼 보이게 함. 이 조각들은 얇은 블러(--glass-blur-thin)를
-   쓰지만, PC/와이드모니터에서는 그래도 위치·크기를 다시 계산해 새로 그리는 것 자체가
-   무거우므로, 사진을 한 장씩 넘길 때(goToIndex)마다는 다시 계산하지 않고 라이트박스를
-   "처음 열 때"와 "창 크기가 바뀔 때"만 다시 계산함(아래 mountLightbox의 if(!opened),
-   그 뒤쪽 onResize 참고) — 그래서 여백 전체를 블러 처리해도 사진 전환 자체는 가벼움 */
+   대신 사진(모달 박스) "바깥"에 블러 조각 4개(위/아래/좌/우)를 깔아 화면 전체가
+   블러 처리된 것처럼 보이게 함.
+   예전엔 이 조각들의 두께를 220px로 제한해서 면적을 줄였는데, 그러면 사진과 화면
+   가장자리 사이 여백이 그보다 넓을 때(특히 큰 PC 모니터에서 세로로 길거나 작은
+   사진일 때) 그 너머는 블러 없이 어둡게만 깔린 티가 났음. 지금은 두께를 따로
+   제한하지 않고 "화면 전체 - 모달 영역"을 네 조각으로 정확히 나눠 채워서, 모달이
+   어떤 크기든 블러가 항상 화면 네 가장자리에 다 닿게 함. 위/아래 조각을 화면
+   가로폭 전체로 깔고 좌/우 조각은 그 사이(모달 높이만큼)만 채우면 네 조각이
+   겹치거나 비는 곳 없이 모달 바깥 전체를 덮음 */
 function updateLightboxBlurFrame(modalEl){
   const overlay = modalEl && modalEl.parentElement;
   if(!overlay) return;
@@ -643,19 +646,37 @@ function updateLightboxBlurFrame(modalEl){
     overlay.insertBefore(frame, modalEl);
   }
   const rect = modalEl.getBoundingClientRect();
+  // 직전에 맞춰둔 사진과 크기/위치가 사실상 같다면(비슷한 비율의 사진이 연달아
+  // 나올 때 흔함) 다시 계산할 필요가 없으므로 건너뜀 — backdrop-filter가 걸린
+  // 조각들을 괜히 다시 그리게 만들지 않기 위한 최적화(이동 속도 저하 방지)
+  const last = frame._lastRect;
+  if(last && Math.abs(last.top - rect.top) < 1 && Math.abs(last.left - rect.left) < 1 &&
+     Math.abs(last.right - rect.right) < 1 && Math.abs(last.bottom - rect.bottom) < 1) return;
+  frame._lastRect = { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom };
   const vw = window.innerWidth, vh = window.innerHeight;
-  // 예전엔 여백 중 일정 두께(STRIP)까지만 블러를 걸고 그 너머(화면이 커질수록 넓어지는
-  // 나머지 여백)는 블러 없이 어둡게만 둬서, 큰 화면일수록 화면 가장자리 쪽이 블러 없이
-  // 티가 났음 — 이제는 이 함수 자체가 사진을 넘길 때마다 호출되지 않고 라이트박스를
-  // 열 때/창 크기가 바뀔 때만 호출되므로(호출부 참고), 두께를 제한할 필요 없이 여백
-  // "전체"에 블러를 걸어 화면 가장자리까지 블러가 닿게 함
   const top = Math.max(0, rect.top), bottom = Math.max(0, vh - rect.bottom);
   const left = Math.max(0, rect.left), right = Math.max(0, vw - rect.right);
-  const haloLeft = rect.left - left, haloRight = rect.right + right;
-  frame.querySelector('.lbf-top').style.cssText = `top:0px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${top}px;`;
-  frame.querySelector('.lbf-bottom').style.cssText = `top:${rect.bottom}px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${bottom}px;`;
-  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:0px; width:${left}px; height:${rect.height}px;`;
+  frame.querySelector('.lbf-top').style.cssText = `top:0; left:0; width:${vw}px; height:${top}px;`;
+  frame.querySelector('.lbf-bottom').style.cssText = `top:${rect.bottom}px; left:0; width:${vw}px; height:${bottom}px;`;
+  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:0; width:${left}px; height:${rect.height}px;`;
   frame.querySelector('.lbf-right').style.cssText = `top:${rect.top}px; left:${rect.right}px; width:${right}px; height:${rect.height}px;`;
+}
+let lightboxBlurFrameRaf = null;
+/* updateLightboxBlurFrame을 곧바로(동기로) 부르면, 사진을 넘길 때마다
+   getBoundingClientRect()가 그 시점까지 밀려있던 레이아웃 계산을 강제로 즉시
+   끝내버리고 곧이어 블러 조각 4개의 크기까지 다시 잡아서, 새 사진이 화면에
+   그려지기도 전에 이 무거운 계산부터 마쳐야 함 — 특히 위젯이 많은 이 페이지에서
+   PC의 넓은 화면일수록 이 지연이 그대로 "사진 넘기는 속도가 느림"으로 느껴짐.
+   그래서 실제 계산은 requestAnimationFrame으로 한 프레임 미뤄서, 브라우저가 새
+   사진부터 먼저 그리게 하고 블러 조각은 그 다음에 따라잡게 함(한 프레임=약
+   16ms라 눈에 띄는 차이는 없음). 연달아 여러 번 넘겨도 cancelAnimationFrame으로
+   앞서 예약된 계산을 취소하고 마지막 것만 실행되게 묶어줌 */
+function scheduleLightboxBlurFrameUpdate(modalEl){
+  if(lightboxBlurFrameRaf) cancelAnimationFrame(lightboxBlurFrameRaf);
+  lightboxBlurFrameRaf = requestAnimationFrame(()=>{
+    lightboxBlurFrameRaf = null;
+    updateLightboxBlurFrame(modalEl);
+  });
 }
 
 function openImageLightbox(cfg){
@@ -852,12 +873,7 @@ function openImageLightbox(cfg){
           }
         });
       }
-      // 블러 프레임(무거운 backdrop-filter) 위치 재계산은 라이트박스를 "처음 열 때"만
-      // 하고, 같은 라이트박스 안에서 사진만 넘길 때(goToIndex → render → mountLightbox)는
-      // 하지 않음 — opened는 render() 맨 끝에서 true로 바뀌므로, 여기서 false라는 건
-      // 아직 한 번도 안 열린(=지금이 첫 오픈인) 상태라는 뜻. 사진을 넘길 때마다 이 계산을
-      // 반복하면 PC/큰 화면에서 그때마다 블러를 다시 그려야 해서 전환이 눈에 띄게 느려짐
-      if(!opened) updateLightboxBlurFrame(m);
+      scheduleLightboxBlurFrameUpdate(m);
     };
     // 묶음(모아올리기) 안에서 사진을 넘길 때 매번 openModal로 오버레이(배경 어둡게+블러
     // 프레임) 전체를 지우고 새로 만들면, 그 순간 오버레이/블러 프레임이 통째로
@@ -888,13 +904,14 @@ function openImageLightbox(cfg){
   // 창 크기가 바뀌면(가로/세로 회전 포함) 모달 박스 크기도 바뀌므로 블러 프레임도 다시 맞춰줌
   const onResize = ()=>{
     const modalEl = modalRoot.querySelector('.modal-lightbox');
-    if(modalEl) updateLightboxBlurFrame(modalEl);
+    if(modalEl) scheduleLightboxBlurFrameUpdate(modalEl);
   };
   window.addEventListener('resize', onResize);
   const mo = new MutationObserver(()=>{
     if(!modalRoot.querySelector('.modal-lightbox')){
       document.removeEventListener('keydown', onKey);
       window.removeEventListener('resize', onResize);
+      if(lightboxBlurFrameRaf){ cancelAnimationFrame(lightboxBlurFrameRaf); lightboxBlurFrameRaf = null; }
       mo.disconnect();
     }
   });

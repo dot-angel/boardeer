@@ -2371,12 +2371,11 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
   display:flex; align-items:center; justify-content:center; z-index: 260; animation: fadeIn .15s ease;
 }
-/* 라이트박스 전용: 뒤쪽 전체화면 오버레이 자체의 블러는 빼고 어둡게 깔리는 효과만 남김
-   (모달 박스 자체의 글라스 블러는 유지). 대신 모달 박스 "바깥" 여백 전체(화면 가장자리
-   까지)에 얇은 블러(--glass-blur-thin) 조각 4개(위/아래/좌/우, .lightbox-blur-frame)를
-   깔아서 화면을 통째로 블러 처리한 것처럼 보이게 함. 이 조각들의 위치/크기 재계산은
-   PC/큰 화면에서 매번 하면 무거우므로, 사진을 한 장씩 넘길 때마다는 하지 않고 라이트박스를
-   열 때와 창 크기가 바뀔 때만 app.js의 updateLightboxBlurFrame이 다시 계산함 */
+/* 라이트박스 전용: 전체화면 오버레이 자체엔 블러를 걸지 않고 어둡게 깔리는 효과만
+   남김(라이트박스 박스 자체의 글라스 블러는 그대로 유지). 대신 모달 박스 "바깥"
+   영역에 블러 조각 4개(.lightbox-blur-strip)를 화면 가장자리까지 정확히 채워 붙여서,
+   화면 전체를 블러 처리한 것처럼 보이게 함 — 조각의 정확한 위치/크기 계산은
+   app.js의 updateLightboxBlurFrame 참고 */
 .modal-overlay.modal-overlay-plain{ backdrop-filter:none; -webkit-backdrop-filter:none; background: rgba(5,2,3,0.55); }
 .lightbox-blur-frame{ position:fixed; inset:0; z-index:1; pointer-events:none; }
 .lightbox-blur-strip{
