@@ -698,6 +698,19 @@ function openImageLightbox(cfg){
     // 라이트박스는 사용자가 지금 바로 보려고 연 것이므로 priority=true로 불러와서
     // 백그라운드로 미리 불러오던 썸네일들보다 먼저 처리되게 함
     const url = cfg.resolve(item, render, true);
+    // 바로 옆(이전/다음) 사진도 미리 슬쩍 불러와둠 — 갤러리가 쌓일수록 "눌러야
+    // 그제서야 불러오기 시작"하는 방식은 한 장씩 넘길 때마다 매번 로딩을 기다리게
+    // 되므로, 지금 사진을 보는 동안(생각하는 시간)에 다음 걸 먼저 받아두면 실제로
+    // 넘기는 순간엔 이미 캐시에 있을 가능성이 높아져 체감 네비게이션 속도가 나아짐.
+    // 다만 지금 화면에 있는 사진보다 먼저 처리되면 안 되므로 priority 없이(=대기열
+    // 맨 뒤) 조용히 넣어두기만 하고 결과는 버림(다음에 실제로 그 사진으로 넘어갈 때
+    // render()가 캐시를 다시 확인해서 반영함).
+    if(items.length > 1){
+      const prevIdx = ((index - 1) % items.length + items.length) % items.length;
+      const nextIdx = (index + 1) % items.length;
+      cfg.resolve(items[nextIdx], ()=>{});
+      cfg.resolve(items[prevIdx], ()=>{});
+    }
     const metaInfo = cfg.meta ? cfg.meta(item) : null;
     const tagInfo = cfg.tag ? cfg.tag(item) : null;
     const showNav = items.length > 1;
@@ -5125,14 +5138,33 @@ function openGalleryAddModal(){
   });
 }
 
-docRef('sharedGalleryOptions').onSnapshot(doc=>{
+/* 갤러리 탭(탭2)은 화면을 옆으로 넘기기 전엔 보이지도 않는데, 아래 구독들
+   (sharedGalleryOptions/gallery/gallery2/refgallery/videos + 아래 마이그레이션 1회성 조회)이
+   지금까진 페이지가 열리자마자 전부 곧바로 등록되고 있었음 — 위젯 탭(탭1)만 보고
+   떠나는 방문자도 갤러리 탭 데이터 요청 + 렌더링(DOM 생성)을 그대로 다 떠안은 것.
+   content-visibility는 "보이지 않는 탭의 레이아웃/페인트 비용"은 막아주지만
+   이 데이터 구독 자체(네트워크 요청 + DOM 생성)는 못 막아서 별도로 손봄.
+   deferToTab2로 감싸서, 탭2를 실제로 한 번 봤을 때(initBoardTabs의 setActive) 또는
+   브라우저가 한가할 때(requestIdleCallback, 아래 초기화 부분) 중 먼저 오는 시점에만
+   실행되게 미룸. */
+let _tab2Inits = [];
+let _tab2Started = false;
+function deferToTab2(fn){ _tab2Inits.push(fn); }
+function startTab2Widgets(){
+  if(_tab2Started) return;
+  _tab2Started = true;
+  _tab2Inits.forEach(fn=> fn());
+  _tab2Inits = [];
+}
+
+deferToTab2(()=> docRef('sharedGalleryOptions').onSnapshot(doc=>{
   sharedGalleryOptionsData = doc.exists ? doc.data() : {options:[]};
   renderGallery(); renderGallery2(); renderRefGallery();
-});
+}));
 
 /* 예전엔 갤러리마다 옵션 목록을 따로 저장했는데, 그때 만들어둔 옵션이 있으면
    공유 목록이 아직 비어있을 때 한 번만 자동으로 합쳐줌 */
-(async function migrateGalleryOptionsToShared(){
+deferToTab2(async function migrateGalleryOptionsToShared(){
   try{
     const sharedDoc = await docRef('sharedGalleryOptions').get();
     if(sharedDoc.exists && (sharedDoc.data().options||[]).length) return;
@@ -5143,13 +5175,13 @@ docRef('sharedGalleryOptions').onSnapshot(doc=>{
     [g1,g2,g3].forEach(d=>{ if(d.exists) (d.data().options||[]).forEach(o=>{ if(o && !merged.includes(o)) merged.push(o); }); });
     if(merged.length) await docRef('sharedGalleryOptions').set({ options: merged }, {merge:true});
   }catch(err){ console.error('갤러리 옵션 이전 실패', err); }
-})();
-docRef('gallery').onSnapshot(doc=>{
+});
+deferToTab2(()=> docRef('gallery').onSnapshot(doc=>{
   galleryData = doc.exists ? doc.data() : {items:[]};
   if(skipNextGalleryRender){ skipNextGalleryRender = false; }
   else { renderGallery(); }
   if(editMode) migrateInlineGalleryImages('gallery', ()=> galleryData.items || []);
-});
+}));
 
 /* ---------------- 6-2. 갤러리 2번째 (기존 갤러리 바로 아래 — 완전히 독립된 두 번째 갤러리)
    빽빽한 정사각형 그리드로 세로 스크롤 ---------------- */
@@ -5445,12 +5477,12 @@ function openGallery2AddModal(){
   });
 }
 
-docRef('gallery2').onSnapshot(doc=>{
+deferToTab2(()=> docRef('gallery2').onSnapshot(doc=>{
   gallery2Data = doc.exists ? doc.data() : {items:[]};
   if(skipNextGallery2Render){ skipNextGallery2Render = false; }
   else { renderGallery2(); }
   if(editMode) migrateInlineGalleryImages('gallery2', ()=> gallery2Data.items || []);
-});
+}));
 
 /* ---------------- 6-3. 레퍼런스 갤러리 (캘린더 옆, 완전히 독립된 세 번째 갤러리)
    작고 촘촘한 정사각형 썸네일. 다른 갤러리들과 똑같이 옵션(태그)만 붙일 수 있음 ---------------- */
@@ -5777,13 +5809,13 @@ function openRefGalleryAddModal(){
   });
 }
 
-docRef('refgallery').onSnapshot(doc=>{
+deferToTab2(()=> docRef('refgallery').onSnapshot(doc=>{
   refGalleryData = doc.exists ? doc.data() : {items:[]};
   // 데이터는 항상 최신으로 갱신하되, 태그만 바뀐 경우엔 무거운 전체 그리드 재렌더링을 건너뜀
   if(skipNextRefGalleryRender){ skipNextRefGalleryRender = false; }
   else { renderRefGallery(); }
   if(editMode) migrateInlineGalleryImages('refgallery', ()=> refGalleryData.items || []);
-});
+}));
 
 /* ---------------- 5-1. 영상전용 플레이어 (갤러리 탭, 유튜브 링크 여러 개를 목록에서 골라 재생) ---------------- */
 // 사진과 달리 영상은 원본을 우리 쪽에 저장하지 않고(용량이 너무 큼) 유튜브 링크만
@@ -5892,10 +5924,10 @@ function openVideoAddModal(){
   });
 }
 
-docRef('videos').onSnapshot(doc=>{
+deferToTab2(()=> docRef('videos').onSnapshot(doc=>{
   videosData = doc.exists ? doc.data() : {items:[]};
   renderVideos();
-});
+}));
 
 /* ---------------- 6-1. 문서 정리 (갤러리와 세션카드 사이) ---------------- */
 
@@ -6725,6 +6757,7 @@ function initBoardTabs(){
   const nextBtn = document.getElementById('boardTabNext');
 
   function setActive(idx){
+    if(idx === 1) startTab2Widgets(); // 갤러리 탭에 처음 들어온 순간 지연해둔 구독을 시작
     btns.forEach((b,i)=> b.classList.toggle('active', i===idx));
     pages.forEach((p,i)=> p.classList.toggle('board-page-active', i===idx));
     if(prevBtn) prevBtn.classList.toggle('disabled', idx <= 0);
@@ -7161,6 +7194,27 @@ async function renderSpeechCard(){
 
 /* ---------------- 방문자용 오버레이 ---------------- */
 
+/* html2canvas는 말풍선 오버레이를 열 때 배경을 한 장 캡쳐하는 용도로만 쓰이는데,
+   예전엔 <script> 태그로 모든 방문자에게 무조건 로드되고 있었음(위젯 탭만 보고
+   떠나는 방문자도 이 라이브러리를 전부 내려받은 것). 오버레이를 처음 열 때만
+   그 시점에 스크립트를 동적으로 끼워넣도록 바꿔서, 실제로 쓸 때만 불러오게 함.
+   이미 불러왔으면 다시 안 불러오고, 로딩 중에 또 열리면 같은 로딩을 같이 기다림.
+   실패해도(네트워크 문제 등) 조용히 false를 반환해서 기존과 동일하게 어두운
+   틴트만 남는 폴백으로 이어짐. */
+let _html2canvasLoadPromise = null;
+function ensureHtml2Canvas(){
+  if(typeof html2canvas === 'function') return Promise.resolve(true);
+  if(_html2canvasLoadPromise) return _html2canvasLoadPromise;
+  _html2canvasLoadPromise = new Promise(resolve=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = ()=> resolve(typeof html2canvas === 'function');
+    s.onerror = ()=> resolve(false);
+    document.head.appendChild(s);
+  });
+  return _html2canvasLoadPromise;
+}
+
 function closeSpeechOverlay(){
   const el = document.getElementById('speechOverlayRoot');
   if(el){ el.remove(); }
@@ -7196,7 +7250,8 @@ function openSpeechOverlay(initialTabId){
   // 스크롤이 바뀌지 않는 이 화면 특성상 실시간 블러와 눈으로는 구분이 안 되면서도
   // 훨씬 가벼움. html2canvas 로드가 안 됐거나 캡쳐가 실패해도(네트워크 문제 등)
   // 조용히 무시하고 어두운 틴트만 남도록 처리함.
-  if(typeof html2canvas === 'function'){
+  ensureHtml2Canvas().then(ok=>{
+    if(!ok || !document.body.contains(el)) return; // 못 불러왔거나, 불러오는 사이 이미 닫혔으면 틴트만 남김
     // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이 되는
     // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
     el.style.visibility = 'hidden';
@@ -7213,7 +7268,7 @@ function openSpeechOverlay(initialTabId){
       bg.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.72)})`;
       el.prepend(bg);
     }).catch(()=>{ el.style.visibility = ''; });
-  }
+  });
 
   el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
   window.__speechEscHandler = (e)=>{ if(e.key === 'Escape') closeSpeechOverlay(); };
@@ -8505,6 +8560,12 @@ initRow2HeightSync();
 initRowStripHeightSync();
 initBoardTabs();
 initShakerWidget();
+
+// 방문자가 갤러리 탭을 안 눌러도, 위젯 탭이 먼저 자리잡고 나면 브라우저가 한가한 틈에
+// 백그라운드로 갤러리 탭 데이터를 미리 준비해둠 — 그래야 나중에 실제로 탭을 눌렀을 때
+// 빈 화면에서 뜨는 대신 바로 채워져 있고, 방문자가 계속 켜둔 화면에도 실시간 변경이 반영됨
+if('requestIdleCallback' in window) requestIdleCallback(startTab2Widgets, { timeout: 4000 });
+else setTimeout(startTab2Widgets, 2500);
 
 // 화면 폭이 바뀌면(반응형 구간 전환 등) 말풍선 폭도 달라질 수 있어서 다시 오려냄
 window.addEventListener('resize', debounce(()=>{
