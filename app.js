@@ -982,6 +982,16 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
   // 어디 있는지로 "앞/뒤"를 가름. axis 'y': 음악 재생목록처럼 세로로 쌓인 목록이라
   // 커서가 위/아래 중 어디 있는지로 "앞/뒤"를 가름
   const axis = opts.axis || 'x';
+  // opts.rowMajor: true — 갤러리2/레퍼런스 갤러리처럼 화면에는 여러 개의 DOM 열로
+  // 나뉘어 보이지만, 실제 저장 순서는 왼쪽→오른쪽, 위→아래로 흐르는 하나의 가로형
+  // 배열(row-major)인 그리드용 옵션. 이 옵션이 없으면 열마다 독립된 목록으로 보고
+  // 다루는데(진짜 매스너리인 메인 갤러리, 재생목록처럼 열 구분이 없는 목록 등에는
+  // 맞지만), 그 방식으로 갤러리2/레퍼런스 갤러리를 다루면 다른 열로 넘어가는 순간
+  // 그 열 전체가 위/아래로 밀리는 것처럼 보여서 가로로 배열된 원래 순서와 드래그 중
+  // 이동 방향이 어긋나 보임. rowMajor는 열 구분 없이 하나의 순서(liveFlat)만 놓고
+  // 앞/뒤로 끼워넣은 뒤, 그 결과를 다시 화면과 같은 규칙(order % colCount)으로 열에
+  // 나눠 담아서 원래 가로형 배열과 이동 축이 일치하게 함
+  const rowMajor = !!opts.rowMajor;
   const FLIP_MS = 260;
   const FLIP_EASE = 'cubic-bezier(.22,1,.36,1)';
   // 핀터레스트식 매스너리 그리드(메인 갤러리)는 layoutPinMasonry가 타일 위치를
@@ -998,6 +1008,7 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
   let liveColumns = [];      // [[열1의 타일들…], [열2의 타일들…], …] — 드래그 중 실시간으로 바뀜
   let colParents = [];       // liveColumns와 같은 순서의 실제 부모 엘리먼트(열 컨테이너)
   let originalColumns = [];  // 드롭 없이 드래그가 취소됐을 때 되돌리기용 원래 배치
+  let liveFlat = [];         // rowMajor 전용: 열 구분 없는 하나의 순서(왼쪽→오른쪽, 위→아래)
 
   // 지금 화면에 있는 타일들을, 실제 부모(열 컨테이너)별로 묶어서 스냅샷을 뜸.
   // 갤러리1처럼 열 구분 없이 전부 한 부모 밑에 있으면 결과는 그냥 [[전체 타일들]]이 됨
@@ -1017,6 +1028,28 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
       const parent = parents[ci];
       colTiles.forEach(t=> parent.appendChild(t));
     });
+  };
+
+  // rowMajor 전용: 렌더링 때 쓰는 것과 똑같은 규칙(order % colCount로 각 열에 순서대로
+  // 담기)의 역방향/정방향 변환. flattenRowMajor는 열별 배치를 "화면에 보이는 순서
+  // 그대로" 하나의 배열로 풀고, distributeRowMajor는 그 하나의 배열을 다시 같은
+  // 규칙으로 열에 나눠 담아서, 갤러리2/레퍼런스 갤러리 렌더링 함수가 실제로 하는
+  // 열 배치와 항상 일치하게 함
+  const flattenRowMajor = (cols)=>{
+    const flat = [];
+    const maxLen = Math.max(0, ...cols.map(c=> c.length));
+    for(let r = 0; r < maxLen; r++){
+      for(let c = 0; c < cols.length; c++){
+        const t = cols[c][r];
+        if(t) flat.push(t);
+      }
+    }
+    return flat;
+  };
+  const distributeRowMajor = (flat, colCount)=>{
+    const cols = Array.from({length: colCount}, ()=> []);
+    flat.forEach((t, i)=> cols[i % colCount].push(t));
+    return cols;
   };
 
   // rects를 잰 뒤 fn()으로 실제 DOM(과 필요하면 매스너리 위치)을 바꾸고, 바뀌기
@@ -1075,22 +1108,49 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
       liveColumns = snap.cols.map(c=> c.slice());
       colParents = snap.parents;
       originalColumns = snap.cols.map(c=> c.slice());
+      liveFlat = rowMajor ? flattenRowMajor(liveColumns) : [];
     });
     el.addEventListener('dragend', ()=>{
       el.classList.remove('dragging');
       if(!dropped) restoreOriginal();
       dragEl = null; dragIdx = null; dropped = false;
-      liveColumns = []; colParents = []; originalColumns = [];
+      liveColumns = []; colParents = []; originalColumns = []; liveFlat = [];
     });
     el.addEventListener('dragover', e=>{
       if(dragIdx === null || !dragEl) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       const rect = el.getBoundingClientRect();
-      const before = axis === 'y'
-        ? (e.clientY - rect.top) < rect.height / 2
-        : (e.clientX - rect.left) < rect.width / 2;
+      const colCount = colParents.length || 1;
+      // rowMajor 그리드는 실제로 열이 두 개 이상일 때만 가로(X) 기준으로 앞/뒤를
+      // 가름 — 화면에 보이는 원래 배열 방향(왼쪽→오른쪽, 위→아래)과 드래그 중 이동
+      // 방향을 맞추기 위함. 좁은 화면 등으로 열이 하나뿐일 땐 그냥 세로로 쌓인
+      // 목록과 같으므로 기존처럼 위/아래로 판단함
+      const useX = rowMajor ? colCount > 1 : axis !== 'y';
+      const before = useX
+        ? (e.clientX - rect.left) < rect.width / 2
+        : (e.clientY - rect.top) < rect.height / 2;
       el.dataset.dropBefore = before ? '1' : '0';
+
+      // 갤러리2/레퍼런스 갤러리처럼 여러 DOM 열에 나뉘어 있어도 실제 순서는 하나의
+      // 가로형 배열이므로, 열별로 따로 추적하는 대신 liveFlat 하나만 놓고 앞/뒤로
+      // 끼워넣은 뒤 그 결과를 다시 같은 규칙으로 열에 나눠 담음
+      if(rowMajor){
+        const srcPos = liveFlat.indexOf(dragEl);
+        const targetPos = liveFlat.indexOf(el);
+        if(srcPos === -1 || targetPos === -1) return;
+        let insertPos = before ? targetPos : targetPos + 1;
+        if(srcPos < insertPos) insertPos--;
+        if(insertPos === srcPos) return; // 이미 그 자리라 다시 배치할 필요 없음
+        const allTiles = liveFlat.slice();
+        flip(allTiles, ()=>{
+          liveFlat.splice(srcPos, 1);
+          liveFlat.splice(insertPos, 0, dragEl);
+          liveColumns = distributeRowMajor(liveFlat, colCount);
+          applyColumnsToDom(liveColumns, colParents);
+        });
+        return;
+      }
 
       const targetColIdx = colParents.indexOf(el.parentNode);
       const srcColIdx = liveColumns.findIndex(col=> col.includes(dragEl));
@@ -5456,7 +5516,7 @@ function renderGallery2(){
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('gallery2').set({items:arr}, {merge:true}),
-    { pointerLine: true, axis: 'y', widgetKey: 'gallery2' }
+    { pointerLine: true, rowMajor: true, widgetKey: 'gallery2' }
   );
   setupPinGalleryLazyLoad(gridEl, pairs, gallery2ObserverHolder, '.pin-item-dense.pin-loading',
     (tile, idx, url, it)=> fillGallery2Tile(tile, idx, url, it));
@@ -5728,7 +5788,7 @@ function renderRefGallery(){
     gridEl, '.pin-item-dense',
     ()=> items.slice(),
     async (arr)=> docRef('refgallery').set({items:arr}, {merge:true}),
-    { pointerLine: true, axis: 'y', widgetKey: 'refgallery' }
+    { pointerLine: true, rowMajor: true, widgetKey: 'refgallery' }
   );
 
   setupRefGalleryLazyLoad(gridEl, pairs);
