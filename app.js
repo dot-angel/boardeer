@@ -621,10 +621,12 @@ function openBlurTextEditModal(currentText, onSave){
    }
    화살표 버튼/키보드 ←→로 같은 목록 안에서 트위터처럼 옆 사진으로 바로 넘어갈 수 있음 */
 /* 라이트박스 뒤 전체화면 오버레이는 블러를 빼서 가볍게 하되(모달 자체 블러는 유지),
-   대신 사진(모달 박스)에 가려서 안 보이는 부분만 블러를 빼는 게 아니라 —
-   실제로 블러 연산 비용을 줄이려면 블러가 걸린 요소 자체의 실제 면적이 작아야 함(가려도 계산 비용은 그대로 듦).
-   그래서 모달 박스 "바깥" 여백 부분에만 실제 크기가 작은 블러 조각 4개(위/아래/좌/우)를 깔아,
-   화면 전체를 블러 처리했을 때와 비슷하게 보이면서도 실제 블러 면적은 훨씬 줄임 */
+   모달 박스 "바깥" 여백 전체(화면 가장자리까지)에는 별도로 블러 조각 4개(위/아래/좌/우)를
+   깔아서 화면을 통째로 블러 처리한 것처럼 보이게 함. 이 조각들은 얇은 블러(--glass-blur-thin)를
+   쓰지만, PC/와이드모니터에서는 그래도 위치·크기를 다시 계산해 새로 그리는 것 자체가
+   무거우므로, 사진을 한 장씩 넘길 때(goToIndex)마다는 다시 계산하지 않고 라이트박스를
+   "처음 열 때"와 "창 크기가 바뀔 때"만 다시 계산함(아래 mountLightbox의 if(!opened),
+   그 뒤쪽 onResize 참고) — 그래서 여백 전체를 블러 처리해도 사진 전환 자체는 가벼움 */
 function updateLightboxBlurFrame(modalEl){
   const overlay = modalEl && modalEl.parentElement;
   if(!overlay) return;
@@ -642,24 +644,18 @@ function updateLightboxBlurFrame(modalEl){
   }
   const rect = modalEl.getBoundingClientRect();
   const vw = window.innerWidth, vh = window.innerHeight;
-  // 모달 "바깥 여백 전체"에 블러를 거는 원래 방식은, 화면이 커지면(특히 PC, 그중에서도
-  // 와이드 모니터) 그 여백 자체가 넓어져서 스트립의 실제 블러 면적이 화면 크기에 비례해
-  // 다시 커짐 — 이 스트립을 만든 이유(면적을 줄여서 가볍게)가 큰 화면에서는 오히려
-  // 무색해지는 셈. 사진 가장자리를 일정 두께(STRIP)만큼만 감싸듯 블러를 둘러도 시각적으론
-  // 화면 전체를 블러 처리한 것과 구분이 안 되고(그 바깥은 이미 깔린 어두운 반투명
-  // 오버레이만 보임), 그 너머 여백엔 블러를 아예 안 걸어서 블러 면적이 화면 크기와
-  // 무관하게 늘 일정하게 유지됨. 모바일처럼 여백이 원래 이 두께보다 작으면 min()에 의해
-  // 원래 여백 그대로 쓰이므로 결과가 이전과 완전히 동일함(모바일은 아무 변화 없음).
-  const STRIP = 220;
+  // 예전엔 여백 중 일정 두께(STRIP)까지만 블러를 걸고 그 너머(화면이 커질수록 넓어지는
+  // 나머지 여백)는 블러 없이 어둡게만 둬서, 큰 화면일수록 화면 가장자리 쪽이 블러 없이
+  // 티가 났음 — 이제는 이 함수 자체가 사진을 넘길 때마다 호출되지 않고 라이트박스를
+  // 열 때/창 크기가 바뀔 때만 호출되므로(호출부 참고), 두께를 제한할 필요 없이 여백
+  // "전체"에 블러를 걸어 화면 가장자리까지 블러가 닿게 함
   const top = Math.max(0, rect.top), bottom = Math.max(0, vh - rect.bottom);
   const left = Math.max(0, rect.left), right = Math.max(0, vw - rect.right);
-  const capTop = Math.min(STRIP, top), capBottom = Math.min(STRIP, bottom);
-  const capLeft = Math.min(STRIP, left), capRight = Math.min(STRIP, right);
-  const haloLeft = rect.left - capLeft, haloRight = rect.right + capRight;
-  frame.querySelector('.lbf-top').style.cssText = `top:${rect.top - capTop}px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${capTop}px;`;
-  frame.querySelector('.lbf-bottom').style.cssText = `top:${rect.bottom}px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${capBottom}px;`;
-  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:${haloLeft}px; width:${capLeft}px; height:${rect.height}px;`;
-  frame.querySelector('.lbf-right').style.cssText = `top:${rect.top}px; left:${rect.right}px; width:${capRight}px; height:${rect.height}px;`;
+  const haloLeft = rect.left - left, haloRight = rect.right + right;
+  frame.querySelector('.lbf-top').style.cssText = `top:0px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${top}px;`;
+  frame.querySelector('.lbf-bottom').style.cssText = `top:${rect.bottom}px; left:${haloLeft}px; width:${haloRight - haloLeft}px; height:${bottom}px;`;
+  frame.querySelector('.lbf-left').style.cssText = `top:${rect.top}px; left:0px; width:${left}px; height:${rect.height}px;`;
+  frame.querySelector('.lbf-right').style.cssText = `top:${rect.top}px; left:${rect.right}px; width:${right}px; height:${rect.height}px;`;
 }
 
 function openImageLightbox(cfg){
@@ -856,7 +852,12 @@ function openImageLightbox(cfg){
           }
         });
       }
-      updateLightboxBlurFrame(m);
+      // 블러 프레임(무거운 backdrop-filter) 위치 재계산은 라이트박스를 "처음 열 때"만
+      // 하고, 같은 라이트박스 안에서 사진만 넘길 때(goToIndex → render → mountLightbox)는
+      // 하지 않음 — opened는 render() 맨 끝에서 true로 바뀌므로, 여기서 false라는 건
+      // 아직 한 번도 안 열린(=지금이 첫 오픈인) 상태라는 뜻. 사진을 넘길 때마다 이 계산을
+      // 반복하면 PC/큰 화면에서 그때마다 블러를 다시 그려야 해서 전환이 눈에 띄게 느려짐
+      if(!opened) updateLightboxBlurFrame(m);
     };
     // 묶음(모아올리기) 안에서 사진을 넘길 때 매번 openModal로 오버레이(배경 어둡게+블러
     // 프레임) 전체를 지우고 새로 만들면, 그 순간 오버레이/블러 프레임이 통째로
