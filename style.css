@@ -1627,6 +1627,19 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 }
 .profile-slide-nav{ display:flex; align-items:center; justify-content:center; gap:10px; flex:0 0 auto; }
 .profile-slide-nav .slide-dots{ padding:0; }
+/* 시점/IF 이동 화살표 — 원형 배경 버튼 대신, 탭 이동 화살표처럼 선(글자)만 보이는 형태로.
+   PC(마우스 환경)에서는 기본 크기를 더 키우고, 호버 시 한 번 더 확대해서
+   작은 점만 누르는 것보다 눈에 띄고 누르기 쉽게 함 */
+.profile-slide-nav .icon-btn{
+  width:auto; height:auto; padding:2px 6px; border:none; border-radius:0;
+  background:none; font-size:1.05rem; line-height:1; color: var(--ink); opacity:.5;
+  transition: opacity .15s ease, transform .15s ease;
+}
+.profile-slide-nav .icon-btn:hover{ background:none; opacity:1; }
+@media (hover:hover) and (pointer:fine){
+  .profile-slide-nav .icon-btn{ font-size:1.5rem; opacity:.65; padding:2px 8px; }
+  .profile-slide-nav .icon-btn:hover{ opacity:1; transform: scale(1.25); }
+}
 .pf-edit-list{ display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto; }
 .pf-edit-row{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .pf-edit-row .pf-edit-label{ flex:0 0 96px; }
