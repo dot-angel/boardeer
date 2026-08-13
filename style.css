@@ -2371,17 +2371,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   position: fixed; inset:0; background: rgba(5,2,3,0.55); backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
   display:flex; align-items:center; justify-content:center; z-index: 260; animation: fadeIn .15s ease;
 }
-/* 라이트박스 전용: 전체화면 오버레이 자체엔 블러를 걸지 않고 어둡게 깔리는 효과만
-   남김(라이트박스 박스 자체의 글라스 블러는 그대로 유지). 대신 모달 박스 "바깥"
-   영역에 블러 조각 4개(.lightbox-blur-strip)를 화면 가장자리까지 정확히 채워 붙여서,
-   화면 전체를 블러 처리한 것처럼 보이게 함 — 조각의 정확한 위치/크기 계산은
-   app.js의 updateLightboxBlurFrame 참고 */
-.modal-overlay.modal-overlay-plain{ backdrop-filter:none; -webkit-backdrop-filter:none; background: rgba(5,2,3,0.55); }
-.lightbox-blur-frame{ position:fixed; inset:0; z-index:1; pointer-events:none; }
-.lightbox-blur-strip{
-  position:fixed; backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
-}
-.modal.modal-lightbox{ position:relative; z-index:2; }
+/* 라이트박스도 다른 모달처럼 .modal-overlay 블러(--glass-blur-thin)를 화면 전체에
+   그대로 씀. 예전엔 모달 박스 "바깥" 여백에만 블러 조각 4개를 깔아 블러 면적을
+   줄였는데, 사진을 넘길 때마다 박스 크기가 바뀌면서 그 조각들 위치/크기를 매번
+   다시 재고 다시 블러를 걸어야 했음 — PC에서 사진 넘길 때 느려지던 원인이 이
+   재계산 비용이었음. 오버레이는 사진을 넘겨도 크기가 그대로라 다시 계산할 일이
+   없으니 넘길 때 더 가볍고, 큰 화면에서 조각 바깥쪽엔 블러가 안 걸려 위젯
+   모서리가 비치던 이음새도 사라짐(.modal.modal-lightbox의 position:relative는
+   아래 크기 규칙 쪽으로 옮김) */
 @keyframes fadeIn{ from{opacity:0} to{opacity:1} }
 .modal{
   background: rgba(24,11,14,0.72);
@@ -2448,6 +2445,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    계산하게 돼서 여는 순간 페이지 전체가 버벅임. 뒤에 이미 어두운 반투명 오버레이가
    깔려 있어 사진을 보는 데는 큰 블러가 굳이 필요 없으므로 훨씬 가벼운 값으로 낮춤 */
 .modal.modal-lightbox{
+  position:relative;
   width:auto; max-width:94vw; padding:16px; background: rgba(10,5,6,0.5);
   backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
 }
@@ -2736,8 +2734,7 @@ body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.2); }
    고정돼 있어서, 정작 모달/쉐이커 박스 자체를 아무리 투명하게 만들어도
    그 뒤로 보이는 게 실제 밝은 페이지가 아니라 이 어두운 스크림이라
    "불투명하다"고 느껴졌던 것 — 라이트모드용 밝은 스크림을 새로 추가함 */
-body.theme-light .modal-overlay,
-body.theme-light .modal-overlay.modal-overlay-plain{
+body.theme-light .modal-overlay{
   background: rgba(255,255,255,0.16);
 }
 
