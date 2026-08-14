@@ -174,13 +174,15 @@ body{
   /* 위에서 @property로 등록해둔 색 변수들을 여기서 애니메이션함 — 이 한 줄만으로
      이 변수들을 참조하는 페이지 전체의 배경/글자/보더 색이 라이트↔다크 전환 시
      실제로 서서히 크로스페이드됨(값이 body의 인라인 스타일로 바뀌든, theme-light
-     클래스 토글로 바뀌든 동일하게 적용됨) */
+     클래스 토글로 바뀌든 동일하게 적용됨). 이 시간(.65s)은 app.js의
+     MODE_COLOR_CROSSFADE_MS와 반드시 같아야 함(문구가 "색이 다 자리잡은 뒤"에
+     뜨도록 그 값을 참고하기 때문) */
   transition:
-    background-color .45s ease, color .45s ease,
-    --rose .45s ease, --rose-solid .45s ease, --rose-soft .45s ease,
-    --sage .45s ease, --gold .45s ease, --gold-soft .45s ease,
-    --paper .45s ease, --paper-deep .45s ease, --ink .45s ease, --ink-soft .45s ease,
-    --card-bg .45s ease, --card-bg2 .45s ease, --card-border .45s ease, --card-hi .45s ease;
+    background-color .65s ease, color .65s ease,
+    --rose .65s ease, --rose-solid .65s ease, --rose-soft .65s ease,
+    --sage .65s ease, --gold .65s ease, --gold-soft .65s ease,
+    --paper .65s ease, --paper-deep .65s ease, --ink .65s ease, --ink-soft .65s ease,
+    --card-bg .65s ease, --card-bg2 .65s ease, --card-border .65s ease, --card-hi .65s ease;
   /* 시스템 이모지(🔒🎨☀️🌙 등)를 아이폰/안드로이드에서도 PC처럼 컬러 이모지가
      아니라 단색(텍스트 프리젠테이션) 글자로 그리게 함. 지원 브라우저(최신
      크롬/사파리)에서만 적용되고, 지원 안 하는 곳은 조용히 무시되니 안전함 */
@@ -430,7 +432,7 @@ body::before{
   padding: 0 28px;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity .32s ease, transform .32s ease;
+  transition: opacity .32s ease, transform .32s ease, color .32s ease;
 }
 .mode-welcome-text.show{
   opacity: 1;
