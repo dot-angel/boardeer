@@ -1997,56 +1997,72 @@ function subscribeModeMeta(){
 }
 subscribeModeMeta();
 
-/* ---------------- 모드 전환 연출: 화면 전체를 블러로 덮은 뒤 자연스럽게 넘어감 ----------------
+/* ---------------- 모드 전환 연출 ----------------
+   색이 실제로 자연스럽게 이어지는 건 이제 style.css의 body에 걸어둔
+   --rose/--paper/--ink 등 @property + transition이 담당함(값 자체가 진짜로
+   서서히 크로스페이드됨) — 그래서 여기 오버레이는 더 이상 "다 가려질 때까지
+   기다렸다가 바꿔치기"할 필요가 없고, 그저:
    1) 스위치 썸이 먼저 슥 움직이는 걸 보여줌(프리롤)
-   2) 화면 전체에 블러 오버레이가 서서히 짙어짐
-   3) 블러가 화면을 충분히 가린 시점에만 실제 테마/배경/배너(applyModeClass+subscribeModeMeta)를
-      바꿔치기함 — 위젯마다 전환이 끝나는 타이밍이 제각각이어도 안 보이게 하는 핵심(기존 "도어"
-      연출과 같은 목적이지만, 문 패널/입자/문구 같은 장식 없이 블러 한 장으로만 가림)
-   4) 블러가 다시 옅어지며 걷힘
-   숫자를 조절하고 싶으면 이 상수들만 만지면 됨(블러 인/아웃 시간은 style.css의
+   2) 아주 옅은 블러 베일을 살짝 얹으면서 곧바로 테마를 바꿔치기 → 색 전환이
+      바로 시작됨(베일은 배경 이미지·배너처럼 CSS transition으로 못 덮는
+      요소들이 Firestore에서 새로 도착하는 그 짧은 순간만 살짝 뭉개주는 용도)
+   3) "OOO에 오신 것을 환영합니다" 문구를 잠깐 띄웠다가
+   4) 문구가 사라지고 베일도 걷힘
+   숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
    .mode-blur-overlay transition 시간과 맞춰야 함) */
-const MODE_BLUR_PREROLL_MS = 260;  // 스위치 프리롤 ~ 블러 시작 사이 간격
-const MODE_BLUR_IN_MS = 380;       // 블러가 짙어지는 시간
-const MODE_BLUR_HOLD_MS = 260;     // 테마가 완전히 바뀌어 자리잡을 시간(블러로 가려진 채 대기)
-const MODE_BLUR_OUT_MS = 420;      // 블러가 걷히는 시간
+const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사이 간격
+const MODE_VEIL_IN_MS = 320;        // 베일이 옅게 걸리는 시간(색 자체의 크로스페이드는 이보다 조금 더 걸림 — body transition .45s)
+const MODE_WELCOME_HOLD_MS = 950;   // 문구를 읽을 수 있도록 떠 있는 시간(베일 시작 기준)
+const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
 
 let modeTransitionBusy = false;
 
-// 오버레이는 딱 하나만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
+// 오버레이/문구는 딱 한 번만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
 let modeBlurOverlayEl = null;
+let modeWelcomeTextEl = null;
 function ensureModeBlurOverlay(){
   if(modeBlurOverlayEl) return modeBlurOverlayEl;
   modeBlurOverlayEl = document.createElement('div');
   modeBlurOverlayEl.className = 'mode-blur-overlay';
+  modeWelcomeTextEl = document.createElement('div');
+  modeWelcomeTextEl.className = 'mode-welcome-text';
+  modeBlurOverlayEl.appendChild(modeWelcomeTextEl);
   document.body.appendChild(modeBlurOverlayEl);
   return modeBlurOverlayEl;
 }
 
 function runModeBlurTransition(newMode){
   const overlay = ensureModeBlurOverlay();
+  modeWelcomeTextEl.textContent = MODE_LABELS[newMode] + '에 오신 것을 환영합니다.';
 
   requestAnimationFrame(()=>{
     overlay.classList.add('show');
   });
 
   setTimeout(()=>{
-    // 화면이 블러로 충분히 가려진 시점에만 실제 테마를 바꿔치기함
+    // 베일이 옅게 걸리는 시점에 곧바로 테마를 바꿔치기 — 색 자체는 여기서부터
+    // body의 transition을 타고 실제로 부드럽게 이어짐(더 이상 "숨겼다가 짠"이 아님)
     applyModeClass();
     subscribeModeMeta();
-  }, MODE_BLUR_IN_MS);
+  }, MODE_VEIL_IN_MS);
+
+  setTimeout(()=>{
+    modeWelcomeTextEl.classList.add('show');
+  }, MODE_VEIL_IN_MS + 60);
+
+  setTimeout(()=>{
+    modeWelcomeTextEl.classList.remove('show');
+  }, MODE_WELCOME_HOLD_MS - 280);
 
   setTimeout(()=>{
     overlay.classList.remove('show');
-  }, MODE_BLUR_IN_MS + MODE_BLUR_HOLD_MS);
+  }, MODE_WELCOME_HOLD_MS);
 
   setTimeout(()=>{
     modeTransitionBusy = false;
     modeToggleBtn.classList.remove('mt-busy');
-  }, MODE_BLUR_IN_MS + MODE_BLUR_HOLD_MS + MODE_BLUR_OUT_MS);
+  }, MODE_WELCOME_HOLD_MS + MODE_VEIL_OUT_MS);
 }
-
-
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
   if(newMode === siteMode) return;

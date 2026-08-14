@@ -26,6 +26,32 @@
   font-style: normal;
   font-display: swap;
 }
+/* ---------------- 라이트/다크 전환이 "실제로" 부드럽게 이어지도록 ----------------
+   예전에는 전환 순간 화면을 오버레이로 가려서 색이 바뀌는 걸 안 보이게 "숨기는"
+   방식이었는데, 그러면 오버레이 뒤에서 색이 훅 튀는 게 비쳐 보이거나(투명도가
+   낮을 때), 반대로 오버레이를 진하게 하면 화면에 다른 막을 하나 끼워넣은 것처럼
+   보여서 자연스럽지 않았음.
+   진짜 해결책은 "숨기기"가 아니라 색 자체가 실제로 부드럽게 이어지도록(크로스페이드)
+   만드는 것 — CSS 커스텀 프로퍼티(--rose, --paper 등)를 @property로 "이건 색이다"라고
+   등록하면, 브라우저가 이 값 자체를 애니메이션 가능한 값으로 취급해서 body에 걸어둔
+   transition만으로 이 변수를 참조하는 모든 요소(카드/버튼/글자/보더 등)의 색이
+   전부 한 번에, 실제로 프레임 단위로 서서히 바뀜(각 요소마다 따로 transition을
+   추가할 필요 없이, 값의 "근원"인 변수 하나만 애니메이션하면 참조하는 모든 곳에
+   자동으로 퍼짐). */
+@property --rose{ syntax:'<color>'; inherits:true; initial-value:#C4425F; }
+@property --rose-solid{ syntax:'<color>'; inherits:true; initial-value:#7A2130; }
+@property --rose-soft{ syntax:'<color>'; inherits:true; initial-value:rgba(196,66,95,0.18); }
+@property --sage{ syntax:'<color>'; inherits:true; initial-value:#A9727F; }
+@property --gold{ syntax:'<color>'; inherits:true; initial-value:#95929C; }
+@property --gold-soft{ syntax:'<color>'; inherits:true; initial-value:rgba(149,146,156,0.35); }
+@property --paper{ syntax:'<color>'; inherits:true; initial-value:#0F0406; }
+@property --paper-deep{ syntax:'<color>'; inherits:true; initial-value:#1A0B0F; }
+@property --ink{ syntax:'<color>'; inherits:true; initial-value:#F3ECEE; }
+@property --card-bg{ syntax:'<color>'; inherits:true; initial-value:rgba(32,16,20,0.075); }
+@property --card-bg2{ syntax:'<color>'; inherits:true; initial-value:rgba(32,16,20,0.045); }
+@property --card-border{ syntax:'<color>'; inherits:true; initial-value:rgba(255,255,255,0.11); }
+@property --card-hi{ syntax:'<color>'; inherits:true; initial-value:rgba(255,255,255,0.07); }
+
 :root{
   color-scheme: dark;
   /* ---- 체리 팔레트 (다크 & 글래스 버전) ---- */
@@ -136,6 +162,16 @@ body{
   font-family: var(--font-body);
   color: var(--ink);
   background-color: var(--paper);
+  /* 위에서 @property로 등록해둔 색 변수들을 여기서 애니메이션함 — 이 한 줄만으로
+     이 변수들을 참조하는 페이지 전체의 배경/글자/보더 색이 라이트↔다크 전환 시
+     실제로 서서히 크로스페이드됨(값이 body의 인라인 스타일로 바뀌든, theme-light
+     클래스 토글로 바뀌든 동일하게 적용됨) */
+  transition:
+    background-color .45s ease, color .45s ease,
+    --rose .45s ease, --rose-solid .45s ease, --rose-soft .45s ease,
+    --sage .45s ease, --gold .45s ease, --gold-soft .45s ease,
+    --paper .45s ease, --paper-deep .45s ease, --ink .45s ease,
+    --card-bg .45s ease, --card-bg2 .45s ease, --card-border .45s ease, --card-hi .45s ease;
   /* 시스템 이모지(🔒🎨☀️🌙 등)를 아이폰/안드로이드에서도 PC처럼 컬러 이모지가
      아니라 단색(텍스트 프리젠테이션) 글자로 그리게 함. 지원 브라우저(최신
      크롬/사파리)에서만 적용되고, 지원 안 하는 곳은 조용히 무시되니 안전함 */
@@ -347,28 +383,43 @@ body::before{
 .mode-toggle.mt-busy{ pointer-events: none; }
 
 
-/* ---------- 다크·라이트 전환 연출: 화면 전체를 블러로 덮은 뒤 자연스럽게 넘어감 ----------
-   화면이 블러로 완전히 가려진 시점에만 실제 테마/배경/배너를 바꿔치기해서, 위젯마다
-   전환이 끝나는 타이밍이 제각각이어도 방문자 눈엔 보이지 않게 함(기존 "도어" 연출과
-   목적은 동일하되, 문 패널/입자/문구 같은 장식 없이 블러 한 장으로만 가림).
-   backdrop-filter는 프레임마다 다시 계산되는 무거운 연산이라(다른 곳에서도 이미 겪은
-   문제) 화면 전체에 걸 때는 지속시간을 짧게(전환 중에만) 유지함 — 상시로 켜두지 않고
-   .show 클래스가 붙어있는 짧은 순간에만 존재. */
+/* ---------- 다크·라이트 전환 연출: 이제는 "가려서 숨기는" 용도가 아니라
+   아주 옅은 블러 베일 + 환영 문구를 잠깐 얹어주는 장식용 레이어일 뿐임.
+   실제 색 전환의 자연스러움은 위 body의 --rose/--paper/--ink 등 @property
+   transition이 만들어주므로(색 자체가 진짜로 서서히 크로스페이드됨), 이
+   오버레이는 더 이상 색이 훅 바뀌는 걸 가릴 필요가 없음 — 그래서 불투명도를
+   낮게 유지하고, 위젯마다 제각각인 리스너 갱신 타이밍만 살짝 뭉개주는
+   최소한의 블러만 남겨둠. */
 .mode-blur-overlay{
   position: fixed; inset:0; z-index:600;
   pointer-events:none;
+  display:flex; align-items:center; justify-content:center;
   background: rgba(var(--ink-rgb),0);
   backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px);
-  transition: background .38s ease, backdrop-filter .38s ease, -webkit-backdrop-filter .38s ease;
+  transition: background .34s ease, backdrop-filter .34s ease, -webkit-backdrop-filter .34s ease;
 }
 .mode-blur-overlay.show{
-  background: rgba(var(--ink-rgb),0.14);
-  backdrop-filter: blur(22px) saturate(1.15); -webkit-backdrop-filter: blur(22px) saturate(1.15);
+  background: rgba(var(--ink-rgb),0.1);
+  backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15);
 }
-/* backdrop-filter 미지원 브라우저에서는 블러가 아예 안 걸려 전환 순간 테마가 바뀌는 게
-   그대로 보이므로, 최소한 불투명한 스크림으로라도 그 순간을 가려줌 */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
-  .mode-blur-overlay.show{ background: rgba(var(--ink-rgb),0.92); }
+/* backdrop-filter 미지원 브라우저는 블러가 아예 안 걸리지만, 어차피 색 전환
+   자체가 실제로 부드럽게 이어지므로(위 body transition) 별도 보정이 필요 없음 */
+.mode-welcome-text{
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 4.2vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--ink);
+  text-align:center;
+  text-shadow: 0 2px 20px rgba(0,0,0,.4);
+  padding: 0 28px;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .32s ease, transform .32s ease;
+}
+.mode-welcome-text.show{
+  opacity: 1;
+  transform: translateY(0);
 }
 
 
@@ -939,8 +990,18 @@ body.edit-mode .w-card:has(> .w-edit-toggle-btn){
    짝을 맞춰 항상 밝게 고정해야 하는 자리라 라이트모드에서 글자가 어두운
    스크림 위에 어두운 글자로 묻혀 보이던 문제였음 */
 .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
-.w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
+.w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn:not(.active){
   color: rgba(255,255,255,0.95);
+}
+/* 반복재생/연속재생처럼 켜짐·꺼짐 상태가 있는 아이콘 버튼은, 자켓 사진 위에서도
+   눌러진 상태가 또렷이 구별돼야 함. 예전엔 위 규칙이 .active 여부와 상관없이
+   흰색으로 덮어써서 클릭 전/후 색이 똑같아 보였던 게 원인 — 이제 .active는
+   위 규칙 대상에서 빠져서, 꺼짐(흰색)과 켜짐(로즈색)이 실제로 다른 색으로
+   구분됨. 배경을 따로 채우지 않고 색상 + 그림자만으로 사진 위에서도 또렷하게
+   보이게 함 */
+.w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn.active{
+  color: var(--rose);
+  text-shadow: 0 1px 3px rgba(0,0,0,.55), 0 0 5px rgba(255,255,255,.25);
 }
 .w-music:has(.mp-cover-bg.has-cover) .mp-title{
   color: rgba(255,255,255,0.95);
@@ -2793,8 +2854,15 @@ body.theme-light .speech-card-cover-scrim{
    동일하게 흰 글씨 + 검은 그림자로 고정함(가독성이 최우선인 자리라 모드별로
    색이 달라지면 오히려 사진 위에서 묻히는 경우가 생김) */
 body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-times span,
-body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn{
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn:not(.active){
   color: var(--rose);
+}
+/* 라이트모드에서는 꺼짐 상태가 이미 로즈색(위 규칙)이라, 켜짐 상태를 다크모드와
+   같은 로즈색으로 두면 다시 구분이 안 됨 — 라이트모드의 켜짐 상태만 흰색으로
+   뒤집어서 항상 꺼짐과 다른 색이 되게 함(배경은 그대로 없음, 색만 다름) */
+body.theme-light .w-music:has(.mp-cover-bg.has-cover) .mp-controls .icon-btn.active{
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.55), 0 0 5px rgba(0,0,0,.25);
 }
 
 /* ---- 기타: 다크모드 값이 박혀있던 버그가 아니라, 라이트모드에서만 필요한
