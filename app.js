@@ -2090,9 +2090,17 @@ subscribeModeMeta();
    3) "OOO에 오신 것을 환영합니다" 문구를 잠깐 띄웠다가
    4) 문구가 사라지고 베일도 걷힘
    숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
-   .mode-blur-overlay transition 시간과 맞춰야 함) */
+   .mode-blur-overlay transition 시간 이상으로 맞춰야 함 — 아래 MODE_VEIL_IN_MS 참고) */
 const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사이 간격
-const MODE_VEIL_IN_MS = 320;        // 베일이 걸리는 시간(=테마가 실제로 바뀌는 시점)
+/* ⚠️ 예전엔 이 값이 320이었는데, style.css .mode-blur-overlay의 실제 opacity transition은
+   .34s(=340ms)라서 CSS보다 20ms 더 짧게 잡혀 있었음 — 그러면 베일이 완전히 불투명해지기
+   20ms *전에* applyModeClass()가 테마를 바꿔치기해 --rose/--paper/--ink 등이 크로스페이드를
+   시작하면서 페이지 전반이 다시 리페인트되는데, 그 순간 베일은 아직 배경을 100% 덮지
+   못한 상태라 무거운 리페인트와 겹쳐 걸림. 컴포지팅이 상대적으로 느린 환경(삼성인터넷 등)
+   에서는 이 찰나에 프레임이 밀리며 블러가 "끊기는" 것처럼 보였을 가능성이 큼. CSS 쪽
+   transition(340ms)이 다 끝난 뒤에만 테마를 바꿔치기하도록 340 + 여유(10ms)로 맞춤 —
+   이 값은 항상 style.css 쪽 transition 시간 이상으로 유지할 것. */
+const MODE_VEIL_IN_MS = 350;        // 베일이 걸리는 시간(=테마가 실제로 바뀌는 시점)
 /* 문구 글자색은 더 이상 --ink/--rose의 body 크로스페이드(.65s)를 상속받지 않고,
    runModeBlurTransition()에서 lastKnownAccent[newMode](=그 모드의 실제 강조색)를
    문구 엘리먼트에 직접 인라인으로 확정해버림 — 그래서 문구는 "서서히 물드는" 대신

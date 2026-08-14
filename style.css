@@ -88,7 +88,12 @@
   --glass-blur: blur(12px) saturate(150%);       /* 큰 유리 표면(카드/모달/토스트) */
   --glass-blur-med: blur(7px) saturate(140%);    /* 작은 버튼/배지류 */
   --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) — 라이트박스 등과 공용 */
-  --glass-blur-mode-veil: blur(9px) saturate(150%); /* 모드 전환 베일 전용 — 화면 전체에 아주 짧게(수백ms)만 걸리므로 --glass-blur-thin보다 세게 써도 부담이 적음. 다른 오버레이와 변수를 분리해서 여기만 세져도 라이트박스 등엔 영향 없음 */
+  --glass-blur-mode-veil: blur(80px) saturate(150%); /* 모드 전환 베일 전용 — 화면 전체에 아주 짧게(수백ms)만 걸리므로 --glass-blur-thin보다 훨씬 세게 써도 부담이 적음. 다른 오버레이와 변수를 분리해서 여기만 세져도 라이트박스 등엔 영향 없음.
+     배경이 거의 분간 안 될 정도를 목표로 9px→80px로 크게 올림. 이 값은 opacity처럼 매 프레임
+     보간되는 게 아니라 처음부터 고정된 채 알파만 트랜지션되므로(app.js runModeBlurTransition
+     참고), 반경을 올려도 "매 프레임 다른 반경으로 다시 계산"하는 무거운 비용은 붙지 않음 —
+     늘어나는 건 고정 반경 블러 연산 1회분뿐이라 이 정도로 세게 써도 안전함. 대비가 강한
+     배너·사진 위에서도 더 완전히 뭉개고 싶으면 120~150px(세자리수)까지 올려도 무방함 */
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   /* 한국어·영어는 ZEN SERIF/Noto Sans KR로 커버되고, 그 외 언어(일본어·중국어·기타 문자 등)는
      이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
@@ -430,7 +435,7 @@ body::before{
    전부 다시 계산해야 해서 매우 무거움 — 특히 이 순간 카드들도 --card-bg 등
    색이 동시에 크로스페이드되고 있어 배경 자체가 계속 바뀌는데, 거기에 블러
    반경까지 매 프레임 달라지면 이중으로 무거워짐. 그래서 이제 backdrop-filter는
-   --glass-blur-mode-veil(9px)로 항상 고정해두고, 오직 opacity만 트랜지션함
+   --glass-blur-mode-veil(현재 80px)로 항상 고정해두고, 오직 opacity만 트랜지션함
    (블러 반경은 그대로 둔 채 알파 합성만 바뀌는 거라 훨씬 가벼움). 노출 시간도
    여전히 짧게(수백ms) 유지함. */
 .mode-blur-overlay{
@@ -440,7 +445,13 @@ body::before{
   opacity: 0;
   backdrop-filter: var(--glass-blur-mode-veil); -webkit-backdrop-filter: var(--glass-blur-mode-veil);
   transition: opacity .34s ease;
-  will-change: opacity;
+  /* translateZ(0)로 이 레이어를 "항상" 별도 GPU 합성 레이어로 미리 승격해 둠 — 모바일 크로미움
+     계열(삼성인터넷 포함)은 opacity:0으로 안 보이는 동안엔 레이어를 안 들고 있다가 트랜지션이
+     시작되는 순간에야 새로 승격하는 경우가 있는데, 그 재승격 처리가 끼어들면 블러가 아직
+     안 걸린 프레임이 한 장 섞여 들어가 전환 순간에 "끊기는" 것처럼 보일 수 있음(삼성인터넷에서
+     보고된 증상과 일치). 레이어를 상시 승격 상태로 유지해두면 이 지연이 사라짐 */
+  transform: translateZ(0);
+  will-change: opacity, transform;
 }
 .mode-blur-overlay.show{
   opacity: 1;
