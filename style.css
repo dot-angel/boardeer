@@ -58,7 +58,7 @@
      이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
      sans-serif가 아니라 serif(명조체 계열)로 지정해서 다른 언어 글자도 명조 느낌으로 보이게 함. */
   --font-body: 'ZEN SERIF', 'Noto Sans KR', serif;
-  --radius: 16px;
+  --radius: 8px;
   /* ---- 페이지 배경 위에 직접 놓이는 소품(탭 캡슐/화살표/스크롤바)용 토큰 ----
      배너/모달/사진 위 배지류는 항상 어둡게 유지하는 게 자연스러워서 그대로 두고,
      이 토큰들만 라이트모드에서 별도로 뒤집음 */
@@ -785,7 +785,7 @@ body::before{
   position: relative;
   background: var(--card-bg);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--card-border);
+  border: 1px solid transparent;
   border-radius: var(--radius);
   box-shadow: var(--shadow), inset 0 0 0 0.6px var(--card-hi);
   overflow: hidden;
@@ -799,7 +799,7 @@ body::before{
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))){
   .w-card, .modal, .btn{ background: #1c0e12; }
 }
-.w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 0 0 0.6px var(--card-hi); border-color: rgba(196,66,95,0.4); }
+.w-card:hover{ box-shadow: 0 16px 36px rgba(0,0,0,0.4), inset 0 0 0 0.6px var(--card-hi); border-color: var(--card-border); }
 
 /* 위젯별 "편집 잠금 해제" 연필 버튼 — 편집모드에 들어와도 이 버튼을 눌러야만
    그 위젯 안의 삭제버튼/이동손잡이/개별 편집버튼 등이 나타남. 우상단 코너에
@@ -831,7 +831,7 @@ body.edit-mode .w-card:has(> .w-edit-toggle-btn){
    한 겹 더 깔아서 "두께"가 있는 것처럼 보이게 함. (.w-card 바로 다음에 둬야
    .w-card의 border/box-shadow/backdrop-filter/padding에 덮여씌워지지 않음) */
 .w-speech{
-  border-width:2px; border-color: rgba(255,255,255,0.3);
+  border-width:1px; border-color: rgba(255,255,255,0.3);
   box-shadow:
     0 18px 34px rgba(0,0,0,0.48),
     inset 0 2px 0 rgba(255,255,255,0.32),
@@ -1659,7 +1659,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    transform으로만 갱신하므로(레이아웃 재계산 없음) 여러 개가 움직여도 가벼움. */
 .w-shaker{
   padding:10px;
-  border-width:2px; border-color: rgba(255,255,255,0.3);
+  border-width:1px; border-color: rgba(255,255,255,0.3);
   box-shadow:
     0 18px 34px rgba(0,0,0,0.48),
     inset 0 2px 0 rgba(255,255,255,0.32),
