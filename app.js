@@ -7693,22 +7693,29 @@ function openSpeechOverlay(initialTabId){
   // 조용히 무시하고 어두운 틴트만 남도록 처리함.
   ensureHtml2Canvas().then(ok=>{
     if(!ok || !document.body.contains(el)) return; // 못 불러왔거나, 불러오는 사이 이미 닫혔으면 틴트만 남김
-    // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이 되는
-    // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
-    el.style.visibility = 'hidden';
     html2canvas(document.body, {
       x: captureScrollX, y: captureScrollY,
       width: window.innerWidth, height: window.innerHeight,
       scale: Math.min(1, window.devicePixelRatio || 1) * 0.6, // 어차피 블러 처리되니 살짝 낮은 해상도로도 충분하고 캡쳐 속도도 빨라짐
-      useCORS: true, backgroundColor: null, logging: false
+      useCORS: true, backgroundColor: null, logging: false,
+      // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이
+      // 되는 사고를 안 만듦. ⚠️ 예전엔 el.style.visibility='hidden'으로 캡쳐가
+      // 끝날 때까지 화면에서도 실제로 안 보이게 숨겼다가 끝나면 다시 보이는
+      // 방식이었는데, 그러면 사용자 눈에도 "열리자마자 잠깐 사라졌다 다시
+      // 나타나는" 깜빡임이 그대로 보여서, 위젯을 켤 때 체감 지연처럼 느껴졌음
+      // (html2canvas 캡쳐 자체가 스크립트 최초 로딩까지 겹치면 수백ms~1초 가까이
+      // 걸릴 수 있어서 더 티가 남). ignoreElements는 실제 화면은 그대로 둔 채
+      // html2canvas가 "찍는 사진"에서만 이 요소를 건너뛰게 해주므로, 사용자
+      // 눈엔 깜빡임 없이 오버레이가 열리자마자 그대로 있고 블러 배경만 뒤에서
+      // 조용히 채워짐.
+      ignoreElements: (node)=> node === el
     }).then(canvas=>{
-      el.style.visibility = '';
       if(!document.body.contains(el)) return; // 캡쳐가 끝나기 전에 이미 닫혔으면 아무것도 안 함
       const bg = document.createElement('div');
       bg.className = 'speech-overlay-bg';
       bg.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.72)})`;
       el.prepend(bg);
-    }).catch(()=>{ el.style.visibility = ''; });
+    }).catch(()=>{});
   });
 
   el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
