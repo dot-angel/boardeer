@@ -2249,9 +2249,23 @@ function runModeBlurTransition(newMode){
    없음). 커스텀 색까지 정확히 반영하려면 라이트/다크 각 실제 테마 문서 값을
    세션에 캐싱해뒀다가 쓰는 방식으로 나중에 확장 가능. */
 const MODE_BLOB_RISE_MS = 1100; // style.css @keyframes modeBlobRise 길이(1.1s)와 맞춰둠
-const BLOB_PALETTE_KEYS = ['rose','sage','gold','rose','sage'];
+/* 블랍 5개 각각의 배치를 데이터로 고정해둠(예전엔 8+i*21%처럼 공식 하나로
+   전부 계산해서 결과적으로 등간격 격자가 됐었음). key는 색을 맡을 팔레트,
+   bx는 x좌표(%), bsz는 지름(vmax), br은 블랍마다 다른 비대칭 border-radius
+   (완전한 원이 아니라 유기적인 모양의 "씨앗"), bw는 상승 중 옆으로 흔들리는
+   폭(vw, 부호로 방향까지 다르게), bd/bs는 기존 그대로 애니메이션 시작 지연과
+   최종 스케일. 랜덤이 아니라 손으로 흩뿌린 고정값 — 매번 값이 바뀔 필요는
+   없고, 5개가 서로 겹치지 않으면서도 격자처럼 보이지 않게 위치·크기·모양을
+   일부러 어긋나게 잡아둔 것. */
+const BLOB_LAYOUT = [
+  { key:'rose', bx:5,  bsz:40, br:'42% 58% 61% 39% / 45% 40% 60% 55%', bw:-7,  bd:0,   bs:0.88 },
+  { key:'sage', bx:24, bsz:50, br:'65% 35% 47% 53% / 40% 62% 38% 60%', bw:9,   bd:.06, bs:1.05 },
+  { key:'gold', bx:45, bsz:33, br:'38% 62% 55% 45% / 63% 38% 62% 37%', bw:-10, bd:.12, bs:0.95 },
+  { key:'rose', bx:64, bsz:47, br:'58% 42% 36% 64% / 48% 58% 42% 52%', bw:6,   bd:0,   bs:1.12 },
+  { key:'sage', bx:90, bsz:42, br:'48% 52% 68% 32% / 58% 45% 55% 42%', bw:-8,  bd:.06, bs:0.98 },
+];
 
-let modeBlobVeilEl = null, modeBlobEls = [];
+let modeBlobVeilEl = null, modeBlobEls = [], modeBlobWashEl = null;
 function ensureModeBlobVeil(){
   if(modeBlobVeilEl) return modeBlobVeilEl;
   modeBlobVeilEl = document.createElement('div');
@@ -2261,12 +2275,17 @@ function ensureModeBlobVeil(){
       '<filter id="modeGoo"><feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b"/>' +
       '<feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/></filter>' +
       '<filter id="modeBlobBlurOnly"><feGaussianBlur in="SourceGraphic" stdDeviation="14"/></filter>' +
-    '</svg><div class="mode-blob-field' + (isSamsungInternet ? ' mbv-no-goo' : '') + '">' +
-    BLOB_PALETTE_KEYS.map((key,i)=>
-      `<span class="mode-blob" data-key="${key}" style="--bx:${8+i*21}%; --bd:${(i%3)*.06}s; --bs:${(0.85+((i*37)%30)/100).toFixed(2)}"></span>`
+    '</svg>' +
+    // wash는 goo 필터를 안 태우는 별도 형제 요소라 .mode-blob-field보다
+    // 먼저 그려둠(= DOM에서 앞) — 그래야 블랍들 뒤편에 깔림 (style.css 참고)
+    '<div class="mode-blob-wash"></div>' +
+    '<div class="mode-blob-field' + (isSamsungInternet ? ' mbv-no-goo' : '') + '">' +
+    BLOB_LAYOUT.map(({key,bx,bsz,br,bw,bd,bs})=>
+      `<span class="mode-blob" data-key="${key}" style="--bx:${bx}%; --bsz:${bsz}vmax; --br:${br}; --bw:${bw}vw; --bd:${bd}s; --bs:${bs}"></span>`
     ).join('') + '</div>';
   document.body.appendChild(modeBlobVeilEl);
   modeBlobEls = Array.from(modeBlobVeilEl.querySelectorAll('.mode-blob'));
+  modeBlobWashEl = modeBlobVeilEl.querySelector('.mode-blob-wash');
   return modeBlobVeilEl;
 }
 
@@ -2279,13 +2298,21 @@ function runModeBlobRise(oldMode, newMode){
     el.style.transition = 'none';
     el.style.setProperty('--blob-color', from[el.dataset.key]);
   });
+  // 바탕 와시도 블랍과 완전히 동일한 스냅→트랜지션 방식으로 색을 크로스페이드시킴.
+  // rose를 대표색으로 씀(블랍 3종 중 UI 전반에서 가장 자주 쓰이는 포인트 컬러라 어울림).
+  if(modeBlobWashEl){
+    modeBlobWashEl.style.transition = 'none';
+    modeBlobWashEl.style.setProperty('--wash-color', from.rose);
+  }
   veil.getBoundingClientRect(); // 강제 리플로우
   requestAnimationFrame(()=>{
     veil.classList.add('show');
     modeBlobEls.forEach(el=>{ el.style.transition = ''; });
+    if(modeBlobWashEl) modeBlobWashEl.style.transition = '';
     requestAnimationFrame(()=>{
       // 2) 다음 프레임에 목표 모드 색으로 갈아끼움 → 여기서부터 실제로 서서히 색이 바뀜
       modeBlobEls.forEach(el=> el.style.setProperty('--blob-color', to[el.dataset.key]));
+      if(modeBlobWashEl) modeBlobWashEl.style.setProperty('--wash-color', to.rose);
     });
   });
   setTimeout(()=> veil.classList.remove('show'), MODE_BLOB_RISE_MS);
@@ -7586,10 +7613,45 @@ function ensureHtml2Canvas(){
   return _html2canvasLoadPromise;
 }
 
+/* ---------------- 배경 스크롤 잠금 (말풍선 오버레이 전용) ----------------
+   .speech-overlay는 position:fixed로 화면 전체를 덮지만, 그 뒤의 body 자체는
+   여전히 스크롤 가능한 상태로 남아있어서 마우스 휠·트랙패드(데스크톱)나
+   터치 스크롤(모바일)로 오버레이 뒤 배경이 밀리는 경우가 있었음(오버레이
+   자체엔 스크롤할 내용이 없으니 배경이 굳이 스크롤될 필요가 없음). body에
+   overflow:hidden만 주는 방식은 iOS Safari에서 러버밴드 스크롤이 여전히
+   새는 경우가 있어서, 지금 스크롤 위치를 기억해두고 body 자체를
+   position:fixed로 고정한 뒤 그 위치만큼 top을 음수로 밀어 시각적으로는
+   제자리에 그대로 있는 것처럼 보이게 하는 방식(가장 널리 쓰이는 스크롤
+   잠금 패턴)을 씀 — 닫을 때 원래 상태로 되돌리고 기억해둔 위치로 스크롤을
+   복원함. _speechScrollLockY로 이미 잠겨있는지 추적해서 중복 잠금(예:
+   openSpeechOverlay 안에서 이전 인스턴스를 지우려고 closeSpeechOverlay를
+   먼저 부르는 경우)에도 스크롤 위치가 덮어써지지 않게 함. */
+let _speechScrollLockY = null;
+function lockPageScrollForSpeechOverlay(){
+  if(_speechScrollLockY !== null) return;
+  _speechScrollLockY = window.scrollY;
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${_speechScrollLockY}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+}
+function unlockPageScrollForSpeechOverlay(){
+  if(_speechScrollLockY === null) return;
+  const y = _speechScrollLockY;
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  _speechScrollLockY = null;
+  window.scrollTo(0, y);
+}
 function closeSpeechOverlay(){
   const el = document.getElementById('speechOverlayRoot');
   if(el){ el.remove(); }
   if(window.__speechEscHandler){ document.removeEventListener('keydown', window.__speechEscHandler); window.__speechEscHandler = null; }
+  unlockPageScrollForSpeechOverlay();
 }
 
 function openSpeechOverlay(initialTabId){
@@ -7614,6 +7676,14 @@ function openSpeechOverlay(initialTabId){
     </button>
   `;
   document.body.appendChild(el);
+  // html2canvas 캡처(아래)가 "지금 이 순간의 화면"을 정확히 찍으려면 잠그기 전의
+  // 실제 스크롤 위치가 필요한데, 그 캡처는 스크립트 로딩을 기다리는 비동기
+  // 콜백이라 lockPageScrollForSpeechOverlay()로 body를 position:fixed로
+  // 고정해둔 뒤에야 실행됨 — 그 시점엔 window.scrollX/Y가 이미 0으로 읽혀서
+  // (스크롤이 잠겼으니) 엉뚱하게 페이지 맨 위를 캡처해버리는 문제가 생김.
+  // 그래서 잠그기 직전 값을 따로 기억해뒀다가 아래 html2canvas 호출에 그대로 씀.
+  const captureScrollX = window.scrollX, captureScrollY = window.scrollY;
+  lockPageScrollForSpeechOverlay();
 
   // 열리는 그 순간의 화면을 사진처럼 한 장 찍어서(html2canvas), 그 "정적인" 결과물에만
   // blur를 먹임. backdrop-filter처럼 열려있는 내내 매 프레임 뒤를 실시간으로 다시
@@ -7627,7 +7697,7 @@ function openSpeechOverlay(initialTabId){
     // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
     el.style.visibility = 'hidden';
     html2canvas(document.body, {
-      x: window.scrollX, y: window.scrollY,
+      x: captureScrollX, y: captureScrollY,
       width: window.innerWidth, height: window.innerHeight,
       scale: Math.min(1, window.devicePixelRatio || 1) * 0.6, // 어차피 블러 처리되니 살짝 낮은 해상도로도 충분하고 캡쳐 속도도 빨라짐
       useCORS: true, backgroundColor: null, logging: false
