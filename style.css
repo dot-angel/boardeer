@@ -529,7 +529,7 @@ body::before{
 
 /* ---------- 다크·라이트 전환 연출: 색이 피어오르는 블랍(구름) ----------
    위 .mode-blur-overlay(블러 베일)와 같은 순간에 나란히 뜨는 보조 연출.
-   팔레트 색(rose/sage/gold)을 각각 맡은 반투명 원 5개가 화면 아래에서
+   팔레트 색(rose/sage/gold)을 각각 맡은 반투명 블랍 5개가 화면 아래에서
    위로 천천히 피어올랐다 사라지며, 이전 모드 색 → 다음 모드 색으로 서서히
    바뀜(app.js의 runModeBlobRise 참고). z-index는 베일(600)보다 한 단
    아래(598)로 둬서, 얇은 베일이 맨 위에서 문구 대비를 계속 보장해주고
@@ -540,10 +540,39 @@ body::before{
    "자기 자신의 색"만 블러함 — 배경이 뭐든 상관없이 그 도형 하나만
    부드럽게 만드는 거라 오히려 세게 걸어도 훨씬 쌈. 블랍 여러 개가
    뭉게구름처럼 서로 이어붙는 효과는 SVG feGaussianBlur+feColorMatrix
-   조합(흔히 "goo" 필터라 부름, app.js가 <svg>에 주입)으로 처리함. */
+   조합(흔히 "goo" 필터라 부름, app.js가 <svg>에 주입)으로 처리함.
+   ⚠️ 처음 버전은 5개가 전부 완전한 원(border-radius:50%)에 크기(44vmax)도
+   동일, x좌표도 8+i*21%로 정확히 등간격이라 goo로 뭉개져도 결국 "같은
+   크기의 원이 일정한 간격으로 늘어선 줄"로만 보였음. 그래서 블랍마다
+   비대칭 border-radius(--br, 유기적인 라운드 사각형 모양)·크기(--bsz)·
+   x좌표(--bx)·상승 중 좌우로 흔들리는 폭(--bw)을 각각 다르게 흩뿌려서
+   (app.js의 BLOB_LAYOUT) 진짜 불규칙한 블랍 무리처럼 보이게 함. */
 .mode-blob-veil{
   position: fixed; inset:0; z-index:598;
   pointer-events:none; overflow:hidden;
+}
+/* 블랍들 뒤에 깔리는 은은한 색 바탕. 블랍 5개가 원이 아닌 조각난 모양으로
+   흩어져 있다 보니 그 사이 빈틈으로 뒤 배경이 그대로 비쳐서, "화면 아래가
+   통째로 물든다"는 느낌 대신 "조각 몇 개가 떠다닌다"는 느낌만 났었음.
+   이 레이어는 그 빈틈을 메우는 용도라 goo 필터(무거운 SVG 합성)를 태울
+   필요가 없어서 .mode-blob-field 바깥의 별도 형제 요소로 둠(DOM 순서상
+   .mode-blob-field보다 앞이라 — 둘 다 position:absolute라 그리는 순서 =
+   DOM 순서 — 블랍들 뒤편에 자연스럽게 깔림). 화면을 꽉 채우는 사각형이지만
+   위쪽 경계가 또렷한 직선으로 보이지 않도록 mask-image로 위로 갈수록
+   옅어지게 잘라내고, opacity 자체도 낮게 둬서 "옅게 물드는" 정도로만 남김.
+   색은 위 블랍들과 똑같이 스냅(트랜지션 없이 이전 모드 색으로 즉시 세팅)
+   → 다음 프레임에 다음 모드 색으로 갈아끼우는 방식(app.js의
+   runModeBlobRise)으로 실제 크로스페이드시킴 — background-color는 진짜
+   CSS 프로퍼티라 --wash-color 값이 바뀌면 아래 transition을 그대로 타므로,
+   위 .mode-blob과 마찬가지로 --wash-color를 @property로 따로 등록할
+   필요는 없음. */
+.mode-blob-wash{
+  position:absolute; inset:0;
+  background: var(--wash-color);
+  opacity:.16;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 62%);
+          mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 62%);
+  transition: background-color .6s ease;
 }
 .mode-blob-field{
   position:absolute; inset:0;
@@ -558,8 +587,10 @@ body::before{
 }
 .mode-blob{
   position:absolute; left:var(--bx); bottom:-32vh;
-  width:44vmax; height:44vmax; margin-left:-22vmax;
-  border-radius:50%;
+  width:var(--bsz); height:var(--bsz); margin-left:calc(var(--bsz) * -0.5);
+  border-radius:var(--br, 50%); /* 완전한 원 대신 블랍마다 다른 비대칭 라운드
+    (app.js가 --br을 갈아끼움) — goo로 뭉개지기 전 "씨앗" 모양 자체가 이미
+    울퉁불퉁해야 뭉개진 뒤에도 원 5개처럼 보이지 않음 */
   background:var(--blob-color); /* app.js가 --blob-color를 갈아끼움(워밍업 패턴은
     위 .mode-blur-overlay 워밍업 주석과 동일) */
   opacity:0;
@@ -569,10 +600,15 @@ body::before{
   animation: modeBlobRise 1.1s var(--bd) cubic-bezier(.22,.61,.36,1) both;
 }
 @keyframes modeBlobRise{
-  0%   { opacity:0;  transform:translateY(6vh)   scale(var(--bs)); }
+  0%   { opacity:0;  transform:translate(0,6vh)                         scale(var(--bs)); }
   25%  { opacity:.9; }
+  /* 중간 지점에서 --bw만큼 옆으로 흘렀다가 정점 근처엔 반대 방향으로 살짝
+     되돌아오게 해서, 블랍마다 다른 방향·폭으로 흔들리며 올라가는 것처럼
+     보이게 함(예전엔 translateY만 있어서 5개가 나란히 서서 같이 올라가는
+     "줄지어 선" 느낌이었음) */
+  55%  { transform:translate(var(--bw),-24vh)                           scale(var(--bs)); }
   70%  { opacity:.9; }
-  100% { opacity:0;  transform:translateY(-58vh) scale(var(--bs)); }
+  100% { opacity:0;  transform:translate(calc(var(--bw) * -0.55),-58vh) scale(var(--bs)); }
 }
 
 
