@@ -2171,7 +2171,21 @@ function runModeBlurTransition(newMode){
   modeWelcomeTextEl.style.color =
     lastKnownAccent[newMode] || (DEFAULT_THEME_BY_MODE[newMode] || DEFAULT_THEME_BY_MODE.dark).rose;
 
+  // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
+  // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야
+  // 다시 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직
+  // 안 걸린 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의
+  // will-change/translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
+  // 그래서 진짜 0→1 트랜지션을 걸기 한 프레임 전에, 트랜지션 없이(순간적으로)
+  // 시각적으로 감지 불가능한 opacity(.001)를 먼저 찍어 강제 리플로우 →
+  // 레이어를 미리 깨워두고 나서, 다음 프레임에야 실제 트랜지션(.001→1)을 시작함.
+  // 대기 상태(opacity:0)는 전혀 안 건드리므로 평소 블러 비용은 그대로 0.
+  overlay.style.transition = 'none';
+  overlay.style.opacity = '0.001';
+  overlay.getBoundingClientRect(); // 강제 리플로우: 위 값을 트랜지션 없이 즉시 반영시켜 레이어 승격을 유도
   requestAnimationFrame(()=>{
+    overlay.style.transition = '';
+    overlay.style.opacity = '';
     overlay.classList.add('show');
   });
 
@@ -2187,10 +2201,20 @@ function runModeBlurTransition(newMode){
 
   setTimeout(()=>{
     // 베일이 옅게 걸리는 시점에 곧바로 테마를 바꿔치기 — 색 자체는 여기서부터
-    // body의 transition을 타고 실제로 부드럽게 이어짐(더 이상 "숨겼다가 짠"이 아님)
+    // body의 transition을 타고 실제로 부드럽게 이어짐(더 이상 "숨겼다가 짠"이 아님).
+    // mode-swap-snap은 반드시 applyModeClass()보다 먼저 걸어야, background-color/
+    // --paper가 "이전 값→새 값"을 보간하지 않고 이 프레임에 곧바로 스냅됨(둘 다
+    // 베일에 가려 안 보이는 구간이라 안전함)
+    document.body.classList.add('mode-swap-snap');
     applyModeClass();
     subscribeModeMeta();
   }, themeSwapAt);
+
+  setTimeout(()=>{
+    // 베일이 걷히기 시작하기 직전에 떼어둠 — 이후 테마 편집 모달에서 배경색을
+    // 저장하는 등 베일 없는 경로는 원래대로 부드러운 크로스페이드를 그대로 씀
+    document.body.classList.remove('mode-swap-snap');
+  }, textHideAt);
 
   setTimeout(()=>{
     modeWelcomeTextEl.classList.add('show');

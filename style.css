@@ -201,6 +201,28 @@ body{
   position: relative;
   overflow-x: hidden;
 }
+/* 모드 토글(다크↔라이트) 전환 중, 테마가 실제로 바뀌치기되는 그 프레임에만
+   app.js가 잠깐 걸어두는 클래스. background-color/--paper/--paper-deep만 빼고
+   나머지는 위 body 기본 transition과 동일 — 이 셋이 바뀌는 650ms 구간은
+   정확히 .mode-blur-overlay 베일이 화면 전체를 덮고 있는 구간과 겹쳐서 원래도
+   안 보이는데, 표준 속성인 background-color가 매 프레임 스스로 보간되면 그
+   픽셀을 샘플링하는 카드/베일의 backdrop-filter가 650ms 내내 재블러링해야
+   해서 위젯이 많을수록 무거워짐. 이 클래스가 걸려있는 그 순간만 값이 스냅으로
+   바뀌어 재블러링이 1프레임으로 줄어듦. 테마 편집 모달(#tPaper 등)에서 배경색을
+   저장할 때는 베일이 없고 이 클래스도 안 걸리므로, 그때는 원래대로 부드럽게
+   크로스페이드됨 — background-color 자체를 body 기본 transition에서 영구히
+   빼면 그 저장 경로까지 스냅으로 보여 회귀가 생기므로 반드시 이렇게 범위를
+   좁혀야 함. backdrop-filter의 존재/부재나 will-change는 전혀 안 건드리는
+   순수 transition 속성 목록 변경이라, 레이어 승격/강등이 새로 발생하지
+   않음(=삼성인터넷 레이어 버그를 새로 만들 위험 없음) */
+body.mode-swap-snap{
+  transition:
+    color .65s ease,
+    --rose .65s ease, --rose-solid .65s ease, --rose-soft .65s ease,
+    --sage .65s ease, --gold .65s ease, --gold-soft .65s ease,
+    --ink .65s ease, --ink-soft .65s ease,
+    --card-bg .65s ease, --card-bg2 .65s ease, --card-border .65s ease, --card-hi .65s ease;
+}
 /* 홈페이지 전체 배경 이미지 레이어 — 배너와 별개로 페이지 전체 뒤에 깔림.
    이미지가 없을 땐 투명해서 아래 컬러 글로우만 보임 */
 .bg-image-layer{
