@@ -398,7 +398,12 @@ body::before{
    transition이 만들어주므로(색 자체가 진짜로 서서히 크로스페이드됨), 이
    오버레이는 더 이상 색이 훅 바뀌는 걸 가릴 필요가 없음 — 그래서 불투명도를
    낮게 유지하고, 위젯마다 제각각인 리스너 갱신 타이밍만 살짝 뭉개주는
-   최소한의 블러만 남겨둠. */
+   최소한의 블러만 남겨둠.
+   ⚠️ 블러 세기는 반드시 --glass-blur-thin(4px)처럼 가벼운 값을 써야 함 — 예전에
+   blur(14px)를 화면 전체에 걸었더니, 이 순간 위젯 카드들도 동시에 색이
+   크로스페이드되고 카드 하나하나가 이미 자기 블러(backdrop-filter)를 쓰고
+   있어서, 화면 전체 블러 + 카드별 블러가 겹쳐 매 프레임 다시 계산되며 전환이
+   뚝뚝 끊기는 원인이 됐음(카드 여러 장 겹칠 때 버벅이던 것과 같은 이유). */
 .mode-blur-overlay{
   position: fixed; inset:0; z-index:600;
   pointer-events:none;
@@ -406,10 +411,11 @@ body::before{
   background: rgba(var(--ink-rgb),0);
   backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px);
   transition: background .34s ease, backdrop-filter .34s ease, -webkit-backdrop-filter .34s ease;
+  will-change: backdrop-filter, background;
 }
 .mode-blur-overlay.show{
   background: rgba(var(--ink-rgb),0.1);
-  backdrop-filter: blur(14px) saturate(1.15); -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
 }
 /* backdrop-filter 미지원 브라우저는 블러가 아예 안 걸리지만, 어차피 색 전환
    자체가 실제로 부드럽게 이어지므로(위 body transition) 별도 보정이 필요 없음 */
