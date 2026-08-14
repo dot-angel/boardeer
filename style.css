@@ -88,14 +88,15 @@
   --glass-blur: blur(12px) saturate(150%);       /* 큰 유리 표면(카드/모달/토스트) */
   --glass-blur-med: blur(7px) saturate(140%);    /* 작은 버튼/배지류 */
   --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) — 라이트박스 등과 공용 */
-  --glass-blur-mode-veil: blur(16px) saturate(140%); /* 모드 전환 베일 전용 — "얕은" 블러로 다시 낮춤(예전엔 50px, 한때 80px까지도 시도했었음).
-     예전엔 반경을 올릴수록 이 베일 바로 아래에서 동시에 진행 중인 body의 팔레트
-     크로스페이드(아래 --rose/--paper/--ink 등 .65s 트랜지션)가 눈에 띄게 끊겨(뚝뚝 끊기는
-     느낌으로) 보인다는 걸 알고 50px를 균형점으로 잡았었는데, 그래도 화면 전체 크기의 블러
-     연산 자체가 여전히 무거워서(반경이 클수록 매 프레임 비용이 커짐 — 배경이 계속 바뀌는
-     중이라 더해서 무거움) 블랍 연출을 얹은 뒤로 버벅임이 더 두드러졌음. 지금은 아예 "형체를
-     알아볼 수 없게 뭉개는 두꺼운 커튼"이 아니라 "장면이 슬쩍 흐려지는 옅은 결" 정도로 세기
-     자체를 낮춰서, 연출 의도("서서히 얕은 블러")와 가벼움 두 가지를 동시에 만족시킴. */
+  --glass-blur-mode-veil: blur(50px) saturate(150%); /* 모드 전환 베일 전용 — 화면 전체에 아주 짧게(수백ms)만 걸리므로 --glass-blur-thin보다 세게 써도 부담이 적음. 다른 오버레이와 변수를 분리해서 여기만 세져도 라이트박스 등엔 영향 없음.
+     한때 80px까지 올렸었는데, 그 세기에선 이 베일 바로 아래에서 동시에 진행 중인 body의
+     팔레트 크로스페이드(아래 --rose/--paper/--ink 등 .65s 트랜지션)가 눈에 띄게 끊겨(뚝뚝
+     끊기는 느낌으로) 보였음. 반경이 opacity처럼 "값 자체가" 매 프레임 보간되진 않지만(그래서
+     반경을 바꾸는 것보다는 훨씬 가벼움), 고정 반경이라도 화면 전체 크기의 블러 연산 자체는
+     반경이 커질수록 매 프레임 비용이 늘어남 — 게다가 이 순간엔 배경(팔레트 색)도 실제로
+     계속 바뀌고 있어서 블러가 매번 새로 계산해야 할 원본이 정적이지 않고 변하는 중이라
+     더해서 무거워짐. 50px 정도가 "배경은 충분히 흐려서 형체를 알아보기 어렵고, 그 아래
+     크로스페이드도 프레임이 밀리지 않고 매끄러운" 균형점으로 확인됨. */
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   /* 한국어·영어는 ZEN SERIF/Noto Sans KR로 커버되고, 그 외 언어(일본어·중국어·기타 문자 등)는
      이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
@@ -465,16 +466,16 @@ body::before{
    전부 다시 계산해야 해서 매우 무거움 — 특히 이 순간 카드들도 --card-bg 등
    색이 동시에 크로스페이드되고 있어 배경 자체가 계속 바뀌는데, 거기에 블러
    반경까지 매 프레임 달라지면 이중으로 무거워짐. 그래서 이제 backdrop-filter는
-   --glass-blur-mode-veil(현재 16px, "얕은" 세기)로 항상 고정해두고, 오직
-   opacity만 트랜지션함(블러 반경은 그대로 둔 채 알파 합성만 바뀌는 거라 훨씬
-   가벼움). 노출 시간도 여전히 짧게(수백ms) 유지함. */
+   --glass-blur-mode-veil(현재 50px)로 항상 고정해두고, 오직 opacity만 트랜지션함
+   (블러 반경은 그대로 둔 채 알파 합성만 바뀌는 거라 훨씬 가벼움). 노출 시간도
+   여전히 짧게(수백ms) 유지함. */
 .mode-blur-overlay{
   position: fixed; inset:0; z-index:600;
   pointer-events:none;
   display:flex; align-items:center; justify-content:center;
   opacity: 0;
   backdrop-filter: var(--glass-blur-mode-veil); -webkit-backdrop-filter: var(--glass-blur-mode-veil);
-  transition: opacity .26s ease; /* app.js의 MODE_VEIL_IN_MS(270ms)/MODE_VEIL_OUT_MS(280ms)와 반드시 맞춰둘 것(그쪽이 이 값보다 10ms 여유를 두고 큼) */
+  transition: opacity .34s ease;
   /* translateZ(0)로 이 레이어를 "항상" 별도 GPU 합성 레이어로 미리 승격해 둠 — 모바일 크로미움
      계열(삼성인터넷 포함)은 opacity:0으로 안 보이는 동안엔 레이어를 안 들고 있다가 트랜지션이
      시작되는 순간에야 새로 승격하는 경우가 있는데, 그 재승격 처리가 끼어들면 블러가 아직
@@ -524,116 +525,6 @@ body::before{
 .mode-welcome-text.show{
   opacity: 1;
   transform: translateY(0);
-}
-
-/* ---------- 다크·라이트 전환 연출: 색이 피어오르는 블랍(구름) ----------
-   위 .mode-blur-overlay(얕은 블러 베일)가 걸린 뒤 살짝 뒤따라 뜨는 보조
-   연출(app.js의 MODE_BLOB_START_DELAY_MS 참고 — 더 이상 베일과 동시에
-   시작하지 않음). 반투명 블랍 5개가 화면 아래에서 위로 천천히 피어올랐다
-   사라지며, 다 나타난 채로 잠깐 있다가 이전 모드 색 → 다음 모드 색으로
-   서서히 바뀜(app.js의 runModeBlobRise 참고). z-index는 베일(600)보다 한 단
-   아래(598)로 둬서, 얇은 베일이 맨 위에서 문구 대비를 계속 보장해주고
-   블랍은 그 뒤에서 비쳐 보이게 함.
-   ⚠️ 색은 이제 블랍 5개 전부 강조색(--rose) 하나로 통일함(예전엔 rose/sage/
-   gold 3색이 블랍마다 달랐음) — 서로 다른 색의 블랍이 아래 goo 필터로
-   뭉개져 합쳐지면 경계에서 색이 지저분하게 섞여 보였는데, 색을 하나로
-   맞추면 여러 블랍이 각자 다른 속도로 흐르며 자연스럽게 합쳐졌다 떨어져도
-   "한 덩어리의 구름"처럼 깔끔하게 보임.
-   ⚠️ 무거운 backdrop-filter 대신 filter를 씀: backdrop-filter는 "블랍 뒤로
-   비치는 실제 배경"을 매 프레임 다시 훔쳐보고 블러하는 거라 무거운데(위
-   .mode-blur-overlay가 무거운 이유이기도 함), filter: blur()는 블랍
-   "자기 자신의 색"만 블러함 — 배경이 뭐든 상관없이 그 도형 하나만
-   부드럽게 만드는 거라 오히려 세게 걸어도 훨씬 쌈. 블랍 여러 개가
-   뭉게구름처럼 서로 이어붙는 효과는 SVG feGaussianBlur+feColorMatrix
-   조합(흔히 "goo" 필터라 부름, app.js가 <svg>에 주입)으로 처리함.
-   ⚠️ 처음 버전은 5개가 전부 완전한 원(border-radius:50%)에 크기(44vmax)도
-   동일, x좌표도 8+i*21%로 정확히 등간격이라 goo로 뭉개져도 결국 "같은
-   크기의 원이 일정한 간격으로 늘어선 줄"로만 보였음. 그래서 블랍마다
-   비대칭 border-radius(--br, 유기적인 라운드 사각형 모양)·크기(--bsz)·
-   x좌표(--bx)·상승 중 좌우로 흔들리는 폭(--bw)을 각각 다르게 흩뿌려서
-   (app.js의 BLOB_LAYOUT) 진짜 불규칙한 블랍 무리처럼 보이게 함.
-   ⚠️ --bsz(지름)도 app.js에서 전반적으로 줄임(33~50vmax → 20~30vmax) — 세로가
-   긴 모바일 화면에선 vmax가 화면 높이에 가까워지면서 블랍 하나가 화면 가로
-   폭을 거의 다 채울 만큼 커져 "화면 한가득 거대한 동그라미"로 보였던
-   원인이었음. 줄인 만큼 goo가 처리할 면적도 함께 줄어 가벼워짐. */
-.mode-blob-veil{
-  position: fixed; inset:0; z-index:598;
-  pointer-events:none; overflow:hidden;
-}
-/* 블랍들 뒤에 깔리는 은은한 색 바탕. 블랍 5개가 원이 아닌 조각난 모양으로
-   흩어져 있다 보니 그 사이 빈틈으로 뒤 배경이 그대로 비쳐서, "화면 아래가
-   통째로 물든다"는 느낌 대신 "조각 몇 개가 떠다닌다"는 느낌만 났었음.
-   이 레이어는 그 빈틈을 메우는 용도라 goo 필터(무거운 SVG 합성)를 태울
-   필요가 없어서 .mode-blob-field 바깥의 별도 형제 요소로 둠(DOM 순서상
-   .mode-blob-field보다 앞이라 — 둘 다 position:absolute라 그리는 순서 =
-   DOM 순서 — 블랍들 뒤편에 자연스럽게 깔림). 화면을 꽉 채우는 사각형이지만
-   위쪽 경계가 또렷한 직선으로 보이지 않도록 mask-image로 위로 갈수록
-   옅어지게 잘라냄.
-   ⚠️ 색은 블랍의 강조색이 아니라 "테마 배경색(--paper)"을 씀 — 블랍은
-   강조색으로 도드라지게 두고, 그 뒤를 채우는 이 와시는 실제 배경(body의
-   --paper)과 같은 톤으로 맞춰서 "새 테마의 배경으로 옮겨가는 장면" 자체가
-   자연스럽게 이어지게 함. 그만큼 opacity도 예전(강조색 .16)보다 올려서(.4)
-   장면 배경으로 확실히 읽히게 함. 색은 블랍과 똑같이 스냅(트랜지션 없이
-   이전 모드 색으로 즉시 세팅) → 이후 app.js가 "블랍 페이드인이 끝난 뒤"
-   다음 모드 색으로 갈아끼우는 방식(runModeBlobRise)으로 실제
-   크로스페이드시킴 — background-color는 진짜 CSS 프로퍼티라 --wash-color
-   값이 바뀌면 아래 transition을 그대로 타므로, 위 .mode-blob과 마찬가지로
-   --wash-color를 @property로 따로 등록할 필요는 없음. */
-.mode-blob-wash{
-  position:absolute; inset:0;
-  background: var(--wash-color);
-  opacity:.4;
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 62%);
-          mask-image: linear-gradient(to top, #000 0%, #000 20%, transparent 62%);
-  transition: background-color .52s ease; /* app.js MODE_BLOB_MORPH_MS와 동일해야 함 */
-}
-.mode-blob-field{
-  position:absolute; inset:0;
-  filter: url(#modeGoo);
-}
-/* 삼성인터넷: 위 .mode-blur-overlay.mbo-no-blur와 같은 이유(오래 대기하던
-   레이어의 재승격 타이밍 이슈)로, goo 합성(feColorMatrix)까지는 부담일 수
-   있어 이 브라우저에서는 블랍끼리 뭉게구름처럼 이어붙이지 않고 각자 따로
-   몽글몽글한 원으로만(순수 블러만) 띄움 — app.js가 생성 시 이 클래스를 붙임 */
-.mode-blob-field.mbv-no-goo{
-  filter: url(#modeBlobBlurOnly);
-}
-.mode-blob{
-  position:absolute; left:var(--bx); bottom:-32vh;
-  width:var(--bsz); height:var(--bsz); margin-left:calc(var(--bsz) * -0.5);
-  border-radius:var(--br, 50%); /* 완전한 원 대신 블랍마다 다른 비대칭 라운드
-    (app.js가 --br을 갈아끼움) — goo로 뭉개지기 전 "씨앗" 모양 자체가 이미
-    울퉁불퉁해야 뭉개진 뒤에도 원 5개처럼 보이지 않음 */
-  background:var(--blob-color); /* app.js가 --blob-color를 갈아끼움(워밍업 패턴은
-    위 .mode-blur-overlay 워밍업 주석과 동일) — 이제 블랍 5개 전부 이 값으로
-    통일(위 헤더 주석 참고) */
-  opacity:0;
-  transition: background-color .52s ease; /* app.js MODE_BLOB_MORPH_MS와 동일해야 함 */
-  will-change: opacity, transform; /* 위 .mode-blur-overlay와 같은 이유로 레이어 승격 힌트를 줌 */
-}
-.mode-blob-veil.show .mode-blob{
-  animation: modeBlobRise 1.16s var(--bd) cubic-bezier(.22,.61,.36,1) both; /* app.js의 MODE_BLOB_TOTAL_MS(1160ms)와 반드시 같아야 함 */
-}
-/* 총 길이(1.16s = app.js의 MODE_BLOB_TOTAL_MS)를 3구간으로 명확히 나눔:
-   0%→28% 페이드인(아직 이전 모드 색), 28%→72% "다 나타난 채로 유지 + 색만
-   모프"(오프닝/클로징 구간 사이엔 opacity 키프레임을 안 넣어 자동으로
-   평평하게 유지됨 — app.js가 이 구간 동안 --blob-color를 갈아끼움),
-   72%→100% 페이드아웃. 예전엔 25%/55%/70% 세 지점에 opacity·transform이
-   뒤섞여 있어서 "나타나는 움직임"과 "색이 바뀌는 움직임"이 거의 동시에
-   시작돼 훅 나타났다 훅 사라지는 것처럼 보였음 — 지금은 페이드인 구간이
-   다 끝나야(28%) app.js 쪽 색 전환 타이머가 시작되도록 JS와 시점을
-   맞춰뒀음(app.js runModeBlobRise 참고). */
-@keyframes modeBlobRise{
-  0%   { opacity:0;   transform:translate(0,6vh)                          scale(var(--bs)); }
-  28%  { opacity:.85; transform:translate(calc(var(--bw) * .35),-16vh)    scale(var(--bs)); }
-  /* 중간 지점에서 --bw만큼 옆으로 흘렀다가 정점 근처엔 반대 방향으로 살짝
-     되돌아오게 해서, 블랍마다 다른 방향·폭으로 흔들리며 떠 있는 것처럼
-     보이게 함(예전엔 translateY만 있어서 5개가 나란히 서서 같이 올라가는
-     "줄지어 선" 느낌이었음) — 색 모프가 진행되는 28%~72% 구간 내내
-     천천히 계속 흘러가서, 색만 바뀌고 멈춰있지는 않게 함. */
-  50%  { transform:translate(var(--bw),-34vh)                            scale(var(--bs)); }
-  72%  { opacity:.85; transform:translate(calc(var(--bw) * .15),-48vh)   scale(var(--bs)); }
-  100% { opacity:0;   transform:translate(calc(var(--bw) * -0.55),-60vh) scale(var(--bs)); }
 }
 
 

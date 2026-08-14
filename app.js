@@ -2128,14 +2128,15 @@ subscribeModeMeta();
    숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
    .mode-blur-overlay transition 시간 이상으로 맞춰야 함 — 아래 MODE_VEIL_IN_MS 참고) */
 const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사이 간격
-/* ⚠️ 베일의 backdrop-filter 세기를 50px(진한 블러)에서 style.css --glass-blur-mode-veil의
-   얕은 값으로 낮췄음(아래 MODE_BLOB_* 상수 블록 주석 참고 — "얕은 블러"로 바꾼 이유가
-   거기 정리돼 있음) — 그 김에 opacity transition 자체도 .34s→.26s로 살짝 짧게 잡음(블러가
-   얕아진 만큼 렌더 비용이 줄어서 더 스냅감 있게 당겨도 끊김 없이 소화됨). 이 값(270)은
-   여전히 CSS transition(260ms)이 다 끝난 뒤에만 테마를 바꿔치기하도록 260 + 여유(10ms)로
-   맞춘 것 — 이 값은 항상 style.css 쪽 transition 시간 이상으로 유지할 것(이유는 아래와
-   동일: 베일이 100% 덮기 전에 리페인트가 겹치면 그 프레임에서 끊겨 보임). */
-const MODE_VEIL_IN_MS = 270;        // 베일이 걸리는 시간(=테마가 실제로 바뀌는 시점)
+/* ⚠️ 예전엔 이 값이 320이었는데, style.css .mode-blur-overlay의 실제 opacity transition은
+   .34s(=340ms)라서 CSS보다 20ms 더 짧게 잡혀 있었음 — 그러면 베일이 완전히 불투명해지기
+   20ms *전에* applyModeClass()가 테마를 바꿔치기해 --rose/--paper/--ink 등이 크로스페이드를
+   시작하면서 페이지 전반이 다시 리페인트되는데, 그 순간 베일은 아직 배경을 100% 덮지
+   못한 상태라 무거운 리페인트와 겹쳐 걸림. 컴포지팅이 상대적으로 느린 환경(삼성인터넷 등)
+   에서는 이 찰나에 프레임이 밀리며 블러가 "끊기는" 것처럼 보였을 가능성이 큼. CSS 쪽
+   transition(340ms)이 다 끝난 뒤에만 테마를 바꿔치기하도록 340 + 여유(10ms)로 맞춤 —
+   이 값은 항상 style.css 쪽 transition 시간 이상으로 유지할 것. */
+const MODE_VEIL_IN_MS = 350;        // 베일이 걸리는 시간(=테마가 실제로 바뀌는 시점)
 /* 문구 글자색은 style.css에서 흰색으로 고정해뒀음(뜨는 배경이 사진이든 어떤
    팔레트든 항상 대비가 확보되게). 예전엔 모드의 강조색(lastKnownAccent)을
    인라인으로 확정해 씌웠었는데, 그 색이 검은 text-shadow와 겹쳐 오히려 잘 안
@@ -2143,7 +2144,7 @@ const MODE_VEIL_IN_MS = 270;        // 베일이 걸리는 시간(=테마가 실
 const MODE_TEXT_DELAY_MS = 90;      // 베일이 자리잡은 뒤 문구가 뜨기 시작하기까지의 짧은 텀
 const MODE_TEXT_FADE_MS = 320;      // 문구가 서서히 뜨고/사라지는 시간 — style.css .mode-welcome-text의 transition(.32s)과 반드시 같아야 함
 const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 최소 시간(배너/배경 이미지가 이보다 늦게 도착하면 실제로는 더 길어짐 — 아래 subscribeModeMeta 참고)
-const MODE_VEIL_OUT_MS = 280;       // 베일이 걷히는 시간(위 .26s CSS transition + 여유)
+const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
 /* 예전엔 문구가 다 뜨기도 전에(페이드인 320ms가 끝나기 전) 사라지는 타이머가 먼저
    발동해버려서, 문구가 최대 밝기까지 못 올라가고 바로 꺼지는 버그가 있었음(그래서
    "뜨는 시간이 너무 짧다"고 느껴졌던 것). 지금도 아래 runModeBlurTransition()에서
@@ -2237,129 +2238,6 @@ function runModeBlurTransition(newMode){
 
   setTimeout(()=>{ minTimeElapsed = true; tryHideVeil(); }, minHideAt);
 }
-
-/* ---------------- 모드 전환 연출 - 색이 피어오르는 블랍(구름) ----------------
-   위 .mode-blur-overlay(얕은 블러 베일)가 걸린 "뒤에 이어서" 뜨는 보조 연출(아래
-   setSiteMode 참고 — 이제 베일과 동시에 시작하지 않고 살짝 늦게 뒤따라옴).
-   5단계로 명확히 순서를 나눔:
-     1) (베일이 얕게 블러 페이드인)
-     2) 블랍 5개가 "지금(이전) 모드" 색 그대로 옅게 페이드인
-     3) 다 나타난 채로 잠깐 있다가, 그 색이 "다음 모드" 색으로 서서히 바뀜(모프)
-     4) 블랍이 페이드아웃
-     5) (베일이 얕게 블러 페이드아웃)
-   예전엔 2)~4)가 한 덩어리(opacity 키프레임 하나 + 시작하자마자 색까지 같이 갈아
-   끼우는 방식)라 "그냥 훅 나타났다 사라지는" 것처럼 보였음 — 지금은 opacity
-   키프레임 자체를 페이드인/유지/페이드아웃 3구간으로 넓게 벌려두고(아래
-   @keyframes modeBlobRise 참고), 색이 바뀌기 시작하는 시점도 JS에서
-   "페이드인이 다 끝난 뒤"로 명시적으로 지연시킴(아래 runModeBlobRise 참고).
-   ⚠️ 색은 이제 블랍 5개 전부 강조색(rose) 하나로 통일함(예전엔 rose/sage/gold
-   3색이 블랍마다 달랐음) — 서로 다른 색의 블랍이 구필터(goo)로 뭉개져 합쳐지면
-   경계가 지저분하게 섞여 보이므로, 색을 하나로 맞춰야 여러 블랍이 각자 다른
-   속도로 흐르며 자연스럽게 합쳐졌다 떨어져도 "한 덩어리의 구름"처럼 보임.
-   바탕 와시(.mode-blob-wash)는 반대로 강조색이 아니라 테마 배경색(paper)을
-   써서, 크로스페이드 중인 body 배경과 이어지는 "장면의 배경"처럼 읽히게 함.
-   ⚠️ 색은 DEFAULT_THEME_BY_MODE(코드 기본 팔레트) 기준임 — 테마 편집에서
-   색을 커스텀했어도 블랍은 기본값으로 뜸(짧고 블러된 색 전환이라 큰 위화감은
-   없음). 커스텀 색까지 정확히 반영하려면 라이트/다크 각 실제 테마 문서 값을
-   세션에 캐싱해뒀다가 쓰는 방식으로 나중에 확장 가능. */
-const MODE_BLOB_START_DELAY_MS = 180; // 베일(블러) 시작 후 블랍이 뒤따라 나타나기 시작하는 시점
-/* 베일의 opacity 페이드인(MODE_VEIL_IN_MS=270ms)이 "다 끝난 뒤"가 아니라 그보다
-   살짝 이른 시점(180ms, 약 2/3 지점)에 블랍을 시작시킴 — 완전히 끝나고서야
-   다음 단계가 시작되면 두 단계 사이가 뚝 끊긴 것처럼(정지→정지) 보이기 쉬워서,
-   베일이 "거의 다 걸린" 채로 자연스럽게 이어받게 함. 값을 늘리면(예: 270 이상)
-   완전히 순차적으로, 줄이면(예: 0) 거의 동시에 뜨게 조절 가능. */
-const MODE_BLOB_FADE_MS = 320;  // 블랍이 (아직 이전 모드 색 그대로) 옅게 나타나는/사라지는 시간
-const MODE_BLOB_MORPH_MS = 520; // 블랍이 다 나타난 채로 색만 다음 모드 색으로 서서히 바뀌는 시간
-const MODE_BLOB_TOTAL_MS = MODE_BLOB_FADE_MS * 2 + MODE_BLOB_MORPH_MS; // 페이드인+모프+페이드아웃 총 길이 — style.css @keyframes modeBlobRise의 animation-duration과 반드시 같아야 함
-/* ⚠️ 불변식: MODE_BLOB_START_DELAY_MS + MODE_BLOB_TOTAL_MS(=1340ms)는 아래
-   runModeBlurTransition()의 minHideAt(문구/베일이 걷히기 시작하는 최소 시점,
-   현재 270+90+320+700=1380ms)보다 작아야 함 — 그래야 "블랍이 다 사라진 뒤에
-   베일이 걷히는" 순서가 지켜짐(베일이 블랍보다 먼저 걷히면 아직 사라지는 중인
-   블랍이 블러 없이 맨눈에 보여버림). 위 상수들을 조절할 땐 이 관계를 유지할 것. */
-/* 블랍 5개 각각의 배치를 데이터로 고정해둠(예전엔 8+i*21%처럼 공식 하나로
-   전부 계산해서 결과적으로 등간격 격자가 됐었음). bx는 x좌표(%), bsz는
-   지름(vmax), br은 블랍마다 다른 비대칭 border-radius(완전한 원이 아니라
-   유기적인 모양의 "씨앗"), bw는 상승 중 옆으로 흔들리는 폭(vw, 부호로
-   방향까지 다르게), bd/bs는 애니메이션 시작 지연과 최종 스케일. 랜덤이 아니라
-   손으로 흩뿌린 고정값 — 매번 값이 바뀔 필요는 없고, 5개가 서로 겹치지
-   않으면서도 격자처럼 보이지 않게 위치·크기·모양을 일부러 어긋나게 잡아둔 것.
-   ⚠️ bsz(지름)를 예전보다 전반적으로 줄임(33~50vmax → 20~30vmax) — 예전 값은
-   세로가 긴 모바일 화면에서 vmax가 화면 높이에 가까워지면서 블랍 하나가 화면
-   가로 폭을 거의 다 채울 만큼 커져, "화면 한가득 거대한 동그라미"로 보이던
-   원인이었음. 줄인 만큼 goo 합성이 처리해야 할 면적도 함께 줄어 가벼워짐. */
-const BLOB_LAYOUT = [
-  { bx:5,  bsz:24, br:'42% 58% 61% 39% / 45% 40% 60% 55%', bw:-7,  bd:0,   bs:0.88 },
-  { bx:24, bsz:30, br:'65% 35% 47% 53% / 40% 62% 38% 60%', bw:9,   bd:.06, bs:1.05 },
-  { bx:45, bsz:20, br:'38% 62% 55% 45% / 63% 38% 62% 37%', bw:-10, bd:.12, bs:0.95 },
-  { bx:64, bsz:28, br:'58% 42% 36% 64% / 48% 58% 42% 52%', bw:6,   bd:0,   bs:1.12 },
-  { bx:90, bsz:25, br:'48% 52% 68% 32% / 58% 45% 55% 42%', bw:-8,  bd:.06, bs:0.98 },
-];
-
-let modeBlobVeilEl = null, modeBlobEls = [], modeBlobWashEl = null;
-function ensureModeBlobVeil(){
-  if(modeBlobVeilEl) return modeBlobVeilEl;
-  modeBlobVeilEl = document.createElement('div');
-  modeBlobVeilEl.className = 'mode-blob-veil';
-  modeBlobVeilEl.innerHTML =
-    '<svg width="0" height="0" style="position:absolute">' +
-      '<filter id="modeGoo"><feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b"/>' +
-      '<feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/></filter>' +
-      '<filter id="modeBlobBlurOnly"><feGaussianBlur in="SourceGraphic" stdDeviation="14"/></filter>' +
-    '</svg>' +
-    // wash는 goo 필터를 안 태우는 별도 형제 요소라 .mode-blob-field보다
-    // 먼저 그려둠(= DOM에서 앞) — 그래야 블랍들 뒤편에 깔림 (style.css 참고)
-    '<div class="mode-blob-wash"></div>' +
-    '<div class="mode-blob-field' + (isSamsungInternet ? ' mbv-no-goo' : '') + '">' +
-    BLOB_LAYOUT.map(({bx,bsz,br,bw,bd,bs})=>
-      `<span class="mode-blob" style="--bx:${bx}%; --bsz:${bsz}vmax; --br:${br}; --bw:${bw}vw; --bd:${bd}s; --bs:${bs}"></span>`
-    ).join('') + '</div>';
-  document.body.appendChild(modeBlobVeilEl);
-  modeBlobEls = Array.from(modeBlobVeilEl.querySelectorAll('.mode-blob'));
-  modeBlobWashEl = modeBlobVeilEl.querySelector('.mode-blob-wash');
-  return modeBlobVeilEl;
-}
-
-function runModeBlobRise(oldMode, newMode){
-  const veil = ensureModeBlobVeil();
-  const from = DEFAULT_THEME_BY_MODE[oldMode] || DEFAULT_THEME_BY_MODE.dark;
-  const to   = DEFAULT_THEME_BY_MODE[newMode] || DEFAULT_THEME_BY_MODE.dark;
-  // 1) 지금 모드의 강조색(rose)으로 트랜지션 없이 스냅(위 .mode-blur-overlay
-  //    워밍업과 같은 방식) — 블랍 5개 전부 같은 색이라 goo로 뭉개져 합쳐져도
-  //    깔끔한 한 덩어리로 보임.
-  modeBlobEls.forEach(el=>{
-    el.style.transition = 'none';
-    el.style.setProperty('--blob-color', from.rose);
-  });
-  // 바탕 와시는 강조색이 아니라 "테마 배경색(paper)"으로 스냅→크로스페이드시킴 —
-  // 블랍은 강조색, 그 뒤에 깔리는 장면 전체 배경은 실제 배경색과 같은 톤이어야
-  // "새 관(테마)의 배경으로 옮겨가는" 느낌이 나고, body의 --paper 크로스페이드와도
-  // 자연스럽게 이어짐.
-  if(modeBlobWashEl){
-    modeBlobWashEl.style.transition = 'none';
-    modeBlobWashEl.style.setProperty('--wash-color', from.paper);
-  }
-  veil.getBoundingClientRect(); // 강제 리플로우
-  requestAnimationFrame(()=>{
-    veil.classList.add('show'); // 2) 페이드인 시작 — 이 시점엔 아직 "지금" 모드 색 그대로
-    modeBlobEls.forEach(el=>{ el.style.transition = ''; });
-    if(modeBlobWashEl) modeBlobWashEl.style.transition = '';
-  });
-  // 3) 페이드인(MODE_BLOB_FADE_MS)이 "다 끝난 뒤"에야 색이 바뀌기 시작하도록
-  //    지연시킴 — 페이드인 도중에 색까지 같이 바뀌면 "나타나는 움직임"과 "색이
-  //    바뀌는 움직임"이 겹쳐 보여 두 단계가 뭉개진 것처럼 느껴졌었음. 다 나타난
-  //    채로 잠깐 정지했다가(=여기서부터) 서서히 다음 모드 색으로 물듦 — 이
-  //    background-color 트랜지션 길이는 style.css .mode-blob/.mode-blob-wash의
-  //    .52s(=MODE_BLOB_MORPH_MS)와 반드시 같아야, 색이 다 바뀌는 시점과 블랍이
-  //    페이드아웃을 시작하는 시점(아래 @keyframes modeBlobRise의 72%)이 맞아떨어짐.
-  setTimeout(()=>{
-    modeBlobEls.forEach(el=> el.style.setProperty('--blob-color', to.rose));
-    if(modeBlobWashEl) modeBlobWashEl.style.setProperty('--wash-color', to.paper);
-  }, MODE_BLOB_FADE_MS);
-  // 4)+5)는 CSS @keyframes modeBlobRise가 총 MODE_BLOB_TOTAL_MS 동안 알아서
-  //    처리(페이드아웃 구간) — 여기서는 그 총 길이가 지난 뒤 .show만 떼어냄
-  setTimeout(()=> veil.classList.remove('show'), MODE_BLOB_TOTAL_MS);
-}
-
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
   if(newMode === siteMode) return;
@@ -2376,8 +2254,8 @@ function setSiteMode(newMode){
   // 리드타임)에만 줬는데도 프레임 누락이 남아있었음 — 그래서 지금은 토글을
   // 누른 바로 이 순간부터 미리 트랜지션 없이 시각적으로 감지 불가능한
   // opacity(.001)를 찍어 강제 리플로우해둠. 실제 트랜지션은 프리롤+베일인
-  // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 450ms) 뒤에야 시작되므로, 레이어가
-  // 자리잡을 리드타임이 1프레임→약 450ms로 크게 늘어남. 대기 상태(opacity:0)는
+  // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 530ms) 뒤에야 시작되므로, 레이어가
+  // 자리잡을 리드타임이 1프레임→약 530ms로 크게 늘어남. 대기 상태(opacity:0)는
   // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
   // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
   // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
@@ -2387,13 +2265,7 @@ function setSiteMode(newMode){
   overlay.style.transition = 'none';
   overlay.style.opacity = '0.001';
   overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
-  // 블랍 veil도 같은 이유로 미리 만들어(= DOM에 붙여)둠 — 실제로 뜨는 건 이보다
-  // 훨씬 뒤(MODE_BLUR_PREROLL_MS+MODE_BLOB_START_DELAY_MS)지만, goo SVG 필터가
-  // 걸린 레이어를 미리 준비해두면 그만큼 브라우저가 레이어를 잡을 시간을 번다
-  // (블랍 자신은 opacity:0으로 시작해 평소엔 안 보이므로 상시 비용은 없음).
-  ensureModeBlobVeil();
 
-  const oldMode = siteMode; // ★ 블랍 시작색으로 쓸 "지금" 모드를 잊어버리기 전에 기억해둠
   siteMode = newMode;
   localStorage.setItem('gh_mode', siteMode);
 
@@ -2404,15 +2276,7 @@ function setSiteMode(newMode){
   modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[newMode];
   modeToggleBtn.setAttribute('aria-label', MODE_LABELS[newMode] + ' 적용 중 · 눌러서 전환');
 
-  setTimeout(()=>{
-    runModeBlurTransition(newMode);
-  }, MODE_BLUR_PREROLL_MS);
-  // 블랍은 베일과 동시에가 아니라, 베일이 얕게 블러 페이드인되는 걸 살짝 뒤따라
-  // 시작함(MODE_BLOB_START_DELAY_MS 주석 참고) — "블러가 먼저 서서히 걸리고,
-  // 그 위로 블랍이 이어서 떠오르는" 순서가 되도록.
-  setTimeout(()=>{
-    runModeBlobRise(oldMode, newMode);
-  }, MODE_BLUR_PREROLL_MS + MODE_BLOB_START_DELAY_MS);
+  setTimeout(()=> runModeBlurTransition(newMode), MODE_BLUR_PREROLL_MS);
 }
 
 // ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
@@ -7665,45 +7529,10 @@ function ensureHtml2Canvas(){
   return _html2canvasLoadPromise;
 }
 
-/* ---------------- 배경 스크롤 잠금 (말풍선 오버레이 전용) ----------------
-   .speech-overlay는 position:fixed로 화면 전체를 덮지만, 그 뒤의 body 자체는
-   여전히 스크롤 가능한 상태로 남아있어서 마우스 휠·트랙패드(데스크톱)나
-   터치 스크롤(모바일)로 오버레이 뒤 배경이 밀리는 경우가 있었음(오버레이
-   자체엔 스크롤할 내용이 없으니 배경이 굳이 스크롤될 필요가 없음). body에
-   overflow:hidden만 주는 방식은 iOS Safari에서 러버밴드 스크롤이 여전히
-   새는 경우가 있어서, 지금 스크롤 위치를 기억해두고 body 자체를
-   position:fixed로 고정한 뒤 그 위치만큼 top을 음수로 밀어 시각적으로는
-   제자리에 그대로 있는 것처럼 보이게 하는 방식(가장 널리 쓰이는 스크롤
-   잠금 패턴)을 씀 — 닫을 때 원래 상태로 되돌리고 기억해둔 위치로 스크롤을
-   복원함. _speechScrollLockY로 이미 잠겨있는지 추적해서 중복 잠금(예:
-   openSpeechOverlay 안에서 이전 인스턴스를 지우려고 closeSpeechOverlay를
-   먼저 부르는 경우)에도 스크롤 위치가 덮어써지지 않게 함. */
-let _speechScrollLockY = null;
-function lockPageScrollForSpeechOverlay(){
-  if(_speechScrollLockY !== null) return;
-  _speechScrollLockY = window.scrollY;
-  document.body.style.position = 'fixed';
-  document.body.style.top = `-${_speechScrollLockY}px`;
-  document.body.style.left = '0';
-  document.body.style.right = '0';
-  document.body.style.width = '100%';
-}
-function unlockPageScrollForSpeechOverlay(){
-  if(_speechScrollLockY === null) return;
-  const y = _speechScrollLockY;
-  document.body.style.position = '';
-  document.body.style.top = '';
-  document.body.style.left = '';
-  document.body.style.right = '';
-  document.body.style.width = '';
-  _speechScrollLockY = null;
-  window.scrollTo(0, y);
-}
 function closeSpeechOverlay(){
   const el = document.getElementById('speechOverlayRoot');
   if(el){ el.remove(); }
   if(window.__speechEscHandler){ document.removeEventListener('keydown', window.__speechEscHandler); window.__speechEscHandler = null; }
-  unlockPageScrollForSpeechOverlay();
 }
 
 function openSpeechOverlay(initialTabId){
@@ -7728,14 +7557,6 @@ function openSpeechOverlay(initialTabId){
     </button>
   `;
   document.body.appendChild(el);
-  // html2canvas 캡처(아래)가 "지금 이 순간의 화면"을 정확히 찍으려면 잠그기 전의
-  // 실제 스크롤 위치가 필요한데, 그 캡처는 스크립트 로딩을 기다리는 비동기
-  // 콜백이라 lockPageScrollForSpeechOverlay()로 body를 position:fixed로
-  // 고정해둔 뒤에야 실행됨 — 그 시점엔 window.scrollX/Y가 이미 0으로 읽혀서
-  // (스크롤이 잠겼으니) 엉뚱하게 페이지 맨 위를 캡처해버리는 문제가 생김.
-  // 그래서 잠그기 직전 값을 따로 기억해뒀다가 아래 html2canvas 호출에 그대로 씀.
-  const captureScrollX = window.scrollX, captureScrollY = window.scrollY;
-  lockPageScrollForSpeechOverlay();
 
   // 열리는 그 순간의 화면을 사진처럼 한 장 찍어서(html2canvas), 그 "정적인" 결과물에만
   // blur를 먹임. backdrop-filter처럼 열려있는 내내 매 프레임 뒤를 실시간으로 다시
@@ -7745,29 +7566,22 @@ function openSpeechOverlay(initialTabId){
   // 조용히 무시하고 어두운 틴트만 남도록 처리함.
   ensureHtml2Canvas().then(ok=>{
     if(!ok || !document.body.contains(el)) return; // 못 불러왔거나, 불러오는 사이 이미 닫혔으면 틴트만 남김
+    // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이 되는
+    // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
+    el.style.visibility = 'hidden';
     html2canvas(document.body, {
-      x: captureScrollX, y: captureScrollY,
+      x: window.scrollX, y: window.scrollY,
       width: window.innerWidth, height: window.innerHeight,
       scale: Math.min(1, window.devicePixelRatio || 1) * 0.6, // 어차피 블러 처리되니 살짝 낮은 해상도로도 충분하고 캡쳐 속도도 빨라짐
-      useCORS: true, backgroundColor: null, logging: false,
-      // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이
-      // 되는 사고를 안 만듦. ⚠️ 예전엔 el.style.visibility='hidden'으로 캡쳐가
-      // 끝날 때까지 화면에서도 실제로 안 보이게 숨겼다가 끝나면 다시 보이는
-      // 방식이었는데, 그러면 사용자 눈에도 "열리자마자 잠깐 사라졌다 다시
-      // 나타나는" 깜빡임이 그대로 보여서, 위젯을 켤 때 체감 지연처럼 느껴졌음
-      // (html2canvas 캡쳐 자체가 스크립트 최초 로딩까지 겹치면 수백ms~1초 가까이
-      // 걸릴 수 있어서 더 티가 남). ignoreElements는 실제 화면은 그대로 둔 채
-      // html2canvas가 "찍는 사진"에서만 이 요소를 건너뛰게 해주므로, 사용자
-      // 눈엔 깜빡임 없이 오버레이가 열리자마자 그대로 있고 블러 배경만 뒤에서
-      // 조용히 채워짐.
-      ignoreElements: (node)=> node === el
+      useCORS: true, backgroundColor: null, logging: false
     }).then(canvas=>{
+      el.style.visibility = '';
       if(!document.body.contains(el)) return; // 캡쳐가 끝나기 전에 이미 닫혔으면 아무것도 안 함
       const bg = document.createElement('div');
       bg.className = 'speech-overlay-bg';
       bg.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.72)})`;
       el.prepend(bg);
-    }).catch(()=>{});
+    }).catch(()=>{ el.style.visibility = ''; });
   });
 
   el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
