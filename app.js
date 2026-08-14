@@ -96,9 +96,6 @@ const bannerEditBtn = document.getElementById('bannerEditBtn');
 const bgEditBtn = document.getElementById('bgEditBtn');
 const globalStyleBtn = document.getElementById('globalStyleBtn');
 const modeToggleBtn = document.getElementById('modeToggleBtn');
-const doorLeftEl = document.getElementById('doorLeft');
-const doorRightEl = document.getElementById('doorRight');
-const doorTextEl = document.getElementById('doorText');
 
 /* ---------------- 라이트모드 / 다크모드 ----------------
    방문자마다 원하는 모드를 볼 수 있도록 이 브라우저(localStorage)에만 저장하고,
@@ -2000,69 +1997,53 @@ function subscribeModeMeta(){
 }
 subscribeModeMeta();
 
-/* ---------------- 모드 전환 연출: 관과 관 사이를 지나는 도어 ----------------
+/* ---------------- 모드 전환 연출: 화면 전체를 블러로 덮은 뒤 자연스럽게 넘어감 ----------------
    1) 스위치 썸이 먼저 슥 움직이는 걸 보여줌(프리롤)
-   2) 그 뒤 도어가 닫혀 화면을 완전히 덮음
-   3) 완전히 덮인 순간에만 실제 테마/배경/배너(applyModeClass+subscribeModeMeta)를
-      바꿔치기함 — 위젯마다 전환이 끝나는 타이밍이 제각각이어도 안 보이게 하는 핵심
-   4) 문구를 충분히 읽을 시간을 준 뒤 도어가 다시 열림
-   숫자를 조절하고 싶으면 이 세 상수만 만지면 됨 */
-const DOOR_PREROLL_MS = 260;   // 스위치 프리롤 ~ 도어 시작 사이 간격
-const DOOR_CLOSE_MS = 500;     // 도어가 닫히는 시간(= style.css .door 트랜지션 시간과 맞춰야 함)
-const DOOR_TEXT_READ_MS = 1450; // 문구를 읽을 수 있게 주는 시간
+   2) 화면 전체에 블러 오버레이가 서서히 짙어짐
+   3) 블러가 화면을 충분히 가린 시점에만 실제 테마/배경/배너(applyModeClass+subscribeModeMeta)를
+      바꿔치기함 — 위젯마다 전환이 끝나는 타이밍이 제각각이어도 안 보이게 하는 핵심(기존 "도어"
+      연출과 같은 목적이지만, 문 패널/입자/문구 같은 장식 없이 블러 한 장으로만 가림)
+   4) 블러가 다시 옅어지며 걷힘
+   숫자를 조절하고 싶으면 이 상수들만 만지면 됨(블러 인/아웃 시간은 style.css의
+   .mode-blur-overlay transition 시간과 맞춰야 함) */
+const MODE_BLUR_PREROLL_MS = 260;  // 스위치 프리롤 ~ 블러 시작 사이 간격
+const MODE_BLUR_IN_MS = 380;       // 블러가 짙어지는 시간
+const MODE_BLUR_HOLD_MS = 260;     // 테마가 완전히 바뀌어 자리잡을 시간(블러로 가려진 채 대기)
+const MODE_BLUR_OUT_MS = 420;      // 블러가 걷히는 시간
 
 let modeTransitionBusy = false;
 
-// 도어 표면에 흩어질 입자(도트)를 딱 한 번만 생성해서 두 패널에 나눠 심어둠
-function ensureDoorDots(){
-  if(!doorLeftEl || doorLeftEl.querySelector('.door-dot')) return;
-  [doorLeftEl, doorRightEl].forEach(panel=>{
-    for(let i=0; i<7; i++){
-      const dot = document.createElement('span');
-      dot.className = 'door-dot';
-      const size = 3 + Math.random()*7;
-      dot.style.width = dot.style.height = size + 'px';
-      dot.style.left = (Math.random()*100) + '%';
-      dot.style.top = (Math.random()*100) + '%';
-      dot.style.transitionDelay = (Math.random()*.3) + 's';
-      panel.appendChild(dot);
-    }
-  });
+// 오버레이는 딱 하나만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
+let modeBlurOverlayEl = null;
+function ensureModeBlurOverlay(){
+  if(modeBlurOverlayEl) return modeBlurOverlayEl;
+  modeBlurOverlayEl = document.createElement('div');
+  modeBlurOverlayEl.className = 'mode-blur-overlay';
+  document.body.appendChild(modeBlurOverlayEl);
+  return modeBlurOverlayEl;
 }
-ensureDoorDots();
 
-function runDoorTransition(newMode){
-  const cls = newMode === 'light' ? 'to-light' : 'to-dark';
-  [doorLeftEl, doorRightEl, doorTextEl].forEach(el=>{
-    if(!el) return;
-    el.classList.remove('to-light','to-dark');
-    el.classList.add(cls);
-  });
-  if(doorTextEl) doorTextEl.textContent = MODE_LABELS[newMode] + '에 오신 것을 환영합니다';
+function runModeBlurTransition(newMode){
+  const overlay = ensureModeBlurOverlay();
 
   requestAnimationFrame(()=>{
-    if(doorLeftEl) doorLeftEl.classList.add('closed');
-    if(doorRightEl) doorRightEl.classList.add('closed');
+    overlay.classList.add('show');
   });
 
   setTimeout(()=>{
-    // 도어가 완전히 닫혀 화면을 다 가린 시점에만 실제 테마를 바꿔치기함
+    // 화면이 블러로 충분히 가려진 시점에만 실제 테마를 바꿔치기함
     applyModeClass();
     subscribeModeMeta();
-    if(doorTextEl) doorTextEl.classList.add('show');
-  }, DOOR_CLOSE_MS);
-
-  setTimeout(()=>{ if(doorTextEl) doorTextEl.classList.remove('show'); }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS);
+  }, MODE_BLUR_IN_MS);
 
   setTimeout(()=>{
-    if(doorLeftEl) doorLeftEl.classList.remove('closed');
-    if(doorRightEl) doorRightEl.classList.remove('closed');
-  }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS + 80);
+    overlay.classList.remove('show');
+  }, MODE_BLUR_IN_MS + MODE_BLUR_HOLD_MS);
 
   setTimeout(()=>{
     modeTransitionBusy = false;
     modeToggleBtn.classList.remove('mt-busy');
-  }, DOOR_CLOSE_MS + DOOR_TEXT_READ_MS + 80 + DOOR_CLOSE_MS);
+  }, MODE_BLUR_IN_MS + MODE_BLUR_HOLD_MS + MODE_BLUR_OUT_MS);
 }
 
 
@@ -2083,7 +2064,7 @@ function setSiteMode(newMode){
   modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[newMode];
   modeToggleBtn.setAttribute('aria-label', MODE_LABELS[newMode] + ' 적용 중 · 눌러서 전환');
 
-  setTimeout(()=> runDoorTransition(newMode), DOOR_PREROLL_MS);
+  setTimeout(()=> runModeBlurTransition(newMode), MODE_BLUR_PREROLL_MS);
 }
 
 // ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
