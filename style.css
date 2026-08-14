@@ -527,6 +527,54 @@ body::before{
   transform: translateY(0);
 }
 
+/* ---------- 다크·라이트 전환 연출: 색이 피어오르는 블랍(구름) ----------
+   위 .mode-blur-overlay(블러 베일)와 같은 순간에 나란히 뜨는 보조 연출.
+   팔레트 색(rose/sage/gold)을 각각 맡은 반투명 원 5개가 화면 아래에서
+   위로 천천히 피어올랐다 사라지며, 이전 모드 색 → 다음 모드 색으로 서서히
+   바뀜(app.js의 runModeBlobRise 참고). z-index는 베일(600)보다 한 단
+   아래(598)로 둬서, 얇은 베일이 맨 위에서 문구 대비를 계속 보장해주고
+   블랍은 그 뒤에서 비쳐 보이게 함.
+   ⚠️ 무거운 backdrop-filter 대신 filter를 씀: backdrop-filter는 "블랍 뒤로
+   비치는 실제 배경"을 매 프레임 다시 훔쳐보고 블러하는 거라 무거운데(위
+   .mode-blur-overlay가 무거운 이유이기도 함), filter: blur()는 블랍
+   "자기 자신의 색"만 블러함 — 배경이 뭐든 상관없이 그 도형 하나만
+   부드럽게 만드는 거라 오히려 세게 걸어도 훨씬 쌈. 블랍 여러 개가
+   뭉게구름처럼 서로 이어붙는 효과는 SVG feGaussianBlur+feColorMatrix
+   조합(흔히 "goo" 필터라 부름, app.js가 <svg>에 주입)으로 처리함. */
+.mode-blob-veil{
+  position: fixed; inset:0; z-index:598;
+  pointer-events:none; overflow:hidden;
+}
+.mode-blob-field{
+  position:absolute; inset:0;
+  filter: url(#modeGoo);
+}
+/* 삼성인터넷: 위 .mode-blur-overlay.mbo-no-blur와 같은 이유(오래 대기하던
+   레이어의 재승격 타이밍 이슈)로, goo 합성(feColorMatrix)까지는 부담일 수
+   있어 이 브라우저에서는 블랍끼리 뭉게구름처럼 이어붙이지 않고 각자 따로
+   몽글몽글한 원으로만(순수 블러만) 띄움 — app.js가 생성 시 이 클래스를 붙임 */
+.mode-blob-field.mbv-no-goo{
+  filter: url(#modeBlobBlurOnly);
+}
+.mode-blob{
+  position:absolute; left:var(--bx); bottom:-32vh;
+  width:44vmax; height:44vmax; margin-left:-22vmax;
+  border-radius:50%;
+  background:var(--blob-color); /* app.js가 --blob-color를 갈아끼움(워밍업 패턴은
+    위 .mode-blur-overlay 워밍업 주석과 동일) */
+  opacity:0;
+  transition: background-color .6s ease;
+}
+.mode-blob-veil.show .mode-blob{
+  animation: modeBlobRise 1.1s var(--bd) cubic-bezier(.22,.61,.36,1) both;
+}
+@keyframes modeBlobRise{
+  0%   { opacity:0;  transform:translateY(6vh)   scale(var(--bs)); }
+  25%  { opacity:.9; }
+  70%  { opacity:.9; }
+  100% { opacity:0;  transform:translateY(-58vh) scale(var(--bs)); }
+}
+
 
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
 .board-tabs{ position: relative; }

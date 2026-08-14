@@ -2238,6 +2238,59 @@ function runModeBlurTransition(newMode){
 
   setTimeout(()=>{ minTimeElapsed = true; tryHideVeil(); }, minHideAt);
 }
+
+/* ---------------- 모드 전환 연출 - 색이 피어오르는 블랍(구름) ----------------
+   위 .mode-blur-overlay(베일)와 같은 순간(아래 setSiteMode 참고)에 나란히
+   뜨는 보조 연출. rose/sage/gold를 각각 맡은 원 5개가 이전 모드 색에서
+   다음 모드 색으로 서서히 바뀌며 화면 아래에서 위로 피어올랐다 사라짐.
+   원리는 style.css의 .mode-blob-veil 주석 참고.
+   ⚠️ 색은 DEFAULT_THEME_BY_MODE(코드 기본 팔레트) 기준임 — 테마 편집에서
+   색을 커스텀했어도 블랍은 기본값으로 뜸(짧고 블러된 색 전환이라 큰 위화감은
+   없음). 커스텀 색까지 정확히 반영하려면 라이트/다크 각 실제 테마 문서 값을
+   세션에 캐싱해뒀다가 쓰는 방식으로 나중에 확장 가능. */
+const MODE_BLOB_RISE_MS = 1100; // style.css @keyframes modeBlobRise 길이(1.1s)와 맞춰둠
+const BLOB_PALETTE_KEYS = ['rose','sage','gold','rose','sage'];
+
+let modeBlobVeilEl = null, modeBlobEls = [];
+function ensureModeBlobVeil(){
+  if(modeBlobVeilEl) return modeBlobVeilEl;
+  modeBlobVeilEl = document.createElement('div');
+  modeBlobVeilEl.className = 'mode-blob-veil';
+  modeBlobVeilEl.innerHTML =
+    '<svg width="0" height="0" style="position:absolute">' +
+      '<filter id="modeGoo"><feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b"/>' +
+      '<feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -10"/></filter>' +
+      '<filter id="modeBlobBlurOnly"><feGaussianBlur in="SourceGraphic" stdDeviation="14"/></filter>' +
+    '</svg><div class="mode-blob-field' + (isSamsungInternet ? ' mbv-no-goo' : '') + '">' +
+    BLOB_PALETTE_KEYS.map((key,i)=>
+      `<span class="mode-blob" data-key="${key}" style="--bx:${8+i*21}%; --bd:${(i%3)*.06}s; --bs:${(0.85+((i*37)%30)/100).toFixed(2)}"></span>`
+    ).join('') + '</div>';
+  document.body.appendChild(modeBlobVeilEl);
+  modeBlobEls = Array.from(modeBlobVeilEl.querySelectorAll('.mode-blob'));
+  return modeBlobVeilEl;
+}
+
+function runModeBlobRise(oldMode, newMode){
+  const veil = ensureModeBlobVeil();
+  const from = DEFAULT_THEME_BY_MODE[oldMode] || DEFAULT_THEME_BY_MODE.dark;
+  const to   = DEFAULT_THEME_BY_MODE[newMode] || DEFAULT_THEME_BY_MODE.dark;
+  // 1) 지금 모드 색으로 트랜지션 없이 스냅(위 .mode-blur-overlay 워밍업과 같은 방식)
+  modeBlobEls.forEach(el=>{
+    el.style.transition = 'none';
+    el.style.setProperty('--blob-color', from[el.dataset.key]);
+  });
+  veil.getBoundingClientRect(); // 강제 리플로우
+  requestAnimationFrame(()=>{
+    veil.classList.add('show');
+    modeBlobEls.forEach(el=>{ el.style.transition = ''; });
+    requestAnimationFrame(()=>{
+      // 2) 다음 프레임에 목표 모드 색으로 갈아끼움 → 여기서부터 실제로 서서히 색이 바뀜
+      modeBlobEls.forEach(el=> el.style.setProperty('--blob-color', to[el.dataset.key]));
+    });
+  });
+  setTimeout(()=> veil.classList.remove('show'), MODE_BLOB_RISE_MS);
+}
+
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
   if(newMode === siteMode) return;
@@ -2266,6 +2319,7 @@ function setSiteMode(newMode){
   overlay.style.opacity = '0.001';
   overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
 
+  const oldMode = siteMode; // ★ 블랍 시작색으로 쓸 "지금" 모드를 잊어버리기 전에 기억해둠
   siteMode = newMode;
   localStorage.setItem('gh_mode', siteMode);
 
@@ -2276,7 +2330,10 @@ function setSiteMode(newMode){
   modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[newMode];
   modeToggleBtn.setAttribute('aria-label', MODE_LABELS[newMode] + ' 적용 중 · 눌러서 전환');
 
-  setTimeout(()=> runModeBlurTransition(newMode), MODE_BLUR_PREROLL_MS);
+  setTimeout(()=>{
+    runModeBlurTransition(newMode);
+    runModeBlobRise(oldMode, newMode); // 베일과 같은 순간에 같이 띄움
+  }, MODE_BLUR_PREROLL_MS);
 }
 
 // ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
