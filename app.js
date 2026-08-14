@@ -2026,36 +2026,66 @@ function applyTheme(theme){
 
 /* 배너 / 배경 / 테마 3가지 모두 라이트·다크모드별로 완전히 분리된 문서를 구독함.
    모드를 전환할 때마다(toggleSiteMode) 기존 구독을 끊고 새 모드의 문서로 다시 구독해서,
-   화면에 지금 보고 있는 모드의 편집값만 반영되게 함. */
+   화면에 지금 보고 있는 모드의 편집값만 반영되게 함.
+   ⚠️ 배너와 배경의 전환 타이밍이 서로 어긋나 보이던 문제: 배경은 onSnapshot에서 온
+   d.image를 그 자리에서 바로 setPageBgImageCrossfade()에 넘기지만, 배너는 큰 사진이라
+   fileChunks 컬렉션에 조각내어 저장돼 있어(위 배너 업로드 로직 참고) loadFileChunked()로
+   조각들을 추가로 비동기 재조립한 뒤에야 준비됨 — 이 한 단계가 항상 배경보다 늦어서,
+   같은 순간에 전환을 시작해도 배너 사진만 한 박자 늦게 바뀌는 것처럼 보였음.
+   그래서 구독을 새로 맺을 때마다("이번 세대"에 한해) 배너·배경 둘 다의 "첫 번째" 스냅샷이
+   모두 준비될 때까지 기다렸다가 같은 틱에 한꺼번에 크로스페이드를 트리거함 — 그 이후
+   (같은 모드에 머무는 동안 실제로 사진을 편집해 저장하는 경우)는 서로 기다릴 필요가 없으니
+   예전처럼 각자 도착하는 대로 바로 반영함. 네트워크 문제 등으로 한쪽이 영영 안 오는
+   최악의 경우를 대비해 700ms 안전장치도 둠(그 안에 안 맞춰지면 그냥 각자 반영). */
 let unsubBanner = null, unsubBackground = null, unsubTheme = null;
+let modeMetaGen = 0;
 function subscribeModeMeta(){
   if(unsubBanner) unsubBanner();
   if(unsubBackground) unsubBackground();
   if(unsubTheme) unsubTheme();
 
+  const gen = ++modeMetaGen;
+  let bannerFirstDone = false, backgroundFirstDone = false;
+  let pendingBannerApply = null, pendingBackgroundApply = null;
+  const releasePending = ()=>{
+    if(pendingBannerApply){ pendingBannerApply(); pendingBannerApply = null; }
+    if(pendingBackgroundApply){ pendingBackgroundApply(); pendingBackgroundApply = null; }
+  };
+  const tryRelease = ()=>{ if(bannerFirstDone && backgroundFirstDone) releasePending(); };
+  setTimeout(()=>{ if(gen === modeMetaGen) releasePending(); }, 700);
+
   unsubBanner = metaDoc('banner').onSnapshot(async doc=>{
+    if(gen !== modeMetaGen) return;
     const d = doc.exists ? doc.data() : {};
+    let apply;
     if(d.chunked && d.fileId){
-      try{
-        const dataUrl = await loadFileChunked(d.fileId, d.chunkTotal || 0);
-        setBannerBgImageCrossfade(dataUrl);
-      }catch(e){ setBannerBgImageCrossfade(''); }
+      let dataUrl = '';
+      try{ dataUrl = await loadFileChunked(d.fileId, d.chunkTotal || 0); }catch(e){ dataUrl = ''; }
+      if(gen !== modeMetaGen) return;
+      apply = ()=> setBannerBgImageCrossfade(dataUrl);
     } else if(d.image){
-      setBannerBgImageCrossfade(d.image);
+      apply = ()=> setBannerBgImageCrossfade(d.image);
     } else {
-      setBannerBgImageCrossfade('');
+      apply = ()=> setBannerBgImageCrossfade('');
     }
+    if(!bannerFirstDone){ bannerFirstDone = true; pendingBannerApply = apply; tryRelease(); }
+    else apply();
   });
 
   unsubBackground = metaDoc('background').onSnapshot(doc=>{
+    if(gen !== modeMetaGen) return;
     const d = doc.exists ? doc.data() : {};
-    if(d.image){
-      setPageBgImageCrossfade(d.image);
-      bgImageLayerEl.classList.add('has-image');
-    } else {
-      setPageBgImageCrossfade('');
-      bgImageLayerEl.classList.remove('has-image');
-    }
+    const apply = ()=>{
+      if(d.image){
+        setPageBgImageCrossfade(d.image);
+        bgImageLayerEl.classList.add('has-image');
+      } else {
+        setPageBgImageCrossfade('');
+        bgImageLayerEl.classList.remove('has-image');
+      }
+    };
+    if(!backgroundFirstDone){ backgroundFirstDone = true; pendingBackgroundApply = apply; tryRelease(); }
+    else apply();
   });
 
   unsubTheme = metaDoc('theme').onSnapshot(doc=>{
