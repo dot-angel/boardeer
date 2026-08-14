@@ -2152,13 +2152,23 @@ const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
 
 let modeTransitionBusy = false;
 
+// 삼성인터넷은 backdrop-filter의 GPU 레이어를 opacity:0로 대기하는 동안
+// 내려놨다가 트랜지션이 막 시작되는 프레임에야 재승격을 시도해서, 그 처리가
+// 트랜지션 시작과 겹치면 블러가 아직 안 걸린 프레임이 한 장 섞여 들어가는
+// 경우가 보고됨(아래 setSiteMode의 워밍업 주석 참고 — 리드타임을 530ms까지
+// 늘려도 남아있었음). 그래서 이 브라우저 한정으로는 재승격이 필요한
+// backdrop-filter 자체를 안 쓰고 단색 커튼으로 갈음함(style.css의
+// .mbo-no-blur 참고) — 재승격이라는 절차 자체가 없어지므로 타이밍에 흔들릴
+// 여지가 원천적으로 사라짐.
+const isSamsungInternet = /SamsungBrowser/i.test(navigator.userAgent);
+
 // 오버레이/문구는 딱 한 번만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
 let modeBlurOverlayEl = null;
 let modeWelcomeTextEl = null;
 function ensureModeBlurOverlay(){
   if(modeBlurOverlayEl) return modeBlurOverlayEl;
   modeBlurOverlayEl = document.createElement('div');
-  modeBlurOverlayEl.className = 'mode-blur-overlay';
+  modeBlurOverlayEl.className = 'mode-blur-overlay' + (isSamsungInternet ? ' mbo-no-blur' : '');
   modeWelcomeTextEl = document.createElement('div');
   modeWelcomeTextEl.className = 'mode-welcome-text';
   modeBlurOverlayEl.appendChild(modeWelcomeTextEl);
@@ -2213,9 +2223,10 @@ function runModeBlurTransition(newMode){
   setTimeout(()=>{
     // 베일이 옅게 걸리는 시점에 곧바로 테마를 바꿔치기 — 색 자체는 여기서부터
     // body의 transition을 타고 실제로 부드럽게 이어짐(더 이상 "숨겼다가 짠"이 아님).
-    // mode-swap-snap은 반드시 applyModeClass()보다 먼저 걸어야, background-color/
-    // --paper가 "이전 값→새 값"을 보간하지 않고 이 프레임에 곧바로 스냅됨(둘 다
-    // 베일에 가려 안 보이는 구간이라 안전함)
+    // mode-swap-snap은 반드시 applyModeClass()보다 먼저 걸어야, 색 관련 값들이
+    // "이전 값→새 값"을 보간하지 않고 이 프레임에 곧바로 스냅됨(베일에 가려
+    // 안 보이는 구간이라 안전함 — 스냅 범위를 넓힌 배경은 style.css의
+    // body.mode-swap-snap 주석 참고)
     document.body.classList.add('mode-swap-snap');
     applyModeClass();
     subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
@@ -2248,7 +2259,8 @@ function setSiteMode(newMode){
   // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
   // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
   // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
-  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)을 고려할 것.
+  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)이 나음 — 위
+  // isSamsungInternet과 style.css의 .mbo-no-blur로 적용해둠.
   const overlay = ensureModeBlurOverlay();
   overlay.style.transition = 'none';
   overlay.style.opacity = '0.001';

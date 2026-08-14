@@ -202,26 +202,32 @@ body{
   overflow-x: hidden;
 }
 /* 모드 토글(다크↔라이트) 전환 중, 테마가 실제로 바뀌치기되는 그 프레임에만
-   app.js가 잠깐 걸어두는 클래스. background-color/--paper/--paper-deep만 빼고
-   나머지는 위 body 기본 transition과 동일 — 이 셋이 바뀌는 650ms 구간은
-   정확히 .mode-blur-overlay 베일이 화면 전체를 덮고 있는 구간과 겹쳐서 원래도
-   안 보이는데, 표준 속성인 background-color가 매 프레임 스스로 보간되면 그
-   픽셀을 샘플링하는 카드/베일의 backdrop-filter가 650ms 내내 재블러링해야
-   해서 위젯이 많을수록 무거워짐. 이 클래스가 걸려있는 그 순간만 값이 스냅으로
-   바뀌어 재블러링이 1프레임으로 줄어듦. 테마 편집 모달(#tPaper 등)에서 배경색을
-   저장할 때는 베일이 없고 이 클래스도 안 걸리므로, 그때는 원래대로 부드럽게
-   크로스페이드됨 — background-color 자체를 body 기본 transition에서 영구히
-   빼면 그 저장 경로까지 스냅으로 보여 회귀가 생기므로 반드시 이렇게 범위를
-   좁혀야 함. backdrop-filter의 존재/부재나 will-change는 전혀 안 건드리는
-   순수 transition 속성 목록 변경이라, 레이어 승격/강등이 새로 발생하지
-   않음(=삼성인터넷 레이어 버그를 새로 만들 위험 없음) */
+   app.js가 잠깐 걸어두는 클래스. 이 구간(650ms)은 정확히 .mode-blur-overlay
+   베일이 화면 전체를 덮고 있는 구간과 겹쳐서 원래도 안 보이는데, body의 색
+   계열 프로퍼티(background-color/color 및 --rose·--card-bg 등 @property들)가
+   매 프레임 스스로 보간되면 그 값을 참조하는 모든 요소가 다시 페인트됨 —
+   특히 .w-card(위젯 카드, 전부 --card-bg를 배경으로, --card-hi를 box-shadow에
+   쓰면서 동시에 backdrop-filter도 걸고 있음)는 배경 자체가 매 프레임 바뀌니
+   그때마다 뒤를 다시 블러링해야 해서, 위젯 수(현재 13개)만큼 배로 무거워지고
+   화면 전체를 덮는 베일 자신의 backdrop-filter까지 겹쳐 훨씬 더 무거워짐 —
+   여러 위젯이 한 화면에 한꺼번에 보이는 PC 레이아웃일수록 이 누적 비용이 커서
+   버벅임으로 드러났음.
+   ⚠️ 처음엔 background-color/--paper/--paper-deep 세 개만 스냅 대상이었는데,
+   --card-bg처럼 정작 카드 배경을 직접 채우는 나머지 색 변수들은 그대로 매
+   프레임 보간되며 카드들을 계속 다시 블러링시키고 있었음 — 정작 제일 무거운
+   원인(카드 개수만큼 곱해지는 재블러링)은 그대로 남아있던 셈이라 PC처럼 카드가
+   많이 보이는 화면에서 여전히 버벅였음. 베일 뒤에서는 어차피 아무것도 안
+   보이므로 굳이 부드럽게 이어질 이유가 없는 건 매한가지라, 이제 색 관련
+   프로퍼티 전부를 스냅 대상에 포함시켜(transition: none) 전환을 완전히
+   1프레임으로 끝냄.
+   테마 편집 모달(#tPaper 등)에서 배경색을 저장할 때는 베일이 없고 이 클래스도
+   안 걸리므로, 그때는 원래대로(위 body 기본 transition 그대로) 부드럽게
+   크로스페이드됨 — 이 클래스가 걸려있는 순간에만 국한해서 아예 꺼두는 것이라
+   그 저장 경로엔 영향이 없음. backdrop-filter의 존재/부재나 will-change는
+   전혀 안 건드리는 순수 transition 속성 변경이라, 레이어 승격/강등이 새로
+   발생하지 않음(=삼성인터넷 레이어 버그를 새로 만들 위험 없음) */
 body.mode-swap-snap{
-  transition:
-    color .65s ease,
-    --rose .65s ease, --rose-solid .65s ease, --rose-soft .65s ease,
-    --sage .65s ease, --gold .65s ease, --gold-soft .65s ease,
-    --ink .65s ease, --ink-soft .65s ease,
-    --card-bg .65s ease, --card-bg2 .65s ease, --card-border .65s ease, --card-hi .65s ease;
+  transition: none;
 }
 /* 홈페이지 전체 배경 이미지 레이어 — 배너와 별개로 페이지 전체 뒤에 깔림.
    이미지가 없을 땐 투명해서 아래 컬러 글로우만 보임 */
@@ -480,6 +486,23 @@ body::before{
 }
 .mode-blur-overlay.show{
   opacity: 1;
+}
+/* 삼성인터넷: backdrop-filter 자체는 지원하지만, opacity:0으로 오래 대기하는
+   동안 내려놨던 GPU 레이어를 트랜지션이 막 시작되는 프레임에야 재승격하는
+   경우가 있음(위 .mode-blur-overlay 워밍업 주석 참고 — 리드타임을 530ms까지
+   늘려도 그 재승격 처리 자체가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
+   프레임이 한 장 섞여 들어가 "전환 순간 블러 누락"으로 보일 수 있음). 이
+   브라우저 한정으로는 재승격이 필요한 backdrop-filter 자체를 아예 안 쓰고,
+   매 프레임 다시 계산할 것도 없는 고정 단색 커튼으로 갈음함 — opacity만
+   바뀌는 단순 합성이라 레이어 타이밍에 흔들릴 여지가 원천적으로 없음. 색은
+   모드와 무관하게 다크 페이퍼 톤으로 고정해서, --paper가 스냅되는 순간(위
+   body.mode-swap-snap 참고) 커튼 색까지 같이 튀어 보이는 걸 피함 — 베일은
+   어느 쪽 모드로 가든 잠깐 가려주기만 하면 되는 용도라 문제 없고, 흰색
+   welcome-text와의 대비도 항상 보장됨. 적용 여부는 app.js의
+   isSamsungInternet이 .mode-blur-overlay 생성 시 이 클래스를 붙여서 결정함. */
+.mode-blur-overlay.mbo-no-blur{
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  background: rgba(15,4,6,0.94);
 }
 /* backdrop-filter 미지원 브라우저는 블러가 아예 안 걸리지만, 어차피 색 전환
    자체가 실제로 부드럽게 이어지므로(위 body transition) 별도 보정이 필요 없음 */
