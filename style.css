@@ -831,7 +831,7 @@ body.edit-mode .w-card:has(> .w-edit-toggle-btn){
    한 겹 더 깔아서 "두께"가 있는 것처럼 보이게 함. (.w-card 바로 다음에 둬야
    .w-card의 border/box-shadow/backdrop-filter/padding에 덮여씌워지지 않음) */
 .w-speech{
-  border-width:1px; border-color: rgba(255,255,255,0.3);
+  border: none;
   box-shadow:
     0 18px 34px rgba(0,0,0,0.48),
     inset 0 2px 0 rgba(255,255,255,0.32),
@@ -1659,7 +1659,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
    transform으로만 갱신하므로(레이아웃 재계산 없음) 여러 개가 움직여도 가벼움. */
 .w-shaker{
   padding:10px;
-  border-width:1px; border-color: rgba(255,255,255,0.3);
+  border: none;
   box-shadow:
     0 18px 34px rgba(0,0,0,0.48),
     inset 0 2px 0 rgba(255,255,255,0.32),
