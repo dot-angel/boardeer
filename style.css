@@ -488,13 +488,12 @@ body::before{
   font-size: clamp(1.25rem, 4.2vw, 2.15rem);
   font-weight: 700;
   letter-spacing: .04em;
-  color: var(--ink); /* JS가 매번 인라인 style.color로 덮어씀 — 이건 안전망 기본값일 뿐 */
-  /* 글자색은 더 이상 var(--ink) 상속 + 크로스페이드가 아니라, app.js의
-     runModeBlurTransition()이 뜨기 직전에 목표 모드의 강조색을 인라인
-     style.color로 직접 확정함 — 그래서 여기 transition 목록에는 색을 넣지
-     않음(opacity/transform만 서서히, 색은 처음부터 최종값). */
+  color: #fff; /* 예전엔 모드의 강조색(rose)을 인라인으로 씌웠는데, 그 색이 이미
+    짙어서 아래 text-shadow(검정)와 겹치면 오히려 잘 안 보이는 문제가 있었음.
+    베일 뒤로 비치는 배경이 사진이든 어떤 팔레트든 항상 대비가 확보되도록
+    흰색으로 고정함(app.js도 더 이상 인라인 color를 강조색으로 덮어쓰지 않음) */
   text-align:center;
-  text-shadow: 0 2px 20px rgba(0,0,0,.4);
+  text-shadow: 0 2px 12px rgba(0,0,0,.6), 0 1px 4px rgba(0,0,0,.7);
   padding: 0 28px;
   opacity: 0;
   transform: translateY(8px);

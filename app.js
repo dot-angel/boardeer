@@ -108,11 +108,6 @@ let siteMode = localStorage.getItem('gh_mode') === 'light' ? 'light' : 'dark';
 function metaDoc(base){
   return db.collection('meta').doc(siteMode === 'light' ? base + 'Light' : base);
 }
-/* 모드 전환 환영 문구가 --ink/--rose의 body 크로스페이드를 기다리지 않고도
-   바로 "그 모드의 진짜 강조색"을 쓸 수 있도록, 각 모드에서 마지막으로 로드된
-   실제 강조색(커스텀 테마가 있으면 그 값, 없으면 기본 팔레트)을 여기 캐싱해둠.
-   subscribeModeMeta()의 theme onSnapshot에서 매번 최신값으로 갱신됨. */
-let lastKnownAccent = { dark: null, light: null };
 const MODE_LABELS = { dark: '멧돼지관', light: '사슴관' };
 const MODE_ICONS = {
   dark: '<svg class="icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
@@ -2035,8 +2030,17 @@ function applyTheme(theme){
    그래서 구독을 새로 맺을 때마다("이번 세대"에 한해) 배너·배경 둘 다의 "첫 번째" 스냅샷이
    모두 준비될 때까지 기다렸다가 같은 틱에 한꺼번에 크로스페이드를 트리거함 — 그 이후
    (같은 모드에 머무는 동안 실제로 사진을 편집해 저장하는 경우)는 서로 기다릴 필요가 없으니
-   예전처럼 각자 도착하는 대로 바로 반영함. 네트워크 문제 등으로 한쪽이 영영 안 오는
-   최악의 경우를 대비해 700ms 안전장치도 둠(그 안에 안 맞춰지면 그냥 각자 반영). */
+   예전처럼 각자 도착하는 대로 바로 반영함.
+   ⚠️ 모바일(특히 삼성인터넷+모바일 데이터)에서 "화면 전환이 이미 끝난 뒤에 배너/배경
+   사진이 뒤늦게 바뀌는" 문제: 이 함수가 반환하는 Promise가 "배너·배경 둘 다 준비됨(또는
+   안전 타임아웃)" 시점에 resolve되는데, 예전엔 이 Promise를 아무도 기다리지 않고 모드
+   전환 베일이 고정된 시간표(MODE_TEXT_HOLD_MS 등)로만 걷혀서, 네트워크가 느리면 베일이
+   이미지보다 먼저 걷혀버렸음. 지금은 runModeBlurTransition()이 이 Promise를 실제로
+   기다렸다가 베일을 걷으므로(아래 tryHideVeil 참고), 그 문제가 사라짐. 안전 타임아웃도
+   700ms→1600ms로 늘려서 청크 재조립까지 포함한 배너 로딩이 모바일 데이터망에서도
+   웬만하면 그 안에 끝나게 여유를 더 줌(그래도 안 끝나면 그냥 그 시점에 있는 값으로 진행 —
+   무한정 기다리진 않음). */
+const MODE_META_READY_TIMEOUT_MS = 1600;
 let unsubBanner = null, unsubBackground = null, unsubTheme = null;
 let modeMetaGen = 0;
 function subscribeModeMeta(){
@@ -2047,12 +2051,15 @@ function subscribeModeMeta(){
   const gen = ++modeMetaGen;
   let bannerFirstDone = false, backgroundFirstDone = false;
   let pendingBannerApply = null, pendingBackgroundApply = null;
+  let resolveReady;
+  const readyPromise = new Promise(res=>{ resolveReady = res; });
   const releasePending = ()=>{
     if(pendingBannerApply){ pendingBannerApply(); pendingBannerApply = null; }
     if(pendingBackgroundApply){ pendingBackgroundApply(); pendingBackgroundApply = null; }
+    resolveReady();
   };
   const tryRelease = ()=>{ if(bannerFirstDone && backgroundFirstDone) releasePending(); };
-  setTimeout(()=>{ if(gen === modeMetaGen) releasePending(); }, 700);
+  setTimeout(()=>{ if(gen === modeMetaGen) releasePending(); }, MODE_META_READY_TIMEOUT_MS);
 
   unsubBanner = metaDoc('banner').onSnapshot(async doc=>{
     if(gen !== modeMetaGen) return;
@@ -2099,10 +2106,9 @@ function subscribeModeMeta(){
     injectCustomFontFace(null);
     const data = doc.exists ? doc.data() : null;
     if(data) applyTheme(data);
-    // 이 모드의 실제 강조색(커스텀 테마가 있으면 그 값, 없으면 기본 팔레트)을
-    // 캐싱 — 다음 번 이 모드로 전환할 때 모드 전환 문구가 곧바로 참조함
-    lastKnownAccent[siteMode] = (data && data.rose) || (DEFAULT_THEME_BY_MODE[siteMode] || DEFAULT_THEME_BY_MODE.dark).rose;
   });
+
+  return readyPromise;
 }
 subscribeModeMeta();
 
@@ -2131,16 +2137,13 @@ const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사�
    transition(340ms)이 다 끝난 뒤에만 테마를 바꿔치기하도록 340 + 여유(10ms)로 맞춤 —
    이 값은 항상 style.css 쪽 transition 시간 이상으로 유지할 것. */
 const MODE_VEIL_IN_MS = 350;        // 베일이 걸리는 시간(=테마가 실제로 바뀌는 시점)
-/* 문구 글자색은 더 이상 --ink/--rose의 body 크로스페이드(.65s)를 상속받지 않고,
-   runModeBlurTransition()에서 lastKnownAccent[newMode](=그 모드의 실제 강조색)를
-   문구 엘리먼트에 직접 인라인으로 확정해버림 — 그래서 문구는 "서서히 물드는" 대신
-   뜨는 순간부터 항상 목표 색 그대로임. 예전엔 글자가 뜨는 도중에 색까지 같이
-   바뀌면 가는 획이 흔들려 보이는 문제 때문에, 문구를 색이 "다 자리잡을 때까지"
-   (650ms) 기다렸다가 뜨게 했었는데, 이제 그 문제 자체가 없어져서 그만큼
-   기다릴 필요도 사라짐 → 아래 딜레이를 짧게 줄여 전체 연출 시간을 단축함. */
+/* 문구 글자색은 style.css에서 흰색으로 고정해뒀음(뜨는 배경이 사진이든 어떤
+   팔레트든 항상 대비가 확보되게). 예전엔 모드의 강조색(lastKnownAccent)을
+   인라인으로 확정해 씌웠었는데, 그 색이 검은 text-shadow와 겹쳐 오히려 잘 안
+   보이는 문제가 있어서 흰색 고정으로 바꿈. */
 const MODE_TEXT_DELAY_MS = 90;      // 베일이 자리잡은 뒤 문구가 뜨기 시작하기까지의 짧은 텀
 const MODE_TEXT_FADE_MS = 320;      // 문구가 서서히 뜨고/사라지는 시간 — style.css .mode-welcome-text의 transition(.32s)과 반드시 같아야 함
-const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 시간 — 읽는 시간을 늘리고 싶으면 이 값만 늘리면 됨
+const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 최소 시간(배너/배경 이미지가 이보다 늦게 도착하면 실제로는 더 길어짐 — 아래 subscribeModeMeta 참고)
 const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
 /* 예전엔 문구가 다 뜨기도 전에(페이드인 320ms가 끝나기 전) 사라지는 타이머가 먼저
    발동해버려서, 문구가 최대 밝기까지 못 올라가고 바로 꺼지는 버그가 있었음(그래서
@@ -2166,23 +2169,11 @@ function ensureModeBlurOverlay(){
 function runModeBlurTransition(newMode){
   const overlay = ensureModeBlurOverlay();
   modeWelcomeTextEl.textContent = MODE_LABELS[newMode] + '에 오신 것을 환영합니다.';
-  // 문구 색은 var(--ink) 상속을 끊고, 전환될 모드의 실제 강조색을 지금 바로 확정해
-  // 인라인으로 씌움 — 처음 뜰 때부터 이미 목표 색이라 서서히 물드는 구간이 없음.
-  modeWelcomeTextEl.style.color =
-    lastKnownAccent[newMode] || (DEFAULT_THEME_BY_MODE[newMode] || DEFAULT_THEME_BY_MODE.dark).rose;
+  // 문구 색은 이제 style.css에서 흰색으로 고정돼 있어 여기서 인라인으로 덮어쓸 필요가 없음
 
-  // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
-  // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야
-  // 다시 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직
-  // 안 걸린 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의
-  // will-change/translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
-  // 그래서 진짜 0→1 트랜지션을 걸기 한 프레임 전에, 트랜지션 없이(순간적으로)
-  // 시각적으로 감지 불가능한 opacity(.001)를 먼저 찍어 강제 리플로우 →
-  // 레이어를 미리 깨워두고 나서, 다음 프레임에야 실제 트랜지션(.001→1)을 시작함.
-  // 대기 상태(opacity:0)는 전혀 안 건드리므로 평소 블러 비용은 그대로 0.
-  overlay.style.transition = 'none';
-  overlay.style.opacity = '0.001';
-  overlay.getBoundingClientRect(); // 강제 리플로우: 위 값을 트랜지션 없이 즉시 반영시켜 레이어 승격을 유도
+  // setSiteMode()에서 이미 베일을 미세 opacity(.001)로 워밍업해뒀으므로, 여기서는
+  // 그 워밍업을 실제 트랜지션으로 이어받기만 하면 됨 — 인라인 오버라이드를 지우고
+  // .show를 붙이면, 직전 프레임에 그려져 있던 .001에서 진짜 트랜지션(→1)이 시작됨
   requestAnimationFrame(()=>{
     overlay.style.transition = '';
     overlay.style.opacity = '';
@@ -2191,13 +2182,33 @@ function runModeBlurTransition(newMode){
 
   // 아래 시각 하나하나가 "그 앞 단계가 실제로 끝난 뒤"를 기준으로 이어 붙게
   // 계산됨(중간에 겹치면 문구가 최대 밝기까지 못 올라가고 꺼져버리는 예전 버그가
-  // 재발함) — 순서: 베일 인 → 테마 교체 → (텀) → 문구 페이드인 → 문구 유지(HOLD)
-  // → 문구 페이드아웃 → 베일 아웃
+  // 재발함) — 순서: 베일 인 → 테마 교체 → (텀) → 문구 페이드인 → 문구 유지(HOLD,
+  // 단 배너/배경 이미지가 아직 준비 안 됐으면 그때까지 더 유지) → 문구 페이드아웃 → 베일 아웃
   const themeSwapAt = MODE_VEIL_IN_MS;
   const textShowAt = themeSwapAt + MODE_TEXT_DELAY_MS;
   const textFullyShownAt = textShowAt + MODE_TEXT_FADE_MS;
-  const textHideAt = textFullyShownAt + MODE_TEXT_HOLD_MS;
-  const doneAt = textHideAt + Math.max(MODE_TEXT_FADE_MS, MODE_VEIL_OUT_MS);
+  const minHideAt = textFullyShownAt + MODE_TEXT_HOLD_MS;
+
+  // 베일을 걷는 실제 시점은 "최소 유지시간이 지났는가"와 "배너·배경 이미지가
+  // 실제로 다 반영됐는가"를 둘 다 만족해야 함 — 그래야 네트워크가 느릴 때도
+  // 화면 전환이 끝난 뒤에 이미지가 뒤늦게 팝인하는 일 없이, 베일이 걷히는 그
+  // 순간엔 이미 새 이미지까지 다 반영돼 있음(단 subscribeModeMeta 쪽 자체
+  // 안전 타임아웃이 있어 무한정 기다리진 않음)
+  let minTimeElapsed = false, metaReady = false, veilHidden = false;
+  const hideVeilNow = ()=>{
+    if(veilHidden) return;
+    veilHidden = true;
+    modeWelcomeTextEl.classList.remove('show');
+    overlay.classList.remove('show');
+    // 베일이 걷히기 시작하는 시점에 떼어둠 — 이후 테마 편집 모달에서 배경색을
+    // 저장하는 등 베일 없는 경로는 원래대로 부드러운 크로스페이드를 그대로 씀
+    document.body.classList.remove('mode-swap-snap');
+    setTimeout(()=>{
+      modeTransitionBusy = false;
+      modeToggleBtn.classList.remove('mt-busy');
+    }, Math.max(MODE_TEXT_FADE_MS, MODE_VEIL_OUT_MS));
+  };
+  const tryHideVeil = ()=>{ if(minTimeElapsed && metaReady) hideVeilNow(); };
 
   setTimeout(()=>{
     // 베일이 옅게 걸리는 시점에 곧바로 테마를 바꿔치기 — 색 자체는 여기서부터
@@ -2207,31 +2218,14 @@ function runModeBlurTransition(newMode){
     // 베일에 가려 안 보이는 구간이라 안전함)
     document.body.classList.add('mode-swap-snap');
     applyModeClass();
-    subscribeModeMeta();
+    subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
   }, themeSwapAt);
-
-  setTimeout(()=>{
-    // 베일이 걷히기 시작하기 직전에 떼어둠 — 이후 테마 편집 모달에서 배경색을
-    // 저장하는 등 베일 없는 경로는 원래대로 부드러운 크로스페이드를 그대로 씀
-    document.body.classList.remove('mode-swap-snap');
-  }, textHideAt);
 
   setTimeout(()=>{
     modeWelcomeTextEl.classList.add('show');
   }, textShowAt);
 
-  setTimeout(()=>{
-    modeWelcomeTextEl.classList.remove('show');
-  }, textHideAt);
-
-  setTimeout(()=>{
-    overlay.classList.remove('show');
-  }, textHideAt);
-
-  setTimeout(()=>{
-    modeTransitionBusy = false;
-    modeToggleBtn.classList.remove('mt-busy');
-  }, doneAt);
+  setTimeout(()=>{ minTimeElapsed = true; tryHideVeil(); }, minHideAt);
 }
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
@@ -2239,6 +2233,26 @@ function setSiteMode(newMode){
   if(modeTransitionBusy) return;
   modeTransitionBusy = true;
   modeToggleBtn.classList.add('mt-busy');
+
+  // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
+  // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야 다시
+  // 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
+  // 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의 will-change/
+  // translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
+  // 이전엔 이 워밍업을 트랜지션 시작 1프레임 전(runModeBlurTransition, 약 16ms
+  // 리드타임)에만 줬는데도 프레임 누락이 남아있었음 — 그래서 지금은 토글을
+  // 누른 바로 이 순간부터 미리 트랜지션 없이 시각적으로 감지 불가능한
+  // opacity(.001)를 찍어 강제 리플로우해둠. 실제 트랜지션은 프리롤+베일인
+  // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 530ms) 뒤에야 시작되므로, 레이어가
+  // 자리잡을 리드타임이 1프레임→약 530ms로 크게 늘어남. 대기 상태(opacity:0)는
+  // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
+  // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
+  // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
+  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)을 고려할 것.
+  const overlay = ensureModeBlurOverlay();
+  overlay.style.transition = 'none';
+  overlay.style.opacity = '0.001';
+  overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
 
   siteMode = newMode;
   localStorage.setItem('gh_mode', siteMode);
