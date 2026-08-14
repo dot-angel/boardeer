@@ -407,32 +407,31 @@ body::before{
 .mode-toggle.mt-busy{ pointer-events: none; }
 
 
-/* ---------- 다크·라이트 전환 연출: 이제는 "가려서 숨기는" 용도가 아니라
-   블러 베일 + 환영 문구를 잠깐 얹어주는 장식용 레이어일 뿐임.
+/* ---------- 다크·라이트 전환 연출: "가려서 숨기는" 용도가 아니라
+   블러 베일을 잠깐 얹어 리스너 갱신 타이밍만 살짝 뭉개주는 장식용 레이어.
    실제 색 전환의 자연스러움은 위 body의 --rose/--paper/--ink 등 @property
    transition이 만들어주므로(색 자체가 진짜로 서서히 크로스페이드됨), 이
-   오버레이는 더 이상 색이 훅 바뀌는 걸 가릴 필요가 없음 — 위젯마다 제각각인
-   리스너 갱신 타이밍만 살짝 뭉개주는 용도.
-   ⚠️ 블러 세기는 전용 변수 --glass-blur-mode-veil(9px)만 씀 — 카드/모달이 쓰는
-   --glass-blur(12px)나 라이트박스의 --glass-blur-thin(4px)과 분리해뒀기 때문에,
-   여기서 세기를 올려도 다른 곳의 블러 렌더링 비용에는 영향이 없음. 예전에
-   blur(14px)를 화면 전체에 걸었을 때 버벅였던 원인은 세기 자체가 아니라 화면
-   전체 블러가 카드별 블러(backdrop-filter)와 매 프레임 같이 겹쳐 계산됐기
-   때문이었는데, 이 오버레이는 어차피 카드보다 위(z-index:600)의 단일 레이어라
-   그 문제와는 무관함 — 다만 무거워지지 않도록 노출 시간은 여전히 짧게(수백ms)
-   유지하고 in/out만 트랜지션함(계속 떠있는 블러가 아님). */
+   오버레이는 화면을 색으로 덮을 필요가 없어서 배경색 틴트는 아예 뺌 — 오직
+   블러(backdrop-filter)만 살짝 얹었다 걷음.
+   ⚠️ 버벅임의 실제 원인: backdrop-filter의 "세기(반경)" 자체를 transition으로
+   보간하면(blur(0px)→blur(9px)처럼), 브라우저가 매 프레임 다른 반경으로 블러를
+   전부 다시 계산해야 해서 매우 무거움 — 특히 이 순간 카드들도 --card-bg 등
+   색이 동시에 크로스페이드되고 있어 배경 자체가 계속 바뀌는데, 거기에 블러
+   반경까지 매 프레임 달라지면 이중으로 무거워짐. 그래서 이제 backdrop-filter는
+   --glass-blur-mode-veil(9px)로 항상 고정해두고, 오직 opacity만 트랜지션함
+   (블러 반경은 그대로 둔 채 알파 합성만 바뀌는 거라 훨씬 가벼움). 노출 시간도
+   여전히 짧게(수백ms) 유지함. */
 .mode-blur-overlay{
   position: fixed; inset:0; z-index:600;
   pointer-events:none;
   display:flex; align-items:center; justify-content:center;
-  background: rgba(var(--ink-rgb),0);
-  backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px);
-  transition: background .34s ease, backdrop-filter .34s ease, -webkit-backdrop-filter .34s ease;
-  will-change: backdrop-filter, background;
+  opacity: 0;
+  backdrop-filter: var(--glass-blur-mode-veil); -webkit-backdrop-filter: var(--glass-blur-mode-veil);
+  transition: opacity .34s ease;
+  will-change: opacity;
 }
 .mode-blur-overlay.show{
-  background: rgba(var(--ink-rgb),0.14);
-  backdrop-filter: var(--glass-blur-mode-veil); -webkit-backdrop-filter: var(--glass-blur-mode-veil);
+  opacity: 1;
 }
 /* backdrop-filter 미지원 브라우저는 블러가 아예 안 걸리지만, 어차피 색 전환
    자체가 실제로 부드럽게 이어지므로(위 body transition) 별도 보정이 필요 없음 */
