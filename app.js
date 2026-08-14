@@ -2113,16 +2113,17 @@ function subscribeModeMeta(){
 subscribeModeMeta();
 
 /* ---------------- 모드 전환 연출 ----------------
-   색이 실제로 자연스럽게 이어지는 건 이제 style.css의 body에 걸어둔
-   --rose/--paper/--ink 등 @property + transition이 담당함(값 자체가 진짜로
-   서서히 크로스페이드됨) — 그래서 여기 오버레이는 더 이상 "다 가려질 때까지
-   기다렸다가 바꿔치기"할 필요가 없고, 그저:
+   이제 전환의 주인공은 화면 전체를 덮는 "색상 디졸브"임 — 지금 보이는 테마색에서
+   이동할 테마색으로 베일이 서서히 물들어가고(style.css .mode-blur-overlay의
+   background-color transition), 블러는 그 디졸브가 진행되는 동안 뒤 요소가
+   갱신되는 순간만 살짝 뭉개주는 보조 역할로 줄여둠(--glass-blur-mode-veil).
+   순서:
    1) 스위치 썸이 먼저 슥 움직이는 걸 보여줌(프리롤)
-   2) 조금 더 또렷한 블러 베일을 얹으면서 곧바로 테마를 바꿔치기 → 색 전환이
-      바로 시작됨(베일은 배경 이미지·배너처럼 CSS transition으로 못 덮는
-      요소들이 Firestore에서 새로 도착하는 그 짧은 순간만 뭉개주는 용도 —
-      화면 전체에 짧게(수백ms)만 걸리는 데다 전용 변수(--glass-blur-mode-veil)로
-      분리해뒀기 때문에 세기를 올려도 다른 UI의 블러 비용에는 영향이 없음)
+   2) 베일이 "지금 화면 색"으로 미리 칠해진 채 떠오르고, 거의 동시에 테마가
+      바뀌치기됨 → 그 직후 베일의 background-color를 "이동할 모드의 색"으로
+      바꿔서 트랜지션이 시작되면 화면이 실제로 색 대 색으로 디졸브되는 게 보임
+      (베일은 배경 이미지·배너처럼 CSS transition으로 못 덮는 요소들이
+      Firestore에서 새로 도착하는 그 짧은 순간을 같이 가려주는 역할도 겸함)
    3) "OOO에 오신 것을 환영합니다" 문구를 잠깐 띄웠다가
    4) 문구가 사라지고 베일도 걷힘
    숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
@@ -2157,9 +2158,9 @@ let modeTransitionBusy = false;
 // 트랜지션 시작과 겹치면 블러가 아직 안 걸린 프레임이 한 장 섞여 들어가는
 // 경우가 보고됨(아래 setSiteMode의 워밍업 주석 참고 — 리드타임을 530ms까지
 // 늘려도 남아있었음). 그래서 이 브라우저 한정으로는 재승격이 필요한
-// backdrop-filter 자체를 안 쓰고 단색 커튼으로 갈음함(style.css의
-// .mbo-no-blur 참고) — 재승격이라는 절차 자체가 없어지므로 타이밍에 흔들릴
-// 여지가 원천적으로 사라짐.
+// backdrop-filter만 빼고 씀(style.css의 .mbo-no-blur 참고) — 색상 디졸브
+// (background-color transition)는 재승격과 무관하게 그대로 동작하므로, 블러
+// 프레임 한 장이 섞여도 전환 자체는 색으로 계속 자연스럽게 보임.
 const isSamsungInternet = /SamsungBrowser/i.test(navigator.userAgent);
 
 // 오버레이/문구는 딱 한 번만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
@@ -2229,6 +2230,14 @@ function runModeBlurTransition(newMode){
     // body.mode-swap-snap 주석 참고)
     document.body.classList.add('mode-swap-snap');
     applyModeClass();
+    // 베일은 setSiteMode()에서 이미 "지금 화면 색"으로 칠해져 있음(전환 시작점) —
+    // 여기서 "이동할 모드의 색"으로 바꿔주면(전환 도착점) style.css의
+    // background-color transition(.6s)이 그 사이를 실제로 디졸브해줌. 커스텀 테마
+    // 색은 Firestore에서 비동기로 도착하므로(아래 subscribeModeMeta), 정확한 최종
+    // 색 대신 그 모드의 기본 팔레트 색을 도착점으로 씀 — 장식용 디졸브라 오차가
+    // 커도 눈에 띄지 않고, 커스텀 색은 베일이 걷힌 뒤 카드/배경 자체에 이미 정확히
+    // 반영돼 있음
+    overlay.style.backgroundColor = DEFAULT_THEME_BY_MODE[newMode].paper;
     subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
   }, themeSwapAt);
 
@@ -2264,6 +2273,11 @@ function setSiteMode(newMode){
   const overlay = ensureModeBlurOverlay();
   overlay.style.transition = 'none';
   overlay.style.opacity = '0.001';
+  // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --paper를 그대로
+  // 찍어둠(커스텀 테마든 기본 팔레트든 항상 지금 보이는 색과 정확히 일치함). 아직
+  // transition이 'none'인 상태에서 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은
+  // 아래 runModeBlurTransition()의 themeSwapAt 시점에 새로 지정됨
+  overlay.style.backgroundColor = getComputedStyle(document.body).getPropertyValue('--paper').trim();
   overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
 
   siteMode = newMode;
@@ -7514,7 +7528,14 @@ async function renderSpeechCard(){
    그 시점에 스크립트를 동적으로 끼워넣도록 바꿔서, 실제로 쓸 때만 불러오게 함.
    이미 불러왔으면 다시 안 불러오고, 로딩 중에 또 열리면 같은 로딩을 같이 기다림.
    실패해도(네트워크 문제 등) 조용히 false를 반환해서 기존과 동일하게 어두운
-   틴트만 남는 폴백으로 이어짐. */
+   틴트만 남는 폴백으로 이어짐.
+   ⚠️ 다만 이 "처음 열 때만 불러오기"가 바로 첫 클릭 지연의 원인이기도 함 — 방문자가
+   버튼을 누른 그 순간에야 네트워크로 스크립트를 요청하니, 그 왕복 시간만큼 배경
+   캡쳐가 늦게 나타남(불러온 뒤로는 typeof html2canvas==='function'이라 이 함수가
+   바로 resolve되므로 이후엔 안 느림 — 새로고침하면 다시 첫 클릭에서만 반복됨).
+   그래서 아래 prewarmSpeechWidget()에서 위젯이 실제로 켜져 있는 프로필에 한해 브라우저가
+   한가한 시간(requestIdleCallback)에 이 함수를 미리 한 번 불러둠 — 클릭 시점엔 이미
+   로드가 끝나 있거나 진행 중이라 첫 클릭도 이후 클릭과 동일하게 빨라짐. */
 let _html2canvasLoadPromise = null;
 function ensureHtml2Canvas(){
   if(typeof html2canvas === 'function') return Promise.resolve(true);
@@ -7527,6 +7548,25 @@ function ensureHtml2Canvas(){
     document.head.appendChild(s);
   });
   return _html2canvasLoadPromise;
+}
+
+/* 말풍선 위젯 첫 클릭 지연의 또 다른(오히려 더 큰) 원인 — 캐릭터 이미지(탭 안 characters[].avatar)는
+   커버 사진과 달리 평소 화면(카드)엔 안 쓰이므로, 방문자가 카드를 눌러 오버레이의 renderStage()가
+   처음 실행될 때에야 speechResolveCharacterUrl()→loadFileChunked()로 Firestore 청크 문서들을 그제서야
+   읽어옴. 그 왕복 시간 동안 스테이지가 비어 보여서 "눌렀는데 한동안 안 뜬다"로 느껴짐. 한번 읽고 나면
+   chunkedImageCache(메모리 Map)에 재사용 가능한 형태로 남아있어 같은 세션에서 다시 열 땐 즉시 뜨지만,
+   새로고침하면 이 메모리 캐시가 비워져 다음 첫 클릭에서 또 같은 지연이 반복됨.
+   ⚠️ 개선 방향: 클릭을 "느리게 하는 일"을 클릭 "전에" 미리 끝내두면 됨 — 방문자가 실제로 누르기도 전에,
+   브라우저가 한가한 시간에 어차피 열릴 가능성이 큰 탭(프로필과 연동된 탭, speechPickLinkedTabId 참고)의
+   이미지 두 장만 미리 읽어 캐시를 데워둠. 위젯을 아예 안 쓰는 프로필(tabs가 비어있음)에서는 아무 것도
+   안 하므로, 예열 로직 자체가 불필요한 다운로드를 만들지는 않음. */
+function prewarmSpeechWidget(){
+  const tabs = speechWidgetData.tabs || [];
+  if(tabs.length === 0) return; // 위젯을 안 쓰는 프로필이면 아무 것도 미리 불러오지 않음
+  ensureHtml2Canvas(); // 실패해도 조용히 무시되고, 클릭 시 다시 캡쳐를 시도하는 기존 폴백으로 이어짐
+  const linkedId = speechPickLinkedTabId();
+  const tab = tabs.find(t=> t.id === linkedId);
+  if(tab) tab.characters.forEach(c=> speechResolveCharacterUrl(c).catch(()=>{}));
 }
 
 function closeSpeechOverlay(){
@@ -7677,7 +7717,12 @@ function openSpeechOverlay(initialTabId){
     const tabs = speechWidgetData.tabs || [];
     const tab = tabs.find(t=> t.id === activeId);
     if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
+    // prewarmSpeechWidget()으로 미리 데워둔 경우 chunkedImageCache에 이미 있어서 아래 await가
+    // 사실상 즉시 끝나 이 줄은 화면에 보이지도 않고 넘어감 — 예열이 아직 안 끝난 드문 경우(막
+    // 새로고침한 직후 곧바로 클릭 등)에만 잠깐 보여서, 빈 스테이지가 "멈춘 것처럼" 보이는 걸 막음
+    stage.innerHTML = `<div class="speech-empty-hint">불러오는 중…</div>`;
     const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
+    if(activeId !== tab.id) return; // 로딩되는 사이 다른 탭으로 넘어갔으면 여기서 그만둠
     stage.innerHTML = urls.map((url, idx)=> url
       ? `<div class="speech-charbox" data-char="${idx}"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`
       : ''
@@ -8864,6 +8909,10 @@ docRef('speechWidget').onSnapshot(doc=>{
   const d = doc.exists ? doc.data() : {};
   speechWidgetData = { tabs: (d.tabs || []).map(normalizeSpeechTab), cover: normalizeSpeechCover(d.cover) };
   renderSpeechCard();
+  // 방문자가 위젯을 실제로 누르기 전에, 브라우저가 한가한 틈에 첫 클릭에서 쓰일 캐릭터 이미지·
+  // html2canvas를 미리 데워둠(위 prewarmSpeechWidget 주석 참고) — 아래 갤러리 탭 예열과 같은 패턴
+  if('requestIdleCallback' in window) requestIdleCallback(prewarmSpeechWidget, { timeout: 4000 });
+  else setTimeout(prewarmSpeechWidget, 2500);
 });
 
 docRef('stickers').onSnapshot(doc=>{ stickerPosData = doc.exists ? doc.data() : { positions:{} }; renderStickers(); });

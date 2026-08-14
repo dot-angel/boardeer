@@ -88,15 +88,13 @@
   --glass-blur: blur(12px) saturate(150%);       /* 큰 유리 표면(카드/모달/토스트) */
   --glass-blur-med: blur(7px) saturate(140%);    /* 작은 버튼/배지류 */
   --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) — 라이트박스 등과 공용 */
-  --glass-blur-mode-veil: blur(50px) saturate(150%); /* 모드 전환 베일 전용 — 화면 전체에 아주 짧게(수백ms)만 걸리므로 --glass-blur-thin보다 세게 써도 부담이 적음. 다른 오버레이와 변수를 분리해서 여기만 세져도 라이트박스 등엔 영향 없음.
-     한때 80px까지 올렸었는데, 그 세기에선 이 베일 바로 아래에서 동시에 진행 중인 body의
-     팔레트 크로스페이드(아래 --rose/--paper/--ink 등 .65s 트랜지션)가 눈에 띄게 끊겨(뚝뚝
-     끊기는 느낌으로) 보였음. 반경이 opacity처럼 "값 자체가" 매 프레임 보간되진 않지만(그래서
-     반경을 바꾸는 것보다는 훨씬 가벼움), 고정 반경이라도 화면 전체 크기의 블러 연산 자체는
-     반경이 커질수록 매 프레임 비용이 늘어남 — 게다가 이 순간엔 배경(팔레트 색)도 실제로
-     계속 바뀌고 있어서 블러가 매번 새로 계산해야 할 원본이 정적이지 않고 변하는 중이라
-     더해서 무거워짐. 50px 정도가 "배경은 충분히 흐려서 형체를 알아보기 어렵고, 그 아래
-     크로스페이드도 프레임이 밀리지 않고 매끄러운" 균형점으로 확인됨. */
+  --glass-blur-mode-veil: blur(16px) saturate(130%); /* 모드 전환 베일 전용.
+     예전엔 50px까지 세게 걸어서 뒤 내용을 완전히 뭉개는 용도로만 썼는데, 이제 베일 위에
+     실제 테마색이 서서히 디졸브되는 색상 레이어(app.js가 인라인 background-color를
+     현재색→도착색으로 트랜지션시킴, 아래 .mode-blur-overlay 참고)가 함께 올라가면서
+     그 레이어가 이미 뒤를 상당 부분 덮어주므로, 블러 자체는 "뒤 요소가 갱신되는 순간을
+     살짝 뭉개는" 보조 역할로 줄여도 충분함. 반경을 낮추면 화면 전체 크기의 블러 연산
+     비용도 그만큼 줄어 저사양 기기에서 더 가벼움. */
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   /* 한국어·영어는 ZEN SERIF/Noto Sans KR로 커버되고, 그 외 언어(일본어·중국어·기타 문자 등)는
      이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
@@ -455,34 +453,37 @@ body::before{
 .mode-toggle.mt-busy{ pointer-events: none; }
 
 
-/* ---------- 다크·라이트 전환 연출: "가려서 숨기는" 용도가 아니라
-   블러 베일을 잠깐 얹어 리스너 갱신 타이밍만 살짝 뭉개주는 장식용 레이어.
-   실제 색 전환의 자연스러움은 위 body의 --rose/--paper/--ink 등 @property
-   transition이 만들어주므로(색 자체가 진짜로 서서히 크로스페이드됨), 이
-   오버레이는 화면을 색으로 덮을 필요가 없어서 배경색 틴트는 아예 뺌 — 오직
-   블러(backdrop-filter)만 살짝 얹었다 걷음.
-   ⚠️ 버벅임의 실제 원인: backdrop-filter의 "세기(반경)" 자체를 transition으로
-   보간하면(blur(0px)→blur(9px)처럼), 브라우저가 매 프레임 다른 반경으로 블러를
-   전부 다시 계산해야 해서 매우 무거움 — 특히 이 순간 카드들도 --card-bg 등
-   색이 동시에 크로스페이드되고 있어 배경 자체가 계속 바뀌는데, 거기에 블러
-   반경까지 매 프레임 달라지면 이중으로 무거워짐. 그래서 이제 backdrop-filter는
-   --glass-blur-mode-veil(현재 50px)로 항상 고정해두고, 오직 opacity만 트랜지션함
-   (블러 반경은 그대로 둔 채 알파 합성만 바뀌는 거라 훨씬 가벼움). 노출 시간도
-   여전히 짧게(수백ms) 유지함. */
+/* ---------- 다크·라이트 전환 연출: 화면 전체를 "현재 테마색 → 이동할 테마색"으로
+   서서히 디졸브시키는 색상 레이어 + 그 위에 얇게 얹는 블러 베일.
+   예전엔 블러만 얹어뒀고(배경색 틴트는 아예 없었음) body의 --rose/--paper/--ink 등
+   @property 크로스페이드가 색 전환을 담당했는데, 그 크로스페이드는 베일 뒤에서 색이
+   스냅되는 mode-swap-snap 구간(아래 body.mode-swap-snap 참고) 동안엔 어차피 안 보였음
+   — 즉 "색이 실제로 눈에 보이며 이어지는" 연출이 없었던 셈. 그래서 이제 이 오버레이
+   자체에 background-color를 두고, app.js가 전환이 시작될 때 지금 화면의 실제 색을
+   인라인으로 찍어둔 뒤(전환 시작점), 테마가 바뀌치기되는 시점에 도착 모드의 색으로
+   바꿔치기함(전환 도착점) — 그 사이는 아래 transition의 background-color가 자연스럽게
+   보간해줘서, "화면이 통째로 지금 색에서 다음 색으로 물드는" 디졸브가 실제로 보임.
+   블러는 이제 그 디졸브를 보조하는 정도로만 얇게 남겨둠(--glass-blur-mode-veil 참고).
+   ⚠️ 성능: backdrop-filter의 "세기(반경)" 자체를 transition으로 보간하면(blur(0px)→
+   blur(9px)처럼) 브라우저가 매 프레임 다른 반경으로 블러를 전부 다시 계산해야 해서
+   매우 무거움 — 그래서 반경은 --glass-blur-mode-veil로 항상 고정해두고 opacity만
+   트랜지션함. background-color 트랜지션은 반경 보간과 달리 단순 색상 보간/알파 합성이라
+   (body의 --paper 등 색 트랜지션과 같은 종류) 비용이 낮아 같이 얹어도 무겁지 않음. */
 .mode-blur-overlay{
   position: fixed; inset:0; z-index:600;
   pointer-events:none;
   display:flex; align-items:center; justify-content:center;
   opacity: 0;
+  background-color: transparent; /* app.js가 전환마다 시작색→도착색을 인라인으로 지정함 */
   backdrop-filter: var(--glass-blur-mode-veil); -webkit-backdrop-filter: var(--glass-blur-mode-veil);
-  transition: opacity .34s ease;
+  transition: opacity .34s ease, background-color .6s ease;
   /* translateZ(0)로 이 레이어를 "항상" 별도 GPU 합성 레이어로 미리 승격해 둠 — 모바일 크로미움
      계열(삼성인터넷 포함)은 opacity:0으로 안 보이는 동안엔 레이어를 안 들고 있다가 트랜지션이
      시작되는 순간에야 새로 승격하는 경우가 있는데, 그 재승격 처리가 끼어들면 블러가 아직
      안 걸린 프레임이 한 장 섞여 들어가 전환 순간에 "끊기는" 것처럼 보일 수 있음(삼성인터넷에서
      보고된 증상과 일치). 레이어를 상시 승격 상태로 유지해두면 이 지연이 사라짐 */
   transform: translateZ(0);
-  will-change: opacity, transform;
+  will-change: opacity, transform, background-color;
 }
 .mode-blur-overlay.show{
   opacity: 1;
@@ -492,20 +493,16 @@ body::before{
    경우가 있음(위 .mode-blur-overlay 워밍업 주석 참고 — 리드타임을 530ms까지
    늘려도 그 재승격 처리 자체가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
    프레임이 한 장 섞여 들어가 "전환 순간 블러 누락"으로 보일 수 있음). 이
-   브라우저 한정으로는 재승격이 필요한 backdrop-filter 자체를 아예 안 쓰고,
-   매 프레임 다시 계산할 것도 없는 고정 단색 커튼으로 갈음함 — opacity만
-   바뀌는 단순 합성이라 레이어 타이밍에 흔들릴 여지가 원천적으로 없음. 색은
-   모드와 무관하게 다크 페이퍼 톤으로 고정해서, --paper가 스냅되는 순간(위
-   body.mode-swap-snap 참고) 커튼 색까지 같이 튀어 보이는 걸 피함 — 베일은
-   어느 쪽 모드로 가든 잠깐 가려주기만 하면 되는 용도라 문제 없고, 흰색
-   welcome-text와의 대비도 항상 보장됨. 적용 여부는 app.js의
+   브라우저 한정으로는 재승격이 필요한 backdrop-filter만 빼고 색상 디졸브는
+   그대로 씀 — 이제 background-color 자체가 이미 화면을 상당히 덮어주는 단색
+   레이어라, 재승격 프레임 하나가 섞여도 블러만 살짝 덜 걸린 프레임일 뿐 색
+   디졸브 자체는 그대로 보이므로 예전만큼 눈에 띄지 않음. 적용 여부는 app.js의
    isSamsungInternet이 .mode-blur-overlay 생성 시 이 클래스를 붙여서 결정함. */
 .mode-blur-overlay.mbo-no-blur{
   backdrop-filter: none; -webkit-backdrop-filter: none;
-  background: rgba(15,4,6,0.94);
 }
-/* backdrop-filter 미지원 브라우저는 블러가 아예 안 걸리지만, 어차피 색 전환
-   자체가 실제로 부드럽게 이어지므로(위 body transition) 별도 보정이 필요 없음 */
+/* backdrop-filter 미지원 브라우저는 블러가 아예 안 걸리지만, background-color
+   디졸브만으로도 전환이 자연스럽게 보이므로 별도 보정이 필요 없음 */
 .mode-welcome-text{
   font-family: var(--font-display);
   font-size: clamp(1.25rem, 4.2vw, 2.15rem);
