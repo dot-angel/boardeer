@@ -2019,8 +2019,8 @@ subscribeModeMeta();
    .mode-blur-overlay transition 시간과 맞춰야 함) */
 const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사이 간격
 const MODE_VEIL_IN_MS = 320;        // 베일이 옅게 걸리는 시간(=테마가 실제로 바뀌는 시점)
-const MODE_COLOR_CROSSFADE_MS = 650; // 색상(--rose/--paper/--ink 등)이 실제로 다 자리잡는 데 걸리는 시간 — style.css body의 transition(.65s)과 반드시 같아야 함
-const MODE_TEXT_DELAY_MS = MODE_COLOR_CROSSFADE_MS; // 문구는 색이 "다 자리잡은 뒤"에 뜨기 시작함(아래 이유 참고)
+const MODE_COLOR_CROSSFADE_MS = 650; // 화면의 나머지 색(--rose/--paper/--ink 등)이 실제로 다 자리잡는 데 걸리는 시간 — style.css body의 transition(.65s)과 반드시 같아야 함. 베일/문구가 이보다 먼저 걷히면 안 됨(크로스페이드가 덜 끝난 채로 드러나 버림)
+const MODE_TEXT_DELAY_MS = 60;      // 테마가 바뀐 뒤 문구가 뜨기 시작하기까지의 짧은 텀
 const MODE_TEXT_FADE_MS = 320;      // 문구가 서서히 뜨고/사라지는 시간 — style.css .mode-welcome-text의 transition(.32s)과 반드시 같아야 함
 const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 시간 — 읽는 시간을 늘리고 싶으면 이 값만 늘리면 됨
 const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
@@ -2028,14 +2028,11 @@ const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
    발동해버려서, 문구가 최대 밝기까지 못 올라가고 바로 꺼지는 버그가 있었음(그래서
    "뜨는 시간이 너무 짧다"고 느껴졌던 것). 지금은 아래 runModeBlurTransition()에서
    "페이드인이 다 끝난 뒤에" hold 시간을 더하는 방식으로 순서를 명확히 함.
-   또한 MODE_TEXT_DELAY_MS를 색 크로스페이드 시간(MODE_COLOR_CROSSFADE_MS)과
-   똑같이 맞춰서, 문구는 반드시 --ink 색이 완전히 새 색으로 다 정착된 뒤에만
-   뜨기 시작하게 함 — 예전엔 문구가 60ms만에 뜨기 시작해서, 뜨는 도중(opacity가
-   올라가는 그 순간)에 글자색(--ink)도 같이 옛 색→새 색으로 크로스페이드되고
-   있었음. 배경처럼 넓은 면적은 색이 서서히 바뀌어도 티가 잘 안 나지만, 글자처럼
-   가는 획은 "뜨면서 동시에 색까지 바뀌면" 훨씬 불안정하고 흔들리는 느낌으로
-   보임 — 이게 문구 모션이 "불연속적"으로 느껴지던 원인. 색이 다 자리잡은 뒤에
-   문구가 뜨기 시작하게 하면, 문구는 항상 이미 안정된 최종 색으로만 나타남. */
+   문구 색은 --ink를 따라 크로스페이드하지 않고 모드별 고정값을 바로 박아둠(아래
+   runModeBlurTransition 안 주석 참고) — 그래서 문구는 색이 다 자리잡을 때까지
+   기다릴 필요 없이 짧은 텀(MODE_TEXT_DELAY_MS)만 지나면 바로 뜨기 시작함. 다만
+   베일/문구가 걷히는 시점(hideAt)만큼은 여전히 "화면의 나머지 색 크로스페이드가
+   다 끝난 시점(crossfadeSettledAt)"보다 먼저일 수 없게 막아둠. */
 
 let modeTransitionBusy = false;
 
