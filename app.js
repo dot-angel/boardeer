@@ -108,6 +108,11 @@ let siteMode = localStorage.getItem('gh_mode') === 'light' ? 'light' : 'dark';
 function metaDoc(base){
   return db.collection('meta').doc(siteMode === 'light' ? base + 'Light' : base);
 }
+/* 모드 전환 환영 문구가 --ink/--rose의 body 크로스페이드를 기다리지 않고도
+   바로 "그 모드의 진짜 강조색"을 쓸 수 있도록, 각 모드에서 마지막으로 로드된
+   실제 강조색(커스텀 테마가 있으면 그 값, 없으면 기본 팔레트)을 여기 캐싱해둠.
+   subscribeModeMeta()의 theme onSnapshot에서 매번 최신값으로 갱신됨. */
+let lastKnownAccent = { dark: null, light: null };
 const MODE_LABELS = { dark: '멧돼지관', light: '사슴관' };
 const MODE_ICONS = {
   dark: '<svg class="icon-svg" viewBox="0 0 24 24" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
@@ -1317,6 +1322,67 @@ function setElementBgImageWithFallback(el, url){
   tryNext();
 }
 
+/* ---------------- 배너 배경 크로스페이드 ----------------
+   예전엔 siteBannerEl.style.backgroundImage를 바로 갈아치워서 사진이 뚝 끊기듯
+   바뀌었음(background-image는 브라우저가 두 url() 사이를 보간해주지 않아서
+   transition을 걸어도 크로스페이드가 안 됨). 그래서 사진을 담는 레이어를 2장
+   준비해두고, 새 사진이 다 준비된 뒤에 "다음 레이어"에 얹고 opacity만 1로
+   올리면서 "현재 레이어"는 0으로 내려 서로 겹쳐 지나가듯 전환되게 함.
+   opacity 전환은 backdrop-filter처럼 매 프레임 다시 계산하는 무거운 연산이
+   아니라 레이어 합성(compositing)만 하면 되므로 가벼움. */
+let bannerBgLayerEls = null;
+let bannerBgActiveIdx = 0;
+function ensureBannerBgLayers(){
+  if(bannerBgLayerEls) return bannerBgLayerEls;
+  const a = document.createElement('div');
+  a.className = 'site-banner-bg-layer';
+  const b = document.createElement('div');
+  b.className = 'site-banner-bg-layer';
+  // scrim/배너 내용보다 먼저(=아래) 오도록 맨 앞에 끼워 넣음
+  siteBannerEl.prepend(b);
+  siteBannerEl.prepend(a);
+  bannerBgLayerEls = [a, b];
+  return bannerBgLayerEls;
+}
+function setBannerBgImageCrossfade(url){
+  const [a, b] = ensureBannerBgLayers();
+  const activeEl = bannerBgActiveIdx === 0 ? a : b;
+  const nextEl   = bannerBgActiveIdx === 0 ? b : a;
+
+  const swapIn = (finalUrl)=>{
+    nextEl.style.backgroundImage = finalUrl ? `url('${finalUrl}')` : '';
+    nextEl.classList.add('active');
+    activeEl.classList.remove('active');
+    bannerBgActiveIdx = bannerBgActiveIdx === 0 ? 1 : 0;
+  };
+
+  if(!url){ swapIn(''); return; }
+
+  // 크로스페이드는 사진이 실제로 준비된 뒤에만 시작해야, 로딩 중인 빈 레이어가
+  // 그대로 페이드인되어 잠깐 휑해 보이는 걸 막을 수 있음(그래서 기존
+  // setElementBgImageWithFallback의 "일단 낙관적으로 적용" 방식 대신, 여기서는
+  // Image()로 미리 불러와본 뒤에 swapIn함) — imgur 확장자 깨짐 폴백 로직은 동일하게 유지.
+  const m = url.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
+  if(!m){
+    const probe = new Image();
+    probe.onload = ()=> swapIn(url);
+    probe.onerror = ()=> swapIn(url); // 실패해도 예전과 동일하게 일단 그대로 시도
+    probe.src = url;
+    return;
+  }
+  const exts = ['jpg','jpeg','png','gif','webp'];
+  let i = 0;
+  const tryNext = ()=>{
+    if(i >= exts.length) return;
+    const testUrl = `${m[1]}.${exts[i]}`;
+    const probe = new Image();
+    probe.onload = ()=> swapIn(testUrl);
+    probe.onerror = ()=>{ i++; tryNext(); };
+    probe.src = testUrl;
+  };
+  tryNext();
+}
+
 function extractYouTubeId(url){
   if(!url) return null;
   const m = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/);
@@ -1970,12 +2036,12 @@ function subscribeModeMeta(){
     if(d.chunked && d.fileId){
       try{
         const dataUrl = await loadFileChunked(d.fileId, d.chunkTotal || 0);
-        setElementBgImageWithFallback(siteBannerEl, dataUrl);
-      }catch(e){ siteBannerEl.style.backgroundImage = ''; }
+        setBannerBgImageCrossfade(dataUrl);
+      }catch(e){ setBannerBgImageCrossfade(''); }
     } else if(d.image){
-      setElementBgImageWithFallback(siteBannerEl, d.image);
+      setBannerBgImageCrossfade(d.image);
     } else {
-      siteBannerEl.style.backgroundImage = '';
+      setBannerBgImageCrossfade('');
     }
   });
 
@@ -1999,7 +2065,11 @@ function subscribeModeMeta(){
     document.body.style.removeProperty('--font-display');
     document.body.style.removeProperty('--font-body');
     injectCustomFontFace(null);
-    if(doc.exists) applyTheme(doc.data());
+    const data = doc.exists ? doc.data() : null;
+    if(data) applyTheme(data);
+    // 이 모드의 실제 강조색(커스텀 테마가 있으면 그 값, 없으면 기본 팔레트)을
+    // 캐싱 — 다음 번 이 모드로 전환할 때 모드 전환 문구가 곧바로 참조함
+    lastKnownAccent[siteMode] = (data && data.rose) || (DEFAULT_THEME_BY_MODE[siteMode] || DEFAULT_THEME_BY_MODE.dark).rose;
   });
 }
 subscribeModeMeta();
@@ -2010,29 +2080,32 @@ subscribeModeMeta();
    서서히 크로스페이드됨) — 그래서 여기 오버레이는 더 이상 "다 가려질 때까지
    기다렸다가 바꿔치기"할 필요가 없고, 그저:
    1) 스위치 썸이 먼저 슥 움직이는 걸 보여줌(프리롤)
-   2) 아주 옅은 블러 베일을 살짝 얹으면서 곧바로 테마를 바꿔치기 → 색 전환이
+   2) 조금 더 또렷한 블러 베일을 얹으면서 곧바로 테마를 바꿔치기 → 색 전환이
       바로 시작됨(베일은 배경 이미지·배너처럼 CSS transition으로 못 덮는
-      요소들이 Firestore에서 새로 도착하는 그 짧은 순간만 살짝 뭉개주는 용도)
+      요소들이 Firestore에서 새로 도착하는 그 짧은 순간만 뭉개주는 용도 —
+      화면 전체에 짧게(수백ms)만 걸리는 데다 전용 변수(--glass-blur-mode-veil)로
+      분리해뒀기 때문에 세기를 올려도 다른 UI의 블러 비용에는 영향이 없음)
    3) "OOO에 오신 것을 환영합니다" 문구를 잠깐 띄웠다가
    4) 문구가 사라지고 베일도 걷힘
    숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
    .mode-blur-overlay transition 시간과 맞춰야 함) */
 const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사이 간격
-const MODE_VEIL_IN_MS = 320;        // 베일이 옅게 걸리는 시간(=테마가 실제로 바뀌는 시점)
-const MODE_COLOR_CROSSFADE_MS = 650; // 화면의 나머지 색(--rose/--paper/--ink 등)이 실제로 다 자리잡는 데 걸리는 시간 — style.css body의 transition(.65s)과 반드시 같아야 함. 베일/문구가 이보다 먼저 걷히면 안 됨(크로스페이드가 덜 끝난 채로 드러나 버림)
-const MODE_TEXT_DELAY_MS = 60;      // 테마가 바뀐 뒤 문구가 뜨기 시작하기까지의 짧은 텀
+const MODE_VEIL_IN_MS = 320;        // 베일이 걸리는 시간(=테마가 실제로 바뀌는 시점)
+/* 문구 글자색은 더 이상 --ink/--rose의 body 크로스페이드(.65s)를 상속받지 않고,
+   runModeBlurTransition()에서 lastKnownAccent[newMode](=그 모드의 실제 강조색)를
+   문구 엘리먼트에 직접 인라인으로 확정해버림 — 그래서 문구는 "서서히 물드는" 대신
+   뜨는 순간부터 항상 목표 색 그대로임. 예전엔 글자가 뜨는 도중에 색까지 같이
+   바뀌면 가는 획이 흔들려 보이는 문제 때문에, 문구를 색이 "다 자리잡을 때까지"
+   (650ms) 기다렸다가 뜨게 했었는데, 이제 그 문제 자체가 없어져서 그만큼
+   기다릴 필요도 사라짐 → 아래 딜레이를 짧게 줄여 전체 연출 시간을 단축함. */
+const MODE_TEXT_DELAY_MS = 90;      // 베일이 자리잡은 뒤 문구가 뜨기 시작하기까지의 짧은 텀
 const MODE_TEXT_FADE_MS = 320;      // 문구가 서서히 뜨고/사라지는 시간 — style.css .mode-welcome-text의 transition(.32s)과 반드시 같아야 함
 const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 시간 — 읽는 시간을 늘리고 싶으면 이 값만 늘리면 됨
 const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
 /* 예전엔 문구가 다 뜨기도 전에(페이드인 320ms가 끝나기 전) 사라지는 타이머가 먼저
    발동해버려서, 문구가 최대 밝기까지 못 올라가고 바로 꺼지는 버그가 있었음(그래서
-   "뜨는 시간이 너무 짧다"고 느껴졌던 것). 지금은 아래 runModeBlurTransition()에서
-   "페이드인이 다 끝난 뒤에" hold 시간을 더하는 방식으로 순서를 명확히 함.
-   문구 색은 --ink를 따라 크로스페이드하지 않고 모드별 고정값을 바로 박아둠(아래
-   runModeBlurTransition 안 주석 참고) — 그래서 문구는 색이 다 자리잡을 때까지
-   기다릴 필요 없이 짧은 텀(MODE_TEXT_DELAY_MS)만 지나면 바로 뜨기 시작함. 다만
-   베일/문구가 걷히는 시점(hideAt)만큼은 여전히 "화면의 나머지 색 크로스페이드가
-   다 끝난 시점(crossfadeSettledAt)"보다 먼저일 수 없게 막아둠. */
+   "뜨는 시간이 너무 짧다"고 느껴졌던 것). 지금도 아래 runModeBlurTransition()에서
+   "페이드인이 다 끝난 뒤에" hold 시간을 더하는 방식으로 순서를 명확히 유지함. */
 
 let modeTransitionBusy = false;
 
@@ -2053,6 +2126,10 @@ function ensureModeBlurOverlay(){
 function runModeBlurTransition(newMode){
   const overlay = ensureModeBlurOverlay();
   modeWelcomeTextEl.textContent = MODE_LABELS[newMode] + '에 오신 것을 환영합니다.';
+  // 문구 색은 var(--ink) 상속을 끊고, 전환될 모드의 실제 강조색을 지금 바로 확정해
+  // 인라인으로 씌움 — 처음 뜰 때부터 이미 목표 색이라 서서히 물드는 구간이 없음.
+  modeWelcomeTextEl.style.color =
+    lastKnownAccent[newMode] || (DEFAULT_THEME_BY_MODE[newMode] || DEFAULT_THEME_BY_MODE.dark).rose;
 
   requestAnimationFrame(()=>{
     overlay.classList.add('show');

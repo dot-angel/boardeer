@@ -87,7 +87,8 @@
      렌더링 비용은 눈에 띄게 줄어듦. */
   --glass-blur: blur(12px) saturate(150%);       /* 큰 유리 표면(카드/모달/토스트) */
   --glass-blur-med: blur(7px) saturate(140%);    /* 작은 버튼/배지류 */
-  --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) */
+  --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) — 라이트박스 등과 공용 */
+  --glass-blur-mode-veil: blur(9px) saturate(150%); /* 모드 전환 베일 전용 — 화면 전체에 아주 짧게(수백ms)만 걸리므로 --glass-blur-thin보다 세게 써도 부담이 적음. 다른 오버레이와 변수를 분리해서 여기만 세져도 라이트박스 등엔 영향 없음 */
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   /* 한국어·영어는 ZEN SERIF/Noto Sans KR로 커버되고, 그 외 언어(일본어·중국어·기타 문자 등)는
      이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
@@ -221,12 +222,24 @@ body::before{
 .site-banner{
   position: relative; width: 100%; height: 360px;
   background-color: var(--paper-deep);
-  background-size: cover; background-position: center;
   border-bottom: 1px solid var(--card-border);
   display:flex; align-items:flex-end; overflow:hidden;
 }
+/* 배너 사진 크로스페이드용 레이어 2장 — app.js의 setBannerBgImageCrossfade()가
+   번갈아 여기에 새 사진을 얹고 opacity만 전환해서, 배너 사진이 있는 경우에도
+   뚝 끊기지 않고 겹쳐 지나가듯 자연스럽게 바뀌게 함(.site-banner 자신의
+   background-image는 더 이상 안 씀 — 그 기능을 이 두 레이어가 대신함).
+   backdrop-filter가 아니라 opacity 전환이라 가볍게 처리됨. */
+.site-banner-bg-layer{
+  position:absolute; inset:0; z-index:0;
+  background-size:cover; background-position:center;
+  opacity:0;
+  transition: opacity .5s ease;
+  pointer-events:none;
+}
+.site-banner-bg-layer.active{ opacity:1; }
 .site-banner-scrim{
-  position:absolute; inset:0;
+  position:absolute; inset:0; z-index:1;
   background: linear-gradient(180deg, rgba(15,4,6,0.05) 20%, rgba(10,3,5,0.9) 100%);
 }
 .banner-bottom{
@@ -395,17 +408,19 @@ body::before{
 
 
 /* ---------- 다크·라이트 전환 연출: 이제는 "가려서 숨기는" 용도가 아니라
-   아주 옅은 블러 베일 + 환영 문구를 잠깐 얹어주는 장식용 레이어일 뿐임.
+   블러 베일 + 환영 문구를 잠깐 얹어주는 장식용 레이어일 뿐임.
    실제 색 전환의 자연스러움은 위 body의 --rose/--paper/--ink 등 @property
    transition이 만들어주므로(색 자체가 진짜로 서서히 크로스페이드됨), 이
-   오버레이는 더 이상 색이 훅 바뀌는 걸 가릴 필요가 없음 — 그래서 불투명도를
-   낮게 유지하고, 위젯마다 제각각인 리스너 갱신 타이밍만 살짝 뭉개주는
-   최소한의 블러만 남겨둠.
-   ⚠️ 블러 세기는 반드시 --glass-blur-thin(4px)처럼 가벼운 값을 써야 함 — 예전에
-   blur(14px)를 화면 전체에 걸었더니, 이 순간 위젯 카드들도 동시에 색이
-   크로스페이드되고 카드 하나하나가 이미 자기 블러(backdrop-filter)를 쓰고
-   있어서, 화면 전체 블러 + 카드별 블러가 겹쳐 매 프레임 다시 계산되며 전환이
-   뚝뚝 끊기는 원인이 됐음(카드 여러 장 겹칠 때 버벅이던 것과 같은 이유). */
+   오버레이는 더 이상 색이 훅 바뀌는 걸 가릴 필요가 없음 — 위젯마다 제각각인
+   리스너 갱신 타이밍만 살짝 뭉개주는 용도.
+   ⚠️ 블러 세기는 전용 변수 --glass-blur-mode-veil(9px)만 씀 — 카드/모달이 쓰는
+   --glass-blur(12px)나 라이트박스의 --glass-blur-thin(4px)과 분리해뒀기 때문에,
+   여기서 세기를 올려도 다른 곳의 블러 렌더링 비용에는 영향이 없음. 예전에
+   blur(14px)를 화면 전체에 걸었을 때 버벅였던 원인은 세기 자체가 아니라 화면
+   전체 블러가 카드별 블러(backdrop-filter)와 매 프레임 같이 겹쳐 계산됐기
+   때문이었는데, 이 오버레이는 어차피 카드보다 위(z-index:600)의 단일 레이어라
+   그 문제와는 무관함 — 다만 무거워지지 않도록 노출 시간은 여전히 짧게(수백ms)
+   유지하고 in/out만 트랜지션함(계속 떠있는 블러가 아님). */
 .mode-blur-overlay{
   position: fixed; inset:0; z-index:600;
   pointer-events:none;
@@ -416,8 +431,8 @@ body::before{
   will-change: backdrop-filter, background;
 }
 .mode-blur-overlay.show{
-  background: rgba(var(--ink-rgb),0.1);
-  backdrop-filter: var(--glass-blur-thin); -webkit-backdrop-filter: var(--glass-blur-thin);
+  background: rgba(var(--ink-rgb),0.14);
+  backdrop-filter: var(--glass-blur-mode-veil); -webkit-backdrop-filter: var(--glass-blur-mode-veil);
 }
 /* backdrop-filter 미지원 브라우저는 블러가 아예 안 걸리지만, 어차피 색 전환
    자체가 실제로 부드럽게 이어지므로(위 body transition) 별도 보정이 필요 없음 */
@@ -426,13 +441,17 @@ body::before{
   font-size: clamp(1.25rem, 4.2vw, 2.15rem);
   font-weight: 700;
   letter-spacing: .04em;
-  color: var(--ink);
+  color: var(--ink); /* JS가 매번 인라인 style.color로 덮어씀 — 이건 안전망 기본값일 뿐 */
+  /* 글자색은 더 이상 var(--ink) 상속 + 크로스페이드가 아니라, app.js의
+     runModeBlurTransition()이 뜨기 직전에 목표 모드의 강조색을 인라인
+     style.color로 직접 확정함 — 그래서 여기 transition 목록에는 색을 넣지
+     않음(opacity/transform만 서서히, 색은 처음부터 최종값). */
   text-align:center;
   text-shadow: 0 2px 20px rgba(0,0,0,.4);
   padding: 0 28px;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity .32s ease, transform .32s ease, color .32s ease;
+  transition: opacity .32s ease, transform .32s ease;
 }
 .mode-welcome-text.show{
   opacity: 1;
