@@ -1322,66 +1322,68 @@ function setElementBgImageWithFallback(el, url){
   tryNext();
 }
 
-/* ---------------- 배너 배경 크로스페이드 ----------------
-   예전엔 siteBannerEl.style.backgroundImage를 바로 갈아치워서 사진이 뚝 끊기듯
-   바뀌었음(background-image는 브라우저가 두 url() 사이를 보간해주지 않아서
-   transition을 걸어도 크로스페이드가 안 됨). 그래서 사진을 담는 레이어를 2장
-   준비해두고, 새 사진이 다 준비된 뒤에 "다음 레이어"에 얹고 opacity만 1로
-   올리면서 "현재 레이어"는 0으로 내려 서로 겹쳐 지나가듯 전환되게 함.
-   opacity 전환은 backdrop-filter처럼 매 프레임 다시 계산하는 무거운 연산이
-   아니라 레이어 합성(compositing)만 하면 되므로 가벼움. */
-let bannerBgLayerEls = null;
-let bannerBgActiveIdx = 0;
-function ensureBannerBgLayers(){
-  if(bannerBgLayerEls) return bannerBgLayerEls;
+/* ---------------- 배경 이미지 크로스페이드 (배너 · 페이지 전체 배경 공용) ----------------
+   예전엔 el.style.backgroundImage를 바로 갈아치워서 사진이 뚝 끊기듯 바뀌었음
+   (background-image는 브라우저가 두 url() 사이를 보간해주지 않아서 transition을
+   걸어도 크로스페이드가 안 됨). 그래서 사진을 담는 레이어를 2장 준비해두고, 새
+   사진이 다 준비된 뒤에 "다음 레이어"에 얹고 opacity만 1로 올리면서 "현재
+   레이어"는 0으로 내려 서로 겹쳐 지나가듯 전환되게 함. opacity 전환은
+   backdrop-filter처럼 매 프레임 다시 계산하는 무거운 연산이 아니라 레이어
+   합성(compositing)만 하면 되므로 가벼움.
+   배너와 페이지 전체 배경 둘 다 같은 방식이 필요해서, 컨테이너 엘리먼트와 레이어
+   클래스만 받으면 그 조합 전용 setter 함수를 만들어주는 팩토리로 일반화함(아래
+   setBannerBgImageCrossfade / setPageBgImageCrossfade가 각각의 인스턴스). */
+function createBgImageCrossfader(containerEl, layerClass){
   const a = document.createElement('div');
-  a.className = 'site-banner-bg-layer';
+  a.className = layerClass;
   const b = document.createElement('div');
-  b.className = 'site-banner-bg-layer';
-  // scrim/배너 내용보다 먼저(=아래) 오도록 맨 앞에 끼워 넣음
-  siteBannerEl.prepend(b);
-  siteBannerEl.prepend(a);
-  bannerBgLayerEls = [a, b];
-  return bannerBgLayerEls;
-}
-function setBannerBgImageCrossfade(url){
-  const [a, b] = ensureBannerBgLayers();
-  const activeEl = bannerBgActiveIdx === 0 ? a : b;
-  const nextEl   = bannerBgActiveIdx === 0 ? b : a;
+  b.className = layerClass;
+  // scrim/내용보다 먼저(=아래) 오도록 맨 앞에 끼워 넣음
+  containerEl.prepend(b);
+  containerEl.prepend(a);
+  const layers = [a, b];
+  let activeIdx = 0;
 
-  const swapIn = (finalUrl)=>{
-    nextEl.style.backgroundImage = finalUrl ? `url('${finalUrl}')` : '';
-    nextEl.classList.add('active');
-    activeEl.classList.remove('active');
-    bannerBgActiveIdx = bannerBgActiveIdx === 0 ? 1 : 0;
+  return function setImage(url){
+    const activeEl = layers[activeIdx];
+    const nextEl   = layers[activeIdx === 0 ? 1 : 0];
+
+    const swapIn = (finalUrl)=>{
+      nextEl.style.backgroundImage = finalUrl ? `url('${finalUrl}')` : '';
+      nextEl.classList.add('active');
+      activeEl.classList.remove('active');
+      activeIdx = activeIdx === 0 ? 1 : 0;
+    };
+
+    if(!url){ swapIn(''); return; }
+
+    // 크로스페이드는 사진이 실제로 준비된 뒤에만 시작해야, 로딩 중인 빈 레이어가
+    // 그대로 페이드인되어 잠깐 휑해 보이는 걸 막을 수 있음(그래서 기존
+    // setElementBgImageWithFallback의 "일단 낙관적으로 적용" 방식 대신, 여기서는
+    // Image()로 미리 불러와본 뒤에 swapIn함) — imgur 확장자 깨짐 폴백 로직은 동일하게 유지.
+    const m = url.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
+    if(!m){
+      const probe = new Image();
+      probe.onload = ()=> swapIn(url);
+      probe.onerror = ()=> swapIn(url); // 실패해도 예전과 동일하게 일단 그대로 시도
+      probe.src = url;
+      return;
+    }
+    const exts = ['jpg','jpeg','png','gif','webp'];
+    let i = 0;
+    const tryNext = ()=>{
+      if(i >= exts.length) return;
+      const testUrl = `${m[1]}.${exts[i]}`;
+      const probe = new Image();
+      probe.onload = ()=> swapIn(testUrl);
+      probe.onerror = ()=>{ i++; tryNext(); };
+      probe.src = testUrl;
+    };
+    tryNext();
   };
-
-  if(!url){ swapIn(''); return; }
-
-  // 크로스페이드는 사진이 실제로 준비된 뒤에만 시작해야, 로딩 중인 빈 레이어가
-  // 그대로 페이드인되어 잠깐 휑해 보이는 걸 막을 수 있음(그래서 기존
-  // setElementBgImageWithFallback의 "일단 낙관적으로 적용" 방식 대신, 여기서는
-  // Image()로 미리 불러와본 뒤에 swapIn함) — imgur 확장자 깨짐 폴백 로직은 동일하게 유지.
-  const m = url.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
-  if(!m){
-    const probe = new Image();
-    probe.onload = ()=> swapIn(url);
-    probe.onerror = ()=> swapIn(url); // 실패해도 예전과 동일하게 일단 그대로 시도
-    probe.src = url;
-    return;
-  }
-  const exts = ['jpg','jpeg','png','gif','webp'];
-  let i = 0;
-  const tryNext = ()=>{
-    if(i >= exts.length) return;
-    const testUrl = `${m[1]}.${exts[i]}`;
-    const probe = new Image();
-    probe.onload = ()=> swapIn(testUrl);
-    probe.onerror = ()=>{ i++; tryNext(); };
-    probe.src = testUrl;
-  };
-  tryNext();
 }
+const setBannerBgImageCrossfade = createBgImageCrossfader(siteBannerEl, 'site-banner-bg-layer');
+const setPageBgImageCrossfade   = createBgImageCrossfader(bgImageLayerEl, 'bg-image-layer-slot');
 
 function extractYouTubeId(url){
   if(!url) return null;
@@ -2048,10 +2050,10 @@ function subscribeModeMeta(){
   unsubBackground = metaDoc('background').onSnapshot(doc=>{
     const d = doc.exists ? doc.data() : {};
     if(d.image){
-      setElementBgImageWithFallback(bgImageLayerEl, d.image);
+      setPageBgImageCrossfade(d.image);
       bgImageLayerEl.classList.add('has-image');
     } else {
-      bgImageLayerEl.style.backgroundImage = '';
+      setPageBgImageCrossfade('');
       bgImageLayerEl.classList.remove('has-image');
     }
   });

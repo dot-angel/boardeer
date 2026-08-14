@@ -197,12 +197,24 @@ body{
    이미지가 없을 땐 투명해서 아래 컬러 글로우만 보임 */
 .bg-image-layer{
   position: fixed; inset: 0; z-index: -2;
-  background-size: cover; background-position: center;
   filter: brightness(0.42) saturate(1.15);
 }
+/* 배경 사진 크로스페이드용 레이어 2장 — app.js의 setPageBgImageCrossfade()가
+   배너와 완전히 같은 방식(opacity 전환)으로 새 사진을 자연스럽게 이어줌
+   (.bg-image-layer 자신의 background-image는 더 이상 안 씀 — 이 두 레이어가
+   대신함). 밝기/채도 필터는 상위 .bg-image-layer에 그대로 걸려 있어서 어느
+   레이어가 활성이든 동일하게 적용됨. */
+.bg-image-layer-slot{
+  position:absolute; inset:0; z-index:0;
+  background-size:cover; background-position:center;
+  opacity:0;
+  transition: opacity .5s ease;
+  pointer-events:none;
+}
+.bg-image-layer-slot.active{ opacity:1; }
 .bg-image-layer.has-image::after{
   content:"";
-  position:absolute; inset:0;
+  position:absolute; inset:0; z-index:1;
   background:
     radial-gradient(ellipse at 25% 0%, rgba(101,25,38,0.22), transparent 60%),
     linear-gradient(165deg, rgba(15,4,6,0.35) 0%, rgba(15,4,6,0.78) 100%);
