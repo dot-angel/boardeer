@@ -1933,7 +1933,13 @@ function applyTheme(theme){
   // 잉크컬러를 골라도 보정 부분만 옛 기본색 그대로 남아있게 됨).
   if(theme.ink){
     const rgb = hexToRgbTriple(theme.ink);
-    if(rgb) document.body.style.setProperty('--ink-rgb', rgb);
+    if(rgb){
+      document.body.style.setProperty('--ink-rgb', rgb);
+      // --ink-soft는 이제 --ink-rgb에서 실시간으로 파생되지 않고 직접 등록된
+      // 색상값이라(부드러운 전환을 위해 — style.css의 @property 주석 참고),
+      // 커스텀 글자색을 적용할 때 여기서도 같이 맞춰줘야 계속 따라감
+      document.body.style.setProperty('--ink-soft', `rgba(${rgb},0.62)`);
+    }
   }
   if(theme.customFontData){
     injectCustomFontFace(`url(${theme.customFontData}) format('truetype')`);
@@ -1989,6 +1995,7 @@ function subscribeModeMeta(){
     // 새로 전환한 모드에도 그대로 남아있는(색이 안 바뀌는) 문제가 생기지 않음.
     THEME_VARS.forEach(v=> document.body.style.removeProperty(v));
     document.body.style.removeProperty('--ink-rgb');
+    document.body.style.removeProperty('--ink-soft');
     document.body.style.removeProperty('--font-display');
     document.body.style.removeProperty('--font-body');
     injectCustomFontFace(null);
@@ -2011,9 +2018,15 @@ subscribeModeMeta();
    숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
    .mode-blur-overlay transition 시간과 맞춰야 함) */
 const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사이 간격
-const MODE_VEIL_IN_MS = 320;        // 베일이 옅게 걸리는 시간(색 자체의 크로스페이드는 이보다 조금 더 걸림 — body transition .45s)
-const MODE_WELCOME_HOLD_MS = 950;   // 문구를 읽을 수 있도록 떠 있는 시간(베일 시작 기준)
+const MODE_VEIL_IN_MS = 320;        // 베일이 옅게 걸리는 시간(=테마가 실제로 바뀌는 시점, 색 자체의 크로스페이드는 이보다 조금 더 걸림 — body transition .45s)
+const MODE_TEXT_DELAY_MS = 60;      // 테마가 바뀐 뒤 문구가 뜨기 시작하기까지의 텀
+const MODE_TEXT_FADE_MS = 320;      // 문구가 서서히 뜨고/사라지는 시간 — style.css .mode-welcome-text의 transition(.32s)과 반드시 같아야 함
+const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 시간 — 읽는 시간을 늘리고 싶으면 이 값만 늘리면 됨
 const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
+/* 예전엔 문구가 다 뜨기도 전에(페이드인 320ms가 끝나기 전) 사라지는 타이머가 먼저
+   발동해버려서, 문구가 최대 밝기까지 못 올라가고 바로 꺼지는 버그가 있었음(그래서
+   "뜨는 시간이 너무 짧다"고 느껴졌던 것). 지금은 아래 runModeBlurTransition()에서
+   "페이드인이 다 끝난 뒤에" hold 시간을 더하는 방식으로 순서를 명확히 함. */
 
 let modeTransitionBusy = false;
 
@@ -2039,29 +2052,39 @@ function runModeBlurTransition(newMode){
     overlay.classList.add('show');
   });
 
+  // 아래 시각 하나하나가 "그 앞 단계가 실제로 끝난 뒤"를 기준으로 이어 붙게
+  // 계산됨(중간에 겹치면 문구가 최대 밝기까지 못 올라가고 꺼져버리는 예전 버그가
+  // 재발함) — 순서: 베일 인 → 테마 교체 → (텀) → 문구 페이드인 → 문구 유지(HOLD)
+  // → 문구 페이드아웃 → 베일 아웃
+  const themeSwapAt = MODE_VEIL_IN_MS;
+  const textShowAt = themeSwapAt + MODE_TEXT_DELAY_MS;
+  const textFullyShownAt = textShowAt + MODE_TEXT_FADE_MS;
+  const textHideAt = textFullyShownAt + MODE_TEXT_HOLD_MS;
+  const doneAt = textHideAt + Math.max(MODE_TEXT_FADE_MS, MODE_VEIL_OUT_MS);
+
   setTimeout(()=>{
     // 베일이 옅게 걸리는 시점에 곧바로 테마를 바꿔치기 — 색 자체는 여기서부터
     // body의 transition을 타고 실제로 부드럽게 이어짐(더 이상 "숨겼다가 짠"이 아님)
     applyModeClass();
     subscribeModeMeta();
-  }, MODE_VEIL_IN_MS);
+  }, themeSwapAt);
 
   setTimeout(()=>{
     modeWelcomeTextEl.classList.add('show');
-  }, MODE_VEIL_IN_MS + 60);
+  }, textShowAt);
 
   setTimeout(()=>{
     modeWelcomeTextEl.classList.remove('show');
-  }, MODE_WELCOME_HOLD_MS - 280);
+  }, textHideAt);
 
   setTimeout(()=>{
     overlay.classList.remove('show');
-  }, MODE_WELCOME_HOLD_MS);
+  }, textHideAt);
 
   setTimeout(()=>{
     modeTransitionBusy = false;
     modeToggleBtn.classList.remove('mt-busy');
-  }, MODE_WELCOME_HOLD_MS + MODE_VEIL_OUT_MS);
+  }, doneAt);
 }
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
@@ -2230,6 +2253,7 @@ globalStyleBtn.addEventListener('click', async ()=>{
       }
       THEME_VARS.forEach(v=> document.body.style.removeProperty(v));
       document.body.style.removeProperty('--ink-rgb');
+      document.body.style.removeProperty('--ink-soft');
       document.body.style.removeProperty('--font-display');
       document.body.style.removeProperty('--font-body');
       injectCustomFontFace(null);

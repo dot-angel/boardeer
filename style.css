@@ -51,6 +51,15 @@
 @property --card-bg2{ syntax:'<color>'; inherits:true; initial-value:rgba(32,16,20,0.045); }
 @property --card-border{ syntax:'<color>'; inherits:true; initial-value:rgba(255,255,255,0.11); }
 @property --card-hi{ syntax:'<color>'; inherits:true; initial-value:rgba(255,255,255,0.07); }
+/* --ink-soft는 페이지 전체에서 보조 텍스트/보더 색으로 아주 많이 쓰이는데, 예전엔
+   rgba(var(--ink-rgb), 알파) 형태로 만들어져 있었음. --ink-rgb는 @property로 등록할
+   수 없는 형태(색이 아니라 "243,236,238" 같은 숫자 3개짜리 문자열)라서 다크/라이트
+   전환 시 다른 색들처럼 부드럽게 안 이어지고 그 순간 훅 튀어버렸음(전체 전환이
+   "안 부드럽다"고 느껴지던 가장 큰 원인). 그래서 --ink-soft만 따로 떼어내 진짜
+   색상값으로 직접 등록 — 이제 다른 색들과 똑같이 body의 transition을 타고 서서히
+   크로스페이드됨. (커스텀 테마 편집에서 글자색을 바꿀 때는 JS의 applyTheme()가
+   --ink-soft도 같이 갱신해줘서 계속 --ink-rgb를 따라가는 것처럼 동작함) */
+@property --ink-soft{ syntax:'<color>'; inherits:true; initial-value:rgba(243,236,238,0.62); }
 
 :root{
   color-scheme: dark;
@@ -118,7 +127,7 @@ body.theme-light{
   --paper-deep: #E8D1D1;       /* Ribbon — 배너 로딩 전 배경 등 */
   --ink: #a71a36;              /* Dahlia — 텍스트 전용, 면적에는 안 씀 */
   --ink-rgb: 167,26,54;        /* --ink의 r,g,b 성분 — rgba() 톤 보정에서 재사용(테마 편집으로 --ink를 바꾸면 JS가 이 값도 같이 갱신함) */
-  --ink-soft: rgba(var(--ink-rgb),0.62);
+  --ink-soft: rgba(167,26,54,0.62);  /* @property로 등록된 진짜 색상값(위 --ink-rgb 파생 방식이었던 걸 리터럴로 분리 — 이유는 위 @property 주석 참고) */
   --rose: #DF688F;             /* Carnation을 좀 더 쿨하게(코랄→로즈-마젠타 쪽으로 색상환 이동) 조정 — 라인·텍스트 포인트, 면적에는 안 씀 */
   --rose-solid: #F7B0B7;       /* Chantilly — 버튼 등 단색 채움용(파스텔) */
   --rose-soft: rgba(223,103,116,0.14);
@@ -170,7 +179,7 @@ body{
     background-color .45s ease, color .45s ease,
     --rose .45s ease, --rose-solid .45s ease, --rose-soft .45s ease,
     --sage .45s ease, --gold .45s ease, --gold-soft .45s ease,
-    --paper .45s ease, --paper-deep .45s ease, --ink .45s ease,
+    --paper .45s ease, --paper-deep .45s ease, --ink .45s ease, --ink-soft .45s ease,
     --card-bg .45s ease, --card-bg2 .45s ease, --card-border .45s ease, --card-hi .45s ease;
   /* 시스템 이모지(🔒🎨☀️🌙 등)를 아이폰/안드로이드에서도 PC처럼 컬러 이모지가
      아니라 단색(텍스트 프리젠테이션) 글자로 그리게 함. 지원 브라우저(최신
