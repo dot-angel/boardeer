@@ -895,6 +895,8 @@ body::before{
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
   z-index:0;
   color:#FBF7F8;
+  background: rgba(20,9,11,0.5);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   border-radius:18px; padding:13px 18px 22px 18px;
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:1rem; line-height:1.45; text-align:center;
@@ -902,25 +904,7 @@ body::before{
   opacity:0;
   transition: opacity .16s ease, transform .16s ease;
 }
-/* 배경+블러를 별도 ::before로 분리 — clip-path(JS의 shapeSpeechBubble)와
-   backdrop-filter를 같은 요소에 같이 걸면, 꼬리처럼 뾰족한 지점에서 블러가
-   클리핑 경계를 살짝 넘어 "번지는" 브라우저 렌더링 오차가 생김(크로스브라우저
-   공통 이슈). filter:drop-shadow는 부모에 그대로 둬서 윤곽선(테두리)은 여전히
-   clip-path로 오려낸 모양을 정확히 따라감.
-   ⚠️ 처음엔 컨테인을 isolation:isolate로 했었는데, isolation:isolate가 이
-   요소를 "백드롭 루트"로 만들어버려서 ::before의 backdrop-filter가 그 뒤(=이
-   요소 바깥, 실제 페이지 배경)를 전혀 못 읽고 블러가 통째로 사라지는 문제가
-   있었음(테두리 번짐은 없어졌지만 유리 질감 자체가 없어짐). isolation 대신
-   이미 position:absolute인 요소에 z-index를 명시(auto가 아닌 값)해서 스태킹
-   컨텍스트를 만들면, "백드롭 루트"를 만들지 않으면서도 ::before(z-index:-1)가
-   부모 안에서만 배경 역할을 하고 바깥 요소 위로 새지 않게 하는 목적은 똑같이
-   달성됨 */
-.speech-bubble::before{
-  content:''; position:absolute; inset:0; z-index:-1;
-  border-radius:inherit; clip-path:inherit;
-  background: rgba(20,9,11,0.5);
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-}
+/* ::before 블록은 삭제 */
 .speech-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 .speech-empty-hint{ text-align:center; color: var(--ink-soft); font-size:.85rem; padding:40px 0; }
 
@@ -2960,9 +2944,9 @@ body.theme-light .toast{ background: rgba(255,255,255,0.2); }
    팔레트 톤 테두리·그림자를 씀. 이전에는 .speech-bubble만 배경이 다크모드 값
    그대로 남고 글자만 흰색으로 고정돼서, 배경이 바뀌는 .sticker-bubble과 서로
    달라 보였음 */
-body.theme-light .sticker-bubble::before,
-body.theme-light .speech-bubble::before,
-body.theme-light .profile-compact-oneliner::before{ background: rgba(255,255,255,0.2); }
+body.theme-light .sticker-bubble,
+body.theme-light .speech-bubble,
+body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.2); }
 /* 모달 뒤 전체화면 백드롭(.modal-overlay)이 다크모드용 어두운 색으로
    고정돼 있어서, 정작 모달/쉐이커 박스 자체를 아무리 투명하게 만들어도
    그 뒤로 보이는 게 실제 밝은 페이지가 아니라 이 어두운 스크림이라
