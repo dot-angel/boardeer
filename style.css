@@ -536,6 +536,30 @@ body::before{
   opacity: 1;
   transform: translateY(0);
 }
+/* 문구(.mode-welcome-text)를 베일(.mode-blur-overlay)의 자식이 아니라 이 별도
+   레이어의 자식으로 둠 — View Transitions 경로(아래 ::view-transition-old/new(root)
+   참고)는 베일 자체를 그리지 않으므로, 문구가 베일의 opacity에 얹혀갈 수 없음.
+   z-index를 베일(600)보다 한 단계 높여서(601) 베일 경로에서도 기존과 똑같이
+   베일 앞에 보임(시각적 회귀 없음) */
+.mode-welcome-layer{
+  position: fixed; inset:0; z-index:601; pointer-events:none;
+  display:flex; align-items:center; justify-content:center;
+}
+
+
+/* ---------- 라이트/다크모드 전환: View Transitions API 지원 브라우저 ----------
+   지원 브라우저(app.js의 setSiteMode가 document.startViewTransition으로 감지)는
+   베일 대신 브라우저 네이티브 크로스페이드를 씀. UA 기본 지속시간(0.25s)은 예전
+   베일의 체감 속도(MODE_VEIL_IN_MS+MODE_VEIL_OUT_MS 근방, 약 0.73s)보다 훨씬
+   짧아서 전환이 너무 순간적으로 느껴져 0.5s로 늘림. mix-blend-mode는 UA
+   기본값(plus-lighter)을 그대로 둠 — 두 스냅샷을 진짜 크로스페이드(밝기를 더해
+   자연스럽게 섞는, 스펙 상 올바른 방식)로 섞어주는 값이라 임의로 바꿀 이유가
+   없음(MDN/스펙 문서로 확인, 추측 아님). 미지원 브라우저는 이 규칙 자체가
+   무시되고 기존 베일(runModeBlurTransition)로 그대로 폴백됨. */
+::view-transition-old(root),
+::view-transition-new(root){
+  animation-duration: 0.5s;
+}
 
 
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
@@ -855,14 +879,27 @@ body::before{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
   max-width: min(260px, 70vw); width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color:#FBF7F8;
+  isolation:isolate;
+  color:#FBF7F8;
   border-radius:18px; padding:13px 18px 22px 18px;
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:1rem; line-height:1.45; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 1px 8px rgba(0,0,0,0.4);
   opacity:0;
   transition: opacity .16s ease, transform .16s ease;
+}
+/* 배경+블러를 별도 ::before로 분리 — clip-path(JS의 shapeSpeechBubble)와
+   backdrop-filter를 같은 요소에 같이 걸면, 꼬리처럼 뾰족한 지점에서 블러가
+   클리핑 경계를 살짝 넘어 "번지는" 브라우저 렌더링 오차가 생김(크로스브라우저
+   공통 이슈). filter:drop-shadow는 부모에 그대로 둬서 윤곽선(테두리)은 여전히
+   clip-path로 오려낸 모양을 정확히 따라감. isolation:isolate + z-index:-1로
+   이 ::before가 부모 안에서만 배경 역할을 하고 다른 요소 위로 새지 않게 함.
+   clip-path:inherit이 부모의 인라인 clip-path 값을 그대로 이어받음 */
+.speech-bubble::before{
+  content:''; position:absolute; inset:0; z-index:-1;
+  border-radius:inherit; clip-path:inherit;
+  background: rgba(20,9,11,0.5);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
 }
 .speech-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 .speech-empty-hint{ text-align:center; color: var(--ink-soft); font-size:.85rem; padding:40px 0; }
@@ -1664,8 +1701,7 @@ a.pf-link-item:hover{ background: rgba(var(--row-tint),0.1); }
   font-family: var(--font-display); font-style:italic; font-weight:400;
   font-size:.8rem; line-height:1.35; color: var(--ink);
   width:fit-content; max-width:100%;
-  background: rgba(var(--row-tint),0.07);
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  isolation:isolate;
   /* border 대신 filter:drop-shadow를 씀 — border는 clip-path로 오려내기 전의
      원래 사각형 테두리를 기준으로 그려져서 오려낸 모양(특히 꼬리 옆 바닥선)과
      어긋나지만, drop-shadow는 clip-path 적용 후 실제로 보이는 모양의 윤곽을
@@ -1673,6 +1709,14 @@ a.pf-link-item:hover{ background: rgba(var(--row-tint),0.1); }
   filter: drop-shadow(0 0 1px var(--card-border));
   border-radius:12px; padding:5px 10px 12px 10px; margin-bottom:4px;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal;
+}
+/* 배경+블러를 별도 ::before로 분리 — .speech-bubble/.sticker-bubble과 같은 이유
+   (clip-path+backdrop-filter 조합의 블러 번짐 버그, 위 .speech-bubble 참고) */
+.profile-compact-oneliner::before{
+  content:''; position:absolute; inset:0; z-index:-1;
+  border-radius:inherit; clip-path:inherit;
+  background: rgba(var(--row-tint),0.07);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
 }
 .profile-compact-name{
   grid-area:name; font-weight:700; font-size:.9rem; color: var(--ink);
@@ -2801,9 +2845,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
      브라우저가 지원하는 선에서 알아서 피해줌 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color:#FBF7F8;
+  isolation:isolate;
+  color:#FBF7F8;
   border-radius:16px; padding:9px 13px 17px 13px;
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* border+box-shadow 대신 filter:drop-shadow 두 개를 겹쳐서 씀 — clip-path로
      오려낸 후 실제로 보이는 본체+꼬리 윤곽 전체에 얇은 외곽선(1번째)과 원래
      있던 큰 그림자(2번째, --shadow와 동일 값)를 매끄럽게 한 번에 둘러줌 */
@@ -2812,6 +2856,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 1px 8px rgba(0,0,0,0.4);
   opacity:0; pointer-events:none;
   transition: opacity .3s ease, transform .3s ease;
+}
+/* 배경+블러를 별도 ::before로 분리 — .speech-bubble과 같은 이유
+   (clip-path+backdrop-filter 조합의 블러 번짐 버그, 위 .speech-bubble 참고) */
+.sticker-bubble::before{
+  content:''; position:absolute; inset:0; z-index:-1;
+  border-radius:inherit; clip-path:inherit;
+  background: rgba(20,9,11,0.5);
+  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
 }
 .sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 @media (max-width: 900px){
@@ -2885,9 +2937,9 @@ body.theme-light .toast{ background: rgba(255,255,255,0.2); }
    팔레트 톤 테두리·그림자를 씀. 이전에는 .speech-bubble만 배경이 다크모드 값
    그대로 남고 글자만 흰색으로 고정돼서, 배경이 바뀌는 .sticker-bubble과 서로
    달라 보였음 */
-body.theme-light .sticker-bubble,
-body.theme-light .speech-bubble,
-body.theme-light .profile-compact-oneliner{ background: rgba(255,255,255,0.2); }
+body.theme-light .sticker-bubble::before,
+body.theme-light .speech-bubble::before,
+body.theme-light .profile-compact-oneliner::before{ background: rgba(255,255,255,0.2); }
 /* 모달 뒤 전체화면 백드롭(.modal-overlay)이 다크모드용 어두운 색으로
    고정돼 있어서, 정작 모달/쉐이커 박스 자체를 아무리 투명하게 만들어도
    그 뒤로 보이는 게 실제 밝은 페이지가 아니라 이 어두운 스크림이라

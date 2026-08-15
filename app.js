@@ -2045,10 +2045,19 @@ function subscribeModeMeta(){
   let pendingBannerApply = null, pendingBackgroundApply = null;
   let resolveReady;
   const readyPromise = new Promise(res=>{ resolveReady = res; });
+  // resolveReady에 실제 DOM 반영 함수를 실어 보냄 — 예전엔 여기서 곧바로
+  // pendingBannerApply/pendingBackgroundApply를 호출했지만, 그러면 "언제
+  // 화면에 반영되는가"를 이 함수가 강제로 결정해버림. 베일 경로는 베일이 덮고
+  // 있는 동안 아무 때나 반영해도 상관없지만, View Transitions 경로(아래
+  // runModeViewTransition)는 반드시 startViewTransition() 콜백 "안에서"(테마
+  // 클래스 교체와 같은 프레임에) 반영해야 네이티브 크로스페이드의 "새" 스냅샷에
+  // 배너/배경까지 같이 담김 — 그래서 언제 반영할지는 호출자가 정하도록
+  // apply 함수 자체를 돌려주는 쪽으로 바꿈
   const releasePending = ()=>{
-    if(pendingBannerApply){ pendingBannerApply(); pendingBannerApply = null; }
-    if(pendingBackgroundApply){ pendingBackgroundApply(); pendingBackgroundApply = null; }
-    resolveReady();
+    resolveReady(()=>{
+      if(pendingBannerApply){ pendingBannerApply(); pendingBannerApply = null; }
+      if(pendingBackgroundApply){ pendingBackgroundApply(); pendingBackgroundApply = null; }
+    });
   };
   const tryRelease = ()=>{ if(bannerFirstDone && backgroundFirstDone) releasePending(); };
   setTimeout(()=>{ if(gen === modeMetaGen) releasePending(); }, MODE_META_READY_TIMEOUT_MS);
@@ -2108,7 +2117,9 @@ function subscribeModeMeta(){
 
   return readyPromise;
 }
-subscribeModeMeta();
+// subscribeModeMeta가 이제 apply 함수를 돌려주므로(위 releasePending 참고),
+// 페이지 첫 로드에서는 원래대로 도착하는 즉시 바로 반영되게 명시적으로 호출함
+subscribeModeMeta().then(apply=> apply());
 // 반대 모드는 아직 구독하지 않으므로(모드를 실제로 켜야만 구독됨), 이번 세션에서
 // 처음 그쪽으로 전환할 때는 위 캐시가 비어있어 기본 팔레트색으로 대체될 수 있음.
 // 그 첫 전환에서도 베일이 실제 포인트 컬러로 보이도록, 반대 모드의 테마 문서만
@@ -2214,14 +2225,28 @@ const isSamsungInternet = /SamsungBrowser/i.test(navigator.userAgent);
 
 // 오버레이/문구는 딱 한 번만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
 let modeBlurOverlayEl = null;
+let modeWelcomeLayerEl = null;
 let modeWelcomeTextEl = null;
+// 문구는 이제 베일(.mode-blur-overlay)의 자식이 아니라 독립된 .mode-welcome-layer의
+// 자식임(위 style.css .mode-welcome-layer 주석 참고) — 베일이 아예 없는 View
+// Transitions 경로(아래 runModeViewTransition)에서도 문구만 따로 뜨고 질 수 있어야
+// 하기 때문. 베일 경로(ensureModeBlurOverlay)도 이 함수를 통해 같은 문구 엘리먼트를
+// 씀 — 둘이 서로 다른 문구 노드를 갖지 않게 함
+function ensureModeWelcomeText(){
+  if(modeWelcomeTextEl) return modeWelcomeTextEl;
+  modeWelcomeLayerEl = document.createElement('div');
+  modeWelcomeLayerEl.className = 'mode-welcome-layer';
+  modeWelcomeTextEl = document.createElement('div');
+  modeWelcomeTextEl.className = 'mode-welcome-text';
+  modeWelcomeLayerEl.appendChild(modeWelcomeTextEl);
+  document.body.appendChild(modeWelcomeLayerEl);
+  return modeWelcomeTextEl;
+}
 function ensureModeBlurOverlay(){
   if(modeBlurOverlayEl) return modeBlurOverlayEl;
   modeBlurOverlayEl = document.createElement('div');
   modeBlurOverlayEl.className = 'mode-blur-overlay' + (isSamsungInternet ? ' mbo-no-blur' : '');
-  modeWelcomeTextEl = document.createElement('div');
-  modeWelcomeTextEl.className = 'mode-welcome-text';
-  modeBlurOverlayEl.appendChild(modeWelcomeTextEl);
+  ensureModeWelcomeText();
   document.body.appendChild(modeBlurOverlayEl);
   return modeBlurOverlayEl;
 }
@@ -2302,7 +2327,7 @@ function runModeBlurTransition(newMode){
     // 기본 팔레트 색으로 대체함(장식용 디졸브라 그 정도 오차는 눈에 안 띄고, 커스텀
     // 색은 베일이 걷힌 뒤 카드/배경 자체에 이미 정확히 반영돼 있음)
     overlay.style.backgroundColor = modeVeilTintColor(lastKnownRoseByMode[newMode] || DEFAULT_THEME_BY_MODE[newMode].rose);
-    subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
+    subscribeModeMeta().then(apply=>{ apply(); metaReady = true; tryHideVeil(); });
   }, themeSwapAt);
 
   setTimeout(()=>{
@@ -2311,6 +2336,74 @@ function runModeBlurTransition(newMode){
 
   setTimeout(()=>{ minTimeElapsed = true; tryHideVeil(); }, minHideAt);
 }
+
+// ---------------- 모드 전환: View Transitions API 지원 브라우저용 경로 ----------------
+// document.startViewTransition을 지원하는 브라우저(대부분의 최신 데스크톱/모바일
+// 크로미움·사파리 계열)에서는 베일(runModeBlurTransition)을 아예 그리지 않고,
+// 브라우저 자신의 네이티브 크로스페이드로 대체함 — 색상 디졸브를 흉내내려고
+// 만들었던 베일/워밍업/삼성인터넷 GPU 레이어 우회 로직 전체가 이 경로에선
+// 필요 없어짐(그 레이어 자체가 존재하지 않으므로). 미지원 브라우저는 이 함수를
+// 아예 호출하지 않고 기존 runModeBlurTransition으로 그대로 폴백됨(아래 setSiteMode).
+function runModeViewTransition(newMode){
+  ensureModeWelcomeText();
+
+  const finishBusy = ()=>{
+    modeTransitionBusy = false;
+    modeToggleBtn.classList.remove('mt-busy');
+  };
+  // 문구는 이제 베일의 opacity에 얹혀가지 않으므로(위 ensureModeWelcomeText 참고),
+  // 네이티브 크로스페이드가 완전히 끝난 뒤(=탑레이어 스냅샷 트리가 걷히고 실제
+  // 라이브 DOM이 다시 보이는 시점)에 독립적으로 페이드인시킴 — 크로스페이드가
+  // 진행되는 동안 문구를 억지로 같이 보이려 하면, 뷰 트랜지션 탑레이어가 항상
+  // 일반 DOM(z-index 포함) 위에 그려지므로 문구가 그 뒤에 가려짐. 페이드인/유지/
+  // 페이드아웃 지속시간은 베일 경로와 같은 상수(MODE_TEXT_FADE_MS/HOLD_MS)를 그대로 씀
+  const playWelcomeText = ()=>{
+    modeWelcomeTextEl.textContent = MODE_LABELS[newMode] + '에 오신 것을 환영합니다.';
+    requestAnimationFrame(()=> modeWelcomeTextEl.classList.add('show'));
+    setTimeout(()=>{
+      modeWelcomeTextEl.classList.remove('show');
+      setTimeout(finishBusy, MODE_TEXT_FADE_MS);
+    }, MODE_TEXT_FADE_MS + MODE_TEXT_HOLD_MS);
+  };
+
+  subscribeModeMeta().then(apply=>{
+    // mode-swap-snap을 startViewTransition() 콜백보다 먼저 걸어서, 콜백 안에서
+    // applyModeClass()가 테마 클래스를 바꿔치기하는 순간 색 관련 CSS 커스텀
+    // 프로퍼티들이 "이전 값→새 값"을 보간하지 않고 곧바로 스냅되게 함(위
+    // body.mode-swap-snap 주석과 같은 이유) — 네이티브 크로스페이드가 진행되는
+    // 동안엔 실제 라이브 DOM은 탑레이어 스냅샷에 가려 안 보이므로, 이 구간에
+    // 색이 계속 매 프레임 보간되며 카드들을 다시 블러링하는 건 눈에 안 보이는
+    // 낭비 연산일 뿐 — 베일 경로와 같은 이유로 꺼둠
+    document.body.classList.add('mode-swap-snap');
+
+    const applySwap = ()=>{
+      applyModeClass();
+      // apply()를 applyModeClass()와 같은 콜백(=같은 프레임) 안에서 실행해야,
+      // 네이티브 크로스페이드가 찍는 "새" 스냅샷에 배너/배경 사진까지 함께
+      // 반영됨 — 안 그러면 화면 전환은 이미 끝났는데 사진만 뒤늦게 팝인하는,
+      // 예전 베일 경로에서 이미 한 번 고쳤던 문제가 이 경로에서도 재발함
+      apply();
+    };
+
+    let transition;
+    try{
+      transition = document.startViewTransition(applySwap);
+    }catch(e){
+      // 이론상 setSiteMode에서 이미 기능 감지를 마치고서만 호출되므로 여기 올 일은
+      // 없지만, 혹시라도 실패하면 전환 자체를 건너뛰지 않고 최소한 테마는
+      // 적용되도록 안전하게 폴백함
+      applySwap();
+      document.body.classList.remove('mode-swap-snap');
+      playWelcomeText();
+      return;
+    }
+    transition.finished.catch(()=>{}).then(()=>{
+      document.body.classList.remove('mode-swap-snap');
+      playWelcomeText();
+    });
+  });
+}
+
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
   if(newMode === siteMode) return;
@@ -2318,32 +2411,39 @@ function setSiteMode(newMode){
   modeTransitionBusy = true;
   modeToggleBtn.classList.add('mt-busy');
 
-  // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
-  // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야 다시
-  // 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
-  // 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의 will-change/
-  // translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
-  // 이전엔 이 워밍업을 트랜지션 시작 1프레임 전(runModeBlurTransition, 약 16ms
-  // 리드타임)에만 줬는데도 프레임 누락이 남아있었음 — 그래서 지금은 토글을
-  // 누른 바로 이 순간부터 미리 트랜지션 없이 시각적으로 감지 불가능한
-  // opacity(.001)를 찍어 강제 리플로우해둠. 실제 트랜지션은 프리롤+베일인
-  // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 530ms) 뒤에야 시작되므로, 레이어가
-  // 자리잡을 리드타임이 1프레임→약 530ms로 크게 늘어남. 대기 상태(opacity:0)는
-  // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
-  // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
-  // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
-  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)이 나음 — 위
-  // isSamsungInternet과 style.css의 .mbo-no-blur로 적용해둠.
-  const overlay = ensureModeBlurOverlay();
-  overlay.style.transition = 'none';
-  overlay.style.opacity = '0.001';
-  // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --rose(강조색)를
-  // 그대로 찍어 modeVeilTintColor()로 반투명화함(커스텀 테마든 기본 팔레트든 항상
-  // 지금 보이는 강조색과 정확히 일치함). 아직 transition이 'none'인 상태에서
-  // 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은 아래 runModeBlurTransition()의
-  // themeSwapAt 시점에 새로 지정됨
-  overlay.style.backgroundColor = modeVeilTintColor(getComputedStyle(document.body).getPropertyValue('--rose').trim());
-  overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
+  // View Transitions를 지원하는 브라우저는 아래 베일(runModeBlurTransition) 자체를
+  // 그리지 않으므로, 그 베일의 GPU 레이어를 미리 깨워두는 워밍업도 함께 건너뜀
+  // (그 레이어가 렌더링되는 일이 없으니 미리 데워둘 이유가 없음)
+  const supportsViewTransition = typeof document.startViewTransition === 'function';
+
+  if(!supportsViewTransition){
+    // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
+    // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야 다시
+    // 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
+    // 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의 will-change/
+    // translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
+    // 이전엔 이 워밍업을 트랜지션 시작 1프레임 전(runModeBlurTransition, 약 16ms
+    // 리드타임)에만 줬는데도 프레임 누락이 남아있었음 — 그래서 지금은 토글을
+    // 누른 바로 이 순간부터 미리 트랜지션 없이 시각적으로 감지 불가능한
+    // opacity(.001)를 찍어 강제 리플로우해둠. 실제 트랜지션은 프리롤+베일인
+    // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 530ms) 뒤에야 시작되므로, 레이어가
+    // 자리잡을 리드타임이 1프레임→약 530ms로 크게 늘어남. 대기 상태(opacity:0)는
+    // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
+    // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
+    // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
+    // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)이 나음 — 위
+    // isSamsungInternet과 style.css의 .mbo-no-blur로 적용해둠.
+    const overlay = ensureModeBlurOverlay();
+    overlay.style.transition = 'none';
+    overlay.style.opacity = '0.001';
+    // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --rose(강조색)를
+    // 그대로 찍어 modeVeilTintColor()로 반투명화함(커스텀 테마든 기본 팔레트든 항상
+    // 지금 보이는 강조색과 정확히 일치함). 아직 transition이 'none'인 상태에서
+    // 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은 아래 runModeBlurTransition()의
+    // themeSwapAt 시점에 새로 지정됨
+    overlay.style.backgroundColor = modeVeilTintColor(getComputedStyle(document.body).getPropertyValue('--rose').trim());
+    overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
+  }
 
   siteMode = newMode;
   localStorage.setItem('gh_mode', siteMode);
@@ -2355,7 +2455,13 @@ function setSiteMode(newMode){
   modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[newMode];
   modeToggleBtn.setAttribute('aria-label', MODE_LABELS[newMode] + ' 적용 중 · 눌러서 전환');
 
-  setTimeout(()=> runModeBlurTransition(newMode), MODE_BLUR_PREROLL_MS);
+  if(supportsViewTransition){
+    // 베일 워밍업이 없으므로 그만큼의 리드타임(MODE_BLUR_PREROLL_MS)도 기다릴
+    // 이유가 없음 — 스위치 썸/라벨 프리롤만 한 프레임 보여준 뒤 바로 시작
+    runModeViewTransition(newMode);
+  } else {
+    setTimeout(()=> runModeBlurTransition(newMode), MODE_BLUR_PREROLL_MS);
+  }
 }
 
 // ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
