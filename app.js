@@ -2146,6 +2146,21 @@ const MODE_TEXT_DELAY_MS = 90;      // 베일이 자리잡은 뒤 문구가 뜨�
 const MODE_TEXT_FADE_MS = 320;      // 문구가 서서히 뜨고/사라지는 시간 — style.css .mode-welcome-text의 transition(.32s)과 반드시 같아야 함
 const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 최소 시간(배너/배경 이미지가 이보다 늦게 도착하면 실제로는 더 길어짐 — 아래 subscribeModeMeta 참고)
 const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
+
+/* 베일 색상 디졸브(시작점→도착점)에 쓰던 --paper는 다크/라이트 공통으로 거의 검정/거의
+   흰색이라 그 자체로는 "전환 중"이라는 느낌이 잘 안 살고, 완전 불투명이라 베일 뒤에서
+   실제로 무슨 일이 일어나는지(테마가 바뀌치기되는 순간)도 전혀 안 비침. 그래서 이제
+   각 모드의 강조색(--rose)을 골라, 다른 반투명 오버레이들(.modal-overlay 등)과 같은
+   세기인 0.55 알파로 얹음 — 완전히 안 가려지는 대신 뒤 배경이 은은히 비치는 "색이
+   있는 유리" 느낌이 나고, 모드마다 강조색이 달라 전환감 자체도 더 또렷해짐. */
+function modeVeilTintColor(hex){
+  hex = (hex || '').trim().replace('#', '');
+  if(hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  const r = parseInt(hex.substring(0, 2), 16) || 0;
+  const g = parseInt(hex.substring(2, 4), 16) || 0;
+  const b = parseInt(hex.substring(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},0.55)`;
+}
 /* 예전엔 문구가 다 뜨기도 전에(페이드인 320ms가 끝나기 전) 사라지는 타이머가 먼저
    발동해버려서, 문구가 최대 밝기까지 못 올라가고 바로 꺼지는 버그가 있었음(그래서
    "뜨는 시간이 너무 짧다"고 느껴졌던 것). 지금도 아래 runModeBlurTransition()에서
@@ -2189,6 +2204,14 @@ function runModeBlurTransition(newMode){
     overlay.style.transition = '';
     overlay.style.opacity = '';
     overlay.classList.add('show');
+    // 베일 자신의 backdrop-filter가 이미 뒤(카드 포함)를 통째로 블러링해주므로,
+    // 이 구간 동안엔 .w-card 각자의 backdrop-filter는 사실상 이중 블러링임 —
+    // PC처럼 카드가 한 화면에 많이 보이는 레이아웃일수록 그 중복 비용이 위젯
+    // 수만큼 곱해져 버벅임으로 드러남(위 body.mode-swap-snap 주석 참고). 베일이
+    // 떠 있는 동안만 body에 이 클래스를 걸어 .w-card 쪽 backdrop-filter를 꺼두면
+    // (style.css의 body.mode-veil-open 참고), 최종 화면은 베일의 블러 한 겹으로도
+    // 똑같이 블러돼 보이면서 카드 수만큼 곱되던 비용만 사라짐.
+    document.body.classList.add('mode-veil-open');
   });
 
   // 아래 시각 하나하나가 "그 앞 단계가 실제로 끝난 뒤"를 기준으로 이어 붙게
@@ -2214,6 +2237,11 @@ function runModeBlurTransition(newMode){
     // 베일이 걷히기 시작하는 시점에 떼어둠 — 이후 테마 편집 모달에서 배경색을
     // 저장하는 등 베일 없는 경로는 원래대로 부드러운 크로스페이드를 그대로 씀
     document.body.classList.remove('mode-swap-snap');
+    // 베일이 걷히기 시작하면(opacity가 다시 내려가기 시작하는 즉시) .w-card의
+    // backdrop-filter도 곧바로 되살려둠 — 베일 아웃 트랜지션(MODE_VEIL_OUT_MS)이
+    // 끝나기 전에 카드 배경이 완전히 드러나므로, 그 짧은 구간에 카드가 블러
+    // 없이 반짝 보이는 것보다 살짝 이르게 복원하는 편이 자연스러움
+    document.body.classList.remove('mode-veil-open');
     setTimeout(()=>{
       modeTransitionBusy = false;
       modeToggleBtn.classList.remove('mt-busy');
@@ -2237,7 +2265,7 @@ function runModeBlurTransition(newMode){
     // 색 대신 그 모드의 기본 팔레트 색을 도착점으로 씀 — 장식용 디졸브라 오차가
     // 커도 눈에 띄지 않고, 커스텀 색은 베일이 걷힌 뒤 카드/배경 자체에 이미 정확히
     // 반영돼 있음
-    overlay.style.backgroundColor = DEFAULT_THEME_BY_MODE[newMode].paper;
+    overlay.style.backgroundColor = modeVeilTintColor(DEFAULT_THEME_BY_MODE[newMode].rose);
     subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
   }, themeSwapAt);
 
@@ -2273,11 +2301,12 @@ function setSiteMode(newMode){
   const overlay = ensureModeBlurOverlay();
   overlay.style.transition = 'none';
   overlay.style.opacity = '0.001';
-  // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --paper를 그대로
-  // 찍어둠(커스텀 테마든 기본 팔레트든 항상 지금 보이는 색과 정확히 일치함). 아직
-  // transition이 'none'인 상태에서 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은
-  // 아래 runModeBlurTransition()의 themeSwapAt 시점에 새로 지정됨
-  overlay.style.backgroundColor = getComputedStyle(document.body).getPropertyValue('--paper').trim();
+  // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --rose(강조색)를
+  // 그대로 찍어 modeVeilTintColor()로 반투명화함(커스텀 테마든 기본 팔레트든 항상
+  // 지금 보이는 강조색과 정확히 일치함). 아직 transition이 'none'인 상태에서
+  // 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은 아래 runModeBlurTransition()의
+  // themeSwapAt 시점에 새로 지정됨
+  overlay.style.backgroundColor = modeVeilTintColor(getComputedStyle(document.body).getPropertyValue('--rose').trim());
   overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
 
   siteMode = newMode;
@@ -7522,40 +7551,13 @@ async function renderSpeechCard(){
 
 /* ---------------- 방문자용 오버레이 ---------------- */
 
-/* html2canvas는 말풍선 오버레이를 열 때 배경을 한 장 캡쳐하는 용도로만 쓰이는데,
-   예전엔 <script> 태그로 모든 방문자에게 무조건 로드되고 있었음(위젯 탭만 보고
-   떠나는 방문자도 이 라이브러리를 전부 내려받은 것). 오버레이를 처음 열 때만
-   그 시점에 스크립트를 동적으로 끼워넣도록 바꿔서, 실제로 쓸 때만 불러오게 함.
-   이미 불러왔으면 다시 안 불러오고, 로딩 중에 또 열리면 같은 로딩을 같이 기다림.
-   실패해도(네트워크 문제 등) 조용히 false를 반환해서 기존과 동일하게 어두운
-   틴트만 남는 폴백으로 이어짐.
-   ⚠️ 다만 이 "처음 열 때만 불러오기"가 바로 첫 클릭 지연의 원인이기도 함 — 방문자가
-   버튼을 누른 그 순간에야 네트워크로 스크립트를 요청하니, 그 왕복 시간만큼 배경
-   캡쳐가 늦게 나타남(불러온 뒤로는 typeof html2canvas==='function'이라 이 함수가
-   바로 resolve되므로 이후엔 안 느림 — 새로고침하면 다시 첫 클릭에서만 반복됨).
-   그래서 아래 prewarmSpeechWidget()에서 위젯이 실제로 켜져 있는 프로필에 한해 브라우저가
-   한가한 시간(requestIdleCallback)에 이 함수를 미리 한 번 불러둠 — 클릭 시점엔 이미
-   로드가 끝나 있거나 진행 중이라 첫 클릭도 이후 클릭과 동일하게 빨라짐. */
-let _html2canvasLoadPromise = null;
-function ensureHtml2Canvas(){
-  if(typeof html2canvas === 'function') return Promise.resolve(true);
-  if(_html2canvasLoadPromise) return _html2canvasLoadPromise;
-  _html2canvasLoadPromise = new Promise(resolve=>{
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload = ()=> resolve(typeof html2canvas === 'function');
-    s.onerror = ()=> resolve(false);
-    document.head.appendChild(s);
-  });
-  return _html2canvasLoadPromise;
-}
-
-/* 말풍선 위젯 첫 클릭 지연의 또 다른(오히려 더 큰) 원인 — 캐릭터 이미지(탭 안 characters[].avatar)는
-   커버 사진과 달리 평소 화면(카드)엔 안 쓰이므로, 방문자가 카드를 눌러 오버레이의 renderStage()가
-   처음 실행될 때에야 speechResolveCharacterUrl()→loadFileChunked()로 Firestore 청크 문서들을 그제서야
-   읽어옴. 그 왕복 시간 동안 스테이지가 비어 보여서 "눌렀는데 한동안 안 뜬다"로 느껴짐. 한번 읽고 나면
-   chunkedImageCache(메모리 Map)에 재사용 가능한 형태로 남아있어 같은 세션에서 다시 열 땐 즉시 뜨지만,
-   새로고침하면 이 메모리 캐시가 비워져 다음 첫 클릭에서 또 같은 지연이 반복됨.
+/* 캐릭터 이미지(탭 안 characters[].avatar)는 커버 사진과 달리 평소 화면(카드)엔 안
+   쓰이므로, 방문자가 카드를 눌러 오버레이의 renderStage()가 처음 실행될 때에야
+   speechResolveCharacterUrl()→loadFileChunked()로 Firestore 청크 문서들을 그제서야
+   읽어옴. 그 왕복 시간 동안 스테이지가 비어 보여서 "눌렀는데 한동안 안 뜬다"로 느껴짐.
+   한번 읽고 나면 chunkedImageCache(메모리 Map)에 재사용 가능한 형태로 남아있어 같은
+   세션에서 다시 열 땐 즉시 뜨지만, 새로고침하면 이 메모리 캐시가 비워져 다음 첫
+   클릭에서 또 같은 지연이 반복됨.
    ⚠️ 개선 방향: 클릭을 "느리게 하는 일"을 클릭 "전에" 미리 끝내두면 됨 — 방문자가 실제로 누르기도 전에,
    브라우저가 한가한 시간에 어차피 열릴 가능성이 큰 탭(프로필과 연동된 탭, speechPickLinkedTabId 참고)의
    이미지 두 장만 미리 읽어 캐시를 데워둠. 위젯을 아예 안 쓰는 프로필(tabs가 비어있음)에서는 아무 것도
@@ -7563,97 +7565,35 @@ function ensureHtml2Canvas(){
 function prewarmSpeechWidget(){
   const tabs = speechWidgetData.tabs || [];
   if(tabs.length === 0) return; // 위젯을 안 쓰는 프로필이면 아무 것도 미리 불러오지 않음
-  ensureHtml2Canvas(); // 실패해도 조용히 무시되고, 클릭 시 다시 캡쳐를 시도하는 기존 폴백으로 이어짐
   const linkedId = speechPickLinkedTabId();
   const tab = tabs.find(t=> t.id === linkedId);
   if(tab) tab.characters.forEach(c=> speechResolveCharacterUrl(c).catch(()=>{}));
 }
 
-function closeSpeechOverlay(){
-  const el = document.getElementById('speechOverlayRoot');
-  if(el){ el.remove(); }
-  if(window.__speechEscHandler){ document.removeEventListener('keydown', window.__speechEscHandler); window.__speechEscHandler = null; }
-}
-
+/* 예전엔 이 오버레이가 openModal의 공용 모달 시스템(.modal-overlay + .modal)을 안
+   쓰고 document.body에 직접 붙는 전체화면 커스텀 레이어였음 — 뒤 배경을 실시간
+   backdrop-filter로 블러하면 라이트박스 때와 같은 이유로 무거워서, 여는 순간의
+   화면을 html2canvas로 한 장 캡쳐해 그 정적인 이미지에만 blur를 먹이는 방식으로
+   우회했었음(그 스크립트를 클릭 시점에야 불러오느라 첫 클릭이 매번 살짝 늦게 뜨는
+   부작용이 있었음 — 위 prewarmSpeechWidget의 예열도 원래 그 지연을 가리기 위한
+   것이었음). 갤러리 라이트박스가 이미 겪고 해결해둔 문제라, 이제 그 결과물을
+   그대로 재사용함 — 화면 전체를 실시간으로 살짝만(--glass-blur-thin) 블러하는
+   .modal-overlay 위에 이 오버레이도 .modal.modal-speech-lightbox로 얹으면, 매번
+   스크린샷을 새로 찍을 필요 자체가 없어져 캡쳐 지연도, html2canvas 스크립트
+   로딩도 통째로 사라짐. */
 function openSpeechOverlay(initialTabId){
   const initialTabs = speechWidgetData.tabs || [];
   if(initialTabs.length === 0) return;
   let activeId = initialTabId || initialTabs[0].id;
   let mode = 'other'; // 오버레이를 열 때마다 항상 타인모드(=off)로 시작함
-
-  closeSpeechOverlay();
-  const el = document.createElement('div');
-  el.className = 'speech-overlay';
-  el.id = 'speechOverlayRoot';
-  el.innerHTML = `
-    <div class="speech-overlay-tint"></div>
-    <button class="speech-overlay-close" id="speechCloseBtn" aria-label="닫기">✕</button>
-    ${editMode ? `<button class="speech-overlay-edit" id="speechOverlayEditBtn" aria-label="말풍선 위젯 편집" title="대사·탭 편집">✎</button>` : ''}
-    <div class="speech-tabs" id="speechTabs"></div>
-    <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
-    <button class="speech-toggle" id="speechModeBtn" aria-pressed="false">
-      <span class="speech-toggle-knob"></span>
-      <span class="speech-toggle-text"></span>
-    </button>
-  `;
-  document.body.appendChild(el);
-
-  // 열리는 그 순간의 화면을 사진처럼 한 장 찍어서(html2canvas), 그 "정적인" 결과물에만
-  // blur를 먹임. backdrop-filter처럼 열려있는 내내 매 프레임 뒤를 실시간으로 다시
-  // 그리는 게 아니라 딱 한 번만 계산해두고 그대로 재사용하는 방식이라, 위젯 탭이나
-  // 스크롤이 바뀌지 않는 이 화면 특성상 실시간 블러와 눈으로는 구분이 안 되면서도
-  // 훨씬 가벼움. html2canvas 로드가 안 됐거나 캡쳐가 실패해도(네트워크 문제 등)
-  // 조용히 무시하고 어두운 틴트만 남도록 처리함.
-  ensureHtml2Canvas().then(ok=>{
-    if(!ok || !document.body.contains(el)) return; // 못 불러왔거나, 불러오는 사이 이미 닫혔으면 틴트만 남김
-    // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이 되는
-    // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
-    el.style.visibility = 'hidden';
-    html2canvas(document.body, {
-      x: window.scrollX, y: window.scrollY,
-      width: window.innerWidth, height: window.innerHeight,
-      scale: Math.min(1, window.devicePixelRatio || 1) * 0.6, // 어차피 블러 처리되니 살짝 낮은 해상도로도 충분하고 캡쳐 속도도 빨라짐
-      useCORS: true, backgroundColor: null, logging: false
-    }).then(canvas=>{
-      el.style.visibility = '';
-      if(!document.body.contains(el)) return; // 캡쳐가 끝나기 전에 이미 닫혔으면 아무것도 안 함
-      const bg = document.createElement('div');
-      bg.className = 'speech-overlay-bg';
-      bg.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.72)})`;
-      el.prepend(bg);
-    }).catch(()=>{ el.style.visibility = ''; });
-  });
-
-  el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
-  window.__speechEscHandler = (e)=>{ if(e.key === 'Escape') closeSpeechOverlay(); };
-  document.addEventListener('keydown', window.__speechEscHandler);
-  el.querySelector('#speechCloseBtn').onclick = closeSpeechOverlay;
-
-  const tabsEl = el.querySelector('#speechTabs');
-  const modeBtn = el.querySelector('#speechModeBtn');
-  const stage = el.querySelector('#speechStage');
-  let bubbleEl = null;
-
-  const overlayEditBtn = el.querySelector('#speechOverlayEditBtn');
-  if(overlayEditBtn){
-    overlayEditBtn.onclick = ()=>{
-      openSpeechEditor(activeId, ()=>{
-        // 편집기에서 탭이 삭제/추가됐을 수 있으니, 지금 보던 탭이 아직 있는지 다시 확인
-        const freshTabs = speechWidgetData.tabs || [];
-        if(!freshTabs.length){ closeSpeechOverlay(); return; }
-        if(!freshTabs.find(t=> t.id === activeId)) activeId = freshTabs[0].id;
-        renderTabs();
-        renderStage();
-      });
-    };
-  }
+  let modalEl, tabsEl, modeBtn, stage, bubbleEl = null;
 
   const renderModeBtn = ()=>{
     const isOn = mode === 'character';
     modeBtn.classList.toggle('is-on', isOn);
     modeBtn.setAttribute('aria-pressed', String(isOn));
     modeBtn.querySelector('.speech-toggle-text').textContent = isOn ? '서로' : '모브';
-    el.classList.toggle('is-on', isOn); // 켜졌을 때 배경에 은은한 핑크빛
+    modalEl.classList.toggle('is-on', isOn); // 켜졌을 때 박스 배경에 은은한 핑크빛
   };
 
   const renderTabs = ()=>{
@@ -7752,11 +7692,60 @@ function openSpeechOverlay(initialTabId){
     });
   };
 
-  modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; } };
+  const bodyHtml = `
+    <button class="lightbox-x" id="speechCloseBtn" aria-label="닫기">✕</button>
+    ${editMode ? `<button class="lightbox-edit" id="speechOverlayEditBtn" aria-label="말풍선 위젯 편집" title="대사·탭 편집">✎</button>` : ''}
+    <div class="speech-tabs" id="speechTabs"></div>
+    <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
+    <button class="speech-toggle" id="speechModeBtn" aria-pressed="false">
+      <span class="speech-toggle-knob"></span>
+      <span class="speech-toggle-text"></span>
+    </button>
+  `;
 
-  renderModeBtn();
-  renderTabs();
-  renderStage();
+  openModal(bodyHtml, (modal)=>{
+    modalEl = modal;
+    tabsEl = modal.querySelector('#speechTabs');
+    modeBtn = modal.querySelector('#speechModeBtn');
+    stage = modal.querySelector('#speechStage');
+
+    modal.querySelector('#speechCloseBtn').onclick = closeModal;
+    const overlayEditBtn = modal.querySelector('#speechOverlayEditBtn');
+    if(overlayEditBtn){
+      overlayEditBtn.onclick = ()=>{
+        // openSpeechEditor()도 같은 공용 모달 시스템을 쓰므로, 편집기가 열리는 순간
+        // 이 라이트박스는 (다른 모달이 열릴 때와 마찬가지로) 자연스럽게 닫힘 — 예전처럼
+        // 뒤에 숨겨둔 채 유지하는 대신, 편집기가 닫히면 그 시점의 최신 데이터로 다시 염
+        openSpeechEditor(activeId, ()=>{
+          const freshTabs = speechWidgetData.tabs || [];
+          if(!freshTabs.length) return; // 탭이 하나도 안 남았으면 다시 열지 않음
+          openSpeechOverlay(freshTabs.find(t=> t.id === activeId) ? activeId : freshTabs[0].id);
+        });
+      };
+    }
+
+    modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; } };
+
+    renderModeBtn();
+    renderTabs();
+    renderStage();
+  }, 'modal-speech-lightbox');
+
+  // 탭 전환 화살표키는 안 쓰지만(갤러리 라이트박스와 달리 탭이 좌우 위치 개념이 아님),
+  // Escape로 닫는 것은 동일하게 지원함 — 이 라이트박스가 열려있는 동안만 리스너를
+  // 걸어두고, 모달이 닫히면(다른 모달로 교체되는 경우 포함) 곧바로 정리함
+  const onKey = (e)=>{
+    if(!modalRoot.querySelector('.modal-speech-lightbox')) return;
+    if(e.key === 'Escape'){ e.preventDefault(); closeModal(); }
+  };
+  document.addEventListener('keydown', onKey);
+  const mo = new MutationObserver(()=>{
+    if(!modalRoot.querySelector('.modal-speech-lightbox')){
+      document.removeEventListener('keydown', onKey);
+      mo.disconnect();
+    }
+  });
+  mo.observe(modalRoot, { childList:true });
 }
 
 /* ---------------- 카드 겉모습 설정(커버 사진/문구) — 대사 편집기와 별개 ---------------- */
@@ -8909,8 +8898,8 @@ docRef('speechWidget').onSnapshot(doc=>{
   const d = doc.exists ? doc.data() : {};
   speechWidgetData = { tabs: (d.tabs || []).map(normalizeSpeechTab), cover: normalizeSpeechCover(d.cover) };
   renderSpeechCard();
-  // 방문자가 위젯을 실제로 누르기 전에, 브라우저가 한가한 틈에 첫 클릭에서 쓰일 캐릭터 이미지·
-  // html2canvas를 미리 데워둠(위 prewarmSpeechWidget 주석 참고) — 아래 갤러리 탭 예열과 같은 패턴
+  // 방문자가 위젯을 실제로 누르기 전에, 브라우저가 한가한 틈에 첫 클릭에서 쓰일 캐릭터
+  // 이미지를 미리 데워둠(위 prewarmSpeechWidget 주석 참고) — 아래 갤러리 탭 예열과 같은 패턴
   if('requestIdleCallback' in window) requestIdleCallback(prewarmSpeechWidget, { timeout: 4000 });
   else setTimeout(prewarmSpeechWidget, 2500);
 });

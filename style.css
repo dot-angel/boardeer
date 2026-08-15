@@ -88,13 +88,18 @@
   --glass-blur: blur(12px) saturate(150%);       /* 큰 유리 표면(카드/모달/토스트) */
   --glass-blur-med: blur(7px) saturate(140%);    /* 작은 버튼/배지류 */
   --glass-blur-thin: blur(4px);                  /* 화면 전체를 덮는 넓은 오버레이(가벼워야 함) — 라이트박스 등과 공용 */
-  --glass-blur-mode-veil: blur(16px) saturate(130%); /* 모드 전환 베일 전용.
+  --glass-blur-mode-veil: blur(10px) saturate(120%); /* 모드 전환 베일 전용.
      예전엔 50px까지 세게 걸어서 뒤 내용을 완전히 뭉개는 용도로만 썼는데, 이제 베일 위에
      실제 테마색이 서서히 디졸브되는 색상 레이어(app.js가 인라인 background-color를
      현재색→도착색으로 트랜지션시킴, 아래 .mode-blur-overlay 참고)가 함께 올라가면서
      그 레이어가 이미 뒤를 상당 부분 덮어주므로, 블러 자체는 "뒤 요소가 갱신되는 순간을
      살짝 뭉개는" 보조 역할로 줄여도 충분함. 반경을 낮추면 화면 전체 크기의 블러 연산
-     비용도 그만큼 줄어 저사양 기기에서 더 가벼움. */
+     비용도 그만큼 줄어 저사양 기기에서 더 가벼움.
+     ⚠️ 16px→10px로 한 번 더 낮춤 — 베일이 떠 있는 동안엔 body.mode-veil-open이
+     .w-card 각자의 backdrop-filter를 꺼두므로(아래 참고), 화면 전체에서 블러를
+     담당하는 레이어가 이제 이 베일 하나뿐임. 카드 배경이 뒤에서 겹겹이 블러되던
+     예전과 달리 단일 레이어라 반경을 세게 걸 필요가 줄었고, PC처럼 카드가 많이
+     보이는 레이아웃에서 특히 체감되던 버벅임이 이 값을 낮춘 만큼 더 줄어듦. */
   --font-display: 'ZEN SERIF', 'Song Myung', 'Noto Serif KR', serif;
   /* 한국어·영어는 ZEN SERIF/Noto Sans KR로 커버되고, 그 외 언어(일본어·중국어·기타 문자 등)는
      이 폰트들에 글자가 없어서 브라우저가 다음 순번으로 넘어가는데, 그 마지막 대체를
@@ -226,6 +231,18 @@ body{
    발생하지 않음(=삼성인터넷 레이어 버그를 새로 만들 위험 없음) */
 body.mode-swap-snap{
   transition: none;
+}
+/* mode-swap-snap이 색 보간(=매 프레임 재블러링)을 없애도, .w-card 각자가 여전히
+   backdrop-filter를 걸고 있는 채로 그 위에 베일 자신의 backdrop-filter까지 겹쳐
+   올라가는 건 그대로임 — 화면에 보이는 카드 수(현재 13개)만큼 곱해지는 비용이라
+   카드가 한 화면에 많이 보이는 PC 레이아웃일수록 여전히 무거웠음. 베일이 뒤를
+   통째로 블러링해주는 동안엔 카드 자신의 블러는 결과물에 거의 기여하지 못하는
+   중복 연산이므로, app.js가 베일이 뜨는 순간부터 걷히기 시작하는 순간까지만 이
+   클래스를 body에 걸어 .w-card 쪽 backdrop-filter를 아예 꺼둠(위 .mode-blur-overlay
+   참고) — 최종적으로 보이는 블러는 베일 한 겹으로 줄지만, 베일 자체가 뒤를 덮고
+   있어 체감상 차이가 없음. */
+body.mode-veil-open .w-card{
+  backdrop-filter: none; -webkit-backdrop-filter: none;
 }
 /* 홈페이지 전체 배경 이미지 레이어 — 배너와 별개로 페이지 전체 뒤에 깔림.
    이미지가 없을 땐 투명해서 아래 컬러 글로우만 보임 */
@@ -739,48 +756,34 @@ body::before{
 .speech-card-cover-btn:hover{ background: rgba(255,255,255,0.25); }
 .speech-card-edit-btn:hover{ background: rgba(196,66,95,0.5); }
 
-/* 방문자용 오버레이 — openModal의 .modal 박스(테두리/배경/그림자)를 안 쓰고, 블러 배경
-   위에 이미지·토글·탭 이름만 떠 있는 형태.
-   처음엔 backdrop-filter(뒤에 있는 걸 매 프레임 실시간으로 훔쳐보며 블러)를 썼는데,
-   라이트박스에서 이미 겪었던 것과 같은 이유로 무거웠음. 그래서 여는 순간의 화면을
-   html2canvas로 한 장 찍어서(app.js), 그 정적인 이미지 한 장(.speech-overlay-bg)에만
-   filter:blur를 걺 — 열려있는 동안은 다시 계산할 필요가 없어서 훨씬 가벼우면서도,
-   이 오버레이가 떠 있는 동안은 뒤 화면이 바뀌지 않으니 실시간 블러와 눈으로 구분 안 됨.
-   블러/어둡기는 처음에 너무 세게 넣었더니 "유리" 느낌보다 "안 보임"에 가까워서 낮춤. */
-.speech-overlay{
-  position:fixed; inset:0; z-index:250; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:22px; padding:20px;
-  background:#0a0405;
-  animation: fadeIn .15s ease;
+/* 방문자용 오버레이 — 예전엔 openModal의 공용 .modal-overlay/.modal 박스를 안 쓰고
+   document.body에 직접 붙는 전체화면 커스텀 레이어였음. 뒤 배경을 backdrop-filter로
+   실시간 블러하면 라이트박스에서 이미 겪었던 것과 같은 이유로 무거워서, 여는 순간의
+   화면을 html2canvas로 한 장 찍어 그 정적인 이미지에만 filter:blur를 먹이는 방식으로
+   우회했었음. 이제 갤러리 라이트박스와 똑같이 공용 모달 시스템에 얹어서(app.js의
+   openSpeechOverlay 참고), 화면 전체를 가볍게 실시간 블러해주는 .modal-overlay
+   (--glass-blur-thin)를 그대로 재사용함 — 스크린샷을 새로 찍을 필요 자체가 없어져
+   그 캡쳐 지연도, html2canvas 스크립트 로딩도 통째로 사라짐. */
+.modal.modal-speech-lightbox{
+  position:relative; width:auto; max-width:94vw;
+  display:flex; flex-direction:column; align-items:center; gap:22px;
 }
-.speech-overlay > *{ position:relative; z-index:2; }
-.speech-overlay-bg{
-  position:absolute; inset:-6%; z-index:0;
-  background-size:cover; background-position:center;
-  filter: blur(9px) brightness(0.85) saturate(1.1);
-  transform: scale(1.02); /* 블러 때문에 가장자리가 비치는 것을 살짝 여유 있게 가림 */
+/* 캐릭터모드(on)일 때만 은은한 핑크 톤이 박스 배경에 번지도록 — 예전
+   .speech-overlay-tint의 radial-gradient를 박스 자신의 배경에 그대로 얹음 */
+.modal.modal-speech-lightbox.is-on{
+  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(24,11,14,0.72) 68%);
 }
-.speech-overlay-tint{
-  position:absolute; inset:0; z-index:1;
-  background: rgba(5,2,3,0.22);
-  transition: background .35s ease;
-}
-/* 캐릭터모드(on)일 때만 은은한 핑크 톤이 배경에 번지도록 */
-.speech-overlay.is-on .speech-overlay-tint{
-  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(5,2,3,0.25) 68%);
-}
-.speech-overlay-close{
-  position:absolute; top:18px; right:18px; width:34px; height:34px; border-radius:50%; border:none;
-  background: rgba(255,255,255,0.08); color:#fff; font-size:.85rem; cursor:pointer;
+/* 편집(연필) 버튼 — 라이트박스 닫기 버튼(.lightbox-x, 우상단)과 짝을 이루는
+   좌상단 버튼. 둘 다 같은 크기/블러로 통일해 라이트박스 계열 버튼임을 알 수 있게 함 */
+.lightbox-edit{
+  position:absolute; top:10px; left:10px; z-index:4;
+  width:32px; height:32px; border-radius:50%; border:none;
+  background: rgba(15,4,6,0.55); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  color:#fff; font-size:.85rem; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
+  transition: background .15s ease;
 }
-.speech-overlay-close:hover{ background: rgba(196,66,95,0.5); }
-.speech-overlay-edit{
-  position:absolute; top:18px; left:18px; width:34px; height:34px; border-radius:50%; border:none;
-  background: rgba(255,255,255,0.08); color:#fff; font-size:.85rem; cursor:pointer;
-  display:flex; align-items:center; justify-content:center;
-}
-.speech-overlay-edit:hover{ background: rgba(196,66,95,0.5); }
+.lightbox-edit:hover{ background: rgba(196,66,95,0.6); }
 .speech-tabs{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
 .speech-tab-btn{
   padding:5px 14px; border-radius:20px; border:none;
