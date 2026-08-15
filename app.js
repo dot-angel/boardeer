@@ -1317,50 +1317,36 @@ function setElementBgImageWithFallback(el, url){
   tryNext();
 }
 
-/* ---------------- 배경 이미지 크로스페이드 (배너 · 페이지 전체 배경 공용) ----------------
-   예전엔 el.style.backgroundImage를 바로 갈아치워서 사진이 뚝 끊기듯 바뀌었음
-   (background-image는 브라우저가 두 url() 사이를 보간해주지 않아서 transition을
-   걸어도 크로스페이드가 안 됨). 그래서 사진을 담는 레이어를 2장 준비해두고, 새
-   사진이 다 준비된 뒤에 "다음 레이어"에 얹고 opacity만 1로 올리면서 "현재
-   레이어"는 0으로 내려 서로 겹쳐 지나가듯 전환되게 함. opacity 전환은
-   backdrop-filter처럼 매 프레임 다시 계산하는 무거운 연산이 아니라 레이어
-   합성(compositing)만 하면 되므로 가벼움.
+/* ---------------- 배경 이미지 설정 (배너 · 페이지 전체 배경 공용) ----------------
+   예전엔 이 자리에 레이어 2장을 겹쳐 opacity로 서로 크로스페이드시키는 방식이
+   있었음 — 라이트/다크모드 전환 베일 뒤에서 배너·배경 사진이 갈아치워지는 순간을
+   자연스럽게 이어 보이게 하려는 용도였는데, 지금은 모드 전환 자체가 화면 전체를
+   덮는 색상 디졸브 베일(runModeBlurTransition)로 처리되고 그 베일이 걷히기 전에
+   사진 교체가 끝나 있으므로(subscribeModeMeta의 준비 대기 로직), 사진 레이어
+   자신의 크로스페이드는 더 이상 화면에 보일 일이 없는 잔재였음. 그래서 레이어를
+   1장으로 줄이고 곧바로 갈아끼움 — 사진이 실제로 로드 완료된 뒤에만 반영해서
+   깨진 이미지가 잠깐 보이는 걸 막는 것과, imgur 확장자 추정 폴백은 그대로 유지함.
    배너와 페이지 전체 배경 둘 다 같은 방식이 필요해서, 컨테이너 엘리먼트와 레이어
    클래스만 받으면 그 조합 전용 setter 함수를 만들어주는 팩토리로 일반화함(아래
-   setBannerBgImageCrossfade / setPageBgImageCrossfade가 각각의 인스턴스). */
-function createBgImageCrossfader(containerEl, layerClass){
-  const a = document.createElement('div');
-  a.className = layerClass;
-  const b = document.createElement('div');
-  b.className = layerClass;
+   setBannerBgImage / setPageBgImage가 각각의 인스턴스). */
+function createBgImageSetter(containerEl, layerClass){
+  const layer = document.createElement('div');
+  layer.className = layerClass;
   // scrim/내용보다 먼저(=아래) 오도록 맨 앞에 끼워 넣음
-  containerEl.prepend(b);
-  containerEl.prepend(a);
-  const layers = [a, b];
-  let activeIdx = 0;
+  containerEl.prepend(layer);
 
   return function setImage(url){
-    const activeEl = layers[activeIdx];
-    const nextEl   = layers[activeIdx === 0 ? 1 : 0];
+    if(!url){ layer.style.backgroundImage = ''; return; }
 
-    const swapIn = (finalUrl)=>{
-      nextEl.style.backgroundImage = finalUrl ? `url('${finalUrl}')` : '';
-      nextEl.classList.add('active');
-      activeEl.classList.remove('active');
-      activeIdx = activeIdx === 0 ? 1 : 0;
-    };
-
-    if(!url){ swapIn(''); return; }
-
-    // 크로스페이드는 사진이 실제로 준비된 뒤에만 시작해야, 로딩 중인 빈 레이어가
-    // 그대로 페이드인되어 잠깐 휑해 보이는 걸 막을 수 있음(그래서 기존
-    // setElementBgImageWithFallback의 "일단 낙관적으로 적용" 방식 대신, 여기서는
-    // Image()로 미리 불러와본 뒤에 swapIn함) — imgur 확장자 깨짐 폴백 로직은 동일하게 유지.
+    // 로딩 중인 빈 레이어가 그대로 드러나 잠깐 휑해 보이는 걸 막기 위해, 사진이
+    // 실제로 준비된 뒤에만 반영함(기존 setElementBgImageWithFallback의 "일단
+    // 낙관적으로 적용" 방식 대신 Image()로 미리 불러와본 뒤 적용) — imgur 확장자
+    // 깨짐 폴백 로직은 동일하게 유지.
     const m = url.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
     if(!m){
       const probe = new Image();
-      probe.onload = ()=> swapIn(url);
-      probe.onerror = ()=> swapIn(url); // 실패해도 예전과 동일하게 일단 그대로 시도
+      probe.onload = ()=>{ layer.style.backgroundImage = `url('${url}')`; };
+      probe.onerror = ()=>{ layer.style.backgroundImage = `url('${url}')`; }; // 실패해도 예전과 동일하게 일단 그대로 시도
       probe.src = url;
       return;
     }
@@ -1370,15 +1356,15 @@ function createBgImageCrossfader(containerEl, layerClass){
       if(i >= exts.length) return;
       const testUrl = `${m[1]}.${exts[i]}`;
       const probe = new Image();
-      probe.onload = ()=> swapIn(testUrl);
+      probe.onload = ()=>{ layer.style.backgroundImage = `url('${testUrl}')`; };
       probe.onerror = ()=>{ i++; tryNext(); };
       probe.src = testUrl;
     };
     tryNext();
   };
 }
-const setBannerBgImageCrossfade = createBgImageCrossfader(siteBannerEl, 'site-banner-bg-layer');
-const setPageBgImageCrossfade   = createBgImageCrossfader(bgImageLayerEl, 'bg-image-layer-slot');
+const setBannerBgImage = createBgImageSetter(siteBannerEl, 'site-banner-bg-layer');
+const setPageBgImage   = createBgImageSetter(bgImageLayerEl, 'bg-image-layer-slot');
 
 function extractYouTubeId(url){
   if(!url) return null;
@@ -2023,7 +2009,7 @@ function applyTheme(theme){
    모드를 전환할 때마다(toggleSiteMode) 기존 구독을 끊고 새 모드의 문서로 다시 구독해서,
    화면에 지금 보고 있는 모드의 편집값만 반영되게 함.
    ⚠️ 배너와 배경의 전환 타이밍이 서로 어긋나 보이던 문제: 배경은 onSnapshot에서 온
-   d.image를 그 자리에서 바로 setPageBgImageCrossfade()에 넘기지만, 배너는 큰 사진이라
+   d.image를 그 자리에서 바로 setPageBgImage()에 넘기지만, 배너는 큰 사진이라
    fileChunks 컬렉션에 조각내어 저장돼 있어(위 배너 업로드 로직 참고) loadFileChunked()로
    조각들을 추가로 비동기 재조립한 뒤에야 준비됨 — 이 한 단계가 항상 배경보다 늦어서,
    같은 순간에 전환을 시작해도 배너 사진만 한 박자 늦게 바뀌는 것처럼 보였음.
@@ -2075,11 +2061,11 @@ function subscribeModeMeta(){
       let dataUrl = '';
       try{ dataUrl = await loadFileChunked(d.fileId, d.chunkTotal || 0); }catch(e){ dataUrl = ''; }
       if(gen !== modeMetaGen) return;
-      apply = ()=> setBannerBgImageCrossfade(dataUrl);
+      apply = ()=> setBannerBgImage(dataUrl);
     } else if(d.image){
-      apply = ()=> setBannerBgImageCrossfade(d.image);
+      apply = ()=> setBannerBgImage(d.image);
     } else {
-      apply = ()=> setBannerBgImageCrossfade('');
+      apply = ()=> setBannerBgImage('');
     }
     if(!bannerFirstDone){ bannerFirstDone = true; pendingBannerApply = apply; tryRelease(); }
     else apply();
@@ -2090,10 +2076,10 @@ function subscribeModeMeta(){
     const d = doc.exists ? doc.data() : {};
     const apply = ()=>{
       if(d.image){
-        setPageBgImageCrossfade(d.image);
+        setPageBgImage(d.image);
         bgImageLayerEl.classList.add('has-image');
       } else {
-        setPageBgImageCrossfade('');
+        setPageBgImage('');
         bgImageLayerEl.classList.remove('has-image');
       }
     };
@@ -2178,13 +2164,35 @@ const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
    실제로 무슨 일이 일어나는지(테마가 바뀌치기되는 순간)도 전혀 안 비침. 그래서 이제
    각 모드의 강조색(--rose)을 골라, 다른 반투명 오버레이들(.modal-overlay 등)과 같은
    세기인 0.55 알파로 얹음 — 완전히 안 가려지는 대신 뒤 배경이 은은히 비치는 "색이
-   있는 유리" 느낌이 나고, 모드마다 강조색이 달라 전환감 자체도 더 또렷해짐. */
-function modeVeilTintColor(hex){
-  hex = (hex || '').trim().replace('#', '');
-  if(hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-  const r = parseInt(hex.substring(0, 2), 16) || 0;
-  const g = parseInt(hex.substring(2, 4), 16) || 0;
-  const b = parseInt(hex.substring(4, 6), 16) || 0;
+   있는 유리" 느낌이 나고, 모드마다 강조색이 달라 전환감 자체도 더 또렷해짐.
+   ⚠️ 입력이 항상 "#RRGGBB" 핵스 문자열인 게 아님: setSiteMode()가 전환 시작점 색을
+   구할 때 쓰는 getComputedStyle(...).getPropertyValue('--rose')는, --rose가
+   @property로 syntax:'<color>'로 등록돼 있어서(위 @property 목록 참고) 브라우저가
+   계산값을 항상 "rgb(r, g, b)"/"rgba(r, g, b, a)" 형태로 정규화해 돌려줌 — 핵스가
+   아님. 이 함수가 핵스 파싱만 하던 예전 버전은 "rgb(196, 66, 95)" 같은 문자열을
+   만나면 앞 두 글자("rg")부터 16진수로 읽으려다 실패해 r=g=0으로 떨어지고, b만
+   우연히 일부 숫자를 건져 거의 새까만 색(rgba(0,0,25,0.55) 등)이 나왔음 — 이게
+   바로 "현재 테마색→도착색"이어야 할 디졸브가 "검정→도착색"처럼 보이던 원인.
+   (도착점 색은 항상 lastKnownRoseByMode/DEFAULT_THEME_BY_MODE의 핵스 리터럴이라
+   문제가 없었고, 시작점만 getComputedStyle을 거쳐서 증상이 전환 시작 쪽에서만
+   보였음.) 이제 rgb()/rgba() 표기와 #RGB/#RRGGBB 핵스 표기를 모두 인식함. */
+function modeVeilTintColor(colorStr){
+  colorStr = (colorStr || '').trim();
+  let r = 0, g = 0, b = 0;
+  const rgbMatch = colorStr.match(/rgba?\(([^)]+)\)/i);
+  if(rgbMatch){
+    // 콤마(rgb(196, 66, 95))와 공백(rgb(196 66 95 / .5)) 표기를 모두 지원
+    const nums = rgbMatch[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat);
+    r = Math.round(nums[0]) || 0;
+    g = Math.round(nums[1]) || 0;
+    b = Math.round(nums[2]) || 0;
+  } else {
+    let hex = colorStr.replace('#', '');
+    if(hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    r = parseInt(hex.substring(0, 2), 16) || 0;
+    g = parseInt(hex.substring(2, 4), 16) || 0;
+    b = parseInt(hex.substring(4, 6), 16) || 0;
+  }
   return `rgba(${r},${g},${b},0.55)`;
 }
 /* 예전엔 문구가 다 뜨기도 전에(페이드인 320ms가 끝나기 전) 사라지는 타이머가 먼저

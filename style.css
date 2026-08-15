@@ -250,19 +250,18 @@ body.mode-veil-open .w-card{
   position: fixed; inset: 0; z-index: -2;
   filter: brightness(0.42) saturate(1.15);
 }
-/* 배경 사진 크로스페이드용 레이어 2장 — app.js의 setPageBgImageCrossfade()가
-   배너와 완전히 같은 방식(opacity 전환)으로 새 사진을 자연스럽게 이어줌
-   (.bg-image-layer 자신의 background-image는 더 이상 안 씀 — 이 두 레이어가
-   대신함). 밝기/채도 필터는 상위 .bg-image-layer에 그대로 걸려 있어서 어느
-   레이어가 활성이든 동일하게 적용됨. */
+/* 배경 사진 레이어 — app.js의 setPageBgImage()가 새 사진 준비가 끝나는 대로
+   여기에 바로 얹음(.bg-image-layer 자신의 background-image는 더 이상 안 씀 —
+   이 레이어가 대신함). 예전엔 레이어 2장을 겹쳐 opacity로 크로스페이드시켰는데,
+   그건 라이트/다크모드 전환 베일 뒤에서 사진이 갈아치워지는 순간을 가려주기
+   위한 장치였고 지금은 그 베일(.mode-blur-overlay) 자체가 그 역할을 하므로
+   사진 레이어의 페이드는 잔재였음 — 레이어 1장으로 단순화함. 밝기/채도 필터는
+   상위 .bg-image-layer에 그대로 걸려 있음. */
 .bg-image-layer-slot{
   position:absolute; inset:0; z-index:0;
   background-size:cover; background-position:center;
-  opacity:0;
-  transition: opacity .5s ease;
   pointer-events:none;
 }
-.bg-image-layer-slot.active{ opacity:1; }
 .bg-image-layer.has-image::after{
   content:"";
   position:absolute; inset:0; z-index:1;
@@ -288,19 +287,16 @@ body::before{
   border-bottom: 1px solid var(--card-border);
   display:flex; align-items:flex-end; overflow:hidden;
 }
-/* 배너 사진 크로스페이드용 레이어 2장 — app.js의 setBannerBgImageCrossfade()가
-   번갈아 여기에 새 사진을 얹고 opacity만 전환해서, 배너 사진이 있는 경우에도
-   뚝 끊기지 않고 겹쳐 지나가듯 자연스럽게 바뀌게 함(.site-banner 자신의
-   background-image는 더 이상 안 씀 — 그 기능을 이 두 레이어가 대신함).
-   backdrop-filter가 아니라 opacity 전환이라 가볍게 처리됨. */
+/* 배너 사진 레이어 — app.js의 setBannerBgImage()가 새 사진 준비가 끝나는 대로
+   여기에 바로 얹음(.site-banner 자신의 background-image는 더 이상 안 씀 — 이
+   레이어가 대신함). 예전엔 레이어 2장을 겹쳐 opacity로 크로스페이드시켰는데,
+   위 .bg-image-layer-slot과 같은 이유(모드 전환 베일이 그 역할을 대신하게 됨)로
+   잔재가 되어 레이어 1장으로 단순화함. */
 .site-banner-bg-layer{
   position:absolute; inset:0; z-index:0;
   background-size:cover; background-position:center;
-  opacity:0;
-  transition: opacity .5s ease;
   pointer-events:none;
 }
-.site-banner-bg-layer.active{ opacity:1; }
 .site-banner-scrim{
   position:absolute; inset:0; z-index:1;
   background: linear-gradient(180deg, rgba(15,4,6,0.05) 20%, rgba(10,3,5,0.9) 100%);
@@ -818,20 +814,34 @@ body::before{
 }
 .speech-toggle.is-on .speech-toggle-text{ right:auto; left:14px; }
 .speech-stage-wrap{ position:relative; }
+/* flex-wrap을 wrap→nowrap으로 바꿈: 캐릭터 이미지들이 화면이 좁아지면 세로로
+   쌓이던 걸 막고 항상 가로 한 줄로 유지함. 대신 공간이 부족할 땐 아래
+   .speech-charbox의 min-width:0 + 이미지의 max-width:min(44vw,100%) 조합으로
+   두 이미지가 비율을 유지한 채 같이 줄어들어서, 가로 스크롤이 생기지 않고
+   모달 폭 안에 항상 들어옴(예전엔 wrap이 걸려 있어서 좁은 화면에서 세로로
+   쌓이거나, wrap이 안 걸리는 경계값에서는 반대로 가로 스크롤이 생기는 등
+   상황에 따라 다르게 깨졌음). */
 .speech-stage{
   position:relative; display:flex; justify-content:center; align-items:flex-end; gap:4px;
-  min-height:200px; flex-wrap:wrap;
+  min-height:200px; flex-wrap:nowrap; max-width:100%;
 }
 /* 캐릭터 이미지 한 장 + 그 위 클릭영역 svg를 묶는 박스. inline-block으로 이미지 실제
    렌더링 크기에 딱 맞게 줄어들어서, svg(inset:0)가 항상 "이 이미지 자신의 박스"와
    정확히 겹침 — 그래서 영역 좌표(%)가 바깥 틀(모달) 크기와 무관하게 항상 같은 위치를
-   가리킴(편집화면과 방문화면의 모달 크기가 달라도 어긋나지 않음) */
-.speech-charbox{ position:relative; display:inline-block; max-height:56vh; }
+   가리킴(편집화면과 방문화면의 모달 크기가 달라도 어긋나지 않음).
+   min-width:0은 flex 아이템의 기본 최소폭(내용의 자연 크기)을 없애서, 두 이미지를
+   합친 폭이 모달보다 넓을 때도 shrink가 실제로 걸리게 하기 위함(이게 없으면
+   flex-shrink가 있어도 아이템이 이미지의 원래 크기 밑으로는 못 줄어들어 넘침) */
+.speech-charbox{ position:relative; display:inline-block; min-width:0; max-height:56vh; }
 /* 눌렀을 때 반응이 있어야 "눌렸다"는 게 느껴져서, 스티커가 말풍선 뜰 때 쓰는 것과
    같은 살짝 튀는 애니메이션을 그대로 재사용함(자바스크립트에서 클릭할 때마다 이 클래스를
    껐다 켜서 재생시킴) */
 .speech-charbox.jump{ animation: stickerJump .32s ease-out; }
-.speech-charbox img{ display:block; max-height:56vh; max-width:44vw; object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
+/* max-width를 44vw 고정값 대신 min(44vw, 100%)로 바꿈 — 화면이 넓을 땐 예전과
+   똑같이 44vw로 캐릭터가 너무 커지지 않게 막고, 화면이 좁아 44vw 두 장이 모달
+   폭(패딩 포함)을 넘어서는 경계에서는 100%(=위 .speech-charbox가 shrink로
+   줄어든 실제 폭)가 대신 걸려서 부모 박스 폭을 넘지 않게 함 */
+.speech-charbox img{ display:block; max-height:56vh; max-width:min(44vw, 100%); object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
 .speech-charbox svg{ position:absolute; inset:0; width:100%; height:100%; }
 .speech-charbox-empty{ font-size:.75rem; color: var(--ink-soft); padding:20px; }
 .speech-region{ fill: rgba(255,255,255,0); cursor:pointer; pointer-events:all; }
