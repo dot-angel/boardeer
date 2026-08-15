@@ -2043,6 +2043,12 @@ function applyTheme(theme){
 const MODE_META_READY_TIMEOUT_MS = 1600;
 let unsubBanner = null, unsubBackground = null, unsubTheme = null;
 let modeMetaGen = 0;
+// 모드 전환 베일의 "도착색"에 쓸, 각 모드에서 마지막으로 확인된 실제 커스텀
+// 포인트 컬러(--rose) 캐시. 이 세션에서 그 모드의 테마 문서를 아직 한 번도
+// 못 받아본 경우엔 null로 남아있고, 이때만 아래 runModeBlurTransition에서
+// DEFAULT_THEME_BY_MODE의 기본 팔레트로 대체함 — 그래야 포인트 컬러를 커스텀한
+// 사이트에서도 전환 베일이 기본색이 아니라 실제 포인트 컬러로 물들어 보임.
+let lastKnownRoseByMode = { dark: null, light: null };
 function subscribeModeMeta(){
   if(unsubBanner) unsubBanner();
   if(unsubBackground) unsubBackground();
@@ -2106,11 +2112,31 @@ function subscribeModeMeta(){
     injectCustomFontFace(null);
     const data = doc.exists ? doc.data() : null;
     if(data) applyTheme(data);
+    // 이 스냅샷이 도착한 시점의 모드(=지금 siteMode)의 커스텀 포인트 컬러를
+    // 기억해둠 — 다음에 이 모드로 "전환"할 때 베일의 도착색이 기본 팔레트가
+    // 아니라 이 실제 값을 쓰도록 함(아래 runModeBlurTransition 참고)
+    if(data && data.rose && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(data.rose)){
+      lastKnownRoseByMode[siteMode] = data.rose;
+    }
   });
 
   return readyPromise;
 }
 subscribeModeMeta();
+// 반대 모드는 아직 구독하지 않으므로(모드를 실제로 켜야만 구독됨), 이번 세션에서
+// 처음 그쪽으로 전환할 때는 위 캐시가 비어있어 기본 팔레트색으로 대체될 수 있음.
+// 그 첫 전환에서도 베일이 실제 포인트 컬러로 보이도록, 반대 모드의 테마 문서만
+// 구독 없이 가볍게 한 번 미리 조회해 캐시를 데워둠(구독이 아니므로 그 모드로
+// 넘어가지 않는 한 실시간 변경엔 반응하지 않고, 실제로 그 모드에 들어가면 위
+// subscribeModeMeta가 정상적으로 구독을 이어받음).
+(function prewarmOtherModeRose(){
+  const otherMode = siteMode === 'light' ? 'dark' : 'light';
+  const otherDoc = db.collection('meta').doc(otherMode === 'light' ? 'themeLight' : 'theme');
+  otherDoc.get().then(doc=>{
+    const d = doc.exists ? doc.data() : null;
+    if(d && d.rose && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(d.rose)) lastKnownRoseByMode[otherMode] = d.rose;
+  }).catch(()=>{});
+})();
 
 /* ---------------- 모드 전환 연출 ----------------
    이제 전환의 주인공은 화면 전체를 덮는 "색상 디졸브"임 — 지금 보이는 테마색에서
@@ -2262,10 +2288,12 @@ function runModeBlurTransition(newMode){
     // 여기서 "이동할 모드의 색"으로 바꿔주면(전환 도착점) style.css의
     // background-color transition(.6s)이 그 사이를 실제로 디졸브해줌. 커스텀 테마
     // 색은 Firestore에서 비동기로 도착하므로(아래 subscribeModeMeta), 정확한 최종
-    // 색 대신 그 모드의 기본 팔레트 색을 도착점으로 씀 — 장식용 디졸브라 오차가
-    // 커도 눈에 띄지 않고, 커스텀 색은 베일이 걷힌 뒤 카드/배경 자체에 이미 정확히
-    // 반영돼 있음
-    overlay.style.backgroundColor = modeVeilTintColor(DEFAULT_THEME_BY_MODE[newMode].rose);
+    // 색이 이 시점엔 아직 없을 수 있음 — 그래서 이전에 그 모드에 있었을 때 확인해둔
+    // 실제 포인트 컬러(lastKnownRoseByMode, 위 prewarmOtherModeRose로 첫 전환 전에도
+    // 미리 데워둠)를 우선 쓰고, 이 세션에서 그 모드를 한 번도 못 본 드문 경우에만
+    // 기본 팔레트 색으로 대체함(장식용 디졸브라 그 정도 오차는 눈에 안 띄고, 커스텀
+    // 색은 베일이 걷힌 뒤 카드/배경 자체에 이미 정확히 반영돼 있음)
+    overlay.style.backgroundColor = modeVeilTintColor(lastKnownRoseByMode[newMode] || DEFAULT_THEME_BY_MODE[newMode].rose);
     subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
   }, themeSwapAt);
 

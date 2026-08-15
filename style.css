@@ -764,14 +764,25 @@ body::before{
    openSpeechOverlay 참고), 화면 전체를 가볍게 실시간 블러해주는 .modal-overlay
    (--glass-blur-thin)를 그대로 재사용함 — 스크린샷을 새로 찍을 필요 자체가 없어져
    그 캡쳐 지연도, html2canvas 스크립트 로딩도 통째로 사라짐. */
+/* ⚠️ 이 규칙이 background/backdrop-filter/padding을 직접 지정하지 않으면 아래
+   공용 .modal 기본값(진한 rgba(24,11,14,0.72) + 무거운 --glass-blur + 24px 패딩)을
+   그대로 물려받아, 같은 "라이트박스 계열"인 .modal-lightbox(갤러리)·
+   .modal-shaker-full(쉐이커)과 톤·블러 세기·여백이 서로 달라 보임(라이트모드에서는
+   전용 오버라이드도 없어 거의 불투명한 흰 박스로 보이는 문제까지 겹침 — 아래
+   body.theme-light .modal.modal-lightbox 참고). 그 둘과 정확히 같은 값으로 맞춰
+   "라이트박스는 다 같은 스타일"이 되게 함. */
 .modal.modal-speech-lightbox{
-  position:relative; width:auto; max-width:94vw;
+  position:relative; width:auto; max-width:94vw; padding:16px;
+  background: rgba(10,5,6,0.5);
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   display:flex; flex-direction:column; align-items:center; gap:22px;
 }
 /* 캐릭터모드(on)일 때만 은은한 핑크 톤이 박스 배경에 번지도록 — 예전
-   .speech-overlay-tint의 radial-gradient를 박스 자신의 배경에 그대로 얹음 */
+   .speech-overlay-tint의 radial-gradient를 박스 자신의 배경에 그대로 얹음.
+   바깥쪽 stop도 위와 같은 이유로 기본 .modal 톤이 아니라 라이트박스 계열 톤
+   (rgba(10,5,6,0.5))으로 맞춤. */
 .modal.modal-speech-lightbox.is-on{
-  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(24,11,14,0.72) 68%);
+  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(10,5,6,0.5) 68%);
 }
 /* 편집(연필) 버튼 — 라이트박스 닫기 버튼(.lightbox-x, 우상단)과 짝을 이루는
    좌상단 버튼. 둘 다 같은 크기/블러로 통일해 라이트박스 계열 버튼임을 알 수 있게 함 */
@@ -2835,8 +2846,14 @@ body.theme-light .modal{
    훨씬 투명해야 했던 것. 그런데 라이트모드에서는 이 요소만 따로 못 바꿔서 위
    .modal 규칙(0.82)에 딸려 들어가 사실상 불투명한 흰 박스로 보였음 — 쉐이커
    전체화면에 이미 적용한 것과 똑같이 rgba(255,255,255,0.15)로 맞춤 */
-body.theme-light .modal.modal-lightbox{
+body.theme-light .modal.modal-lightbox,
+body.theme-light .modal.modal-speech-lightbox{
   background: rgba(255,255,255,0.15);
+}
+/* 캐릭터모드(on) 핑크 톤도 다크모드와 같은 방식으로, 바깥쪽 stop만 라이트모드
+   라이트박스 톤(위와 동일한 rgba(255,255,255,0.15))으로 맞춤 */
+body.theme-light .modal.modal-speech-lightbox.is-on{
+  background: radial-gradient(circle at 50% 45%, rgba(196,66,95,0.32), rgba(255,255,255,0.15) 68%);
 }
 body.theme-light .modal input[type=text], body.theme-light .modal input[type=password],
 body.theme-light .modal input[type=date], body.theme-light .modal input[type=url],
