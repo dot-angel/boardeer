@@ -1661,9 +1661,29 @@ async function saveFileChunked(base64DataUrl){
   return { fileId, total: chunks.length };
 }
 
+// 청크(fileChunks) 문서 하나를 읽어옴 — 실패하면 짧게 늘어나는 대기 후 재시도.
+// 예전엔 아래 loadFileChunked가 Promise.all로 조각 전부를 한 번씩만 읽었는데,
+// 조각 하나(특히 배너처럼 여러 개로 쪼개지는 큰 파일)만 일시적 네트워크
+// 오류(모바일 데이터망 등)로 실패해도 Promise.all 전체가 그대로 reject되어
+// 배너 전체가 빈 화면으로 떨어졌음 — 조각 수가 많을수록(=파일이 클수록) 그
+// 확률이 커져서 "배너 불러오기 실패가 잦다"는 증상으로 이어졌음. 재시도 몇
+// 번이면 대부분의 일시적 네트워크 blip은 넘어가므로, 여기서 재시도를 넣어
+// 개별 조각 하나의 실패가 곧바로 전체 실패로 번지지 않게 함.
+async function firestoreGetWithRetry(docRef, retries){
+  let lastErr;
+  for(let i=0; i<=retries; i++){
+    try{ return await docRef.get(); }
+    catch(e){
+      lastErr = e;
+      if(i < retries) await new Promise(r=> setTimeout(r, 300 * (i+1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function loadFileChunked(fileId, total){
   const snaps = await Promise.all(
-    Array.from({ length: total }, (_, i)=> db.collection('fileChunks').doc(`${fileId}_${i}`).get())
+    Array.from({ length: total }, (_, i)=> firestoreGetWithRetry(db.collection('fileChunks').doc(`${fileId}_${i}`), 2))
   );
   return snaps.map(s=> (s.exists ? s.data().data : '')).join('');
 }
@@ -2411,10 +2431,14 @@ function setSiteMode(newMode){
   modeTransitionBusy = true;
   modeToggleBtn.classList.add('mt-busy');
 
-  // View Transitions를 지원하는 브라우저는 아래 베일(runModeBlurTransition) 자체를
-  // 그리지 않으므로, 그 베일의 GPU 레이어를 미리 깨워두는 워밍업도 함께 건너뜀
-  // (그 레이어가 렌더링되는 일이 없으니 미리 데워둘 이유가 없음)
-  const supportsViewTransition = typeof document.startViewTransition === 'function';
+  // View Transitions는 데스크톱(>900px, 사이트 다른 곳의 모바일 분기점과 동일)
+  // 에서만 씀 — 네이티브 크로스페이드는 화면 스냅샷 두 장을 그대로 섞을 뿐이라
+  // 베일이 갖고 있던 "포인트 컬러로 물드는 색상 디졸브"가 없음. 베일의 그 색
+  // 디졸브 연출을 잃는 게 아쉬운 쪽은 모바일이라(데스크톱은 오히려 베일의
+  // backdrop-filter 재계산 비용이 위젯 수만큼 곱해지는 문제가 더 컸던 쪽이라
+  // View Transitions로 얻는 이득이 큼), 모바일은 기존 베일 경로를 그대로 유지함
+  const supportsViewTransition = typeof document.startViewTransition === 'function'
+    && window.matchMedia('(min-width: 901px)').matches;
 
   if(!supportsViewTransition){
     // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
@@ -7753,44 +7777,55 @@ function openSpeechOverlay(initialTabId){
     void box.offsetWidth; // 강제 리플로우 — 연속으로 눌러도 매번 애니메이션이 다시 시작되게 함
     box.classList.add('jump');
     if(!text) return;
-    if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
-    // anchor(위치 고정용) 안에 실제 말풍선(팝인 애니메이션용)을 넣는 이중 구조.
-    // 하나의 요소에 "위치 이동 transform"과 "팝인 transform"을 같이 걸면 서로
-    // 덮어써서 말풍선이 떴다가 제자리로 툭 튀는 문제가 있었음 — 그래서 위치는
-    // anchor(top/left, transform 없음)가, 팝인 애니메이션은 그 안의 본체가 각자 맡게 함.
-    const anchor = document.createElement('div');
-    anchor.className = 'speech-bubble-anchor';
-    const stageRect = stage.getBoundingClientRect();
-    anchor.style.left = (e.clientX - stageRect.left) + 'px';
-    anchor.style.top = (e.clientY - stageRect.top) + 'px';
-    bubbleEl = document.createElement('div');
-    bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
-    bubbleEl.textContent = text;
-    // 말풍선은 누른 지점을 중심으로 좌우 반반씩 퍼지므로, 단순히 폭을 고정값으로
-    // 줄이기만 하면 캐릭터가 화면 가장자리 쪽에 있을 때(둘이 나란히 있는 화면이라
-    // 흔함) 여전히 한쪽만 화면 밖으로 넘치고, 반대쪽엔 다 못 쓴 여백만 남음.
-    // 그래서 CSS 고정값 대신, 누른 지점에서 화면 양쪽 가장자리까지 각각 남은
-    // 공간을 재서 그 중 더 좁은 쪽을 기준으로 폭을 미리 정함 — 그래야 여백을
-    // 낭비하지 않으면서도 애초에 화면 밖으로 나갈 일이 없음.
-    const edgeMargin = 14;
-    const roomEachSide = Math.min(e.clientX, window.innerWidth - e.clientX) - edgeMargin;
-    const maxW = Math.max(160, Math.min(280, roomEachSide * 2));
-    anchor.appendChild(bubbleEl);
-    stage.appendChild(anchor);
-    shrinkToFitWidth(bubbleEl, maxW, 120);
+    // ⚠️ 예전엔 위 리플로우 직후 이 아래 모든 걸(anchor/bubble 생성, stage.getBoundingClientRect,
+    // 특히 shrinkToFitWidth의 이분탐색 — 최대 8번의 style.width 쓰기+offsetHeight 읽기 반복)
+    // 같은 틱에서 바로 실행했음. 그래서 "점프 애니메이션을 다시 시작시키는 리플로우" 바로
+    // 다음에 "강제 리플로우가 최대 10번 가까이 연속으로" 일어나 메인스레드가 막혀버렸고,
+    // 그 사이엔 브라우저가 점프 애니메이션의 첫 프레임조차 못 그려서 PC처럼 카드/위젯이 많이
+    // 보이는(레이아웃 계산 자체가 무거운) 화면일수록 점프가 뚝뚝 끊기는 것처럼 보였음.
+    // 말풍선을 만들고 폭을 맞추는 무거운 작업 전체를 다음 프레임으로 미뤄서, 이번 프레임은
+    // 점프 리플로우 하나만 하고 곧바로 애니메이션을 시작할 수 있게 함(한 프레임, 약 16ms
+    // 지연은 말풍선이 뜨는 체감에 티가 안 남)
     requestAnimationFrame(()=>{
-      shapeSpeechBubble(bubbleEl, { radius:18, tailLeft:(w)=> (w-18)/2, tailWidth:18, tailHeight:9 });
-      bubbleEl.classList.add('show');
-      // 폭을 미리 딱 맞게 계산해뒀지만, 혹시 모를 반올림 오차 등으로 아주 살짝
-      // 남는 경우를 대비한 최종 안전장치 — 화면 밖으로 넘치면 그만큼만 안쪽으로 밀어줌
-      // (꼬리는 여전히 그 앵커를 가리키므로, 많이 밀렸을 때만 꼬리 위치가 클릭
-      // 지점에서 살짝 벗어나 보일 수 있지만 텍스트가 잘리는 것보단 나음)
-      const margin = 14;
-      const rect = bubbleEl.getBoundingClientRect();
-      let dx = 0;
-      if(rect.left < margin) dx = margin - rect.left;
-      else if(rect.right > window.innerWidth - margin) dx = (window.innerWidth - margin) - rect.right;
-      if(dx) anchor.style.left = (parseFloat(anchor.style.left) + dx) + 'px';
+      if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
+      // anchor(위치 고정용) 안에 실제 말풍선(팝인 애니메이션용)을 넣는 이중 구조.
+      // 하나의 요소에 "위치 이동 transform"과 "팝인 transform"을 같이 걸면 서로
+      // 덮어써서 말풍선이 떴다가 제자리로 툭 튀는 문제가 있었음 — 그래서 위치는
+      // anchor(top/left, transform 없음)가, 팝인 애니메이션은 그 안의 본체가 각자 맡게 함.
+      const anchor = document.createElement('div');
+      anchor.className = 'speech-bubble-anchor';
+      const stageRect = stage.getBoundingClientRect();
+      anchor.style.left = (e.clientX - stageRect.left) + 'px';
+      anchor.style.top = (e.clientY - stageRect.top) + 'px';
+      bubbleEl = document.createElement('div');
+      bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
+      bubbleEl.textContent = text;
+      // 말풍선은 누른 지점을 중심으로 좌우 반반씩 퍼지므로, 단순히 폭을 고정값으로
+      // 줄이기만 하면 캐릭터가 화면 가장자리 쪽에 있을 때(둘이 나란히 있는 화면이라
+      // 흔함) 여전히 한쪽만 화면 밖으로 넘치고, 반대쪽엔 다 못 쓴 여백만 남음.
+      // 그래서 CSS 고정값 대신, 누른 지점에서 화면 양쪽 가장자리까지 각각 남은
+      // 공간을 재서 그 중 더 좁은 쪽을 기준으로 폭을 미리 정함 — 그래야 여백을
+      // 낭비하지 않으면서도 애초에 화면 밖으로 나갈 일이 없음.
+      const edgeMargin = 14;
+      const roomEachSide = Math.min(e.clientX, window.innerWidth - e.clientX) - edgeMargin;
+      const maxW = Math.max(160, Math.min(280, roomEachSide * 2));
+      anchor.appendChild(bubbleEl);
+      stage.appendChild(anchor);
+      shrinkToFitWidth(bubbleEl, maxW, 120);
+      requestAnimationFrame(()=>{
+        shapeSpeechBubble(bubbleEl, { radius:18, tailLeft:(w)=> (w-18)/2, tailWidth:18, tailHeight:9 });
+        bubbleEl.classList.add('show');
+        // 폭을 미리 딱 맞게 계산해뒀지만, 혹시 모를 반올림 오차 등으로 아주 살짝
+        // 남는 경우를 대비한 최종 안전장치 — 화면 밖으로 넘치면 그만큼만 안쪽으로 밀어줌
+        // (꼬리는 여전히 그 앵커를 가리키므로, 많이 밀렸을 때만 꼬리 위치가 클릭
+        // 지점에서 살짝 벗어나 보일 수 있지만 텍스트가 잘리는 것보단 나음)
+        const margin = 14;
+        const rect = bubbleEl.getBoundingClientRect();
+        let dx = 0;
+        if(rect.left < margin) dx = margin - rect.left;
+        else if(rect.right > window.innerWidth - margin) dx = (window.innerWidth - margin) - rect.right;
+        if(dx) anchor.style.left = (parseFloat(anchor.style.left) + dx) + 'px';
+      });
     });
   };
 

@@ -856,16 +856,22 @@ body::before{
    min-width:0은 flex 아이템의 기본 최소폭(내용의 자연 크기)을 없애서, 두 이미지를
    합친 폭이 모달보다 넓을 때도 shrink가 실제로 걸리게 하기 위함(이게 없으면
    flex-shrink가 있어도 아이템이 이미지의 원래 크기 밑으로는 못 줄어들어 넘침) */
-.speech-charbox{ position:relative; display:inline-block; min-width:0; max-height:56vh; }
+/* min(44vw,100%)→min(48vw,100%), 56vh→70vh로 늘림 — 라이트박스 박스 자체(위
+   .modal.modal-speech-lightbox)는 이미 max-width:94vw까지 허용하는데, 정작 안의
+   캐릭터 이미지가 훨씬 보수적인 값(56vh/44vw)에 묶여 있어서 박스 안에 여백만
+   많이 남고 실제로는 화면 크기에 비해 작아 보였음. 70vh는 모달 자체의
+   max-height(85vh, 위 .modal 기본값) 안에서 탭 줄+토글 버튼+패딩(대략 15vh
+   내외)이 들어갈 여유를 남겨둔 값 */
+.speech-charbox{ position:relative; display:inline-block; min-width:0; max-height:70vh; }
 /* 눌렀을 때 반응이 있어야 "눌렸다"는 게 느껴져서, 스티커가 말풍선 뜰 때 쓰는 것과
    같은 살짝 튀는 애니메이션을 그대로 재사용함(자바스크립트에서 클릭할 때마다 이 클래스를
    껐다 켜서 재생시킴) */
 .speech-charbox.jump{ animation: stickerJump .32s ease-out; }
 /* max-width를 44vw 고정값 대신 min(44vw, 100%)로 바꿈 — 화면이 넓을 땐 예전과
-   똑같이 44vw로 캐릭터가 너무 커지지 않게 막고, 화면이 좁아 44vw 두 장이 모달
+   똑같이 48vw로 캐릭터가 너무 커지지 않게 막고, 화면이 좁아 48vw 두 장이 모달
    폭(패딩 포함)을 넘어서는 경계에서는 100%(=위 .speech-charbox가 shrink로
    줄어든 실제 폭)가 대신 걸려서 부모 박스 폭을 넘지 않게 함 */
-.speech-charbox img{ display:block; max-height:56vh; max-width:min(44vw, 100%); object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
+.speech-charbox img{ display:block; max-height:70vh; max-width:min(48vw, 100%); object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
 .speech-charbox svg{ position:absolute; inset:0; width:100%; height:100%; }
 .speech-charbox-empty{ font-size:.75rem; color: var(--ink-soft); padding:20px; }
 .speech-region{ fill: rgba(255,255,255,0); cursor:pointer; pointer-events:all; }
@@ -879,7 +885,7 @@ body::before{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
   max-width: min(260px, 70vw); width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  isolation:isolate;
+  z-index:0;
   color:#FBF7F8;
   border-radius:18px; padding:13px 18px 22px 18px;
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
@@ -892,9 +898,15 @@ body::before{
    backdrop-filter를 같은 요소에 같이 걸면, 꼬리처럼 뾰족한 지점에서 블러가
    클리핑 경계를 살짝 넘어 "번지는" 브라우저 렌더링 오차가 생김(크로스브라우저
    공통 이슈). filter:drop-shadow는 부모에 그대로 둬서 윤곽선(테두리)은 여전히
-   clip-path로 오려낸 모양을 정확히 따라감. isolation:isolate + z-index:-1로
-   이 ::before가 부모 안에서만 배경 역할을 하고 다른 요소 위로 새지 않게 함.
-   clip-path:inherit이 부모의 인라인 clip-path 값을 그대로 이어받음 */
+   clip-path로 오려낸 모양을 정확히 따라감.
+   ⚠️ 처음엔 컨테인을 isolation:isolate로 했었는데, isolation:isolate가 이
+   요소를 "백드롭 루트"로 만들어버려서 ::before의 backdrop-filter가 그 뒤(=이
+   요소 바깥, 실제 페이지 배경)를 전혀 못 읽고 블러가 통째로 사라지는 문제가
+   있었음(테두리 번짐은 없어졌지만 유리 질감 자체가 없어짐). isolation 대신
+   이미 position:absolute인 요소에 z-index를 명시(auto가 아닌 값)해서 스태킹
+   컨텍스트를 만들면, "백드롭 루트"를 만들지 않으면서도 ::before(z-index:-1)가
+   부모 안에서만 배경 역할을 하고 바깥 요소 위로 새지 않게 하는 목적은 똑같이
+   달성됨 */
 .speech-bubble::before{
   content:''; position:absolute; inset:0; z-index:-1;
   border-radius:inherit; clip-path:inherit;
@@ -1701,7 +1713,7 @@ a.pf-link-item:hover{ background: rgba(var(--row-tint),0.1); }
   font-family: var(--font-display); font-style:italic; font-weight:400;
   font-size:.8rem; line-height:1.35; color: var(--ink);
   width:fit-content; max-width:100%;
-  isolation:isolate;
+  z-index:0;
   /* border 대신 filter:drop-shadow를 씀 — border는 clip-path로 오려내기 전의
      원래 사각형 테두리를 기준으로 그려져서 오려낸 모양(특히 꼬리 옆 바닥선)과
      어긋나지만, drop-shadow는 clip-path 적용 후 실제로 보이는 모양의 윤곽을
@@ -1711,7 +1723,9 @@ a.pf-link-item:hover{ background: rgba(var(--row-tint),0.1); }
   word-break:keep-all; overflow-wrap:break-word; white-space:normal;
 }
 /* 배경+블러를 별도 ::before로 분리 — .speech-bubble/.sticker-bubble과 같은 이유
-   (clip-path+backdrop-filter 조합의 블러 번짐 버그, 위 .speech-bubble 참고) */
+   (clip-path+backdrop-filter 조합의 블러 번짐 버그, 위 .speech-bubble 참고).
+   z-index:0인 이유도 위 .speech-bubble 주석과 동일(isolation:isolate는 백드롭
+   루트를 만들어 블러 자체를 없애버림) */
 .profile-compact-oneliner::before{
   content:''; position:absolute; inset:0; z-index:-1;
   border-radius:inherit; clip-path:inherit;
@@ -2845,7 +2859,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
      브라우저가 지원하는 선에서 알아서 피해줌 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  isolation:isolate;
+  z-index:0;
   color:#FBF7F8;
   border-radius:16px; padding:9px 13px 17px 13px;
   /* border+box-shadow 대신 filter:drop-shadow 두 개를 겹쳐서 씀 — clip-path로
@@ -2858,7 +2872,8 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   transition: opacity .3s ease, transform .3s ease;
 }
 /* 배경+블러를 별도 ::before로 분리 — .speech-bubble과 같은 이유
-   (clip-path+backdrop-filter 조합의 블러 번짐 버그, 위 .speech-bubble 참고) */
+   (clip-path+backdrop-filter 조합의 블러 번짐 버그, z-index:0인 이유도 포함해
+   위 .speech-bubble 참고) */
 .sticker-bubble::before{
   content:''; position:absolute; inset:0; z-index:-1;
   border-radius:inherit; clip-path:inherit;
