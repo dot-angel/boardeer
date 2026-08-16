@@ -1317,36 +1317,50 @@ function setElementBgImageWithFallback(el, url){
   tryNext();
 }
 
-/* ---------------- 배경 이미지 설정 (배너 · 페이지 전체 배경 공용) ----------------
-   예전엔 이 자리에 레이어 2장을 겹쳐 opacity로 서로 크로스페이드시키는 방식이
-   있었음 — 라이트/다크모드 전환 베일 뒤에서 배너·배경 사진이 갈아치워지는 순간을
-   자연스럽게 이어 보이게 하려는 용도였는데, 지금은 모드 전환 자체가 화면 전체를
-   덮는 색상 디졸브 베일(runModeBlurTransition)로 처리되고 그 베일이 걷히기 전에
-   사진 교체가 끝나 있으므로(subscribeModeMeta의 준비 대기 로직), 사진 레이어
-   자신의 크로스페이드는 더 이상 화면에 보일 일이 없는 잔재였음. 그래서 레이어를
-   1장으로 줄이고 곧바로 갈아끼움 — 사진이 실제로 로드 완료된 뒤에만 반영해서
-   깨진 이미지가 잠깐 보이는 걸 막는 것과, imgur 확장자 추정 폴백은 그대로 유지함.
+/* ---------------- 배경 이미지 크로스페이드 (배너 · 페이지 전체 배경 공용) ----------------
+   예전엔 el.style.backgroundImage를 바로 갈아치워서 사진이 뚝 끊기듯 바뀌었음
+   (background-image는 브라우저가 두 url() 사이를 보간해주지 않아서 transition을
+   걸어도 크로스페이드가 안 됨). 그래서 사진을 담는 레이어를 2장 준비해두고, 새
+   사진이 다 준비된 뒤에 "다음 레이어"에 얹고 opacity만 1로 올리면서 "현재
+   레이어"는 0으로 내려 서로 겹쳐 지나가듯 전환되게 함. opacity 전환은
+   backdrop-filter처럼 매 프레임 다시 계산하는 무거운 연산이 아니라 레이어
+   합성(compositing)만 하면 되므로 가벼움.
    배너와 페이지 전체 배경 둘 다 같은 방식이 필요해서, 컨테이너 엘리먼트와 레이어
    클래스만 받으면 그 조합 전용 setter 함수를 만들어주는 팩토리로 일반화함(아래
-   setBannerBgImage / setPageBgImage가 각각의 인스턴스). */
-function createBgImageSetter(containerEl, layerClass){
-  const layer = document.createElement('div');
-  layer.className = layerClass;
+   setBannerBgImageCrossfade / setPageBgImageCrossfade가 각각의 인스턴스). */
+function createBgImageCrossfader(containerEl, layerClass){
+  const a = document.createElement('div');
+  a.className = layerClass;
+  const b = document.createElement('div');
+  b.className = layerClass;
   // scrim/내용보다 먼저(=아래) 오도록 맨 앞에 끼워 넣음
-  containerEl.prepend(layer);
+  containerEl.prepend(b);
+  containerEl.prepend(a);
+  const layers = [a, b];
+  let activeIdx = 0;
 
   return function setImage(url){
-    if(!url){ layer.style.backgroundImage = ''; return; }
+    const activeEl = layers[activeIdx];
+    const nextEl   = layers[activeIdx === 0 ? 1 : 0];
 
-    // 로딩 중인 빈 레이어가 그대로 드러나 잠깐 휑해 보이는 걸 막기 위해, 사진이
-    // 실제로 준비된 뒤에만 반영함(기존 setElementBgImageWithFallback의 "일단
-    // 낙관적으로 적용" 방식 대신 Image()로 미리 불러와본 뒤 적용) — imgur 확장자
-    // 깨짐 폴백 로직은 동일하게 유지.
+    const swapIn = (finalUrl)=>{
+      nextEl.style.backgroundImage = finalUrl ? `url('${finalUrl}')` : '';
+      nextEl.classList.add('active');
+      activeEl.classList.remove('active');
+      activeIdx = activeIdx === 0 ? 1 : 0;
+    };
+
+    if(!url){ swapIn(''); return; }
+
+    // 크로스페이드는 사진이 실제로 준비된 뒤에만 시작해야, 로딩 중인 빈 레이어가
+    // 그대로 페이드인되어 잠깐 휑해 보이는 걸 막을 수 있음(그래서 기존
+    // setElementBgImageWithFallback의 "일단 낙관적으로 적용" 방식 대신, 여기서는
+    // Image()로 미리 불러와본 뒤에 swapIn함) — imgur 확장자 깨짐 폴백 로직은 동일하게 유지.
     const m = url.match(/^(https:\/\/i\.imgur\.com\/[a-zA-Z0-9]+)\.[a-zA-Z]+$/i);
     if(!m){
       const probe = new Image();
-      probe.onload = ()=>{ layer.style.backgroundImage = `url('${url}')`; };
-      probe.onerror = ()=>{ layer.style.backgroundImage = `url('${url}')`; }; // 실패해도 예전과 동일하게 일단 그대로 시도
+      probe.onload = ()=> swapIn(url);
+      probe.onerror = ()=> swapIn(url); // 실패해도 예전과 동일하게 일단 그대로 시도
       probe.src = url;
       return;
     }
@@ -1356,15 +1370,15 @@ function createBgImageSetter(containerEl, layerClass){
       if(i >= exts.length) return;
       const testUrl = `${m[1]}.${exts[i]}`;
       const probe = new Image();
-      probe.onload = ()=>{ layer.style.backgroundImage = `url('${testUrl}')`; };
+      probe.onload = ()=> swapIn(testUrl);
       probe.onerror = ()=>{ i++; tryNext(); };
       probe.src = testUrl;
     };
     tryNext();
   };
 }
-const setBannerBgImage = createBgImageSetter(siteBannerEl, 'site-banner-bg-layer');
-const setPageBgImage   = createBgImageSetter(bgImageLayerEl, 'bg-image-layer-slot');
+const setBannerBgImageCrossfade = createBgImageCrossfader(siteBannerEl, 'site-banner-bg-layer');
+const setPageBgImageCrossfade   = createBgImageCrossfader(bgImageLayerEl, 'bg-image-layer-slot');
 
 function extractYouTubeId(url){
   if(!url) return null;
@@ -2009,7 +2023,7 @@ function applyTheme(theme){
    모드를 전환할 때마다(toggleSiteMode) 기존 구독을 끊고 새 모드의 문서로 다시 구독해서,
    화면에 지금 보고 있는 모드의 편집값만 반영되게 함.
    ⚠️ 배너와 배경의 전환 타이밍이 서로 어긋나 보이던 문제: 배경은 onSnapshot에서 온
-   d.image를 그 자리에서 바로 setPageBgImage()에 넘기지만, 배너는 큰 사진이라
+   d.image를 그 자리에서 바로 setPageBgImageCrossfade()에 넘기지만, 배너는 큰 사진이라
    fileChunks 컬렉션에 조각내어 저장돼 있어(위 배너 업로드 로직 참고) loadFileChunked()로
    조각들을 추가로 비동기 재조립한 뒤에야 준비됨 — 이 한 단계가 항상 배경보다 늦어서,
    같은 순간에 전환을 시작해도 배너 사진만 한 박자 늦게 바뀌는 것처럼 보였음.
@@ -2029,12 +2043,6 @@ function applyTheme(theme){
 const MODE_META_READY_TIMEOUT_MS = 1600;
 let unsubBanner = null, unsubBackground = null, unsubTheme = null;
 let modeMetaGen = 0;
-// 모드 전환 베일의 "도착색"에 쓸, 각 모드에서 마지막으로 확인된 실제 커스텀
-// 포인트 컬러(--rose) 캐시. 이 세션에서 그 모드의 테마 문서를 아직 한 번도
-// 못 받아본 경우엔 null로 남아있고, 이때만 아래 runModeBlurTransition에서
-// DEFAULT_THEME_BY_MODE의 기본 팔레트로 대체함 — 그래야 포인트 컬러를 커스텀한
-// 사이트에서도 전환 베일이 기본색이 아니라 실제 포인트 컬러로 물들어 보임.
-let lastKnownRoseByMode = { dark: null, light: null };
 function subscribeModeMeta(){
   if(unsubBanner) unsubBanner();
   if(unsubBackground) unsubBackground();
@@ -2061,11 +2069,11 @@ function subscribeModeMeta(){
       let dataUrl = '';
       try{ dataUrl = await loadFileChunked(d.fileId, d.chunkTotal || 0); }catch(e){ dataUrl = ''; }
       if(gen !== modeMetaGen) return;
-      apply = ()=> setBannerBgImage(dataUrl);
+      apply = ()=> setBannerBgImageCrossfade(dataUrl);
     } else if(d.image){
-      apply = ()=> setBannerBgImage(d.image);
+      apply = ()=> setBannerBgImageCrossfade(d.image);
     } else {
-      apply = ()=> setBannerBgImage('');
+      apply = ()=> setBannerBgImageCrossfade('');
     }
     if(!bannerFirstDone){ bannerFirstDone = true; pendingBannerApply = apply; tryRelease(); }
     else apply();
@@ -2076,10 +2084,10 @@ function subscribeModeMeta(){
     const d = doc.exists ? doc.data() : {};
     const apply = ()=>{
       if(d.image){
-        setPageBgImage(d.image);
+        setPageBgImageCrossfade(d.image);
         bgImageLayerEl.classList.add('has-image');
       } else {
-        setPageBgImage('');
+        setPageBgImageCrossfade('');
         bgImageLayerEl.classList.remove('has-image');
       }
     };
@@ -2098,44 +2106,23 @@ function subscribeModeMeta(){
     injectCustomFontFace(null);
     const data = doc.exists ? doc.data() : null;
     if(data) applyTheme(data);
-    // 이 스냅샷이 도착한 시점의 모드(=지금 siteMode)의 커스텀 포인트 컬러를
-    // 기억해둠 — 다음에 이 모드로 "전환"할 때 베일의 도착색이 기본 팔레트가
-    // 아니라 이 실제 값을 쓰도록 함(아래 runModeBlurTransition 참고)
-    if(data && data.rose && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(data.rose)){
-      lastKnownRoseByMode[siteMode] = data.rose;
-    }
   });
 
   return readyPromise;
 }
 subscribeModeMeta();
-// 반대 모드는 아직 구독하지 않으므로(모드를 실제로 켜야만 구독됨), 이번 세션에서
-// 처음 그쪽으로 전환할 때는 위 캐시가 비어있어 기본 팔레트색으로 대체될 수 있음.
-// 그 첫 전환에서도 베일이 실제 포인트 컬러로 보이도록, 반대 모드의 테마 문서만
-// 구독 없이 가볍게 한 번 미리 조회해 캐시를 데워둠(구독이 아니므로 그 모드로
-// 넘어가지 않는 한 실시간 변경엔 반응하지 않고, 실제로 그 모드에 들어가면 위
-// subscribeModeMeta가 정상적으로 구독을 이어받음).
-(function prewarmOtherModeRose(){
-  const otherMode = siteMode === 'light' ? 'dark' : 'light';
-  const otherDoc = db.collection('meta').doc(otherMode === 'light' ? 'themeLight' : 'theme');
-  otherDoc.get().then(doc=>{
-    const d = doc.exists ? doc.data() : null;
-    if(d && d.rose && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(d.rose)) lastKnownRoseByMode[otherMode] = d.rose;
-  }).catch(()=>{});
-})();
 
 /* ---------------- 모드 전환 연출 ----------------
-   이제 전환의 주인공은 화면 전체를 덮는 "색상 디졸브"임 — 지금 보이는 테마색에서
-   이동할 테마색으로 베일이 서서히 물들어가고(style.css .mode-blur-overlay의
-   background-color transition), 블러는 그 디졸브가 진행되는 동안 뒤 요소가
-   갱신되는 순간만 살짝 뭉개주는 보조 역할로 줄여둠(--glass-blur-mode-veil).
-   순서:
+   색이 실제로 자연스럽게 이어지는 건 이제 style.css의 body에 걸어둔
+   --rose/--paper/--ink 등 @property + transition이 담당함(값 자체가 진짜로
+   서서히 크로스페이드됨) — 그래서 여기 오버레이는 더 이상 "다 가려질 때까지
+   기다렸다가 바꿔치기"할 필요가 없고, 그저:
    1) 스위치 썸이 먼저 슥 움직이는 걸 보여줌(프리롤)
-   2) 베일이 "지금 화면 색"으로 미리 칠해진 채 떠오르고, 거의 동시에 테마가
-      바뀌치기됨 → 그 직후 베일의 background-color를 "이동할 모드의 색"으로
-      바꿔서 트랜지션이 시작되면 화면이 실제로 색 대 색으로 디졸브되는 게 보임
-      (베일은 배경 이미지·배너처럼 CSS transition으로 못 덮는 요소들이
-      Firestore에서 새로 도착하는 그 짧은 순간을 같이 가려주는 역할도 겸함)
+   2) 조금 더 또렷한 블러 베일을 얹으면서 곧바로 테마를 바꿔치기 → 색 전환이
+      바로 시작됨(베일은 배경 이미지·배너처럼 CSS transition으로 못 덮는
+      요소들이 Firestore에서 새로 도착하는 그 짧은 순간만 뭉개주는 용도 —
+      화면 전체에 짧게(수백ms)만 걸리는 데다 전용 변수(--glass-blur-mode-veil)로
+      분리해뒀기 때문에 세기를 올려도 다른 UI의 블러 비용에는 영향이 없음)
    3) "OOO에 오신 것을 환영합니다" 문구를 잠깐 띄웠다가
    4) 문구가 사라지고 베일도 걷힘
    숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
@@ -2158,43 +2145,6 @@ const MODE_TEXT_DELAY_MS = 90;      // 베일이 자리잡은 뒤 문구가 뜨�
 const MODE_TEXT_FADE_MS = 320;      // 문구가 서서히 뜨고/사라지는 시간 — style.css .mode-welcome-text의 transition(.32s)과 반드시 같아야 함
 const MODE_TEXT_HOLD_MS = 700;      // 문구가 "완전히 다 뜬 채로" 유지되는 최소 시간(배너/배경 이미지가 이보다 늦게 도착하면 실제로는 더 길어짐 — 아래 subscribeModeMeta 참고)
 const MODE_VEIL_OUT_MS = 380;       // 베일이 걷히는 시간
-
-/* 베일 색상 디졸브(시작점→도착점)에 쓰던 --paper는 다크/라이트 공통으로 거의 검정/거의
-   흰색이라 그 자체로는 "전환 중"이라는 느낌이 잘 안 살고, 완전 불투명이라 베일 뒤에서
-   실제로 무슨 일이 일어나는지(테마가 바뀌치기되는 순간)도 전혀 안 비침. 그래서 이제
-   각 모드의 강조색(--rose)을 골라, 다른 반투명 오버레이들(.modal-overlay 등)과 같은
-   세기인 0.55 알파로 얹음 — 완전히 안 가려지는 대신 뒤 배경이 은은히 비치는 "색이
-   있는 유리" 느낌이 나고, 모드마다 강조색이 달라 전환감 자체도 더 또렷해짐.
-   ⚠️ 입력이 항상 "#RRGGBB" 핵스 문자열인 게 아님: setSiteMode()가 전환 시작점 색을
-   구할 때 쓰는 getComputedStyle(...).getPropertyValue('--rose')는, --rose가
-   @property로 syntax:'<color>'로 등록돼 있어서(위 @property 목록 참고) 브라우저가
-   계산값을 항상 "rgb(r, g, b)"/"rgba(r, g, b, a)" 형태로 정규화해 돌려줌 — 핵스가
-   아님. 이 함수가 핵스 파싱만 하던 예전 버전은 "rgb(196, 66, 95)" 같은 문자열을
-   만나면 앞 두 글자("rg")부터 16진수로 읽으려다 실패해 r=g=0으로 떨어지고, b만
-   우연히 일부 숫자를 건져 거의 새까만 색(rgba(0,0,25,0.55) 등)이 나왔음 — 이게
-   바로 "현재 테마색→도착색"이어야 할 디졸브가 "검정→도착색"처럼 보이던 원인.
-   (도착점 색은 항상 lastKnownRoseByMode/DEFAULT_THEME_BY_MODE의 핵스 리터럴이라
-   문제가 없었고, 시작점만 getComputedStyle을 거쳐서 증상이 전환 시작 쪽에서만
-   보였음.) 이제 rgb()/rgba() 표기와 #RGB/#RRGGBB 핵스 표기를 모두 인식함. */
-function modeVeilTintColor(colorStr){
-  colorStr = (colorStr || '').trim();
-  let r = 0, g = 0, b = 0;
-  const rgbMatch = colorStr.match(/rgba?\(([^)]+)\)/i);
-  if(rgbMatch){
-    // 콤마(rgb(196, 66, 95))와 공백(rgb(196 66 95 / .5)) 표기를 모두 지원
-    const nums = rgbMatch[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat);
-    r = Math.round(nums[0]) || 0;
-    g = Math.round(nums[1]) || 0;
-    b = Math.round(nums[2]) || 0;
-  } else {
-    let hex = colorStr.replace('#', '');
-    if(hex.length === 3) hex = hex.split('').map(c => c + c).join('');
-    r = parseInt(hex.substring(0, 2), 16) || 0;
-    g = parseInt(hex.substring(2, 4), 16) || 0;
-    b = parseInt(hex.substring(4, 6), 16) || 0;
-  }
-  return `rgba(${r},${g},${b},0.55)`;
-}
 /* 예전엔 문구가 다 뜨기도 전에(페이드인 320ms가 끝나기 전) 사라지는 타이머가 먼저
    발동해버려서, 문구가 최대 밝기까지 못 올라가고 바로 꺼지는 버그가 있었음(그래서
    "뜨는 시간이 너무 짧다"고 느껴졌던 것). 지금도 아래 runModeBlurTransition()에서
@@ -2202,23 +2152,13 @@ function modeVeilTintColor(colorStr){
 
 let modeTransitionBusy = false;
 
-// 삼성인터넷은 backdrop-filter의 GPU 레이어를 opacity:0로 대기하는 동안
-// 내려놨다가 트랜지션이 막 시작되는 프레임에야 재승격을 시도해서, 그 처리가
-// 트랜지션 시작과 겹치면 블러가 아직 안 걸린 프레임이 한 장 섞여 들어가는
-// 경우가 보고됨(아래 setSiteMode의 워밍업 주석 참고 — 리드타임을 530ms까지
-// 늘려도 남아있었음). 그래서 이 브라우저 한정으로는 재승격이 필요한
-// backdrop-filter만 빼고 씀(style.css의 .mbo-no-blur 참고) — 색상 디졸브
-// (background-color transition)는 재승격과 무관하게 그대로 동작하므로, 블러
-// 프레임 한 장이 섞여도 전환 자체는 색으로 계속 자연스럽게 보임.
-const isSamsungInternet = /SamsungBrowser/i.test(navigator.userAgent);
-
 // 오버레이/문구는 딱 한 번만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
 let modeBlurOverlayEl = null;
 let modeWelcomeTextEl = null;
 function ensureModeBlurOverlay(){
   if(modeBlurOverlayEl) return modeBlurOverlayEl;
   modeBlurOverlayEl = document.createElement('div');
-  modeBlurOverlayEl.className = 'mode-blur-overlay' + (isSamsungInternet ? ' mbo-no-blur' : '');
+  modeBlurOverlayEl.className = 'mode-blur-overlay';
   modeWelcomeTextEl = document.createElement('div');
   modeWelcomeTextEl.className = 'mode-welcome-text';
   modeBlurOverlayEl.appendChild(modeWelcomeTextEl);
@@ -2238,14 +2178,6 @@ function runModeBlurTransition(newMode){
     overlay.style.transition = '';
     overlay.style.opacity = '';
     overlay.classList.add('show');
-    // 베일 자신의 backdrop-filter가 이미 뒤(카드 포함)를 통째로 블러링해주므로,
-    // 이 구간 동안엔 .w-card 각자의 backdrop-filter는 사실상 이중 블러링임 —
-    // PC처럼 카드가 한 화면에 많이 보이는 레이아웃일수록 그 중복 비용이 위젯
-    // 수만큼 곱해져 버벅임으로 드러남(위 body.mode-swap-snap 주석 참고). 베일이
-    // 떠 있는 동안만 body에 이 클래스를 걸어 .w-card 쪽 backdrop-filter를 꺼두면
-    // (style.css의 body.mode-veil-open 참고), 최종 화면은 베일의 블러 한 겹으로도
-    // 똑같이 블러돼 보이면서 카드 수만큼 곱되던 비용만 사라짐.
-    document.body.classList.add('mode-veil-open');
   });
 
   // 아래 시각 하나하나가 "그 앞 단계가 실제로 끝난 뒤"를 기준으로 이어 붙게
@@ -2271,11 +2203,6 @@ function runModeBlurTransition(newMode){
     // 베일이 걷히기 시작하는 시점에 떼어둠 — 이후 테마 편집 모달에서 배경색을
     // 저장하는 등 베일 없는 경로는 원래대로 부드러운 크로스페이드를 그대로 씀
     document.body.classList.remove('mode-swap-snap');
-    // 베일이 걷히기 시작하면(opacity가 다시 내려가기 시작하는 즉시) .w-card의
-    // backdrop-filter도 곧바로 되살려둠 — 베일 아웃 트랜지션(MODE_VEIL_OUT_MS)이
-    // 끝나기 전에 카드 배경이 완전히 드러나므로, 그 짧은 구간에 카드가 블러
-    // 없이 반짝 보이는 것보다 살짝 이르게 복원하는 편이 자연스러움
-    document.body.classList.remove('mode-veil-open');
     setTimeout(()=>{
       modeTransitionBusy = false;
       modeToggleBtn.classList.remove('mt-busy');
@@ -2286,22 +2213,11 @@ function runModeBlurTransition(newMode){
   setTimeout(()=>{
     // 베일이 옅게 걸리는 시점에 곧바로 테마를 바꿔치기 — 색 자체는 여기서부터
     // body의 transition을 타고 실제로 부드럽게 이어짐(더 이상 "숨겼다가 짠"이 아님).
-    // mode-swap-snap은 반드시 applyModeClass()보다 먼저 걸어야, 색 관련 값들이
-    // "이전 값→새 값"을 보간하지 않고 이 프레임에 곧바로 스냅됨(베일에 가려
-    // 안 보이는 구간이라 안전함 — 스냅 범위를 넓힌 배경은 style.css의
-    // body.mode-swap-snap 주석 참고)
+    // mode-swap-snap은 반드시 applyModeClass()보다 먼저 걸어야, background-color/
+    // --paper가 "이전 값→새 값"을 보간하지 않고 이 프레임에 곧바로 스냅됨(둘 다
+    // 베일에 가려 안 보이는 구간이라 안전함)
     document.body.classList.add('mode-swap-snap');
     applyModeClass();
-    // 베일은 setSiteMode()에서 이미 "지금 화면 색"으로 칠해져 있음(전환 시작점) —
-    // 여기서 "이동할 모드의 색"으로 바꿔주면(전환 도착점) style.css의
-    // background-color transition(.6s)이 그 사이를 실제로 디졸브해줌. 커스텀 테마
-    // 색은 Firestore에서 비동기로 도착하므로(아래 subscribeModeMeta), 정확한 최종
-    // 색이 이 시점엔 아직 없을 수 있음 — 그래서 이전에 그 모드에 있었을 때 확인해둔
-    // 실제 포인트 컬러(lastKnownRoseByMode, 위 prewarmOtherModeRose로 첫 전환 전에도
-    // 미리 데워둠)를 우선 쓰고, 이 세션에서 그 모드를 한 번도 못 본 드문 경우에만
-    // 기본 팔레트 색으로 대체함(장식용 디졸브라 그 정도 오차는 눈에 안 띄고, 커스텀
-    // 색은 베일이 걷힌 뒤 카드/배경 자체에 이미 정확히 반영돼 있음)
-    overlay.style.backgroundColor = modeVeilTintColor(lastKnownRoseByMode[newMode] || DEFAULT_THEME_BY_MODE[newMode].rose);
     subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
   }, themeSwapAt);
 
@@ -2332,17 +2248,10 @@ function setSiteMode(newMode){
   // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
   // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
   // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
-  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)이 나음 — 위
-  // isSamsungInternet과 style.css의 .mbo-no-blur로 적용해둠.
+  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)을 고려할 것.
   const overlay = ensureModeBlurOverlay();
   overlay.style.transition = 'none';
   overlay.style.opacity = '0.001';
-  // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --rose(강조색)를
-  // 그대로 찍어 modeVeilTintColor()로 반투명화함(커스텀 테마든 기본 팔레트든 항상
-  // 지금 보이는 강조색과 정확히 일치함). 아직 transition이 'none'인 상태에서
-  // 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은 아래 runModeBlurTransition()의
-  // themeSwapAt 시점에 새로 지정됨
-  overlay.style.backgroundColor = modeVeilTintColor(getComputedStyle(document.body).getPropertyValue('--rose').trim());
   overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
 
   siteMode = newMode;
@@ -7587,49 +7496,112 @@ async function renderSpeechCard(){
 
 /* ---------------- 방문자용 오버레이 ---------------- */
 
-/* 캐릭터 이미지(탭 안 characters[].avatar)는 커버 사진과 달리 평소 화면(카드)엔 안
-   쓰이므로, 방문자가 카드를 눌러 오버레이의 renderStage()가 처음 실행될 때에야
-   speechResolveCharacterUrl()→loadFileChunked()로 Firestore 청크 문서들을 그제서야
-   읽어옴. 그 왕복 시간 동안 스테이지가 비어 보여서 "눌렀는데 한동안 안 뜬다"로 느껴짐.
-   한번 읽고 나면 chunkedImageCache(메모리 Map)에 재사용 가능한 형태로 남아있어 같은
-   세션에서 다시 열 땐 즉시 뜨지만, 새로고침하면 이 메모리 캐시가 비워져 다음 첫
-   클릭에서 또 같은 지연이 반복됨.
-   ⚠️ 개선 방향: 클릭을 "느리게 하는 일"을 클릭 "전에" 미리 끝내두면 됨 — 방문자가 실제로 누르기도 전에,
-   브라우저가 한가한 시간에 어차피 열릴 가능성이 큰 탭(프로필과 연동된 탭, speechPickLinkedTabId 참고)의
-   이미지 두 장만 미리 읽어 캐시를 데워둠. 위젯을 아예 안 쓰는 프로필(tabs가 비어있음)에서는 아무 것도
-   안 하므로, 예열 로직 자체가 불필요한 다운로드를 만들지는 않음. */
-function prewarmSpeechWidget(){
-  const tabs = speechWidgetData.tabs || [];
-  if(tabs.length === 0) return; // 위젯을 안 쓰는 프로필이면 아무 것도 미리 불러오지 않음
-  const linkedId = speechPickLinkedTabId();
-  const tab = tabs.find(t=> t.id === linkedId);
-  if(tab) tab.characters.forEach(c=> speechResolveCharacterUrl(c).catch(()=>{}));
+/* html2canvas는 말풍선 오버레이를 열 때 배경을 한 장 캡쳐하는 용도로만 쓰이는데,
+   예전엔 <script> 태그로 모든 방문자에게 무조건 로드되고 있었음(위젯 탭만 보고
+   떠나는 방문자도 이 라이브러리를 전부 내려받은 것). 오버레이를 처음 열 때만
+   그 시점에 스크립트를 동적으로 끼워넣도록 바꿔서, 실제로 쓸 때만 불러오게 함.
+   이미 불러왔으면 다시 안 불러오고, 로딩 중에 또 열리면 같은 로딩을 같이 기다림.
+   실패해도(네트워크 문제 등) 조용히 false를 반환해서 기존과 동일하게 어두운
+   틴트만 남는 폴백으로 이어짐. */
+let _html2canvasLoadPromise = null;
+function ensureHtml2Canvas(){
+  if(typeof html2canvas === 'function') return Promise.resolve(true);
+  if(_html2canvasLoadPromise) return _html2canvasLoadPromise;
+  _html2canvasLoadPromise = new Promise(resolve=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = ()=> resolve(typeof html2canvas === 'function');
+    s.onerror = ()=> resolve(false);
+    document.head.appendChild(s);
+  });
+  return _html2canvasLoadPromise;
 }
 
-/* 예전엔 이 오버레이가 openModal의 공용 모달 시스템(.modal-overlay + .modal)을 안
-   쓰고 document.body에 직접 붙는 전체화면 커스텀 레이어였음 — 뒤 배경을 실시간
-   backdrop-filter로 블러하면 라이트박스 때와 같은 이유로 무거워서, 여는 순간의
-   화면을 html2canvas로 한 장 캡쳐해 그 정적인 이미지에만 blur를 먹이는 방식으로
-   우회했었음(그 스크립트를 클릭 시점에야 불러오느라 첫 클릭이 매번 살짝 늦게 뜨는
-   부작용이 있었음 — 위 prewarmSpeechWidget의 예열도 원래 그 지연을 가리기 위한
-   것이었음). 갤러리 라이트박스가 이미 겪고 해결해둔 문제라, 이제 그 결과물을
-   그대로 재사용함 — 화면 전체를 실시간으로 살짝만(--glass-blur-thin) 블러하는
-   .modal-overlay 위에 이 오버레이도 .modal.modal-speech-lightbox로 얹으면, 매번
-   스크린샷을 새로 찍을 필요 자체가 없어져 캡쳐 지연도, html2canvas 스크립트
-   로딩도 통째로 사라짐. */
+function closeSpeechOverlay(){
+  const el = document.getElementById('speechOverlayRoot');
+  if(el){ el.remove(); }
+  if(window.__speechEscHandler){ document.removeEventListener('keydown', window.__speechEscHandler); window.__speechEscHandler = null; }
+}
+
 function openSpeechOverlay(initialTabId){
   const initialTabs = speechWidgetData.tabs || [];
   if(initialTabs.length === 0) return;
   let activeId = initialTabId || initialTabs[0].id;
   let mode = 'other'; // 오버레이를 열 때마다 항상 타인모드(=off)로 시작함
-  let modalEl, tabsEl, modeBtn, stage, bubbleEl = null;
+
+  closeSpeechOverlay();
+  const el = document.createElement('div');
+  el.className = 'speech-overlay';
+  el.id = 'speechOverlayRoot';
+  el.innerHTML = `
+    <div class="speech-overlay-tint"></div>
+    <button class="speech-overlay-close" id="speechCloseBtn" aria-label="닫기">✕</button>
+    ${editMode ? `<button class="speech-overlay-edit" id="speechOverlayEditBtn" aria-label="말풍선 위젯 편집" title="대사·탭 편집">✎</button>` : ''}
+    <div class="speech-tabs" id="speechTabs"></div>
+    <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
+    <button class="speech-toggle" id="speechModeBtn" aria-pressed="false">
+      <span class="speech-toggle-knob"></span>
+      <span class="speech-toggle-text"></span>
+    </button>
+  `;
+  document.body.appendChild(el);
+
+  // 열리는 그 순간의 화면을 사진처럼 한 장 찍어서(html2canvas), 그 "정적인" 결과물에만
+  // blur를 먹임. backdrop-filter처럼 열려있는 내내 매 프레임 뒤를 실시간으로 다시
+  // 그리는 게 아니라 딱 한 번만 계산해두고 그대로 재사용하는 방식이라, 위젯 탭이나
+  // 스크롤이 바뀌지 않는 이 화면 특성상 실시간 블러와 눈으로는 구분이 안 되면서도
+  // 훨씬 가벼움. html2canvas 로드가 안 됐거나 캡쳐가 실패해도(네트워크 문제 등)
+  // 조용히 무시하고 어두운 틴트만 남도록 처리함.
+  ensureHtml2Canvas().then(ok=>{
+    if(!ok || !document.body.contains(el)) return; // 못 불러왔거나, 불러오는 사이 이미 닫혔으면 틴트만 남김
+    // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이 되는
+    // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
+    el.style.visibility = 'hidden';
+    html2canvas(document.body, {
+      x: window.scrollX, y: window.scrollY,
+      width: window.innerWidth, height: window.innerHeight,
+      scale: Math.min(1, window.devicePixelRatio || 1) * 0.6, // 어차피 블러 처리되니 살짝 낮은 해상도로도 충분하고 캡쳐 속도도 빨라짐
+      useCORS: true, backgroundColor: null, logging: false
+    }).then(canvas=>{
+      el.style.visibility = '';
+      if(!document.body.contains(el)) return; // 캡쳐가 끝나기 전에 이미 닫혔으면 아무것도 안 함
+      const bg = document.createElement('div');
+      bg.className = 'speech-overlay-bg';
+      bg.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.72)})`;
+      el.prepend(bg);
+    }).catch(()=>{ el.style.visibility = ''; });
+  });
+
+  el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
+  window.__speechEscHandler = (e)=>{ if(e.key === 'Escape') closeSpeechOverlay(); };
+  document.addEventListener('keydown', window.__speechEscHandler);
+  el.querySelector('#speechCloseBtn').onclick = closeSpeechOverlay;
+
+  const tabsEl = el.querySelector('#speechTabs');
+  const modeBtn = el.querySelector('#speechModeBtn');
+  const stage = el.querySelector('#speechStage');
+  let bubbleEl = null;
+
+  const overlayEditBtn = el.querySelector('#speechOverlayEditBtn');
+  if(overlayEditBtn){
+    overlayEditBtn.onclick = ()=>{
+      openSpeechEditor(activeId, ()=>{
+        // 편집기에서 탭이 삭제/추가됐을 수 있으니, 지금 보던 탭이 아직 있는지 다시 확인
+        const freshTabs = speechWidgetData.tabs || [];
+        if(!freshTabs.length){ closeSpeechOverlay(); return; }
+        if(!freshTabs.find(t=> t.id === activeId)) activeId = freshTabs[0].id;
+        renderTabs();
+        renderStage();
+      });
+    };
+  }
 
   const renderModeBtn = ()=>{
     const isOn = mode === 'character';
     modeBtn.classList.toggle('is-on', isOn);
     modeBtn.setAttribute('aria-pressed', String(isOn));
     modeBtn.querySelector('.speech-toggle-text').textContent = isOn ? '서로' : '모브';
-    modalEl.classList.toggle('is-on', isOn); // 켜졌을 때 박스 배경에 은은한 핑크빛
+    el.classList.toggle('is-on', isOn); // 켜졌을 때 배경에 은은한 핑크빛
   };
 
   const renderTabs = ()=>{
@@ -7693,12 +7665,7 @@ function openSpeechOverlay(initialTabId){
     const tabs = speechWidgetData.tabs || [];
     const tab = tabs.find(t=> t.id === activeId);
     if(!tab){ stage.innerHTML = `<div class="speech-empty-hint">아직 준비 중이에요</div>`; return; }
-    // prewarmSpeechWidget()으로 미리 데워둔 경우 chunkedImageCache에 이미 있어서 아래 await가
-    // 사실상 즉시 끝나 이 줄은 화면에 보이지도 않고 넘어감 — 예열이 아직 안 끝난 드문 경우(막
-    // 새로고침한 직후 곧바로 클릭 등)에만 잠깐 보여서, 빈 스테이지가 "멈춘 것처럼" 보이는 걸 막음
-    stage.innerHTML = `<div class="speech-empty-hint">불러오는 중…</div>`;
     const urls = await Promise.all(tab.characters.map(speechResolveCharacterUrl));
-    if(activeId !== tab.id) return; // 로딩되는 사이 다른 탭으로 넘어갔으면 여기서 그만둠
     stage.innerHTML = urls.map((url, idx)=> url
       ? `<div class="speech-charbox" data-char="${idx}"><img src="${url}" alt=""><svg viewBox="0 0 100 100" preserveAspectRatio="none"></svg></div>`
       : ''
@@ -7728,60 +7695,11 @@ function openSpeechOverlay(initialTabId){
     });
   };
 
-  const bodyHtml = `
-    <button class="lightbox-x" id="speechCloseBtn" aria-label="닫기">✕</button>
-    ${editMode ? `<button class="lightbox-edit" id="speechOverlayEditBtn" aria-label="말풍선 위젯 편집" title="대사·탭 편집">✎</button>` : ''}
-    <div class="speech-tabs" id="speechTabs"></div>
-    <div class="speech-stage-wrap"><div class="speech-stage" id="speechStage"></div></div>
-    <button class="speech-toggle" id="speechModeBtn" aria-pressed="false">
-      <span class="speech-toggle-knob"></span>
-      <span class="speech-toggle-text"></span>
-    </button>
-  `;
+  modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; } };
 
-  openModal(bodyHtml, (modal)=>{
-    modalEl = modal;
-    tabsEl = modal.querySelector('#speechTabs');
-    modeBtn = modal.querySelector('#speechModeBtn');
-    stage = modal.querySelector('#speechStage');
-
-    modal.querySelector('#speechCloseBtn').onclick = closeModal;
-    const overlayEditBtn = modal.querySelector('#speechOverlayEditBtn');
-    if(overlayEditBtn){
-      overlayEditBtn.onclick = ()=>{
-        // openSpeechEditor()도 같은 공용 모달 시스템을 쓰므로, 편집기가 열리는 순간
-        // 이 라이트박스는 (다른 모달이 열릴 때와 마찬가지로) 자연스럽게 닫힘 — 예전처럼
-        // 뒤에 숨겨둔 채 유지하는 대신, 편집기가 닫히면 그 시점의 최신 데이터로 다시 염
-        openSpeechEditor(activeId, ()=>{
-          const freshTabs = speechWidgetData.tabs || [];
-          if(!freshTabs.length) return; // 탭이 하나도 안 남았으면 다시 열지 않음
-          openSpeechOverlay(freshTabs.find(t=> t.id === activeId) ? activeId : freshTabs[0].id);
-        });
-      };
-    }
-
-    modeBtn.onclick = ()=>{ mode = mode === 'other' ? 'character' : 'other'; renderModeBtn(); if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; } };
-
-    renderModeBtn();
-    renderTabs();
-    renderStage();
-  }, 'modal-speech-lightbox');
-
-  // 탭 전환 화살표키는 안 쓰지만(갤러리 라이트박스와 달리 탭이 좌우 위치 개념이 아님),
-  // Escape로 닫는 것은 동일하게 지원함 — 이 라이트박스가 열려있는 동안만 리스너를
-  // 걸어두고, 모달이 닫히면(다른 모달로 교체되는 경우 포함) 곧바로 정리함
-  const onKey = (e)=>{
-    if(!modalRoot.querySelector('.modal-speech-lightbox')) return;
-    if(e.key === 'Escape'){ e.preventDefault(); closeModal(); }
-  };
-  document.addEventListener('keydown', onKey);
-  const mo = new MutationObserver(()=>{
-    if(!modalRoot.querySelector('.modal-speech-lightbox')){
-      document.removeEventListener('keydown', onKey);
-      mo.disconnect();
-    }
-  });
-  mo.observe(modalRoot, { childList:true });
+  renderModeBtn();
+  renderTabs();
+  renderStage();
 }
 
 /* ---------------- 카드 겉모습 설정(커버 사진/문구) — 대사 편집기와 별개 ---------------- */
@@ -8934,10 +8852,6 @@ docRef('speechWidget').onSnapshot(doc=>{
   const d = doc.exists ? doc.data() : {};
   speechWidgetData = { tabs: (d.tabs || []).map(normalizeSpeechTab), cover: normalizeSpeechCover(d.cover) };
   renderSpeechCard();
-  // 방문자가 위젯을 실제로 누르기 전에, 브라우저가 한가한 틈에 첫 클릭에서 쓰일 캐릭터
-  // 이미지를 미리 데워둠(위 prewarmSpeechWidget 주석 참고) — 아래 갤러리 탭 예열과 같은 패턴
-  if('requestIdleCallback' in window) requestIdleCallback(prewarmSpeechWidget, { timeout: 4000 });
-  else setTimeout(prewarmSpeechWidget, 2500);
 });
 
 docRef('stickers').onSnapshot(doc=>{ stickerPosData = doc.exists ? doc.data() : { positions:{} }; renderStickers(); });
