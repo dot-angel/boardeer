@@ -1661,29 +1661,9 @@ async function saveFileChunked(base64DataUrl){
   return { fileId, total: chunks.length };
 }
 
-// 청크(fileChunks) 문서 하나를 읽어옴 — 실패하면 짧게 늘어나는 대기 후 재시도.
-// 예전엔 아래 loadFileChunked가 Promise.all로 조각 전부를 한 번씩만 읽었는데,
-// 조각 하나(특히 배너처럼 여러 개로 쪼개지는 큰 파일)만 일시적 네트워크
-// 오류(모바일 데이터망 등)로 실패해도 Promise.all 전체가 그대로 reject되어
-// 배너 전체가 빈 화면으로 떨어졌음 — 조각 수가 많을수록(=파일이 클수록) 그
-// 확률이 커져서 "배너 불러오기 실패가 잦다"는 증상으로 이어졌음. 재시도 몇
-// 번이면 대부분의 일시적 네트워크 blip은 넘어가므로, 여기서 재시도를 넣어
-// 개별 조각 하나의 실패가 곧바로 전체 실패로 번지지 않게 함.
-async function firestoreGetWithRetry(docRef, retries){
-  let lastErr;
-  for(let i=0; i<=retries; i++){
-    try{ return await docRef.get(); }
-    catch(e){
-      lastErr = e;
-      if(i < retries) await new Promise(r=> setTimeout(r, 300 * (i+1)));
-    }
-  }
-  throw lastErr;
-}
-
 async function loadFileChunked(fileId, total){
   const snaps = await Promise.all(
-    Array.from({ length: total }, (_, i)=> firestoreGetWithRetry(db.collection('fileChunks').doc(`${fileId}_${i}`), 2))
+    Array.from({ length: total }, (_, i)=> db.collection('fileChunks').doc(`${fileId}_${i}`).get())
   );
   return snaps.map(s=> (s.exists ? s.data().data : '')).join('');
 }
@@ -2065,19 +2045,10 @@ function subscribeModeMeta(){
   let pendingBannerApply = null, pendingBackgroundApply = null;
   let resolveReady;
   const readyPromise = new Promise(res=>{ resolveReady = res; });
-  // resolveReady에 실제 DOM 반영 함수를 실어 보냄 — 예전엔 여기서 곧바로
-  // pendingBannerApply/pendingBackgroundApply를 호출했지만, 그러면 "언제
-  // 화면에 반영되는가"를 이 함수가 강제로 결정해버림. 베일 경로는 베일이 덮고
-  // 있는 동안 아무 때나 반영해도 상관없지만, View Transitions 경로(아래
-  // runModeViewTransition)는 반드시 startViewTransition() 콜백 "안에서"(테마
-  // 클래스 교체와 같은 프레임에) 반영해야 네이티브 크로스페이드의 "새" 스냅샷에
-  // 배너/배경까지 같이 담김 — 그래서 언제 반영할지는 호출자가 정하도록
-  // apply 함수 자체를 돌려주는 쪽으로 바꿈
   const releasePending = ()=>{
-    resolveReady(()=>{
-      if(pendingBannerApply){ pendingBannerApply(); pendingBannerApply = null; }
-      if(pendingBackgroundApply){ pendingBackgroundApply(); pendingBackgroundApply = null; }
-    });
+    if(pendingBannerApply){ pendingBannerApply(); pendingBannerApply = null; }
+    if(pendingBackgroundApply){ pendingBackgroundApply(); pendingBackgroundApply = null; }
+    resolveReady();
   };
   const tryRelease = ()=>{ if(bannerFirstDone && backgroundFirstDone) releasePending(); };
   setTimeout(()=>{ if(gen === modeMetaGen) releasePending(); }, MODE_META_READY_TIMEOUT_MS);
@@ -2137,9 +2108,7 @@ function subscribeModeMeta(){
 
   return readyPromise;
 }
-// subscribeModeMeta가 이제 apply 함수를 돌려주므로(위 releasePending 참고),
-// 페이지 첫 로드에서는 원래대로 도착하는 즉시 바로 반영되게 명시적으로 호출함
-subscribeModeMeta().then(apply=> apply());
+subscribeModeMeta();
 // 반대 모드는 아직 구독하지 않으므로(모드를 실제로 켜야만 구독됨), 이번 세션에서
 // 처음 그쪽으로 전환할 때는 위 캐시가 비어있어 기본 팔레트색으로 대체될 수 있음.
 // 그 첫 전환에서도 베일이 실제 포인트 컬러로 보이도록, 반대 모드의 테마 문서만
@@ -2245,28 +2214,14 @@ const isSamsungInternet = /SamsungBrowser/i.test(navigator.userAgent);
 
 // 오버레이/문구는 딱 한 번만 만들어 재사용(전환마다 새로 생성/제거하지 않음)
 let modeBlurOverlayEl = null;
-let modeWelcomeLayerEl = null;
 let modeWelcomeTextEl = null;
-// 문구는 이제 베일(.mode-blur-overlay)의 자식이 아니라 독립된 .mode-welcome-layer의
-// 자식임(위 style.css .mode-welcome-layer 주석 참고) — 베일이 아예 없는 View
-// Transitions 경로(아래 runModeViewTransition)에서도 문구만 따로 뜨고 질 수 있어야
-// 하기 때문. 베일 경로(ensureModeBlurOverlay)도 이 함수를 통해 같은 문구 엘리먼트를
-// 씀 — 둘이 서로 다른 문구 노드를 갖지 않게 함
-function ensureModeWelcomeText(){
-  if(modeWelcomeTextEl) return modeWelcomeTextEl;
-  modeWelcomeLayerEl = document.createElement('div');
-  modeWelcomeLayerEl.className = 'mode-welcome-layer';
-  modeWelcomeTextEl = document.createElement('div');
-  modeWelcomeTextEl.className = 'mode-welcome-text';
-  modeWelcomeLayerEl.appendChild(modeWelcomeTextEl);
-  document.body.appendChild(modeWelcomeLayerEl);
-  return modeWelcomeTextEl;
-}
 function ensureModeBlurOverlay(){
   if(modeBlurOverlayEl) return modeBlurOverlayEl;
   modeBlurOverlayEl = document.createElement('div');
   modeBlurOverlayEl.className = 'mode-blur-overlay' + (isSamsungInternet ? ' mbo-no-blur' : '');
-  ensureModeWelcomeText();
+  modeWelcomeTextEl = document.createElement('div');
+  modeWelcomeTextEl.className = 'mode-welcome-text';
+  modeBlurOverlayEl.appendChild(modeWelcomeTextEl);
   document.body.appendChild(modeBlurOverlayEl);
   return modeBlurOverlayEl;
 }
@@ -2347,7 +2302,7 @@ function runModeBlurTransition(newMode){
     // 기본 팔레트 색으로 대체함(장식용 디졸브라 그 정도 오차는 눈에 안 띄고, 커스텀
     // 색은 베일이 걷힌 뒤 카드/배경 자체에 이미 정확히 반영돼 있음)
     overlay.style.backgroundColor = modeVeilTintColor(lastKnownRoseByMode[newMode] || DEFAULT_THEME_BY_MODE[newMode].rose);
-    subscribeModeMeta().then(apply=>{ apply(); metaReady = true; tryHideVeil(); });
+    subscribeModeMeta().then(()=>{ metaReady = true; tryHideVeil(); });
   }, themeSwapAt);
 
   setTimeout(()=>{
@@ -2356,74 +2311,6 @@ function runModeBlurTransition(newMode){
 
   setTimeout(()=>{ minTimeElapsed = true; tryHideVeil(); }, minHideAt);
 }
-
-// ---------------- 모드 전환: View Transitions API 지원 브라우저용 경로 ----------------
-// document.startViewTransition을 지원하는 브라우저(대부분의 최신 데스크톱/모바일
-// 크로미움·사파리 계열)에서는 베일(runModeBlurTransition)을 아예 그리지 않고,
-// 브라우저 자신의 네이티브 크로스페이드로 대체함 — 색상 디졸브를 흉내내려고
-// 만들었던 베일/워밍업/삼성인터넷 GPU 레이어 우회 로직 전체가 이 경로에선
-// 필요 없어짐(그 레이어 자체가 존재하지 않으므로). 미지원 브라우저는 이 함수를
-// 아예 호출하지 않고 기존 runModeBlurTransition으로 그대로 폴백됨(아래 setSiteMode).
-function runModeViewTransition(newMode){
-  ensureModeWelcomeText();
-
-  const finishBusy = ()=>{
-    modeTransitionBusy = false;
-    modeToggleBtn.classList.remove('mt-busy');
-  };
-  // 문구는 이제 베일의 opacity에 얹혀가지 않으므로(위 ensureModeWelcomeText 참고),
-  // 네이티브 크로스페이드가 완전히 끝난 뒤(=탑레이어 스냅샷 트리가 걷히고 실제
-  // 라이브 DOM이 다시 보이는 시점)에 독립적으로 페이드인시킴 — 크로스페이드가
-  // 진행되는 동안 문구를 억지로 같이 보이려 하면, 뷰 트랜지션 탑레이어가 항상
-  // 일반 DOM(z-index 포함) 위에 그려지므로 문구가 그 뒤에 가려짐. 페이드인/유지/
-  // 페이드아웃 지속시간은 베일 경로와 같은 상수(MODE_TEXT_FADE_MS/HOLD_MS)를 그대로 씀
-  const playWelcomeText = ()=>{
-    modeWelcomeTextEl.textContent = MODE_LABELS[newMode] + '에 오신 것을 환영합니다.';
-    requestAnimationFrame(()=> modeWelcomeTextEl.classList.add('show'));
-    setTimeout(()=>{
-      modeWelcomeTextEl.classList.remove('show');
-      setTimeout(finishBusy, MODE_TEXT_FADE_MS);
-    }, MODE_TEXT_FADE_MS + MODE_TEXT_HOLD_MS);
-  };
-
-  subscribeModeMeta().then(apply=>{
-    // mode-swap-snap을 startViewTransition() 콜백보다 먼저 걸어서, 콜백 안에서
-    // applyModeClass()가 테마 클래스를 바꿔치기하는 순간 색 관련 CSS 커스텀
-    // 프로퍼티들이 "이전 값→새 값"을 보간하지 않고 곧바로 스냅되게 함(위
-    // body.mode-swap-snap 주석과 같은 이유) — 네이티브 크로스페이드가 진행되는
-    // 동안엔 실제 라이브 DOM은 탑레이어 스냅샷에 가려 안 보이므로, 이 구간에
-    // 색이 계속 매 프레임 보간되며 카드들을 다시 블러링하는 건 눈에 안 보이는
-    // 낭비 연산일 뿐 — 베일 경로와 같은 이유로 꺼둠
-    document.body.classList.add('mode-swap-snap');
-
-    const applySwap = ()=>{
-      applyModeClass();
-      // apply()를 applyModeClass()와 같은 콜백(=같은 프레임) 안에서 실행해야,
-      // 네이티브 크로스페이드가 찍는 "새" 스냅샷에 배너/배경 사진까지 함께
-      // 반영됨 — 안 그러면 화면 전환은 이미 끝났는데 사진만 뒤늦게 팝인하는,
-      // 예전 베일 경로에서 이미 한 번 고쳤던 문제가 이 경로에서도 재발함
-      apply();
-    };
-
-    let transition;
-    try{
-      transition = document.startViewTransition(applySwap);
-    }catch(e){
-      // 이론상 setSiteMode에서 이미 기능 감지를 마치고서만 호출되므로 여기 올 일은
-      // 없지만, 혹시라도 실패하면 전환 자체를 건너뛰지 않고 최소한 테마는
-      // 적용되도록 안전하게 폴백함
-      applySwap();
-      document.body.classList.remove('mode-swap-snap');
-      playWelcomeText();
-      return;
-    }
-    transition.finished.catch(()=>{}).then(()=>{
-      document.body.classList.remove('mode-swap-snap');
-      playWelcomeText();
-    });
-  });
-}
-
 function setSiteMode(newMode){
   if(newMode !== 'light' && newMode !== 'dark') return;
   if(newMode === siteMode) return;
@@ -2431,43 +2318,32 @@ function setSiteMode(newMode){
   modeTransitionBusy = true;
   modeToggleBtn.classList.add('mt-busy');
 
-  // View Transitions는 데스크톱(>900px, 사이트 다른 곳의 모바일 분기점과 동일)
-  // 에서만 씀 — 네이티브 크로스페이드는 화면 스냅샷 두 장을 그대로 섞을 뿐이라
-  // 베일이 갖고 있던 "포인트 컬러로 물드는 색상 디졸브"가 없음. 베일의 그 색
-  // 디졸브 연출을 잃는 게 아쉬운 쪽은 모바일이라(데스크톱은 오히려 베일의
-  // backdrop-filter 재계산 비용이 위젯 수만큼 곱해지는 문제가 더 컸던 쪽이라
-  // View Transitions로 얻는 이득이 큼), 모바일은 기존 베일 경로를 그대로 유지함
-  const supportsViewTransition = typeof document.startViewTransition === 'function'
-    && window.matchMedia('(min-width: 901px)').matches;
-
-  if(!supportsViewTransition){
-    // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
-    // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야 다시
-    // 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
-    // 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의 will-change/
-    // translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
-    // 이전엔 이 워밍업을 트랜지션 시작 1프레임 전(runModeBlurTransition, 약 16ms
-    // 리드타임)에만 줬는데도 프레임 누락이 남아있었음 — 그래서 지금은 토글을
-    // 누른 바로 이 순간부터 미리 트랜지션 없이 시각적으로 감지 불가능한
-    // opacity(.001)를 찍어 강제 리플로우해둠. 실제 트랜지션은 프리롤+베일인
-    // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 530ms) 뒤에야 시작되므로, 레이어가
-    // 자리잡을 리드타임이 1프레임→약 530ms로 크게 늘어남. 대기 상태(opacity:0)는
-    // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
-    // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
-    // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
-    // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)이 나음 — 위
-    // isSamsungInternet과 style.css의 .mbo-no-blur로 적용해둠.
-    const overlay = ensureModeBlurOverlay();
-    overlay.style.transition = 'none';
-    overlay.style.opacity = '0.001';
-    // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --rose(강조색)를
-    // 그대로 찍어 modeVeilTintColor()로 반투명화함(커스텀 테마든 기본 팔레트든 항상
-    // 지금 보이는 강조색과 정확히 일치함). 아직 transition이 'none'인 상태에서
-    // 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은 아래 runModeBlurTransition()의
-    // themeSwapAt 시점에 새로 지정됨
-    overlay.style.backgroundColor = modeVeilTintColor(getComputedStyle(document.body).getPropertyValue('--rose').trim());
-    overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
-  }
+  // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
+  // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야 다시
+  // 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
+  // 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의 will-change/
+  // translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
+  // 이전엔 이 워밍업을 트랜지션 시작 1프레임 전(runModeBlurTransition, 약 16ms
+  // 리드타임)에만 줬는데도 프레임 누락이 남아있었음 — 그래서 지금은 토글을
+  // 누른 바로 이 순간부터 미리 트랜지션 없이 시각적으로 감지 불가능한
+  // opacity(.001)를 찍어 강제 리플로우해둠. 실제 트랜지션은 프리롤+베일인
+  // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 530ms) 뒤에야 시작되므로, 레이어가
+  // 자리잡을 리드타임이 1프레임→약 530ms로 크게 늘어남. 대기 상태(opacity:0)는
+  // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
+  // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
+  // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
+  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)이 나음 — 위
+  // isSamsungInternet과 style.css의 .mbo-no-blur로 적용해둠.
+  const overlay = ensureModeBlurOverlay();
+  overlay.style.transition = 'none';
+  overlay.style.opacity = '0.001';
+  // 색상 디졸브의 시작점 — 지금 이 순간 실제로 화면에 적용돼 있는 --rose(강조색)를
+  // 그대로 찍어 modeVeilTintColor()로 반투명화함(커스텀 테마든 기본 팔레트든 항상
+  // 지금 보이는 강조색과 정확히 일치함). 아직 transition이 'none'인 상태에서
+  // 지정하므로 화면엔 아무 변화도 안 보임 — 도착점은 아래 runModeBlurTransition()의
+  // themeSwapAt 시점에 새로 지정됨
+  overlay.style.backgroundColor = modeVeilTintColor(getComputedStyle(document.body).getPropertyValue('--rose').trim());
+  overlay.getBoundingClientRect(); // 강제 리플로우로 위 값을 즉시 반영
 
   siteMode = newMode;
   localStorage.setItem('gh_mode', siteMode);
@@ -2479,13 +2355,7 @@ function setSiteMode(newMode){
   modeToggleBtn.querySelector('.mt-label').textContent = MODE_LABELS[newMode];
   modeToggleBtn.setAttribute('aria-label', MODE_LABELS[newMode] + ' 적용 중 · 눌러서 전환');
 
-  if(supportsViewTransition){
-    // 베일 워밍업이 없으므로 그만큼의 리드타임(MODE_BLUR_PREROLL_MS)도 기다릴
-    // 이유가 없음 — 스위치 썸/라벨 프리롤만 한 프레임 보여준 뒤 바로 시작
-    runModeViewTransition(newMode);
-  } else {
-    setTimeout(()=> runModeBlurTransition(newMode), MODE_BLUR_PREROLL_MS);
-  }
+  setTimeout(()=> runModeBlurTransition(newMode), MODE_BLUR_PREROLL_MS);
 }
 
 // ---- 탭(클릭)은 그냥 반대쪽으로 토글, 슬라이드(드래그/스와이프)는 놓은 위치에
@@ -7777,55 +7647,44 @@ function openSpeechOverlay(initialTabId){
     void box.offsetWidth; // 강제 리플로우 — 연속으로 눌러도 매번 애니메이션이 다시 시작되게 함
     box.classList.add('jump');
     if(!text) return;
-    // ⚠️ 예전엔 위 리플로우 직후 이 아래 모든 걸(anchor/bubble 생성, stage.getBoundingClientRect,
-    // 특히 shrinkToFitWidth의 이분탐색 — 최대 8번의 style.width 쓰기+offsetHeight 읽기 반복)
-    // 같은 틱에서 바로 실행했음. 그래서 "점프 애니메이션을 다시 시작시키는 리플로우" 바로
-    // 다음에 "강제 리플로우가 최대 10번 가까이 연속으로" 일어나 메인스레드가 막혀버렸고,
-    // 그 사이엔 브라우저가 점프 애니메이션의 첫 프레임조차 못 그려서 PC처럼 카드/위젯이 많이
-    // 보이는(레이아웃 계산 자체가 무거운) 화면일수록 점프가 뚝뚝 끊기는 것처럼 보였음.
-    // 말풍선을 만들고 폭을 맞추는 무거운 작업 전체를 다음 프레임으로 미뤄서, 이번 프레임은
-    // 점프 리플로우 하나만 하고 곧바로 애니메이션을 시작할 수 있게 함(한 프레임, 약 16ms
-    // 지연은 말풍선이 뜨는 체감에 티가 안 남)
+    if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
+    // anchor(위치 고정용) 안에 실제 말풍선(팝인 애니메이션용)을 넣는 이중 구조.
+    // 하나의 요소에 "위치 이동 transform"과 "팝인 transform"을 같이 걸면 서로
+    // 덮어써서 말풍선이 떴다가 제자리로 툭 튀는 문제가 있었음 — 그래서 위치는
+    // anchor(top/left, transform 없음)가, 팝인 애니메이션은 그 안의 본체가 각자 맡게 함.
+    const anchor = document.createElement('div');
+    anchor.className = 'speech-bubble-anchor';
+    const stageRect = stage.getBoundingClientRect();
+    anchor.style.left = (e.clientX - stageRect.left) + 'px';
+    anchor.style.top = (e.clientY - stageRect.top) + 'px';
+    bubbleEl = document.createElement('div');
+    bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
+    bubbleEl.textContent = text;
+    // 말풍선은 누른 지점을 중심으로 좌우 반반씩 퍼지므로, 단순히 폭을 고정값으로
+    // 줄이기만 하면 캐릭터가 화면 가장자리 쪽에 있을 때(둘이 나란히 있는 화면이라
+    // 흔함) 여전히 한쪽만 화면 밖으로 넘치고, 반대쪽엔 다 못 쓴 여백만 남음.
+    // 그래서 CSS 고정값 대신, 누른 지점에서 화면 양쪽 가장자리까지 각각 남은
+    // 공간을 재서 그 중 더 좁은 쪽을 기준으로 폭을 미리 정함 — 그래야 여백을
+    // 낭비하지 않으면서도 애초에 화면 밖으로 나갈 일이 없음.
+    const edgeMargin = 14;
+    const roomEachSide = Math.min(e.clientX, window.innerWidth - e.clientX) - edgeMargin;
+    const maxW = Math.max(160, Math.min(280, roomEachSide * 2));
+    anchor.appendChild(bubbleEl);
+    stage.appendChild(anchor);
+    shrinkToFitWidth(bubbleEl, maxW, 120);
     requestAnimationFrame(()=>{
-      if(bubbleEl){ bubbleEl.parentElement.remove(); bubbleEl = null; }
-      // anchor(위치 고정용) 안에 실제 말풍선(팝인 애니메이션용)을 넣는 이중 구조.
-      // 하나의 요소에 "위치 이동 transform"과 "팝인 transform"을 같이 걸면 서로
-      // 덮어써서 말풍선이 떴다가 제자리로 툭 튀는 문제가 있었음 — 그래서 위치는
-      // anchor(top/left, transform 없음)가, 팝인 애니메이션은 그 안의 본체가 각자 맡게 함.
-      const anchor = document.createElement('div');
-      anchor.className = 'speech-bubble-anchor';
-      const stageRect = stage.getBoundingClientRect();
-      anchor.style.left = (e.clientX - stageRect.left) + 'px';
-      anchor.style.top = (e.clientY - stageRect.top) + 'px';
-      bubbleEl = document.createElement('div');
-      bubbleEl.className = 'speech-bubble'; // 스티커 말풍선과 같은 디자인(본체+꼬리 SVG clip-path)
-      bubbleEl.textContent = text;
-      // 말풍선은 누른 지점을 중심으로 좌우 반반씩 퍼지므로, 단순히 폭을 고정값으로
-      // 줄이기만 하면 캐릭터가 화면 가장자리 쪽에 있을 때(둘이 나란히 있는 화면이라
-      // 흔함) 여전히 한쪽만 화면 밖으로 넘치고, 반대쪽엔 다 못 쓴 여백만 남음.
-      // 그래서 CSS 고정값 대신, 누른 지점에서 화면 양쪽 가장자리까지 각각 남은
-      // 공간을 재서 그 중 더 좁은 쪽을 기준으로 폭을 미리 정함 — 그래야 여백을
-      // 낭비하지 않으면서도 애초에 화면 밖으로 나갈 일이 없음.
-      const edgeMargin = 14;
-      const roomEachSide = Math.min(e.clientX, window.innerWidth - e.clientX) - edgeMargin;
-      const maxW = Math.max(160, Math.min(280, roomEachSide * 2));
-      anchor.appendChild(bubbleEl);
-      stage.appendChild(anchor);
-      shrinkToFitWidth(bubbleEl, maxW, 120);
-      requestAnimationFrame(()=>{
-        shapeSpeechBubble(bubbleEl, { radius:18, tailLeft:(w)=> (w-18)/2, tailWidth:18, tailHeight:9 });
-        bubbleEl.classList.add('show');
-        // 폭을 미리 딱 맞게 계산해뒀지만, 혹시 모를 반올림 오차 등으로 아주 살짝
-        // 남는 경우를 대비한 최종 안전장치 — 화면 밖으로 넘치면 그만큼만 안쪽으로 밀어줌
-        // (꼬리는 여전히 그 앵커를 가리키므로, 많이 밀렸을 때만 꼬리 위치가 클릭
-        // 지점에서 살짝 벗어나 보일 수 있지만 텍스트가 잘리는 것보단 나음)
-        const margin = 14;
-        const rect = bubbleEl.getBoundingClientRect();
-        let dx = 0;
-        if(rect.left < margin) dx = margin - rect.left;
-        else if(rect.right > window.innerWidth - margin) dx = (window.innerWidth - margin) - rect.right;
-        if(dx) anchor.style.left = (parseFloat(anchor.style.left) + dx) + 'px';
-      });
+      shapeSpeechBubble(bubbleEl, { radius:18, tailLeft:(w)=> (w-18)/2, tailWidth:18, tailHeight:9 });
+      bubbleEl.classList.add('show');
+      // 폭을 미리 딱 맞게 계산해뒀지만, 혹시 모를 반올림 오차 등으로 아주 살짝
+      // 남는 경우를 대비한 최종 안전장치 — 화면 밖으로 넘치면 그만큼만 안쪽으로 밀어줌
+      // (꼬리는 여전히 그 앵커를 가리키므로, 많이 밀렸을 때만 꼬리 위치가 클릭
+      // 지점에서 살짝 벗어나 보일 수 있지만 텍스트가 잘리는 것보단 나음)
+      const margin = 14;
+      const rect = bubbleEl.getBoundingClientRect();
+      let dx = 0;
+      if(rect.left < margin) dx = margin - rect.left;
+      else if(rect.right > window.innerWidth - margin) dx = (window.innerWidth - margin) - rect.right;
+      if(dx) anchor.style.left = (parseFloat(anchor.style.left) + dx) + 'px';
     });
   };
 

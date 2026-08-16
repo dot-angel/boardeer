@@ -536,30 +536,6 @@ body::before{
   opacity: 1;
   transform: translateY(0);
 }
-/* 문구(.mode-welcome-text)를 베일(.mode-blur-overlay)의 자식이 아니라 이 별도
-   레이어의 자식으로 둠 — View Transitions 경로(아래 ::view-transition-old/new(root)
-   참고)는 베일 자체를 그리지 않으므로, 문구가 베일의 opacity에 얹혀갈 수 없음.
-   z-index를 베일(600)보다 한 단계 높여서(601) 베일 경로에서도 기존과 똑같이
-   베일 앞에 보임(시각적 회귀 없음) */
-.mode-welcome-layer{
-  position: fixed; inset:0; z-index:601; pointer-events:none;
-  display:flex; align-items:center; justify-content:center;
-}
-
-
-/* ---------- 라이트/다크모드 전환: View Transitions API 지원 브라우저 ----------
-   지원 브라우저(app.js의 setSiteMode가 document.startViewTransition으로 감지)는
-   베일 대신 브라우저 네이티브 크로스페이드를 씀. UA 기본 지속시간(0.25s)은 예전
-   베일의 체감 속도(MODE_VEIL_IN_MS+MODE_VEIL_OUT_MS 근방, 약 0.73s)보다 훨씬
-   짧아서 전환이 너무 순간적으로 느껴져 0.5s로 늘림. mix-blend-mode는 UA
-   기본값(plus-lighter)을 그대로 둠 — 두 스냅샷을 진짜 크로스페이드(밝기를 더해
-   자연스럽게 섞는, 스펙 상 올바른 방식)로 섞어주는 값이라 임의로 바꿀 이유가
-   없음(MDN/스펙 문서로 확인, 추측 아님). 미지원 브라우저는 이 규칙 자체가
-   무시되고 기존 베일(runModeBlurTransition)로 그대로 폴백됨. */
-::view-transition-old(root),
-::view-transition-new(root){
-  animation-duration: 0.5s;
-}
 
 
 /* ---------- 보드 탭(좌우 스와이프: 위젯 / 갤러리) ---------- */
@@ -791,40 +767,11 @@ body::before{
    전용 오버라이드도 없어 거의 불투명한 흰 박스로 보이는 문제까지 겹침 — 아래
    body.theme-light .modal.modal-lightbox 참고). 그 둘과 정확히 같은 값으로 맞춰
    "라이트박스는 다 같은 스타일"이 되게 함. */
-/* width:auto라서 박스가 항상 안의 캐릭터 이미지 크기에 딱 맞춰 줄어듦 — 그래서
-   이미지가 화면에 비해 작을 땐 박스도 작아지고, 그만큼 박스 바깥(배경 스크림)
-   여백만 넓어 보였음(원인: 박스 크기가 아니라 그 바깥 여백이 과했던 것).
-   min-width/min-height로 박스 자신의 최소 크기를 화면 비례로 못박아서, 내용이
-   작아도 박스가 항상 화면의 상당 부분을 차지하게 함 — 내용이 더 크면(2인 캐릭터
-   등) 여전히 그만큼 늘어나 max-width/max-height(94vw/85vh, 아래 .modal 기본값)
-   까지 커질 수 있음 */
-/* ⚠️ 버그 수정(2026): 이 박스 자신의 backdrop-filter를 뺌.
-   ▶ 원인: 위 .speech-bubble 주석에서 정리한 "clip-path(mask, filter, opacity<1 등)가
-   걸린 요소는 백드롭 루트가 된다"는 목록에 backdrop-filter 자기 자신도 똑같이
-   포함됨(스펙상 동일 카테고리) — 그런데 이 박스가 바로 그 backdrop-filter를 자기
-   자신에게 걸고 있었고, 그 자손인 .speech-bubble도 자기 몫의 backdrop-filter를
-   따로 쓰고 있었음. 그러면 .speech-bubble의 블러는 진짜 페이지 배경까지 못 뚫고
-   이 박스가 만든 백드롭 루트 바로 안쪽(=이 박스 자신의 flat한 background/
-   radial-gradient + 캐릭터 이미지)까지만 보게 됨 — 블러할 대상 자체가 거의
-   단색이라 블러를 걸어도 결과가 그냥 반투명 색 채움과 구분이 안 됨("블러가 아예
-   안 먹는다"는 체감, PC에서 리포트된 버그 2). 게다가 꼬리처럼 아주 얇은
-   clip-path 지점에서는 그 flat한 색이 블러 없이 그대로 새어나온 것처럼 보이기
-   쉬워서, "블러가 아니라 색상 오버레이가 누출된 것 같다"는 버그 1과도 같은 원인.
-   ▶ 해결: 화면 전체를 실제로 블러링하는 건 이미 이 박스 뒤의 .modal-overlay
-   (--glass-blur-thin, 아래 정의)가 담당하고 있어서(위 779번째 줄 주석 참고),
-   이 박스 자신의 background(반투명 틴트)만으로도 "유리 박스" 느낌은 그대로 남고
-   화면 블러는 안 사라짐 — 대신 이 박스가 더 이상 backdrop-filter를 안 쓰니
-   백드롭 루트가 안 생기고, .speech-bubble이 이제 진짜로 .modal-overlay가 이미
-   블러링해둔(그래서 단색이 아니라 자연스럽게 부드러운 질감이 있는) 실제 페이지를
-   읽어서 블러함 — 꼬리 끝에서도 더 이상 단색이 새어나오는 것처럼 안 보임.
-   (참고: 갤러리용 .modal-lightbox는 이 자손 backdrop-filter 충돌이 없어서
-   그대로 자기 backdrop-filter를 유지함 — 이 수정은 .modal-speech-lightbox에만
-   해당) */
 .modal.modal-speech-lightbox{
-  position:relative; width:auto; min-width:70vw; max-width:94vw;
-  min-height:60vh; padding:16px;
+  position:relative; width:auto; max-width:94vw; padding:16px;
   background: rgba(10,5,6,0.5);
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;
+  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
+  display:flex; flex-direction:column; align-items:center; gap:22px;
 }
 /* 캐릭터모드(on)일 때만 은은한 핑크 톤이 박스 배경에 번지도록 — 예전
    .speech-overlay-tint의 radial-gradient를 박스 자신의 배경에 그대로 얹음.
@@ -885,22 +832,16 @@ body::before{
    min-width:0은 flex 아이템의 기본 최소폭(내용의 자연 크기)을 없애서, 두 이미지를
    합친 폭이 모달보다 넓을 때도 shrink가 실제로 걸리게 하기 위함(이게 없으면
    flex-shrink가 있어도 아이템이 이미지의 원래 크기 밑으로는 못 줄어들어 넘침) */
-/* min(44vw,100%)→min(48vw,100%), 56vh→70vh로 늘림 — 라이트박스 박스 자체(위
-   .modal.modal-speech-lightbox)는 이미 max-width:94vw까지 허용하는데, 정작 안의
-   캐릭터 이미지가 훨씬 보수적인 값(56vh/44vw)에 묶여 있어서 박스 안에 여백만
-   많이 남고 실제로는 화면 크기에 비해 작아 보였음. 70vh는 모달 자체의
-   max-height(85vh, 위 .modal 기본값) 안에서 탭 줄+토글 버튼+패딩(대략 15vh
-   내외)이 들어갈 여유를 남겨둔 값 */
-.speech-charbox{ position:relative; display:inline-block; min-width:0; max-height:70vh; }
+.speech-charbox{ position:relative; display:inline-block; min-width:0; max-height:56vh; }
 /* 눌렀을 때 반응이 있어야 "눌렸다"는 게 느껴져서, 스티커가 말풍선 뜰 때 쓰는 것과
    같은 살짝 튀는 애니메이션을 그대로 재사용함(자바스크립트에서 클릭할 때마다 이 클래스를
    껐다 켜서 재생시킴) */
 .speech-charbox.jump{ animation: stickerJump .32s ease-out; }
 /* max-width를 44vw 고정값 대신 min(44vw, 100%)로 바꿈 — 화면이 넓을 땐 예전과
-   똑같이 48vw로 캐릭터가 너무 커지지 않게 막고, 화면이 좁아 48vw 두 장이 모달
+   똑같이 44vw로 캐릭터가 너무 커지지 않게 막고, 화면이 좁아 44vw 두 장이 모달
    폭(패딩 포함)을 넘어서는 경계에서는 100%(=위 .speech-charbox가 shrink로
    줄어든 실제 폭)가 대신 걸려서 부모 박스 폭을 넘지 않게 함 */
-.speech-charbox img{ display:block; max-height:70vh; max-width:min(48vw, 100%); object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
+.speech-charbox img{ display:block; max-height:56vh; max-width:min(44vw, 100%); object-fit:contain; -webkit-user-select:none; user-select:none; pointer-events:none; }
 .speech-charbox svg{ position:absolute; inset:0; width:100%; height:100%; }
 .speech-charbox-empty{ font-size:.75rem; color: var(--ink-soft); padding:20px; }
 .speech-region{ fill: rgba(255,255,255,0); cursor:pointer; pointer-events:all; }
@@ -910,37 +851,13 @@ body::before{
 .speech-bubble-anchor{ position:absolute; z-index:5; pointer-events:none; }
 /* 사이트의 다른 말풍선(사이드 캐릭터 스티커, .sticker-bubble)과 완전히 같은 디자인 —
    본체+꼬리를 SVG path 하나로 합쳐 clip-path로 오려내는 방식(app.js의 shapeSpeechBubble) */
-/* 배경+블러(backdrop-filter)는 반드시 clip-path가 걸린 이 요소 자신에게 둬야 함.
-   ▶ 진짜 원인: CSS 스펙상 clip-path(mask, filter, opacity<1 등도 동일)가 걸린
-   요소는 "백드롭 루트"가 되는데, 이 루트는 자기 자신이 아니라 자신의 "자손"이
-   쓰는 backdrop-filter가 더 뒤(=진짜 페이지 배경)를 못 읽게 막는 경계선 역할을 함.
-   예전엔 이걸 몰라서 배경+블러를 별도 ::before 자손으로 분리해뒀었는데, 그러면
-   부모(.speech-bubble)의 clip-path가 백드롭 루트가 돼서 ::before의
-   backdrop-filter가 그 경계 바로 안쪽(=아무 것도 없는 곳)까지만 보고 진짜 배경은
-   전혀 못 읽음 — 그래서 이 사이트에 쓰인 말풍선 전부(.speech-bubble,
-   .sticker-bubble, .profile-compact-oneliner)에서 블러가 통째로 사라져 있었음.
-   반대로 clip-path와 backdrop-filter를 지금처럼 "같은" 요소에 두면, 그 clip-path는
-   자신이 아니라 자손의 backdrop-filter만 막으므로 이 요소 자신의 블러는 막히지
-   않고 정상적으로 진짜 배경을 읽음 — 그래서 ::before를 없애고 여기로 합침.
-   (참고: 예전에 같은 요소 조합에서 꼬리의 뾰족한 지점에 블러가 살짝 번지는
-   것처럼 보였던 현상은 --glass-blur 자체가 12px로 약해서 육안으로는 거의 안 보이는
-   수준 — 만약 다시 보이면 이건 이 백드롭 루트 문제와는 다른, 훨씬 가벼운
-   안티앨리어싱 이슈이니 따로 알려주면 됨) */
 .speech-bubble{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
   max-width: min(260px, 70vw); width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  z-index:0;
-  color:#FBF7F8;
+  background: rgba(20,9,11,0.5); color:#FBF7F8;
   border-radius:18px; padding:13px 18px 22px 18px;
-  background: rgba(20,9,11,0.5);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-  /* 위 906번째 줄 주석에서 "다시 보이면 따로 알려달라"고 했던 그 꼬리 끝
-     안티앨리어싱 누출의 예방책 — will-change로 backdrop-filter 레이어를 페인트
-     전에 미리 할당해두면, 브라우저가 clip-path로 잘려나간 뒤의 좁은 모양 기준이
-     아니라 블러 반경만큼 여유를 둔 버퍼로 백드롭을 샘플링해서 꼬리처럼 얇은
-     지점에서 원본 색이 안 번지고 정상적으로 흐려짐 */
-  will-change: backdrop-filter;
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:1rem; line-height:1.45; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 1px 8px rgba(0,0,0,0.4);
@@ -1740,16 +1657,13 @@ a.pf-link-item:hover{ background: rgba(var(--row-tint),0.1); }
    지금은 JS(shapeSpeechBubble, app.js)가 본체+꼬리를 SVG path 하나로 합쳐
    clip-path로 오려냄 — 배경/블러/테두리가 그 '하나로 합쳐진 모양'에만 적용되니
    겹치는 두 겹이 아예 없음. 꼬리가 들어갈 자리만큼 padding-bottom을 미리 더 줘서
-   (5px 본문 여백 + 7px 꼬리) 그 여유 공간을 오려내는 방식. 배경+블러(backdrop-filter)를
-   이 요소 자신에게 두는 이유는 위 .speech-bubble 주석 참고 — ::before 자손으로
-   분리하면 부모의 clip-path가 백드롭 루트가 되어 진짜 배경을 못 읽고 블러가 사라짐 */
+   (5px 본문 여백 + 7px 꼬리) 그 여유 공간을 오려내는 방식 */
 .profile-compact-oneliner{
   position:relative;
   grid-area:oneliner;
   font-family: var(--font-display); font-style:italic; font-weight:400;
   font-size:.8rem; line-height:1.35; color: var(--ink);
   width:fit-content; max-width:100%;
-  z-index:0;
   background: rgba(var(--row-tint),0.07);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* border 대신 filter:drop-shadow를 씀 — border는 clip-path로 오려내기 전의
@@ -2869,14 +2783,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   100%{ transform: translateY(0); }
 }
 .sticker-avatar.jump{ animation: stickerJump .5s ease-out; }
-/* 본체+꼬리를 별도 요소 두 개로 겹쳐서 만들면 이음매가 티 나서(반투명 두 겹이
+/* 참고 이미지처럼 안쪽 블러 없이, 하나로 이어진 모양+그림자만으로 말풍선 모양을 냄.
+   블러가 빠진 만큼 텍스트 가독성을 위해 배경 불투명도를 좀 더 올림.
+   본체+꼬리를 별도 요소 두 개로 겹쳐서 만들면 이음매가 티 나서(반투명 두 겹이
    겹치는 부분만 진해지거나 테두리 두 개가 만나는 지점에 이중선), 지금은
    JS(shapeSpeechBubble, app.js)가 본체+꼬리를 SVG path 하나로 합쳐 clip-path로
    오려냄 — 배경/블러/외곽선이 그 '하나로 합쳐진 모양'에만 적용되니 겹치는 두 겹이
    아예 없음. 꼬리가 들어갈 자리만큼 padding-bottom을 미리 더 줌(9px 본문 여백 +
-   8px 꼬리). 배경+블러(backdrop-filter)를 이 요소 자신에게 두는 이유는 위
-   .speech-bubble 주석 참고 — 예전처럼 ::before 자손으로 분리하면 부모의
-   clip-path가 백드롭 루트가 되어 진짜 배경을 못 읽고 블러가 사라짐 */
+   8px 꼬리) */
 .sticker-bubble{
   position:absolute; left:50%; bottom:100%; transform: translate(-50%, 6px) scale(.95);
   margin-bottom:8px; max-width:128px; width:max-content;
@@ -2887,10 +2801,8 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
      브라우저가 지원하는 선에서 알아서 피해줌 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  z-index:0;
-  color:#FBF7F8;
+  background: rgba(20,9,11,0.5); color:#FBF7F8;
   border-radius:16px; padding:9px 13px 17px 13px;
-  background: rgba(20,9,11,0.5);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* border+box-shadow 대신 filter:drop-shadow 두 개를 겹쳐서 씀 — clip-path로
      오려낸 후 실제로 보이는 본체+꼬리 윤곽 전체에 얇은 외곽선(1번째)과 원래
