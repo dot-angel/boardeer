@@ -798,11 +798,32 @@ body::before{
    작아도 박스가 항상 화면의 상당 부분을 차지하게 함 — 내용이 더 크면(2인 캐릭터
    등) 여전히 그만큼 늘어나 max-width/max-height(94vw/85vh, 아래 .modal 기본값)
    까지 커질 수 있음 */
+/* ⚠️ 버그 수정(2026): 이 박스 자신의 backdrop-filter를 뺌.
+   ▶ 원인: 위 .speech-bubble 주석에서 정리한 "clip-path(mask, filter, opacity<1 등)가
+   걸린 요소는 백드롭 루트가 된다"는 목록에 backdrop-filter 자기 자신도 똑같이
+   포함됨(스펙상 동일 카테고리) — 그런데 이 박스가 바로 그 backdrop-filter를 자기
+   자신에게 걸고 있었고, 그 자손인 .speech-bubble도 자기 몫의 backdrop-filter를
+   따로 쓰고 있었음. 그러면 .speech-bubble의 블러는 진짜 페이지 배경까지 못 뚫고
+   이 박스가 만든 백드롭 루트 바로 안쪽(=이 박스 자신의 flat한 background/
+   radial-gradient + 캐릭터 이미지)까지만 보게 됨 — 블러할 대상 자체가 거의
+   단색이라 블러를 걸어도 결과가 그냥 반투명 색 채움과 구분이 안 됨("블러가 아예
+   안 먹는다"는 체감, PC에서 리포트된 버그 2). 게다가 꼬리처럼 아주 얇은
+   clip-path 지점에서는 그 flat한 색이 블러 없이 그대로 새어나온 것처럼 보이기
+   쉬워서, "블러가 아니라 색상 오버레이가 누출된 것 같다"는 버그 1과도 같은 원인.
+   ▶ 해결: 화면 전체를 실제로 블러링하는 건 이미 이 박스 뒤의 .modal-overlay
+   (--glass-blur-thin, 아래 정의)가 담당하고 있어서(위 779번째 줄 주석 참고),
+   이 박스 자신의 background(반투명 틴트)만으로도 "유리 박스" 느낌은 그대로 남고
+   화면 블러는 안 사라짐 — 대신 이 박스가 더 이상 backdrop-filter를 안 쓰니
+   백드롭 루트가 안 생기고, .speech-bubble이 이제 진짜로 .modal-overlay가 이미
+   블러링해둔(그래서 단색이 아니라 자연스럽게 부드러운 질감이 있는) 실제 페이지를
+   읽어서 블러함 — 꼬리 끝에서도 더 이상 단색이 새어나오는 것처럼 안 보임.
+   (참고: 갤러리용 .modal-lightbox는 이 자손 backdrop-filter 충돌이 없어서
+   그대로 자기 backdrop-filter를 유지함 — 이 수정은 .modal-speech-lightbox에만
+   해당) */
 .modal.modal-speech-lightbox{
   position:relative; width:auto; min-width:70vw; max-width:94vw;
   min-height:60vh; padding:16px;
   background: rgba(10,5,6,0.5);
-  backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;
 }
 /* 캐릭터모드(on)일 때만 은은한 핑크 톤이 박스 배경에 번지도록 — 예전
@@ -914,6 +935,12 @@ body::before{
   border-radius:18px; padding:13px 18px 22px 18px;
   background: rgba(20,9,11,0.5);
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  /* 위 906번째 줄 주석에서 "다시 보이면 따로 알려달라"고 했던 그 꼬리 끝
+     안티앨리어싱 누출의 예방책 — will-change로 backdrop-filter 레이어를 페인트
+     전에 미리 할당해두면, 브라우저가 clip-path로 잘려나간 뒤의 좁은 모양 기준이
+     아니라 블러 반경만큼 여유를 둔 버퍼로 백드롭을 샘플링해서 꼬리처럼 얇은
+     지점에서 원본 색이 안 번지고 정상적으로 흐려짐 */
+  will-change: backdrop-filter;
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
   font-family: var(--font-display); font-style:normal; font-weight:500; font-size:1rem; line-height:1.45; text-align:center;
   text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 1px 8px rgba(0,0,0,0.4);
