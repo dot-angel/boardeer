@@ -2438,25 +2438,37 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .check-item-text.has-link{ cursor:pointer; color: var(--rose); }
 .check-item-text.has-link::after{ content:'↗'; font-size:.7em; opacity:.65; margin-left:3px; }
 .check-item-text.has-link:hover{ text-decoration: underline; }
-/* 항목별 부제목 — 항목 텍스트 바로 아래에 작게 표시됨(예: 기한, 담당 등) */
+/* 항목별 부제목 — 항목 텍스트 바로 아래에 작게 표시됨(예: 기한, 담당 등). 이제 이
+   자리를 눌러도 아무 일도 안 일어남 — 편집은 항목의 연필(.check-item-edit-toggle)로만 들어감 */
 .check-item-subtitle{ font-size:.72rem; color: var(--ink-soft); }
-.check-item-subtitle.editable{ cursor:pointer; border-radius:6px; padding:0 3px; transition: background .15s ease; }
-.check-item-subtitle.editable:hover{ background: rgba(var(--row-tint),0.06); }
-.check-item-subtitle.empty-hint{ opacity:.65; }
-.check-item-subtitle.empty-hint:hover{ opacity:1; }
 .check-item.checked{ opacity:.5; }
 .check-item.checked .check-item-text{ text-decoration: line-through; }
-.check-item .del{ background:none; border:none; color:var(--ink-soft); font-size:.7rem; cursor:pointer; }
-.check-item .del:hover{ color:#ff8f9e; }
-.check-item .check-link-edit{ background:none; border:none; color:var(--ink-soft); font-size:.68rem; cursor:pointer; flex:0 0 auto; }
-.check-item .check-link-edit:hover{ color:var(--ink); }
-/* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎) */
+/* 이 항목의 인라인 편집 패널을 펼치는 연필 버튼 — 위젯 전체를 잠그던 예전 연필
+   버튼(.w-edit-toggle-btn)과 같은 역할이지만, 카드 모서리가 아니라 항목 한 줄 안에
+   자연스럽게 들어가야 해서 절대위치 대신 인라인 아이콘 버튼으로 둠 */
+.check-item-edit-toggle{
+  flex:0 0 auto; width:22px; height:22px; border-radius:50%;
+  border:1px solid transparent; background:none; color: var(--ink-soft);
+  font-size:.7rem; display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.check-item-edit-toggle:hover{ background: rgba(var(--row-tint),0.12); border-color: var(--card-border); color: var(--ink); }
+/* 편집 패널 맨 위에 지금 고치고 있는 항목의 원래 할 일 텍스트를 그대로 띄워줌
+   (이 패널에서는 부제목·링크만 고치고, 할 일 자체는 그대로 안내용으로만 보여줌) */
+.check-item-edit-title{
+  font-family: var(--font-display); color: var(--rose); font-weight:700;
+  font-size:.85rem; margin-bottom:2px; word-break:break-word;
+}
+/* 드래그로 순서 바꾸기(뮤직 재생목록과 동일한 방식 — 손잡이를 잡고 끎). 손잡이는
+   이제 편집 패널이 펼쳐진 항목에만 보임(그 항목을 잡고 끌면 됨) */
 .check-item.dragging{ opacity:.4; }
 .check-item-drag-handle{
   flex:0 0 auto; width:14px; text-align:center; font-size:.8rem; color: var(--ink-soft);
   cursor: grab; line-height:1;
 }
 .check-item-drag-handle:active{ cursor: grabbing; }
+/* 편집 패널로 펼쳐진 항목은 2열 그리드 폭을 다 차지하게 해서(라벨+입력칸이
+   비좁지 않도록) 입력칸이 넉넉히 보이게 함 */
+.check-item.modal.modal-inline{ display:block; grid-column: 1 / -1; }
 /* 폭이 좁은 폰에서는 2열로 나누면 각 칸이 너무 좁아져서 글자가 답답하게 접힘.
    이 폭에서는 1열로 위/아래로 쌓음 */
 @media (max-width: 520px){
@@ -2506,16 +2518,10 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal .row{ display:flex; gap:8px; }
 .modal .row > *{ flex:1; }
 .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap; }
-/* 프로필 통합 편집 모달: 다른 모달보다 넓게(두 프로필을 나란히 놓아야 해서) — 게다가
-   입력칸/textarea가 많고 목록도 길어서, 라이트박스 때와 똑같은 이유로 backdrop-filter
-   블러가 타이핑할 때마다(커서 깜빡임, textarea 크기 조절 등 이 레이어 안의 아주 작은
-   변화에도) 매번 다시 계산되어 렉을 일으킴. 이 모달만 블러를 빼고 불투명도를 높여서
-   비슷한 느낌은 유지하면서 타이핑 렉을 없앰. */
-.modal.modal-profile-edit{
-  width:min(680px, 94vw);
-  backdrop-filter:none; -webkit-backdrop-filter:none;
-  background: rgba(20,9,11,0.94);
-}
+/* 프로필 ①·②를 나란히 놓는 두 칸 레이아웃 — 예전엔 화면 중앙 팝업(.modal-profile-edit,
+   680px 너비)에서만 쓰였지만, 이제 프로필 위젯 카드 "안"에 인라인으로 펼치는
+   .modal.modal-inline에서도 그대로 재사용함(위 .profile-pair .profile-edit-cols
+   규칙이 인라인 쪽에서는 항상 위아래로 쌓이게 덮어씀). */
 .profile-edit-cols{ display:flex; gap:18px; align-items:flex-start; }
 .profile-edit-col{ flex:1; min-width:0; }
 .profile-edit-col h4{ margin:0 0 2px; font-family: var(--font-display); color: var(--rose); font-size:.9rem; }
@@ -2527,50 +2533,25 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal input[type=color]{ width:44px; height:32px; padding:0; border:1px solid var(--card-border); border-radius:8px; background:none; }
 .modal .hint{ font-size:.75rem; color:var(--ink-soft); margin: 4px 0 0; }
 
-/* ---------------- 위젯 내 인라인 편집(프로필/체크리스트) ----------------
-   예전엔 항목을 누르면 별도 라이트박스 창이 떴는데, 위젯 안에서 바로 그 자리에서
-   고칠 수 있게 바꿈. 다만 입력칸 배경까지 밋밋하면 읽기 힘들고 "지금 편집 중"이라는
-   느낌도 약해서, 라이트박스 모달과 똑같은 유리 패널 스타일(.modal 클래스)을 그대로
-   재사용해서 입력 영역을 감쌈 — 배경/블러/테두리/글자색/다크·라이트 전환까지 전부
-   모달과 항상 같은 값을 쓰게 되어 별도 색상 규칙을 추가할 필요가 없음. 다만 타이핑할
-   때마다 backdrop-filter 블러가 매번 다시 계산되는 걸 막기 위해(프로필 통합편집
-   모달과 같은 이유) 블러는 빼고 불투명도만 높여서 비슷한 느낌을 유지함. */
-.modal.inline-edit-panel{
-  position:relative; width:auto; max-width:100%; max-height:none; overflow:visible;
-  padding:8px 10px; border-radius:14px; margin:4px 0;
-  backdrop-filter:none; -webkit-backdrop-filter:none;
-  background: rgba(24,11,14,0.9);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.35), inset 0 0 0 0.6px var(--card-hi);
-  animation: popIn .15s ease;
-  text-align:left;
+/* 팝업으로 화면 중앙에 뜨던 편집창(.modal)을, 오버레이 없이 위젯 카드 "안" 같은
+   자리에 그대로 펼쳐 넣을 때 쓰는 보조 클래스(프로필 위젯의 사진/정보 편집,
+   체크리스트 항목 편집에서 씀). 배경·테두리·둥근모서리·그림자·입력칸/라벨 스타일은
+   위 .modal 규칙을 그대로 물려받고, 여기서는 "화면 중앙 팝업"에만 필요했던 규칙
+   (고정폭·최대높이 스크롤·중앙 정렬용 위치·팝인 애니메이션)만 무효화함 */
+.modal.modal-inline{
+  position:static; width:100%; max-width:100%; max-height:none; overflow:visible;
+  margin:6px 0 0; animation:none;
+  backdrop-filter:none; -webkit-backdrop-filter:none; background: rgba(20,9,11,0.85);
 }
-body.theme-light .modal.inline-edit-panel{ background: rgba(255,255,255,0.94); }
-.modal.inline-edit-panel label{ margin:0 0 4px; }
-.modal.inline-edit-panel input, .modal.inline-edit-panel textarea{ margin:0; }
-.inline-edit-actions{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; flex-wrap:wrap; }
-.inline-edit-actions .pe-bulk-row{ margin:0; }
+/* 프로필 위젯의 사진·정보 편집 패널(.profile-pair 안에 펼쳐짐)은 원래 화면 중앙
+   팝업이었을 땐 680px 너비를 그대로 쓸 수 있어서 프로필 ①·②를 옆으로 나란히
+   둬도 됐지만, 이제는 위젯 카드 폭 안에 갇힘 — 카드 자체가 뷰포트보다 훨씬 좁을
+   수 있어서(뷰포트 폭 기준인 @media 560px로는 못 잡음) 폭과 무관하게 항상 위아래로 쌓음 */
+.profile-pair .profile-edit-cols{ flex-direction:column; }
+.profile-pair .profile-edit-divider{ width:100%; height:1px; margin:6px 0; }
 
-/* 값(혹은 안내문구)을 누르면 그 자리에서 입력칸으로 바뀐다는 걸 알려주는 공통 표시 —
-   기존 .editable/.empty-hint와 같은 느낌이지만 프로필뿐 아니라 체크리스트 등 여러
-   위젯에서 함께 재사용하기 위해 이름을 따로 둠 */
-.ik-editable{ cursor:pointer; border-radius:8px; transition: background .15s ease; }
-.ik-editable:hover{ background: rgba(var(--row-tint),0.08); }
-
-/* 위젯 전체의 "저장/변경 취소" 묶음 바 — 항목마다 따로 저장하는 대신, 여러 항목을
-   고친 뒤 한 번에 저장하게 함(하나씩 저장하면 번거롭다는 요청으로 도입) */
-.inline-save-bar{
-  display:flex; align-items:center; gap:8px; width:100%;
-  padding:6px 10px; margin-bottom:8px; border-radius:12px;
-  background: var(--rose-soft);
-}
-.inline-save-bar .inline-save-msg{ flex:1; min-width:0; font-size:.72rem; color: var(--ink); }
-/* 체크리스트 카드는 위젯 자체가 좁아서(2열 그리드) 저장 바가 그리드 칸 하나가
-   아니라 항상 위쪽 전체 폭을 차지하도록 함 */
-#checklistBody .inline-save-bar{ grid-column: 1 / -1; }
-/* 체크리스트 항목의 링크 편집 패널은 항목 폭 안에서 줄바꿈되게(항목 자체가 좁음) */
-.check-link-panel{ width:100%; }
-
-
+/* 프로필 편집 창의 항목별 "일괄적용(다른 시점/IF에도 적용)" 체크박스 — 짧은 문장이라
+   한 줄에 붙여도 되지만, 항상 해당 항목 입력칸 "아래"에 오도록 줄바꿈을 강제함 */
 .modal label.pe-bulk-row{
   display:flex; align-items:center; gap:4px; width:auto; margin:0; flex:0 0 auto;
   font-size:.7rem; color:var(--ink-soft); cursor:pointer; white-space:nowrap;

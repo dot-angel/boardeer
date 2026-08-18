@@ -26,23 +26,15 @@ function widgetEditToggleBtnHtml(key, label){
 }
 // 연필 버튼 클릭 → 해당 위젯만 잠금 해제 토글 후 전체 다시 그림(각 렌더 함수가
 // isWidgetOpen()을 참조하므로 renderAllModules 한 번이면 반영됨).
-document.addEventListener('click', async (e)=>{
+document.addEventListener('click', (e)=>{
   const btn = e.target.closest('.w-edit-toggle-btn');
   if(!btn) return;
   e.stopPropagation();
   const key = btn.dataset.wkey;
-  const closing = widgetUnlocked.has(key);
-  // 프로필 위젯을 잠그기 전에, 지금 고치던 내용(초안)이 있으면 먼저 저장부터 마침
-  // (그냥 잠그면 화면엔 안 보여도 초안이 조용히 남아있다가 다시 열었을 때 불쑥
-  // 나타나는 게 혼란스러움).
-  if(closing && key === 'profile' && typeof profileDraft !== 'undefined' && profileDraft){
-    if(!(await flushProfileDraftBeforeNav(profileCurrentSlides()))) return;
-  }
-  // 체크리스트도 같은 이유로: 잠그기 전에 고치던 항목(초안)이 있으면 먼저 저장부터 마침
-  if(closing && key === 'checklist' && typeof checklistAnyPending === 'function' && checklistAnyPending()){
-    if(!(await saveChecklistDraft())) return;
-  }
   if(widgetUnlocked.has(key)) widgetUnlocked.delete(key); else widgetUnlocked.add(key);
+  // 프로필 위젯 잠금을 다시 잠글 때, 인라인으로 펼쳐져 있던 편집 패널(사진/정보)이
+  // 있었다면 같이 접어줌 — 안 그러면 편집모드를 나갔는데도 입력칸이 계속 보이게 됨.
+  if(key === 'profile' && !widgetUnlocked.has('profile')) profileInlineEditMode = null;
   // 연필 버튼 하나만 눌러도 renderAllModules()가 위젯 13개의 innerHTML을 전부
   // 통째로 새로 그림 — 이때 브라우저의 스크롤 앵커링(Scroll Anchoring)이 기준으로
   // 삼고 있던 옛 DOM 노드들이 한꺼번에 사라졌다가 새 노드로 바뀌면서 앵커를 놓쳐,
@@ -2702,6 +2694,11 @@ let profileSlideIndex = 0; // 현재 선택된 AU 탭 인덱스
 let profileSectionIndex = 0; // 현재 AU 안에서 보고 있는 시점/IF 슬라이드 인덱스
 let profileInitializedDefault = false; // 페이지 로드 후 첫 렌더에서만 AU의 지정된 기본 시점/IF를 한 번 적용하기 위한 플래그
 let profileMobileExpanded = false; // 모바일 간략보기 상태에서 "자세히 보기"를 눌러 기존 전체 위젯 모양으로 펼친 상태인지
+// "사진/한마디/소개/이름"과 "정보" 편집을 예전엔 팝업 창(모달)으로 열었는데, 이제는
+// 위젯 카드 안에서 같은 자리에 기존 편집창(.modal)과 같은 모양으로 펼쳐서 보여줌.
+// null이면 평소처럼 보기 상태, 'basic'/'fields'면 그 편집 패널이 펼쳐진 상태.
+// (AU 탭 이름 수정은 이 대상이 아니라 기존처럼 팝업으로 그대로 둠)
+let profileInlineEditMode = null;
 
 // 새 시점/IF를 만들 때 각 프로필에 기본으로 깔아주는 항목들 — 체형·성격 등 세분화된 설명을 쓰기 쉽도록 미리 틀을 마련해둠.
 // "기타 설명"은 예전엔 항목마다 하나씩 붙는 부가 설명란이었는데, 이제는 그 자체로
@@ -2898,478 +2895,9 @@ function cloneSlides(slides){
   }));
 }
 
-/* ---------------- 프로필 정보 인라인 편집 ----------------
-   예전엔 사진/한마디/이름/소개와 나이·성격 등 "정보" 항목을 누르면 라이트박스
-   창이 따로 떴음. 이제는 위젯 안에서 항목 하나하나를 눌러 그 자리에서 바로
-   고칠 수 있게 바꾸되, 항목마다 매번 저장하면 번거로우니 여러 항목을 고친 뒤
-   한 번에 "저장" 버튼으로 반영함 — 그 사이의 변경 내용은 profileDraft에
-   임시로 모아둠. 초안은 지금 보고 있는 AU·시점/IF(slideIdx/secIdx) 하나에만
-   대응하며, 다른 AU/시점/IF로 넘어가기 전에 자동으로 저장(또는 변경이
-   없으면 그냥 버림)해서 입력하던 내용이 조용히 사라지지 않게 함. */
-let profileDraft = null; // { slideIdx, secIdx, people:[{oneLiner,role,name,fields,oneLinerBulk,roleBulk,nameBulk,avatarBulk,avatarAction,avatarPreviewUrl}, {...}] }
-let profileOpenKeys = new Set(); // 지금 입력칸으로 펼쳐진 항목 키 — 'avatar:0' | 'oneliner:0' | 'role:0' | 'name:0' | 'field:0:2' 등
-let profileSaving = false;
-
-function profileFieldKey(label){ return (label||'').trim().toLowerCase(); }
-function profileDraftPersonBase(slide, slot, pf){
-  const personBulk = (slide.people[slot] && slide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
-  return {
-    oneLiner: pf.oneLiner || '', role: pf.role || '', name: pf.name || '',
-    fields: (pf.fields || []).map(f=> ({ ...f, bulk: !!personBulk.fields[profileFieldKey(f.label)] })),
-    oneLinerBulk: !!personBulk.oneLiner, roleBulk: !!personBulk.role, nameBulk: !!personBulk.name, avatarBulk: !!personBulk.avatar,
-    avatarAction: null,      // null | {type:'clear'} | {type:'url', url} | {type:'file', file}
-    avatarPreviewUrl: null,  // 방금 고른 파일의 즉석 미리보기(선택)
-  };
-}
-// 지금 편집 중인 AU·시점/IF에 대응하는 초안이 없으면 새로 만듦(있으면 그대로 씀 — 여러
-// 항목을 계속 고쳐도 초안 하나에 계속 쌓임). slides는 항상 최신 정규화된 배열을 넘겨야 함.
-function ensureProfileDraft(slides, slideIdx, secIdx){
-  if(profileDraft && profileDraft.slideIdx === slideIdx && profileDraft.secIdx === secIdx) return profileDraft;
-  const slide = slides[slideIdx];
-  const section = slide.sections[secIdx];
-  profileDraft = {
-    slideIdx, secIdx,
-    people: [0,1].map(slot=> profileDraftPersonBase(slide, slot, section.peopleFields[slot] || { fields:[] }))
-  };
-  return profileDraft;
-}
-function profileDraftValue(slot, key, fallback){
-  if(profileDraft && profileDraft.people[slot]) return profileDraft.people[slot][key];
-  return fallback;
-}
-function profileHasPendingChanges(slides){
-  if(!profileDraft) return false;
-  const slide = slides[profileDraft.slideIdx];
-  const section = slide && slide.sections[profileDraft.secIdx];
-  if(!section) return true; // 대응하는 시점/IF가 이미 없어졌으면(다른 곳에서 삭제됨) 안전하게 "변경 있음"으로 취급
-  return [0,1].some(slot=>{
-    const d = profileDraft.people[slot];
-    if(d.avatarAction) return true;
-    const pf = section.peopleFields[slot] || { fields:[], oneLiner:'', name:'', role:'' };
-    if(d.oneLiner !== (pf.oneLiner||'') || d.role !== (pf.role||'') || d.name !== (pf.name||'')) return true;
-    const origFields = (pf.fields||[]).map(f=>({type:f.type, label:f.label, value:f.value, link:f.link}));
-    const draftFields = d.fields.map(f=>({type:f.type, label:f.label, value:f.value, link:f.link}));
-    if(JSON.stringify(origFields) !== JSON.stringify(draftFields)) return true;
-    return false;
-  });
-}
-function discardProfileDraft(){
-  if(profileDraft){
-    [0,1].forEach(slot=>{
-      const url = profileDraft.people[slot].avatarPreviewUrl;
-      if(url) URL.revokeObjectURL(url);
-    });
-  }
-  profileDraft = null;
-  profileOpenKeys.clear();
-}
-// 다른 AU/시점/IF로 넘어가기 전에 호출 — 안 고친 초안은 조용히 버리고, 고친 게
-// 있으면 저장까지 마친 뒤에 넘어가게 함(실패하면 이동을 막고 알려줌).
-async function flushProfileDraftBeforeNav(slides){
-  if(!profileDraft) return true;
-  if(!profileHasPendingChanges(slides)){ discardProfileDraft(); return true; }
-  return await saveProfileDraft(slides);
-}
-function closeProfileField(key){
-  profileOpenKeys.delete(key);
-}
-async function saveProfileDraft(slides){
-  if(!profileDraft || profileSaving) return true;
-  if(!profileHasPendingChanges(slides)){ discardProfileDraft(); renderProfile(); return true; }
-  profileSaving = true;
-  const bar = document.querySelector('#cardProfile .inline-save-bar');
-  const saveBtn = bar && bar.querySelector('.inline-save-btn');
-  if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
-  const { slideIdx, secIdx } = profileDraft;
-  try{
-    const arr = cloneSlides(slides);
-    const targetSlide = arr[slideIdx];
-    const otherSecIdxs = targetSlide.sections.map((_,i)=>i).filter(i=> i !== secIdx);
-    const oldChunksToDelete = [];
-    for(const slot of [0,1]){
-      const d = profileDraft.people[slot];
-      const pf = targetSlide.sections[secIdx].peopleFields[slot];
-
-      // 사진 — 지우기/URL/새 업로드 중 하나라도 있었으면 반영(모달과 동일한 처리)
-      let avatar = pf.avatar || '', avatarChunked = !!pf.avatarChunked, avatarFileId = pf.avatarFileId || '', avatarChunkTotal = pf.avatarChunkTotal || 0;
-      let avatarDataUrl = null;
-      if(d.avatarAction && d.avatarAction.type === 'clear'){
-        if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
-        avatar = ''; avatarChunked = false; avatarFileId = ''; avatarChunkTotal = 0;
-      } else if(d.avatarAction && d.avatarAction.type === 'url'){
-        if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
-        avatar = d.avatarAction.url; avatarChunked = false; avatarFileId = ''; avatarChunkTotal = 0;
-      } else if(d.avatarAction && d.avatarAction.type === 'file'){
-        if(saveBtn) saveBtn.textContent = '사진 처리 중…';
-        let dataUrl;
-        try{ dataUrl = await compressAvatarImageFile(d.avatarAction.file, 900, 320000); }
-        catch(err){ toast(`이미지 처리 실패: ${err.message || err}`); if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='저장'; } profileSaving=false; return false; }
-        if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
-        if(saveBtn) saveBtn.textContent = '사진 저장 중…';
-        let chunkInfo;
-        try{ chunkInfo = await saveFileChunked(dataUrl); }
-        catch(err){ toast('사진을 저장하지 못했어요.'); if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='저장'; } profileSaving=false; return false; }
-        chunkedImageCache.set(chunkInfo.fileId, dataUrl);
-        avatar = ''; avatarChunked = true; avatarFileId = chunkInfo.fileId; avatarChunkTotal = chunkInfo.total;
-        avatarDataUrl = dataUrl;
-      }
-
-      const cleanFields = d.fields
-        .map(f=> f.type === 'link' ? { type:'link', label:(f.label||'').trim(), link:(f.link||'').trim() } : { type:'text', label:(f.label||'').trim(), value:(f.value||'').trim() })
-        .filter(f=> f.type === 'link' ? (f.label || f.link) : (f.label || f.value));
-
-      targetSlide.sections[secIdx].peopleFields[slot] = {
-        ...pf, avatar, avatarChunked, avatarFileId, avatarChunkTotal,
-        oneLiner: d.oneLiner.trim(), name: d.name.trim(), role: d.role.trim(),
-        fields: cleanFields
-      };
-
-      // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용(사진은 fileId를 나눠 쓰면
-      // 한쪽만 지울 때 다른 쪽도 같이 사라질 수 있어 항상 복제 저장함)
-      for(const si of otherSecIdxs){
-        const targetPf = targetSlide.sections[si].peopleFields[slot];
-        if(d.oneLinerBulk) targetPf.oneLiner = d.oneLiner.trim();
-        if(d.nameBulk) targetPf.name = d.name.trim();
-        if(d.roleBulk) targetPf.role = d.role.trim();
-        if(d.avatarBulk && d.avatarAction){
-          if(avatarDataUrl){
-            if(saveBtn) saveBtn.textContent = '사진 복제 저장 중…';
-            try{
-              const dup = await saveFileChunked(avatarDataUrl);
-              chunkedImageCache.set(dup.fileId, avatarDataUrl);
-              targetPf.avatar=''; targetPf.avatarChunked=true; targetPf.avatarFileId=dup.fileId; targetPf.avatarChunkTotal=dup.total;
-            }catch(err){ /* 복제 실패해도 본 저장은 계속 진행 */ }
-          } else {
-            targetPf.avatar = avatar; targetPf.avatarChunked = avatarChunked; targetPf.avatarFileId = avatarFileId; targetPf.avatarChunkTotal = avatarChunkTotal;
-          }
-        }
-        cleanFields.forEach((f, i)=>{
-          if(!d.fields[i] || !d.fields[i].bulk) return;
-          const existing = targetPf.fields.find(tf=> tf.label && profileFieldKey(tf.label) === profileFieldKey(f.label));
-          if(f.type === 'link'){
-            if(existing){ existing.type='link'; existing.link=f.link; delete existing.value; delete existing.desc; }
-            else targetPf.fields.push({ type:'link', label:f.label, link:f.link });
-          } else {
-            if(existing){ existing.type='text'; existing.value=f.value; delete existing.link; }
-            else targetPf.fields.push({ type:'text', label:f.label, value:f.value });
-          }
-        });
-      }
-
-      // "적용" 체크 상태를 AU(사람 슬롯)에 영구 저장 — 다음에 열 때도 직접 바꾸기 전까진 유지됨
-      const prevBulkFields = (targetSlide.people[slot].bulk && targetSlide.people[slot].bulk.fields) || {};
-      const nextBulkFields = { ...prevBulkFields };
-      d.fields.forEach(f=>{ const key = profileFieldKey(f.label); if(key) nextBulkFields[key] = !!f.bulk; });
-      targetSlide.people[slot] = {
-        ...targetSlide.people[slot], name: d.name.trim(), role: d.role.trim(), avatar: '',
-        bulk: { avatar: d.avatarBulk, oneLiner: d.oneLinerBulk, name: d.nameBulk, role: d.roleBulk, fields: nextBulkFields }
-      };
-    }
-    if(saveBtn) saveBtn.textContent = '저장 중…';
-    await docRef('profile').set({slides:arr}, {merge:true});
-    oldChunksToDelete.forEach(({fileId, total})=> deleteFileChunked(fileId, total).catch(()=>{}));
-    discardProfileDraft();
-    profileSaving = false;
-    renderProfile();
-    return true;
-  }catch(err){
-    toast(`저장하지 못했어요: ${err.message || err}`);
-    if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = '저장'; }
-    profileSaving = false;
-    return false;
-  }
-}
-
-function profileCurrentSlides(){ return (profileData.slides || []).map(normalizeProfileSlide); }
-
-// 값 하나짜리 입력 패널(사진 아래 한마디/한줄소개/이름, 그리고 나이·생년월일 등
-// 템플릿 항목·기타 설명에도 재사용). 라이트박스 모달과 같은 유리 패널 스타일
-// (.modal 클래스)을 그대로 입혀서 "지금 편집 중"이라는 게 잘 보이게 함.
-function basicPanelHtml(slot, kind, value, placeholder, bulkFlag, bulkFieldName, useTextarea, bulkNote){
-  const key = `basic:${slot}:${kind}`;
-  const inputEl = useTextarea
-    ? `<textarea class="ik-input" data-ik="${key}" data-basic-slot="${slot}" data-basic-field="${kind}" placeholder="${escapeHtml(placeholder||'')}">${escapeHtml(value)}</textarea>`
-    : `<input type="text" class="ik-input" data-ik="${key}" data-basic-slot="${slot}" data-basic-field="${kind}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder||'')}">`;
-  return `
-    <div class="modal inline-edit-panel" data-ikpanel="${key}">
-      ${inputEl}
-      <div class="inline-edit-actions">
-        ${bulkNote ? `<label class="pe-bulk-row"><input type="checkbox" class="ik-basic-bulk" data-basic-slot="${slot}" data-basic-bulk-field="${bulkFieldName}" ${bulkFlag?'checked':''}> 다른 시점/IF에도 적용</label>` : '<span></span>'}
-        <button type="button" class="btn small ghost ik-close" data-key="${key}">닫기</button>
-      </div>
-    </div>`;
-}
-function tfPanelHtml(slot, label, value, placeholder, bulkFlag, useTextarea, bulkNote){
-  const key = `tf:${slot}:${label}`;
-  const inputEl = useTextarea
-    ? `<textarea class="ik-input" data-ik="${key}" data-tf-slot="${slot}" data-tf-label="${escapeHtml(label)}" placeholder="${escapeHtml(placeholder||'')}">${escapeHtml(value)}</textarea>`
-    : `<input type="text" class="ik-input" data-ik="${key}" data-tf-slot="${slot}" data-tf-label="${escapeHtml(label)}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder||'')}">`;
-  return `
-    <div class="modal inline-edit-panel" data-ikpanel="${key}">
-      <label>${escapeHtml(label)}</label>
-      ${inputEl}
-      <div class="inline-edit-actions">
-        ${bulkNote ? `<label class="pe-bulk-row"><input type="checkbox" class="ik-tf-bulk" data-tf-slot="${slot}" data-tf-label="${escapeHtml(label)}" ${bulkFlag?'checked':''}> 다른 시점/IF에도 적용</label>` : '<span></span>'}
-        <button type="button" class="btn small ghost ik-close" data-key="${key}">닫기</button>
-      </div>
-    </div>`;
-}
-function cfPanelHtml(slot, idx, f, bulkNote){
-  const key = `cf:${slot}:${idx}`;
-  return `
-    <div class="modal inline-edit-panel pf-edit-row" data-ikpanel="${key}">
-      <input type="text" class="ik-input pf-edit-label" data-ik="${key}" data-cf-slot="${slot}" data-cf-idx="${idx}" data-cf-part="label" value="${escapeHtml(f.label||'')}" placeholder="항목명 (예: 취향)">
-      <input type="text" class="ik-input pf-edit-value" data-cf-slot="${slot}" data-cf-idx="${idx}" data-cf-part="value" value="${escapeHtml(f.value||'')}" placeholder="내용">
-      <div class="pf-edit-row-actions">
-        ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="ik-cf-bulk" data-cf-slot="${slot}" data-cf-idx="${idx}" ${f.bulk?'checked':''}> 일괄적용</label>` : '<span></span>'}
-        <button type="button" class="btn small danger ik-cf-del" data-cf-slot="${slot}" data-cf-idx="${idx}">✕ 삭제</button>
-      </div>
-      <div class="inline-edit-actions"><span></span><button type="button" class="btn small ghost ik-close" data-key="${key}">닫기</button></div>
-    </div>`;
-}
-function lkPanelHtml(slot, idx, f, bulkNote){
-  const key = `lk:${slot}:${idx}`;
-  return `
-    <div class="modal inline-edit-panel pf-edit-row pf-edit-row-link" data-ikpanel="${key}">
-      <input type="text" class="ik-input pf-edit-label" data-ik="${key}" data-lk-slot="${slot}" data-lk-idx="${idx}" data-lk-part="label" value="${escapeHtml(f.label||'')}" placeholder="링크 이름 (예: 플레이리스트)">
-      <input type="url" class="ik-input pf-edit-link" data-lk-slot="${slot}" data-lk-idx="${idx}" data-lk-part="link" value="${escapeHtml(f.link||'')}" placeholder="링크 URL">
-      <div class="pf-edit-row-actions">
-        ${bulkNote ? `<label class="pe-bulk-row pf-bulk-row"><input type="checkbox" class="ik-lk-bulk" data-lk-slot="${slot}" data-lk-idx="${idx}" ${f.bulk?'checked':''}> 일괄적용</label>` : '<span></span>'}
-        <button type="button" class="btn small danger ik-lk-del" data-lk-slot="${slot}" data-lk-idx="${idx}">✕ 삭제</button>
-      </div>
-      <div class="inline-edit-actions"><span></span><button type="button" class="btn small ghost ik-close" data-key="${key}">닫기</button></div>
-    </div>`;
-}
-// 사진 편집 패널 — 파일/URL/지우기를 모달 때와 동일하게 지원하되, 실제 압축·업로드는
-// (모달 때처럼) 이 패널을 여는 순간이 아니라 전체 "저장" 버튼을 누를 때 한 번에 처리함.
-function avatarPanelHtml(slot, pf, draftPerson, bulkNote){
-  const key = `avatar:${slot}`;
-  const action = draftPerson.avatarAction;
-  const cachedAvatar = pf.avatarChunked ? (chunkedImageCache.get(pf.avatarFileId) || '') : (pf.avatar || '');
-  let previewSrc = '', previewEmpty = true, previewNote = '';
-  if(action && action.type === 'clear'){
-    previewEmpty = true;
-  } else if(action && action.type === 'file'){
-    previewSrc = draftPerson.avatarPreviewUrl || ''; previewEmpty = !previewSrc;
-  } else if(action && action.type === 'url'){
-    previewSrc = action.url; previewEmpty = !previewSrc;
-  } else if(cachedAvatar){
-    previewSrc = cachedAvatar; previewEmpty = false;
-  } else if(pf.avatarChunked){
-    previewEmpty = false; previewNote = '현재 사진: 저장된 이미지 (용량이 커서 미리보기는 생략돼요)';
-  }
-  return `
-    <div class="modal inline-edit-panel" data-ikpanel="${key}">
-      <label>프로필 사진 (배경이 투명한 PNG도 지원돼요)</label>
-      <input type="file" class="ik-input ik-avatar-file" data-ik="${key}" data-avatar-slot="${slot}" accept="image/*">
-      <label style="margin-top:6px;">또는 이미지 URL</label>
-      <input type="url" class="ik-input" data-avatar-url-slot="${slot}" placeholder="https://..." value="${action && action.type==='url' ? escapeHtml(action.url) : ''}">
-      <div class="mp-modal-cover-preview" ${previewEmpty ? 'style="display:none;"' : ''}>
-        ${previewSrc ? `<img data-avatar-preview="${slot}" src="${previewSrc}" alt="">` : (previewNote ? `<p class="hint" data-avatar-preview-note="${slot}">${previewNote}</p>` : '')}
-        <button type="button" class="btn ghost small ik-avatar-clear" data-avatar-slot="${slot}">사진 지우기</button>
-      </div>
-      <div class="inline-edit-actions">
-        ${bulkNote ? `<label class="pe-bulk-row"><input type="checkbox" class="ik-avatar-bulk" data-avatar-slot="${slot}" ${draftPerson.avatarBulk?'checked':''}> 다른 시점/IF에도 적용</label>` : '<span></span>'}
-        <button type="button" class="btn small ghost ik-close" data-key="${key}">닫기</button>
-      </div>
-    </div>`;
-}
-
-/* ---- 인라인 편집 이벤트(위임) — cardProfile 엘리먼트 자체에 한 번만 붙여두고,
-   매번 다시 그려지는 자식들의 이벤트를 버블링으로 받음. 타이핑 중엔 절대로
-   다시 그리지 않고(포커스/커서를 잃지 않도록) profileDraft만 조용히 갱신하며,
-   패널을 열거나 닫을 때만 renderProfile()로 화면을 갱신함. ---- */
-function profileEnsureTfField(slot, label){
-  let f = profileDraft.people[slot].fields.find(f=> f.type!=='link' && (f.label||'').trim()===label);
-  if(!f){ f = {type:'text', label, value:'', bulk:false}; profileDraft.people[slot].fields.push(f); }
-  return f;
-}
-function handleProfileInlineInput(e){
-  const t = e.target;
-  if(!t.classList || !t.classList.contains('ik-input')) return;
-  const slides = profileCurrentSlides();
-  ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-  if(t.dataset.basicField !== undefined){
-    profileDraft.people[Number(t.dataset.basicSlot)][t.dataset.basicField] = t.value;
-  } else if(t.dataset.tfLabel !== undefined){
-    profileEnsureTfField(Number(t.dataset.tfSlot), t.dataset.tfLabel).value = t.value;
-  } else if(t.dataset.cfIdx !== undefined){
-    const f = profileDraft.people[Number(t.dataset.cfSlot)].fields[Number(t.dataset.cfIdx)];
-    if(f) f[t.dataset.cfPart] = t.value;
-  }
-}
-function handleProfileInlineInputCapture(e){
-  // 사진 URL 인풋은 위 input 핸들러(handleProfileInlineInput)가 다루는 항목명/내용/
-  // 템플릿 값과 달리, 입력과 동시에 미리보기 이미지 DOM도 함께 바꿔줘야 해서 따로 처리함
-  const t = e.target;
-  if(t.dataset && t.dataset.avatarUrlSlot !== undefined){
-    const slides = profileCurrentSlides();
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const slot = Number(t.dataset.avatarUrlSlot);
-    const d = profileDraft.people[slot];
-    if(d.avatarPreviewUrl){ URL.revokeObjectURL(d.avatarPreviewUrl); d.avatarPreviewUrl = null; }
-    d.avatarAction = t.value.trim() ? { type:'url', url:t.value.trim() } : null;
-    const img = document.querySelector(`#cardProfile [data-avatar-preview="${slot}"]`);
-    const wrap = img && img.closest('.mp-modal-cover-preview');
-    if(wrap){ wrap.style.display = t.value.trim() ? 'flex' : 'none'; }
-    if(img && t.value.trim()) img.src = t.value.trim();
-  }
-}
-function handleProfileInlineChange(e){
-  const t = e.target;
-  const slides = profileCurrentSlides();
-  if(t.classList.contains('ik-basic-bulk')){
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    profileDraft.people[Number(t.dataset.basicSlot)][t.dataset.basicBulkField] = t.checked;
-  } else if(t.classList.contains('ik-tf-bulk')){
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    profileEnsureTfField(Number(t.dataset.tfSlot), t.dataset.tfLabel).bulk = t.checked;
-  } else if(t.classList.contains('ik-cf-bulk')){
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const f = profileDraft.people[Number(t.dataset.cfSlot)].fields[Number(t.dataset.cfIdx)];
-    if(f) f.bulk = t.checked;
-  } else if(t.classList.contains('ik-lk-bulk')){
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const f = profileDraft.people[Number(t.dataset.lkSlot)].fields[Number(t.dataset.lkIdx)];
-    if(f) f.bulk = t.checked;
-  } else if(t.classList.contains('ik-avatar-bulk')){
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    profileDraft.people[Number(t.dataset.avatarSlot)].avatarBulk = t.checked;
-  } else if(t.classList.contains('ik-avatar-file')){
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const slot = Number(t.dataset.avatarSlot);
-    const file = t.files[0];
-    if(file){
-      const d = profileDraft.people[slot];
-      if(d.avatarPreviewUrl) URL.revokeObjectURL(d.avatarPreviewUrl);
-      d.avatarPreviewUrl = URL.createObjectURL(file);
-      d.avatarAction = { type:'file', file };
-      const img = document.querySelector(`#cardProfile [data-avatar-preview="${slot}"]`);
-      const wrap = img && img.closest('.mp-modal-cover-preview');
-      if(img){ img.src = d.avatarPreviewUrl; if(wrap) wrap.style.display = 'flex'; }
-      else renderProfile();
-    }
-  }
-}
-function profileClosePanelAndClearIfEmptyTf(key){
-  closeProfileField(key);
-  // 값을 하나도 안 채운 채로 연 템플릿 항목(나이 등)은 배열에 빈 항목만 남기지
-  // 않도록 정리 — 실제 저장 시에도 빈 항목은 걸러지지만, 화면상 대기표시를
-  // 굳이 남기지 않기 위해 여기서도 정리해둠
-  if(profileDraft && key.startsWith('tf:')){
-    const parts = key.split(':'); const slot = Number(parts[1]); const label = parts.slice(2).join(':');
-    const arr = profileDraft.people[slot].fields;
-    const idx = arr.findIndex(f=> f.type!=='link' && (f.label||'').trim()===label);
-    if(idx !== -1 && !arr[idx].value && !arr[idx].bulk) arr.splice(idx,1);
-  }
-}
-function handleProfileInlineClick(e){
-  const closeBtn = e.target.closest('.ik-close');
-  if(closeBtn){ profileClosePanelAndClearIfEmptyTf(closeBtn.dataset.key); renderProfile(); return; }
-
-  const cfDel = e.target.closest('.ik-cf-del');
-  if(cfDel){
-    const slides = profileCurrentSlides();
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const slot = Number(cfDel.dataset.cfSlot);
-    profileDraft.people[slot].fields.splice(Number(cfDel.dataset.cfIdx), 1);
-    [...profileOpenKeys].forEach(k=>{ if(k.startsWith(`cf:${slot}:`) || k.startsWith(`lk:${slot}:`)) profileOpenKeys.delete(k); });
-    renderProfile();
-    return;
-  }
-  const lkDel = e.target.closest('.ik-lk-del');
-  if(lkDel){
-    const slides = profileCurrentSlides();
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const slot = Number(lkDel.dataset.lkSlot);
-    profileDraft.people[slot].fields.splice(Number(lkDel.dataset.lkIdx), 1);
-    [...profileOpenKeys].forEach(k=>{ if(k.startsWith(`cf:${slot}:`) || k.startsWith(`lk:${slot}:`)) profileOpenKeys.delete(k); });
-    renderProfile();
-    return;
-  }
-  const avatarClear = e.target.closest('.ik-avatar-clear');
-  if(avatarClear){
-    const slides = profileCurrentSlides();
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const slot = Number(avatarClear.dataset.avatarSlot);
-    const d = profileDraft.people[slot];
-    if(d.avatarPreviewUrl) URL.revokeObjectURL(d.avatarPreviewUrl);
-    d.avatarPreviewUrl = null;
-    d.avatarAction = { type:'clear' };
-    renderProfile();
-    return;
-  }
-  const addCf = e.target.closest('.ik-add-field');
-  if(addCf){
-    const slides = profileCurrentSlides();
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const slot = Number(addCf.dataset.slot);
-    const arr = profileDraft.people[slot].fields;
-    arr.push({ type:'text', label:'', value:'', bulk:false });
-    const key = `cf:${slot}:${arr.length-1}`;
-    profileOpenKeys.add(key);
-    renderProfile();
-    const el = document.querySelector(`#cardProfile [data-ik="${key}"]`);
-    if(el) el.focus();
-    return;
-  }
-  const addLk = e.target.closest('.ik-add-link');
-  if(addLk){
-    const slides = profileCurrentSlides();
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    const slot = Number(addLk.dataset.slot);
-    const arr = profileDraft.people[slot].fields;
-    arr.push({ type:'link', label:'', link:'', bulk:false });
-    const key = `lk:${slot}:${arr.length-1}`;
-    profileOpenKeys.add(key);
-    renderProfile();
-    const el = document.querySelector(`#cardProfile [data-ik="${key}"]`);
-    if(el) el.focus();
-    return;
-  }
-  const openTarget = e.target.closest('[data-ikopen]');
-  if(openTarget){
-    const key = openTarget.dataset.ikopen;
-    const slides = profileCurrentSlides();
-    ensureProfileDraft(slides, profileSlideIndex, profileSectionIndex);
-    if(key.startsWith('tf:')){
-      const parts = key.split(':'); const slot = Number(parts[1]); const label = parts.slice(2).join(':');
-      profileEnsureTfField(slot, label);
-    }
-    profileOpenKeys.add(key);
-    renderProfile();
-    const el = document.querySelector(`#cardProfile [data-ik="${key}"]`);
-    if(el){ el.focus(); if(el.select) el.select(); }
-    return;
-  }
-  const saveBtnEl = e.target.closest('.inline-save-btn');
-  if(saveBtnEl){ saveProfileDraft(profileCurrentSlides()); return; }
-  const discardBtnEl = e.target.closest('.inline-discard-btn');
-  if(discardBtnEl){ discardProfileDraft(); renderProfile(); return; }
-}
-function handleProfileInlineKeydown(e){
-  if(!e.target.classList || !e.target.classList.contains('ik-input')) return;
-  if(e.key === 'Enter' && e.target.tagName !== 'TEXTAREA'){
-    e.preventDefault();
-    const panel = e.target.closest('[data-ikpanel]');
-    if(panel){ profileClosePanelAndClearIfEmptyTf(panel.dataset.ikpanel); renderProfile(); }
-  } else if(e.key === 'Escape'){
-    const panel = e.target.closest('[data-ikpanel]');
-    if(panel){ profileClosePanelAndClearIfEmptyTf(panel.dataset.ikpanel); renderProfile(); }
-  }
-}
-
 function renderProfile(){
   const box = document.getElementById('cardProfile');
   const slides = (profileData.slides || []).map(normalizeProfileSlide);
-  // 다른 방문자의 변경이나 다른 위젯의 편집 잠금 토글로 인해 이 함수가 다시 불릴 때도
-  // 지금 타이핑 중이던 인라인 입력칸의 포커스/커서 위치를 그대로 이어가게 함
-  // (innerHTML을 통째로 새로 그리면 포커스가 풀려버리는 걸 보완).
-  const activeEl = document.activeElement;
-  let focusRestore = null;
-  if(activeEl && box && box.contains(activeEl) && activeEl.dataset && activeEl.dataset.ik){
-    focusRestore = { key: activeEl.dataset.ik, start: activeEl.selectionStart, end: activeEl.selectionEnd };
-  }
 
   if(slides.length === 0){
     box.innerHTML = `
@@ -3391,68 +2919,62 @@ function renderProfile(){
   if(profileSectionIndex >= slide.sections.length) profileSectionIndex = 0;
   if(profileSectionIndex < 0) profileSectionIndex = 0;
   const section = slide.sections[profileSectionIndex];
-  // 지금 보고 있는 AU·시점/IF와 대응하지 않는 초안이 남아있다면(다른 곳에서 AU/시점이
-  // 삭제되는 등 드문 경우) 안전하게 비워둠 — 정상적인 탭 전환은 항상 그 전에 저장/버림을
-  // 마치고 넘어오므로 여기 걸리지 않음
-  if(profileDraft && (profileDraft.slideIdx !== profileSlideIndex || profileDraft.secIdx !== profileSectionIndex)){
-    discardProfileDraft();
-  }
 
   // 보기 전용(방문자) 모드에선 아직 값을 안 채운 항목(템플릿만 깔려있고 내용이 빈 항목)이
   // 그대로 보이면 빈 줄처럼 보여서 어색함 → 내용/기타설명/링크 중 하나도 없는 항목은 숨김.
-  // 편집 모드에선 항목을 하나하나 눌러서 그 자리에서 바로 고칠 수 있음(라이트박스 대신
-  // 라이트박스와 같은 유리 패널 스타일로 펼쳐짐). 여러 항목을 고친 뒤 한 번에 저장하도록
-  // profileDraft에 모아두고, 아래쪽 "저장" 버튼을 눌러야 실제로 반영됨.
+  // 편집 모드에선 어떤 항목을 채울 수 있는지 알 수 있게 그대로 다 보여줌.
   // 나이·생년월일·키/몸무게·BWH·성격은 값 자체만 봐도 뭔지 알 수 있어서(예: "142cm · 32kg"),
   // 항목명을 따로 안 붙이고 값만 보여줌. 기타 설명은 목록 속 한 줄이 아니라 따로 떨어진
   // 박스로 보여줘서 다른 항목들과 헷갈리지 않게 함.
-  const bulkNote = slide.sections.length > 1;
-  const open = isWidgetOpen('profile');
-  const fieldsHtml = (slot, fields)=>{
-    const tfVal = (label)=>{ const f = fields.find(f=> f.type!=='link' && (f.label||'').trim()===label); return f ? (f.value||'') : ''; };
-    const tfBulk = (label)=>{ const f = fields.find(f=> f.type!=='link' && (f.label||'').trim()===label); return !!(f && f.bulk); };
-    const tfKey = (label)=> `tf:${slot}:${label}`;
-    const tfSpan = (label)=>{
-      const value = tfVal(label);
-      const cls = ['pf-value', open ? 'ik-editable' : '', (!value && open) ? 'empty-hint' : ''].filter(Boolean).join(' ');
-      const attrs = open ? `data-ikopen="${tfKey(label)}"` : '';
-      return `<span class="${cls}" ${attrs}>${value ? formatProfileFieldValue(label, value) : (open ? '+ ' + escapeHtml(label) : '')}</span>`;
+  const NO_LABEL_FIELDS = ['나이', '생년월일', '키/몸무게', 'BWH', '성격'];
+  const fieldsHtml = (fields)=>{
+    const textFields = fields.filter(f=> f.type !== 'link');
+    const linkFields = fields.filter(f=> f.type === 'link');
+    const descField = textFields.find(f=> (f.label||'').trim() === '기타 설명');
+    const listFields = textFields.filter(f=> f !== descField);
+    const visibleLinks = isWidgetOpen('profile') ? linkFields : linkFields.filter(f=> f.link);
+
+    // 나이/생년월일, 키몸무게/BWH, 성격 — 이 세 줄은 "표"처럼 사람/시점마다 자리가
+    // 고정돼야 하는 항목이라, listFields 전체(값 유무·편집모드 상관없이)에서 먼저
+    // 뽑아내고 남은 것들만 뒤에서 "자유 항목"으로 다룸
+    const remaining = listFields.slice();
+    const takeByLabel = (lbl)=>{
+      const idx = remaining.findIndex(f=> (f.label||'').trim() === lbl);
+      return idx === -1 ? null : remaining.splice(idx, 1)[0];
     };
-    // 나이·생년월일, 키/몸무게·BWH는 각각 세로 구분선 하나로 나눠서 같은 줄에 보여줌.
-    // 값이 있든 없든 항상 자리를 차지하게 해서(다른 사람/시점과 위치가 어긋나지 않도록)
-    // 편집모드에선 둘 다 각자 따로 누를 수 있게 하고, 보기 모드에선 예전처럼 값 있는
-    // 것만(또는 둘 다면 구분선과 함께) 보여줌.
-    const pairRowHtml = (labelA, placeholderA, labelB, placeholderB)=>{
-      if(open && profileOpenKeys.has(tfKey(labelA))) return `<div class="profile-field profile-field-plain">${tfPanelHtml(slot, labelA, tfVal(labelA), placeholderA, tfBulk(labelA), false, bulkNote)}</div>`;
-      if(open && profileOpenKeys.has(tfKey(labelB))) return `<div class="profile-field profile-field-plain">${tfPanelHtml(slot, labelB, tfVal(labelB), placeholderB, tfBulk(labelB), false, bulkNote)}</div>`;
-      const av = tfVal(labelA), bv = tfVal(labelB);
-      if(open) return `<div class="profile-field profile-field-plain profile-field-pair">${tfSpan(labelA)}<span class="pf-pair-divider"></span>${tfSpan(labelB)}</div>`;
-      if(av && bv) return `<div class="profile-field profile-field-plain profile-field-pair"><span class="pf-value">${formatProfileFieldValue(labelA,av)}</span><span class="pf-pair-divider"></span><span class="pf-value">${formatProfileFieldValue(labelB,bv)}</span></div>`;
-      if(av) return `<div class="profile-field profile-field-plain"><span class="pf-value">${formatProfileFieldValue(labelA,av)}</span></div>`;
-      if(bv) return `<div class="profile-field profile-field-plain"><span class="pf-value">${formatProfileFieldValue(labelB,bv)}</span></div>`;
+    const ageField = takeByLabel('나이');
+    const bdayField = takeByLabel('생년월일');
+    const bodyField = takeByLabel('키/몸무게');
+    const bwhField = takeByLabel('BWH');
+    const personalityField = takeByLabel('성격');
+
+    // 나이·생년월일, 키/몸무게·BWH는 각각 세로 구분선 하나로 나눠서 같은 줄에 보여줌
+    // (둘 다 값이 있을 때만 한 줄로 묶고, 하나만 있으면 그 하나만 그대로 보여줌) —
+    // 위젯이 위아래로 너무 길어진다는 요청에 따라 높이를 줄이기 위함.
+    // PC에서는 값이 하나도 없어도 그 줄 자체는 항상 자리를 차지하게 비워서 렌더링함
+    // (다른 사람/시점엔 값이 있어서 줄이 생기고 이 사람만 없어서 줄이 통째로
+    // 사라지면, 그 아래 항목들 위치가 사람마다 달라져 "표"처럼 안 보였음).
+    // .profile-field-empty는 모바일에서만 CSS로 다시 숨겨서(펼치기 포함) 기존
+    // "빈 항목은 안 보이게" 동작을 그대로 유지함
+    const pairFieldHtml = f=> `<span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>`;
+    const pairRowHtml = (a, b)=>{
+      const av = a && a.value, bv = b && b.value;
+      if(av && bv) return `<div class="profile-field profile-field-plain profile-field-pair">${pairFieldHtml(a)}<span class="pf-pair-divider"></span>${pairFieldHtml(b)}</div>`;
+      const only = av ? a : (bv ? b : null);
+      if(only) return `<div class="profile-field profile-field-plain">${pairFieldHtml(only)}</div>`;
       return `<div class="profile-field profile-field-plain profile-field-empty">&nbsp;</div>`;
     };
-    const personalityRowHtml = ()=>{
-      if(open && profileOpenKeys.has(tfKey('성격'))) return `<div class="profile-field profile-field-personality">${tfPanelHtml(slot, '성격', tfVal('성격'), '쉼표로 구분해서 입력 (예: 활발함, 다정함)', tfBulk('성격'), false, bulkNote)}</div>`;
-      const value = tfVal('성격');
-      if(value) return `<div class="profile-field profile-field-personality ${open?'ik-editable':''}" ${open?`data-ikopen="${tfKey('성격')}"`:''}>${personalityHashtagsHtml(value)}</div>`;
-      if(open) return `<div class="profile-field profile-field-personality empty-hint ik-editable" data-ikopen="${tfKey('성격')}">+ 성격 추가</div>`;
-      return `<div class="profile-field profile-field-personality profile-field-empty">&nbsp;</div>`;
-    };
-    const fixedRowsHtml = pairRowHtml('나이', '예: 22', '생년월일', '예: 2000.01.01') + pairRowHtml('키/몸무게', '예: 160 / 45', 'BWH', '예: 83/60/89') + personalityRowHtml();
+    const personalityRowHtml = (personalityField && personalityField.value)
+      ? `<div class="profile-field profile-field-personality">${personalityHashtagsHtml(personalityField.value)}</div>`
+      : `<div class="profile-field profile-field-personality profile-field-empty">&nbsp;</div>`;
+    const fixedRowsHtml = pairRowHtml(ageField, bdayField) + pairRowHtml(bodyField, bwhField) + personalityRowHtml;
 
     // 이 뒤로 붙는 건 사람마다 자유롭게 추가한 커스텀 항목(취향/무기 등)이라 개수 자체가
     // 달라서 "표"처럼 자리를 고정할 수 없음 — 예전처럼 값 있는 것만(또는 편집모드면 전부) 보여줌
-    const reserved = ['나이','생년월일','키/몸무게','BWH','성격','기타 설명'];
-    const withIdx = fields.map((f,i)=>({...f, _i:i}));
-    const customFields = withIdx.filter(f=> f.type !== 'link' && !reserved.includes((f.label||'').trim()));
-    const linkFields = withIdx.filter(f=> f.type === 'link');
-    const visibleCustom = open ? customFields : customFields.filter(f=> f.value);
+    const visibleCustom = isWidgetOpen('profile') ? remaining : remaining.filter(f=> f.value);
     const customHtml = visibleCustom.map(f=>{
-      const key = `cf:${slot}:${f._i}`;
-      if(open && profileOpenKeys.has(key)) return cfPanelHtml(slot, f._i, f, bulkNote);
       return `
-        <div class="profile-field ${open?'ik-editable':''}" ${open?`data-ikopen="${key}"`:''}>
+        <div class="profile-field">
           <div class="pf-row">
             <span class="pf-label">${escapeHtml(f.label || '항목')}${f.label ? '：' : ''}</span>
             <span class="pf-value">${formatProfileFieldValue(f.label, f.value)}</span>
@@ -3460,32 +2982,23 @@ function renderProfile(){
         </div>
       `;
     }).join('');
-    const addFieldBtn = open ? `<button type="button" class="btn small ghost ik-add-field" data-slot="${slot}">+ 항목 추가</button>` : '';
-    // 링크 전용 항목은 항목 목록 맨 아래에 따로 모아서, 알약 버튼처럼 보여줌. 편집모드에선
-    // 눌렀을 때 바로 이동하는 대신(실수로 페이지를 벗어나지 않도록) 그 자리에서 편집됨.
-    const visibleLinks = open ? linkFields : linkFields.filter(f=> f.link);
-    const linksHtml = (visibleLinks.length || open) ? `
+    // 링크 전용 항목은 항목 목록 맨 아래에 따로 모아서, 버튼처럼 눌러서 여는 형태로 보여줌
+    const linksHtml = visibleLinks.length ? `
         <div class="profile-links">
-          ${visibleLinks.map(f=>{
-            const key = `lk:${slot}:${f._i}`;
-            if(open && profileOpenKeys.has(key)) return lkPanelHtml(slot, f._i, f, bulkNote);
-            if(open) return `<span class="pf-link-item ik-editable ${f.link?'':'empty-hint'}" data-ikopen="${key}">🔗 ${escapeHtml(f.label || '링크')}${f.link?'':' (URL 없음)'}</span>`;
-            return f.link
-              ? `<a class="pf-link-item" href="${escapeHtml(f.link)}" target="_blank" rel="noopener">🔗 ${escapeHtml(f.label || '링크')}</a>`
-              : `<span class="pf-link-item empty-hint">🔗 ${escapeHtml(f.label || '링크')} (URL 없음)</span>`;
-          }).join('')}
-          ${open ? `<button type="button" class="btn small ghost ik-add-link" data-slot="${slot}">+ 링크 추가</button>` : ''}
+          ${visibleLinks.map(f=> f.link
+            ? `<a class="pf-link-item" href="${escapeHtml(f.link)}" target="_blank" rel="noopener">🔗 ${escapeHtml(f.label || '링크')}</a>`
+            : `<span class="pf-link-item empty-hint">🔗 ${escapeHtml(f.label || '링크')} (URL 없음)</span>`
+          ).join('')}
         </div>
       ` : '';
     // 기타 설명도 나이/생년월일 등과 같은 "필수기재란" 취급 — 값이 없어도 아예
-    // 사라지지 않고 자리(빈 줄)를 그대로 차지하게 함. 편집모드에선 눌러서 그 자리에서
-    // 여러 줄로 고칠 수 있고, 보기 전용에서 값이 없으면 위 필드들과 동일하게
-    // profile-field-empty로 표시해서 PC에선 빈 자리 유지·모바일에선 숨김
-    const descValue = tfVal('기타 설명');
-    const descKey = tfKey('기타 설명');
-    const descHtml = (open && profileOpenKeys.has(descKey)) ? tfPanelHtml(slot, '기타 설명', descValue, '내용', tfBulk('기타 설명'), true, bulkNote) : `
-        <div class="profile-desc-box ${open ? (descValue ? 'ik-editable' : 'empty-hint ik-editable') : (descValue ? '' : 'profile-field-empty')}" ${open?`data-ikopen="${descKey}"`:''}>
-          ${descValue ? escapeHtml(descValue) : (open ? '+ 기타 설명 추가' : '&nbsp;')}
+    // 사라지지 않고 자리(빈 줄)를 그대로 차지하게 함. 편집모드에선 기존처럼
+    // "+ 기타 설명 추가" 안내를 보여주고, 보기 전용에서 값이 없으면 위 필드들과
+    // 동일하게 profile-field-empty로 표시해서 PC에선 빈 자리 유지·모바일에선 숨김
+    const descHasValue = !!(descField && descField.value);
+    const descHtml = `
+        <div class="profile-desc-box ${isWidgetOpen('profile') ? (descHasValue ? '' : 'empty-hint') : (descHasValue ? '' : 'profile-field-empty')}">
+          ${descHasValue ? escapeHtml(descField.value) : (isWidgetOpen('profile') ? '+ 기타 설명 추가' : '&nbsp;')}
         </div>
       `;
     // 나이/생년월일·키몸무게/BWH·성격까지는 항상 같은 자리(고정 표)라 위젯 높이에
@@ -3494,7 +3007,7 @@ function renderProfile(){
     // 부분만 따로 묶어 높이를 못박고(.profile-fields-scroll, CSS) 넘치면 그
     // 구역 안에서만 스크롤되게 해서, 위젯 전체 높이가 처음부터 항상 똑같게 함
     // (탭을 눌러봐야 알 수 있는 게 아니라 로드되는 순간부터 고정)
-    return `<div class="profile-fields">${fixedRowsHtml}</div><div class="profile-fields-scroll">${customHtml}${addFieldBtn}${linksHtml}${descHtml}</div>`;
+    return `<div class="profile-fields">${fixedRowsHtml}</div><div class="profile-fields-scroll">${customHtml}${linksHtml}${descHtml}</div>`;
   };
 
   // AU 이름은 항상 위젯 맨 위, 시점/IF 이름과는 확실히 구분되는 모양으로 고정 표시함.
@@ -3518,18 +3031,8 @@ function renderProfile(){
       </div>
     ` : '');
 
-  const draftPending = open && profileHasPendingChanges(slides);
-  const saveBarHtml = draftPending ? `
-    <div class="inline-save-bar">
-      <span class="inline-save-msg">저장하지 않은 변경사항이 있어요</span>
-      <button type="button" class="btn small ghost inline-discard-btn">변경 취소</button>
-      <button type="button" class="btn small primary inline-save-btn">저장</button>
-    </div>
-  ` : '';
-
   box.innerHTML = `
     ${widgetEditToggleBtnHtml('profile', '프로필 위젯 편집')}
-    ${saveBarHtml}
     ${auHeaderHtml}
     <div class="profile-viewport" id="profileViewport">
       <div class="profile-headline" id="profileHeadline">
@@ -3550,7 +3053,9 @@ function renderProfile(){
         </div>
       </div>
       <div class="profile-pair">
-        ${[0,1].map(slot=>{
+        ${isWidgetOpen('profile') && profileInlineEditMode === 'basic' ? profileBasicEditColsHtml(profileSlideIndex, profileSectionIndex, slides)
+        : isWidgetOpen('profile') && profileInlineEditMode === 'fields' ? profileFieldsEditColsHtml(profileSlideIndex, profileSectionIndex, slides)
+        : [0,1].map(slot=>{
           const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
           // 사진이 청크로 저장돼 있으면(대부분의 업로드 사진) 캐시에서 즉시 꺼내 쓰거나,
           // 아직 안 불러왔으면 비동기로 불러온 뒤 다 불러오면 다시 그림(갤러리 사진과 같은 방식).
@@ -3558,21 +3063,11 @@ function renderProfile(){
             { chunked: !!pf.avatarChunked, fileId: pf.avatarFileId || '', chunkTotal: pf.avatarChunkTotal || 0, url: pf.avatar || '' },
             ()=> renderProfile()
           ) || '';
-          const usingDraft = open && profileDraft && profileDraft.slideIdx === profileSlideIndex && profileDraft.secIdx === profileSectionIndex;
-          const draftPerson = usingDraft ? profileDraft.people[slot] : null;
-          const oneLiner = draftPerson ? draftPerson.oneLiner : (pf.oneLiner || '');
-          const name = draftPerson ? draftPerson.name : (pf.name || '');
-          const role = draftPerson ? draftPerson.role : (pf.role || '');
+          const oneLiner = pf.oneLiner || '';
+          const name = pf.name || '';
+          const role = pf.role || '';
           const hasContent = name || avatar;
-          const fields = draftPerson ? draftPerson.fields : (pf.fields || []);
-          // 사진도 편집 중(파일 선택/URL/지우기)이면 미리보기를 우선 보여줌
-          let avatarDisplay = avatar;
-          if(draftPerson && draftPerson.avatarAction){
-            const act = draftPerson.avatarAction;
-            if(act.type === 'clear') avatarDisplay = '';
-            else if(act.type === 'file') avatarDisplay = draftPerson.avatarPreviewUrl || avatar;
-            else if(act.type === 'url') avatarDisplay = act.url || avatar;
-          }
+          const fields = pf.fields || [];
           // 모바일 간략보기에서는 성격만 함께 보여줌(나이·키/몸무게 등 나머지 항목은
           // "자세히 보기"를 눌러 기존 위젯 모양으로 펼쳤을 때만 보임)
           const personalityField = fields.find(f=> (f.label||'').trim() === '성격' && f.value);
@@ -3588,32 +3083,24 @@ function renderProfile(){
                 ${personalityField ? `<div class="profile-compact-personality">${personalityHashtagsHtml(personalityField.value)}</div>` : ''}
               </div>
               <div class="profile-full">
-                <div class="profile-basic" data-slot="${slot}">
+                <div class="profile-basic ${isWidgetOpen('profile') ? 'editable' : ''}" data-slot="${slot}">
                   <div class="profile-photo">
-                    ${(open && profileOpenKeys.has(`avatar:${slot}`))
-                      ? avatarPanelHtml(slot, pf, draftPerson || profileDraftPersonBase(slide, slot, pf), bulkNote)
-                      : `<div class="profile-avatar ${avatarDisplay ? 'has-image' : ''} ${open?'ik-editable':''}" ${open?`data-ikopen="avatar:${slot}"`:''} ${avatarDisplay ? `style="background-image:url('${avatarDisplay}');background-size:${avatarBgSize(avatarDisplay)}"` : ''}>
-                          ${avatarDisplay ? '' : (open ? '+ 사진' : '👤')}
-                        </div>`}
+                    <div class="profile-avatar ${avatar ? 'has-image' : ''}" ${avatar ? `style="background-image:url('${avatar}');background-size:${avatarBgSize(avatar)}"` : ''}>
+                      ${avatar ? '' : '👤'}
+                    </div>
                     <!-- 한마디도 나이/생년월일 등과 같은 "필수기재란" 취급 — 값이 없어도
                          자리를 그대로 차지함(편집모드가 아니면 blank 처리) -->
-                    ${(open && profileOpenKeys.has(`basic:${slot}:oneLiner`))
-                      ? basicPanelHtml(slot, 'oneLiner', oneLiner, '한마디', draftPerson && draftPerson.oneLinerBulk, 'oneLinerBulk', false, bulkNote)
-                      : `<div class="profile-oneliner ${oneLiner ? '' : 'profile-field-empty'} ${open ? (oneLiner?'ik-editable':'empty-hint ik-editable') : ''}" ${open?`data-ikopen="basic:${slot}:oneLiner"`:''}>${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (open ? '+ 한마디 추가' : '&nbsp;')}</div>`}
+                    <div class="profile-oneliner ${oneLiner ? '' : (isWidgetOpen('profile') ? 'empty-hint' : 'profile-field-empty')}">${oneLiner ? '“' + escapeHtml(oneLiner) + '”' : (isWidgetOpen('profile') ? '+ 한마디 추가' : '&nbsp;')}</div>
                   </div>
                   <div class="profile-info">
                     <!-- 한줄소개(역할)도 마찬가지 — 값 없으면 통째로 사라지는 대신 자리만 비움 -->
-                    ${(open && profileOpenKeys.has(`basic:${slot}:role`))
-                      ? basicPanelHtml(slot, 'role', role, '한줄소개', draftPerson && draftPerson.roleBulk, 'roleBulk', false, bulkNote)
-                      : `<div class="profile-role ${role ? '' : 'profile-field-empty'} ${open ? (role?'ik-editable':'empty-hint ik-editable') : ''}" ${open?`data-ikopen="basic:${slot}:role"`:''}>${role ? escapeHtml(role) : (open ? '+ 한줄소개 추가' : '&nbsp;')}</div>`}
+                    <div class="profile-role ${role ? '' : (isWidgetOpen('profile') ? 'empty-hint' : 'profile-field-empty')}">${role ? escapeHtml(role) : (isWidgetOpen('profile') ? '+ 한줄소개 추가' : '&nbsp;')}</div>
                     <!-- 이름은 원래대로 복구 -->
-                    ${(open && profileOpenKeys.has(`basic:${slot}:name`))
-                      ? basicPanelHtml(slot, 'name', name, '이름', draftPerson && draftPerson.nameBulk, 'nameBulk', false, bulkNote)
-                      : `<div class="profile-name ${open?'ik-editable':''}" ${open?`data-ikopen="basic:${slot}:name"`:''}>${hasContent ? escapeHtml(name || '(이름 없음)') : (open ? '+ 프로필 추가' : '')}</div>`}
+                    <div class="profile-name">${hasContent ? escapeHtml(name || '(이름 없음)') : (isWidgetOpen('profile') ? '+ 프로필 추가' : '')}</div>
                   </div>
                 </div>
-                <div class="profile-person-fields" data-fieldslot="${slot}">
-                  ${fieldsHtml(slot, fields)}
+                <div class="profile-person-fields ${isWidgetOpen('profile') ? 'editable' : ''}" data-fieldslot="${slot}">
+                  ${fieldsHtml(fields)}
                 </div>
               </div>
             </div>
@@ -3637,15 +3124,6 @@ function renderProfile(){
     ` : ''}
   `;
   bindProfile(slides);
-  if(focusRestore){
-    const el = box.querySelector(`[data-ik="${focusRestore.key}"]`);
-    if(el){
-      el.focus();
-      if(typeof el.setSelectionRange === 'function' && focusRestore.start != null){
-        try{ el.setSelectionRange(focusRestore.start, focusRestore.end); }catch(e){}
-      }
-    }
-  }
   if(typeof renderSpeechCard === 'function') renderSpeechCard();
 }
 
@@ -3662,13 +3140,13 @@ function bindProfile(slides){
   const mobileToggleBtn = box.querySelector('#profileMobileToggleBtn');
   if(mobileToggleBtn) mobileToggleBtn.onclick = ()=>{ profileMobileExpanded = !profileMobileExpanded; renderProfile(); };
 
-  // AU 탭 전환 — 지금 고치던 내용이 있으면(초안) 먼저 저장을 마친 뒤 넘어감
+  // AU 탭 전환
   box.querySelectorAll('.profile-au-bar .profile-section-tab').forEach(tab=>{
-    tab.addEventListener('click', async (e)=>{
+    tab.addEventListener('click', (e)=>{
       if(e.target.closest('[data-auedit]')) return;
-      if(!(await flushProfileDraftBeforeNav(slides))) return;
       profileSlideIndex = Number(tab.dataset.au);
       profileSectionIndex = slides[profileSlideIndex].defaultSectionIndex || 0;
+      profileInlineEditMode = null;
       renderProfile();
     });
   });
@@ -3726,9 +3204,9 @@ function bindProfile(slides){
   const secPrev = box.querySelector('#profSecPrev');
   const secNext = box.querySelector('#profSecNext');
   const slide = slides[profileSlideIndex];
-  if(secPrev) secPrev.onclick = async ()=>{ if(!(await flushProfileDraftBeforeNav(slides))) return; profileSectionIndex = (profileSectionIndex - 1 + slide.sections.length) % slide.sections.length; renderProfile(); };
-  if(secNext) secNext.onclick = async ()=>{ if(!(await flushProfileDraftBeforeNav(slides))) return; profileSectionIndex = (profileSectionIndex + 1) % slide.sections.length; renderProfile(); };
-  box.querySelectorAll('[data-secdot]').forEach(d=> d.onclick = async ()=>{ if(!(await flushProfileDraftBeforeNav(slides))) return; profileSectionIndex = Number(d.dataset.secdot); renderProfile(); });
+  if(secPrev) secPrev.onclick = ()=>{ profileSectionIndex = (profileSectionIndex - 1 + slide.sections.length) % slide.sections.length; profileInlineEditMode = null; renderProfile(); };
+  if(secNext) secNext.onclick = ()=>{ profileSectionIndex = (profileSectionIndex + 1) % slide.sections.length; profileInlineEditMode = null; renderProfile(); };
+  box.querySelectorAll('[data-secdot]').forEach(d=> d.onclick = ()=>{ profileSectionIndex = Number(d.dataset.secdot); profileInlineEditMode = null; renderProfile(); });
 
   const viewport = box.querySelector('#profileViewport');
   if(viewport && slide.sections.length > 1){
@@ -3750,14 +3228,13 @@ function bindProfile(slides){
       }
       if(touchAxis === 'x') e.preventDefault();
     }, { passive:false });
-    viewport.addEventListener('touchend', async e=>{
+    viewport.addEventListener('touchend', e=>{
       if(!touchTracking) return;
       touchTracking = false;
       const touch = e.changedTouches[0];
       const dx = touch.clientX - touchStartX;
       const dy = touch.clientY - touchStartY;
       if(Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5){
-        if(!(await flushProfileDraftBeforeNav(slides))) return;
         profileSectionIndex = dx > 0 ? (profileSectionIndex - 1 + slide.sections.length) % slide.sections.length : (profileSectionIndex + 1) % slide.sections.length;
         renderProfile();
       }
@@ -3802,17 +3279,30 @@ function bindProfile(slides){
     profileSectionIndex = 0;
   };
 
-  // 사진/한마디/소개/이름, 나이·성격 등 정보 항목은 이제 라이트박스 대신 위젯 안에서
-  // 항목을 눌러 그 자리에서 바로 고침(입력칸 스타일은 라이트박스와 동일한 유리 패널을
-  // 재사용). 이벤트는 카드 자체에 한 번만 위임해서 붙여두고(매번 다시 그려도 살아있음),
-  // 실제 처리는 handleProfileInline* 함수들이 담당함.
-  if(!box.dataset.ikBound){
-    box.dataset.ikBound = '1';
-    box.addEventListener('input', handleProfileInlineInput);
-    box.addEventListener('input', handleProfileInlineInputCapture);
-    box.addEventListener('change', handleProfileInlineChange);
-    box.addEventListener('click', handleProfileInlineClick);
-    box.addEventListener('keydown', handleProfileInlineKeydown);
+  // 정보 항목에 링크가 달려 있으면 그 링크를 누를 땐 편집 모달 대신 링크가 바로 열리게 함
+  box.querySelectorAll('.pf-link-item').forEach(a=> a.addEventListener('click', (e)=> e.stopPropagation()));
+
+  // 사진/한마디/소개/이름과 정보 항목은 팝업 대신, 이 자리에 기존 편집창(.modal)과
+  // 같은 모양의 인라인 패널을 펼침 — 각각 두 프로필을 한 패널 안에서 같이 수정
+  box.querySelectorAll('.profile-basic.editable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      profileInlineEditMode = 'basic';
+      renderProfile();
+    });
+  });
+  box.querySelectorAll('.profile-person-fields.editable').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      profileInlineEditMode = 'fields';
+      renderProfile();
+    });
+  });
+  // 인라인 편집 패널이 펼쳐져 있으면 그 안의 입력칸/버튼에 이벤트를 연결함
+  if(isWidgetOpen('profile') && profileInlineEditMode === 'basic'){
+    bindProfileBasicEditInline(box, profileSlideIndex, profileSectionIndex, slides);
+  } else if(isWidgetOpen('profile') && profileInlineEditMode === 'fields'){
+    bindProfileFieldsEditInline(box, profileSlideIndex, profileSectionIndex, slides);
   }
 
   if(!isWidgetOpen('profile')){
@@ -3830,6 +3320,398 @@ function bindProfile(slides){
       });
     });
   }
+}
+
+/* 예전엔 사진/한마디, 이름/한줄소개, 체형·성격 같은 세부 정보를 팝업 창(모달)으로
+   열어서 고쳤음. 이제는 그 팝업 대신, 위젯 카드 안 같은 자리에 기존 편집창(.modal)과
+   똑같은 모양(.modal.modal-inline)으로 펼쳐서 바로 고치게 함(체크리스트 항목 편집과
+   같은 방식). "사진/한마디/소개/이름"과 "정보"는 여전히 두 개의 패널로 나뉘어 있고,
+   프로필 ①·②는 계속 한 패널 안에 나란히 놓아 두 프로필을 같이 고칠 수 있음.
+   (AU 탭 이름 수정 등은 이 대상이 아니라 기존처럼 팝업으로 그대로 둠) */
+function profileBasicEditColsHtml(slideIdx, secIdx, slides){
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+  const secLabel = section.name || '이 시점/IF';
+
+  const bulkNote = slide.sections.length > 1;
+  // 체크 상태는 이제 AU(사람 슬롯)에 저장된 값을 그대로 불러와서 보여줌 — 한 번 체크하면
+  // 직접 바꾸기 전까진 패널을 다시 열어도 풀리지 않음.
+  const bulkToggle = (cls, label, checked)=> bulkNote
+    ? `<label class="pe-bulk-row"><input type="checkbox" class="${cls}" ${checked ? 'checked' : ''}> ${escapeHtml(label)}, 이 AU의 다른 시점/IF에도 똑같이 적용</label>`
+    : '';
+
+  const colHtml = (slot)=>{
+    const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
+    const personBulk = (slide.people[slot] && slide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
+    // 청크로 저장된 사진은 패널을 열 때마다 다시 안 불러오고, 카드에 이미 보여주면서
+    // 캐시된 값이 있으면 그걸 그대로 미리보기로 씀(없으면 안내만 표시)
+    const cachedAvatar = pf.avatarChunked ? (chunkedImageCache.get(pf.avatarFileId) || '') : (pf.avatar || '');
+    const hasAvatar = pf.avatarChunked || !!pf.avatar;
+    return `
+      <div class="profile-edit-col" data-slot="${slot}">
+        <h4>프로필 ${slot===0?'①':'②'}</h4>
+        <label>프로필 사진 (선택 — 배경이 투명한 PNG도 그대로 지원돼요)</label>
+        <input type="file" class="pe-avatar-file" accept="image/*">
+        <label style="margin-top:6px;">또는 이미지 URL</label>
+        <input type="url" class="pe-avatar-url" placeholder="https://...">
+        <div class="mp-modal-cover-preview pe-avatar-preview" ${hasAvatar ? '' : 'style="display:none;"'}>
+          ${cachedAvatar ? `<img class="pe-avatar-preview-img" src="${cachedAvatar}" alt="">` : (hasAvatar ? `<p class="hint">현재 사진: 저장된 이미지 (용량이 커서 미리보기는 생략돼요)</p>` : '')}
+          <button type="button" class="btn ghost small pe-avatar-clear">사진 지우기</button>
+        </div>
+        ${bulkToggle('pe-bulk-avatar', '이 사진', personBulk.avatar)}
+
+        <label style="margin-top:10px;">사진 아래 한마디 (선택)</label>
+        <input type="text" class="pe-oneliner" maxlength="60" value="${escapeHtml(pf.oneLiner)}" placeholder="예: 오늘도 좋은 하루 보내요">
+        ${bulkToggle('pe-bulk-oneliner', '이 한마디', personBulk.oneLiner)}
+
+        <label style="margin-top:10px;">한줄 소개 (선택 — 나이·역할 등)</label>
+        <input type="text" class="pe-role" value="${escapeHtml(pf.role)}">
+        ${bulkToggle('pe-bulk-role', '이 한줄 소개', personBulk.role)}
+
+        <label style="margin-top:10px;">이름</label>
+        <input type="text" class="pe-name" value="${escapeHtml(pf.name)}">
+        ${bulkToggle('pe-bulk-name', '이 이름', personBulk.name)}
+      </div>
+    `;
+  };
+
+  return `
+    <div class="modal modal-inline">
+      <h3>사진 · 한마디 · 소개 · 이름 · ${escapeHtml(secLabel)}</h3>
+      <p class="hint">기본적으로는 지금 보고 있는 "${escapeHtml(secLabel)}"에만 저장돼요.${bulkNote ? ' 항목 아래 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 똑같이 적용할 수 있어요. 한 번 체크해두면 직접 해제하기 전까진 계속 체크된 채로 남고, 새 시점/IF를 추가할 때도 그대로 이어져요.' : ''}</p>
+      <div class="profile-edit-cols">
+        ${colHtml(0)}
+        <div class="profile-edit-divider"></div>
+        ${colHtml(1)}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost pe-basic-cancel">취소</button>
+        <button type="button" class="btn primary pe-basic-save">저장</button>
+      </div>
+    </div>
+  `;
+}
+
+// profileBasicEditColsHtml로 그려진 인라인 패널의 입력칸/버튼에 이벤트를 연결함.
+// 저장 로직은 예전 팝업 모달(openProfileBasicModal)과 동일 — 다만 저장 뒤엔 이 앱의
+// 다른 인라인 편집(체크리스트 등)과 같은 방식대로 여기서 직접 다시 그리지 않고,
+// docRef('profile')의 onSnapshot이 최신 데이터로 renderProfile()을 다시 호출하게 맡김.
+function bindProfileBasicEditInline(box, slideIdx, secIdx, slides){
+  const panel = box.querySelector('.profile-pair > .modal.modal-inline');
+  if(!panel) return;
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+
+  [0,1].forEach(slot=>{
+    const col = panel.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
+    col.querySelector('.pe-avatar-clear').onclick = ()=>{
+      col.dataset.avatarCleared = '1';
+      col.querySelector('.pe-avatar-preview').style.display = 'none';
+      toast('저장하면 사진이 지워져요');
+    };
+  });
+
+  panel.querySelector('.pe-basic-cancel').onclick = ()=>{
+    profileInlineEditMode = null;
+    renderProfile();
+  };
+  panel.querySelector('.pe-basic-save').onclick = async ()=>{
+    const saveBtn = panel.querySelector('.pe-basic-save');
+    saveBtn.disabled = true;
+    saveBtn.textContent = '저장 중…';
+    try{
+      const arr = cloneSlides(slides);
+      const otherSecIdxs = arr[slideIdx].sections.map((_,i)=>i).filter(i=> i !== secIdx);
+      const oldChunksToDelete = []; // [{fileId, total}] — 성공적으로 저장된 뒤에만 지움
+      for(const slot of [0,1]){
+        const col = panel.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
+        const file = col.querySelector('.pe-avatar-file').files[0];
+        const url = col.querySelector('.pe-avatar-url').value.trim();
+        const oneLiner = col.querySelector('.pe-oneliner').value.trim();
+        const name = col.querySelector('.pe-name').value.trim();
+        const role = col.querySelector('.pe-role').value.trim();
+
+        const bulkAvatar = !!col.querySelector('.pe-bulk-avatar') && col.querySelector('.pe-bulk-avatar').checked;
+        const bulkOneliner = !!col.querySelector('.pe-bulk-oneliner') && col.querySelector('.pe-bulk-oneliner').checked;
+        const bulkName = !!col.querySelector('.pe-bulk-name') && col.querySelector('.pe-bulk-name').checked;
+        const bulkRole = !!col.querySelector('.pe-bulk-role') && col.querySelector('.pe-bulk-role').checked;
+
+        const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
+        // 사진 관련 값들 — 기본은 그대로 유지, 아래 세 경우(지우기/URL/업로드) 중 하나라도
+        // 일어나면 새 값으로 바뀌고 예전에 청크로 저장돼 있던 사진은 정리 대상에 들어감
+        let avatar = pf.avatar || '';
+        let avatarChunked = !!pf.avatarChunked;
+        let avatarFileId = pf.avatarFileId || '';
+        let avatarChunkTotal = pf.avatarChunkTotal || 0;
+        let avatarDataUrl = null; // 방금 새로 준비된 사진의 실제 데이터(다른 시점/IF에 복제할 때 씀)
+
+        if(col.dataset.avatarCleared === '1'){
+          if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
+          avatar = ''; avatarChunked = false; avatarFileId = ''; avatarChunkTotal = 0;
+        }
+        if(url){
+          if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
+          avatar = url; avatarChunked = false; avatarFileId = ''; avatarChunkTotal = 0;
+        }
+        if(file){
+          saveBtn.textContent = '사진 처리 중…';
+          let dataUrl;
+          try{ dataUrl = await compressAvatarImageFile(file, 900, 320000); }
+          catch(err){ toast(`이미지 처리 실패: ${err.message || err}`); saveBtn.disabled = false; saveBtn.textContent = '저장'; return; }
+          if(avatarChunked && avatarFileId) oldChunksToDelete.push({ fileId: avatarFileId, total: avatarChunkTotal });
+          // 프로필 문서 하나에 모든 AU/시점의 사진이 같이 들어있어서, 사진을 그대로(inline)
+          // 저장하면 시점/IF 몇 개만 추가돼도 금세 1MB 한도를 넘겨버림. 그래서 프로필 사진은
+          // 무조건 청크로 따로 저장하고 여기엔 참조(fileId)만 남김.
+          saveBtn.textContent = '사진 저장 중…';
+          let chunkInfo;
+          try{ chunkInfo = await saveFileChunked(dataUrl); }
+          catch(err){ toast('사진을 저장하지 못했어요.'); saveBtn.disabled = false; saveBtn.textContent = '저장'; return; }
+          chunkedImageCache.set(chunkInfo.fileId, dataUrl);
+          avatar = ''; avatarChunked = true; avatarFileId = chunkInfo.fileId; avatarChunkTotal = chunkInfo.total;
+          avatarDataUrl = dataUrl;
+        }
+
+        // 지금 보고 있는 시점/IF에는 항상 반영 (정보 항목은 별도 패널에서 관리하므로 그대로 유지)
+        arr[slideIdx].sections[secIdx].peopleFields[slot] = {
+          ...pf, avatar, avatarChunked, avatarFileId, avatarChunkTotal, oneLiner, name, role
+        };
+
+        // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용. 사진은 여러 시점/IF가 같은
+        // fileId를 그대로 나눠 쓰게 하면 나중에 한쪽만 지울 때 다른 쪽 사진까지 같이
+        // 사라질 수 있어서, 대신 시점/IF마다 사진을 따로(복제) 저장함.
+        for(const si of otherSecIdxs){
+          const targetPf = arr[slideIdx].sections[si].peopleFields[slot];
+          if(bulkOneliner) targetPf.oneLiner = oneLiner;
+          if(bulkName) targetPf.name = name;
+          if(bulkRole) targetPf.role = role;
+          if(!bulkAvatar) continue;
+          if(avatarDataUrl){
+            // 방금 새로 올린 사진 → 이 시점/IF에도 새로 청크 저장(참조 공유 안 함)
+            saveBtn.textContent = '사진 복제 저장 중…';
+            try{
+              const dup = await saveFileChunked(avatarDataUrl);
+              chunkedImageCache.set(dup.fileId, avatarDataUrl);
+              targetPf.avatar = ''; targetPf.avatarChunked = true; targetPf.avatarFileId = dup.fileId; targetPf.avatarChunkTotal = dup.total;
+            }catch(err){ /* 복제 저장 실패해도 본 저장은 계속 진행 */ }
+          } else {
+            // URL이거나(짧은 문자열이라 그냥 복사해도 안전) 사진을 지운 경우
+            targetPf.avatar = avatar; targetPf.avatarChunked = avatarChunked; targetPf.avatarFileId = avatarFileId; targetPf.avatarChunkTotal = avatarChunkTotal;
+          }
+        }
+
+        // "적용" 체크 상태를 AU(사람 슬롯)에 그대로 영구 저장 — 정보 항목의 적용 상태(fields)는
+        // 정보 편집 패널에서 따로 관리하므로 여기서는 건드리지 않고 그대로 유지
+        arr[slideIdx].people[slot] = {
+          ...arr[slideIdx].people[slot], name, role, avatar: '',
+          bulk: {
+            ...(arr[slideIdx].people[slot].bulk || {}),
+            avatar: bulkAvatar, oneLiner: bulkOneliner, name: bulkName, role: bulkRole
+          }
+        };
+      }
+      saveBtn.textContent = '저장 중…';
+      await docRef('profile').set({slides:arr}, {merge:true});
+      oldChunksToDelete.forEach(({fileId, total})=> deleteFileChunked(fileId, total).catch(()=>{}));
+    }catch(err){
+      toast(`저장하지 못했어요: ${err.message || err}`);
+      saveBtn.disabled = false; saveBtn.textContent = '저장';
+      return;
+    }
+    profileInlineEditMode = null;
+  };
+}
+
+/* "정보" 항목(성격·나이·키/몸무게·링크 등)만 따로 편집하는 인라인 패널. 사진/한마디/
+   소개/이름은 profileBasicEditColsHtml 쪽에서 관리하고, 이 패널은 정보 목록만 다룸. */
+function profileFieldsEditColsHtml(slideIdx, secIdx, slides){
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+  const secLabel = section.name || '이 시점/IF';
+
+  const bulkNote = slide.sections.length > 1;
+
+  const colHtml = (slot)=>{
+    return `
+      <div class="profile-edit-col" data-slot="${slot}">
+        <h4>정보 ${slot===0?'①':'②'}</h4>
+        <div class="pf-edit-list pe-fields-list"></div>
+        <button type="button" class="btn small ghost pe-add-field">+ 항목 추가</button>
+        <button type="button" class="btn small ghost pe-add-link">+ 링크 추가</button>
+      </div>
+    `;
+  };
+
+  return `
+    <div class="modal modal-inline">
+      <h3>정보 편집 · ${escapeHtml(secLabel)}</h3>
+      <p class="hint">나이·생년월일·키/몸무게·BWH는 숫자만 넣으면 자동 정리, 성격은 쉼표로 구분하면 해시태그로 표시돼요.${bulkNote ? ' 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 함께 적용돼요.' : ''}</p>
+      <div class="profile-edit-cols">
+        ${colHtml(0)}
+        <div class="profile-edit-divider"></div>
+        ${colHtml(1)}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost pe-fields-cancel">취소</button>
+        <button type="button" class="btn primary pe-fields-save">저장</button>
+      </div>
+    </div>
+  `;
+}
+
+// profileFieldsEditColsHtml로 그려진 인라인 패널의 항목 목록/버튼에 이벤트를 연결함.
+// 항목 추가·삭제는 예전 팝업 모달(openProfileFieldsModal)과 동일하게 저장 전까지는
+// 화면(slotState)에서만 다루다가, 저장을 눌러야 실제로 반영됨.
+function bindProfileFieldsEditInline(box, slideIdx, secIdx, slides){
+  const panel = box.querySelector('.profile-pair > .modal.modal-inline');
+  if(!panel) return;
+  const slide = slides[slideIdx];
+  const section = slide.sections[secIdx];
+  const bulkNote = slide.sections.length > 1;
+
+  // 항목별 "적용" 체크 초기값도 매번 false로 시작하지 않고, AU에 저장된 값에서 라벨로 찾아 이어받음
+  const personBulkOf = (slot)=> (slide.people[slot] && slide.people[slot].bulk) || { avatar:false, oneLiner:false, name:true, role:true, fields:{} };
+  const fieldKey = (label)=> (label||'').trim().toLowerCase();
+  const slotState = [0,1].map(slot=>{
+    const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
+    const pBulk = personBulkOf(slot);
+    return { fields:(pf.fields||[]).map(f=>({ ...f, bulk: !!pBulk.fields[fieldKey(f.label)] })) };
+  });
+
+  [0,1].forEach(slot=>{
+    const col = panel.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
+    const listEl = col.querySelector('.pe-fields-list');
+    const rowHtml = (f, i)=>{
+      if(f.type === 'link'){
+        return `
+        <div class="pf-edit-row pf-edit-row-link" data-idx="${i}" data-type="link">
+          <input type="text" class="pf-edit-label" placeholder="링크 이름 (예: 플레이리스트)" value="${escapeHtml(f.label)}">
+          <input type="url" class="pf-edit-link" placeholder="링크 URL" value="${escapeHtml(f.link||'')}">
+          ${bulkNote ? `
+          <div class="pf-edit-row-actions">
+            <label class="pe-bulk-row pf-bulk-row" title="이 링크를 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>
+            <button type="button" class="btn small danger" data-del="${i}">✕</button>
+          </div>` : `<button type="button" class="btn small danger" data-del="${i}">✕</button>`}
+        </div>
+      `;
+      }
+      // "기타 설명"은 자유롭게 길게 적는 항목이라, 한 줄짜리 입력칸 대신 여러 줄 쓸 수 있는
+      // 큰 textarea로 보여줘서 내용을 적을 공간을 넉넉하게 줌
+      const isDesc = (f.label||'').trim() === '기타 설명';
+      return `
+        <div class="pf-edit-row ${isDesc ? 'pf-edit-row-desc' : ''}" data-idx="${i}" data-type="text">
+          <input type="text" class="pf-edit-label" placeholder="항목명 (예: 키/몸무게)" value="${escapeHtml(f.label)}">
+          ${isDesc
+            ? `<textarea class="pf-edit-value pf-edit-value-desc" placeholder="내용">${escapeHtml(f.value)}</textarea>`
+            : `<input type="text" class="pf-edit-value" placeholder="내용" value="${escapeHtml(f.value)}">`}
+          ${bulkNote ? `
+          <div class="pf-edit-row-actions">
+            <label class="pe-bulk-row pf-bulk-row" title="이 항목을 이 AU의 다른 시점/IF에도 똑같이 적용"><input type="checkbox" class="pf-edit-bulk" ${f.bulk ? 'checked' : ''}> 일괄적용</label>
+            <button type="button" class="btn small danger" data-del="${i}">✕</button>
+          </div>` : `<button type="button" class="btn small danger" data-del="${i}">✕</button>`}
+        </div>
+      `;
+    };
+    const drawFields = ()=>{
+      const list = slotState[slot].fields;
+      // 새 항목은 배열 맨 뒤에 추가되는데, "기타 설명"이 중간에 있으면 새로 추가한
+      // 항목과 위치가 뒤섞여 헷갈리므로, 화면에는 "기타 설명"을 항상 맨 아래로 고정해서 보여줌
+      // (실제 배열 순서/삭제 인덱스는 그대로 유지 — 표시 순서만 바꿈)
+      const descIdx = list.findIndex(f=> f.type !== 'link' && (f.label||'').trim() === '기타 설명');
+      const order = list.map((_,i)=> i).filter(i=> i !== descIdx);
+      if(descIdx !== -1) order.push(descIdx);
+      listEl.innerHTML = order.map(i=> rowHtml(list[i], i)).join('') || `<div class="w-empty">등록된 항목이 없어요</div>`;
+      listEl.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
+        slotState[slot].fields.splice(Number(btn.dataset.del), 1);
+        drawFields();
+      }));
+      listEl.querySelectorAll('.pf-edit-bulk').forEach(cb=> cb.addEventListener('change', ()=>{
+        const i = Number(cb.closest('.pf-edit-row').dataset.idx);
+        slotState[slot].fields[i].bulk = cb.checked;
+      }));
+    };
+    drawFields();
+    col.querySelector('.pe-add-field').onclick = ()=>{ slotState[slot].fields.push({type:'text', label:'', value:'', bulk:false}); drawFields(); };
+    // 링크는 항목마다 붙이는 게 아니라, 링크 전용 항목으로만 추가하고 항상 목록 맨 아래에 놓임
+    col.querySelector('.pe-add-link').onclick = ()=>{ slotState[slot].fields.push({type:'link', label:'', link:'', bulk:false}); drawFields(); };
+  });
+
+  panel.querySelector('.pe-fields-cancel').onclick = ()=>{
+    profileInlineEditMode = null;
+    renderProfile();
+  };
+  panel.querySelector('.pe-fields-save').onclick = async ()=>{
+    const saveBtn = panel.querySelector('.pe-fields-save');
+    saveBtn.disabled = true;
+    saveBtn.textContent = '저장 중…';
+    try{
+      const arr = cloneSlides(slides);
+      const otherSecIdxs = arr[slideIdx].sections.map((_,i)=>i).filter(i=> i !== secIdx);
+      for(const slot of [0,1]){
+        const col = panel.querySelector(`.profile-edit-col[data-slot="${slot}"]`);
+        // 링크 전용 항목은 항상 뒤로 보내서, 저장 순서 자체도 일반 항목 다음에 오게 정리해둠
+        const rows = Array.from(col.querySelectorAll('.pf-edit-row'));
+        const textRows = rows.filter(r=> r.dataset.type !== 'link');
+        const linkRows = rows.filter(r=> r.dataset.type === 'link');
+        const fields = [
+          ...textRows.map(row=>({
+            type:'text',
+            label: row.querySelector('.pf-edit-label').value.trim(),
+            value: row.querySelector('.pf-edit-value').value.trim(),
+            bulk: !!row.querySelector('.pf-edit-bulk') && row.querySelector('.pf-edit-bulk').checked
+          })).filter(f=> f.label || f.value),
+          ...linkRows.map(row=>({
+            type:'link',
+            label: row.querySelector('.pf-edit-label').value.trim(),
+            link: row.querySelector('.pf-edit-link').value.trim(),
+            bulk: !!row.querySelector('.pf-edit-bulk') && row.querySelector('.pf-edit-bulk').checked
+          })).filter(f=> f.label || f.link)
+        ];
+
+        const pf = section.peopleFields[slot] || { fields:[], avatar:'', avatarChunked:false, avatarFileId:'', avatarChunkTotal:0, oneLiner:'', name:'', role:'' };
+
+        // 지금 보고 있는 시점/IF에는 항상 반영 (사진/한마디/소개/이름은 그대로 유지)
+        arr[slideIdx].sections[secIdx].peopleFields[slot] = {
+          ...pf, fields: fields.map(({bulk, ...f})=> f)
+        };
+
+        // 체크된 항목만 이 AU의 다른 시점/IF에도 그대로 적용
+        otherSecIdxs.forEach(si=>{
+          const targetPf = arr[slideIdx].sections[si].peopleFields[slot];
+          fields.forEach(f=>{
+            if(!f.bulk) return;
+            const existing = targetPf.fields.find(tf=> tf.label && tf.label.trim().toLowerCase() === f.label.trim().toLowerCase());
+            if(f.type === 'link'){
+              if(existing){ existing.type = 'link'; existing.link = f.link; delete existing.value; delete existing.desc; }
+              else targetPf.fields.push({ type:'link', label: f.label, link: f.link });
+            } else {
+              if(existing){ existing.type = 'text'; existing.value = f.value; delete existing.link; }
+              else targetPf.fields.push({ type:'text', label: f.label, value: f.value });
+            }
+          });
+        });
+
+        // "적용" 체크 상태를 AU(사람 슬롯)에 그대로 영구 저장 — 다음에 패널을 다시 열거나
+        // 새 시점/IF를 만들 때도 직접 바꾸기 전까진 이 상태를 그대로 이어받음
+        const prevBulkFields = (arr[slideIdx].people[slot].bulk && arr[slideIdx].people[slot].bulk.fields) || {};
+        const nextBulkFields = { ...prevBulkFields };
+        fields.forEach(f=>{
+          const key = fieldKey(f.label);
+          if(key) nextBulkFields[key] = f.bulk;
+        });
+        arr[slideIdx].people[slot] = {
+          ...arr[slideIdx].people[slot],
+          bulk: { ...(arr[slideIdx].people[slot].bulk || {}), fields: nextBulkFields }
+        };
+      }
+      saveBtn.textContent = '저장 중…';
+      await docRef('profile').set({slides:arr}, {merge:true});
+    }catch(err){
+      toast(`저장하지 못했어요: ${err.message || err}`);
+      saveBtn.disabled = false; saveBtn.textContent = '저장';
+      return;
+    }
+    profileInlineEditMode = null;
+  };
 }
 
 function openProfileSlideModal(slideIdx, slides){
@@ -6936,169 +6818,53 @@ function openSessionEditModal(idx){
 /* ---------------- 8. 체크보드 (체크된 항목은 아래로) ---------------- */
 
 let checklistData = { items: [] };
-// 항목 본문/부제목/링크 인라인 편집 초안 — 프로필과 같은 방식으로, 항목마다 눌러서
-// 그 자리에서 고치고 여러 개를 고친 뒤 한 번에 "저장" 버튼으로 반영함.
-// { [원본 배열 인덱스]: { text?, subtitle?, link? } } — 키가 있는 필드만 값이 바뀐 것.
-let checklistDraft = {};
-let checklistOpenKeys = new Set(); // 'text:3' | 'sub:3' | 'link:3'
-
-function checklistFieldValue(it, idx, key){
-  const d = checklistDraft[idx];
-  if(d && Object.prototype.hasOwnProperty.call(d, key)) return d[key];
-  return it[key] || '';
-}
-function checklistAnyPending(){
-  return Object.keys(checklistDraft).some(k=> checklistDraft[k] && Object.keys(checklistDraft[k]).length);
-}
-function checklistEnsureDraftEntry(idx){
-  if(!checklistDraft[idx]) checklistDraft[idx] = {};
-  return checklistDraft[idx];
-}
-function checklistResetDraft(){ checklistDraft = {}; checklistOpenKeys.clear(); }
-async function saveChecklistDraft(){
-  if(!checklistAnyPending()){ checklistResetDraft(); return true; }
-  const arr = (checklistData.items || []).map(it=>({...it}));
-  Object.keys(checklistDraft).forEach(k=>{
-    const idx = Number(k);
-    if(!arr[idx]) return;
-    const patch = checklistDraft[idx];
-    if(patch.text !== undefined){
-      const t = patch.text.trim();
-      if(t) arr[idx].text = t; // 본문은 비워둘 수 없음(닫을 때 이미 막아둠) — 혹시 비어있으면 그냥 원래 값 유지
-    }
-    if(patch.subtitle !== undefined){
-      const s = patch.subtitle.trim();
-      if(s) arr[idx].subtitle = s; else delete arr[idx].subtitle;
-    }
-    if(patch.link !== undefined){
-      const l = patch.link.trim();
-      if(l) arr[idx].link = l; else delete arr[idx].link;
-    }
-  });
-  const saveBtn = document.querySelector('#checklistBody .inline-save-btn');
-  if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = '저장 중…'; }
-  try{
-    await docRef('checklist').set({items:arr}, {merge:true});
-    checklistResetDraft();
-    return true;
-  }catch(err){
-    toast(`저장하지 못했어요: ${err.message || err}`);
-    if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = '저장'; }
-    return false;
-  }
-}
-function checklistCommitOrKeepOpen(key){
-  // 본문(text)은 비워두면 안 되므로, 닫으려는 시점에 비어있으면 안내하고 계속 열어둠
-  if(key.startsWith('text:')){
-    const idx = Number(key.split(':')[1]);
-    const d = checklistDraft[idx];
-    if(d && d.text !== undefined && !d.text.trim()){
-      toast('본문은 비워둘 수 없어요');
-      return false;
-    }
-  }
-  checklistOpenKeys.delete(key);
-  return true;
-}
-function handleChecklistInlineInput(e){
-  const t = e.target;
-  if(!t.classList || !t.classList.contains('ik-input') || t.dataset.ckIdx === undefined) return;
-  checklistEnsureDraftEntry(Number(t.dataset.ckIdx))[t.dataset.ckField] = t.value;
-}
-function handleChecklistInlineClick(e){
-  const closeBtn = e.target.closest('.ik-close');
-  if(closeBtn){ if(checklistCommitOrKeepOpen(closeBtn.dataset.key)) renderChecklist(); return; }
-  const clearLink = e.target.closest('.ik-ck-link-clear');
-  if(clearLink){
-    const idx = Number(clearLink.dataset.ckIdx);
-    checklistEnsureDraftEntry(idx).link = '';
-    checklistOpenKeys.delete(`link:${idx}`);
-    renderChecklist();
-    return;
-  }
-  const openTarget = e.target.closest('[data-ikopen]');
-  if(openTarget){
-    checklistOpenKeys.add(openTarget.dataset.ikopen);
-    renderChecklist();
-    const el = document.querySelector(`#checklistBody [data-ik="${openTarget.dataset.ikopen}"]`);
-    if(el){ el.focus(); if(el.select) el.select(); }
-    return;
-  }
-  const saveBtnEl = e.target.closest('.inline-save-btn');
-  if(saveBtnEl){ saveChecklistDraft(); return; }
-  const discardBtnEl = e.target.closest('.inline-discard-btn');
-  if(discardBtnEl){ checklistResetDraft(); renderChecklist(); return; }
-}
-function handleChecklistInlineKeydown(e){
-  if(!e.target.classList || !e.target.classList.contains('ik-input')) return;
-  if(e.key === 'Enter' || e.key === 'Escape'){
-    e.preventDefault();
-    const panel = e.target.closest('[data-ikpanel]');
-    if(panel && checklistCommitOrKeepOpen(panel.dataset.ikpanel)) renderChecklist();
-  }
-}
+// 위젯 전체를 한 번에 잠금 해제하던 기존 방식(연필 한 개) 대신, 항목마다 각자
+// 편집 상태를 가짐 — 지금 인라인 편집 패널이 펼쳐져 있는 항목들의 원본 배열
+// 인덱스(it._i)를 담아둠. 항목을 추가/삭제/재정렬해도 굳이 따라다니며 보정하지
+// 않음(원래 위젯 단위 잠금도 새로고침하면 풀리는 임시 UI 상태였던 것과 같은 성격).
+let checklistEditingIdx = new Set();
 
 function renderChecklist(){
-  syncCardEditToggle('cardChecklist', 'checklist', '체크보드 위젯 편집');
   const body = document.getElementById('checklistBody');
-  const activeEl = document.activeElement;
-  let focusRestore = null;
-  if(activeEl && body.contains(activeEl) && activeEl.dataset && activeEl.dataset.ik){
-    focusRestore = { key: activeEl.dataset.ik, start: activeEl.selectionStart, end: activeEl.selectionEnd };
-  }
   const all = (checklistData.items || []).map((it,i)=>({...it, _i:i}));
   const unchecked = all.filter(it=> !it.checked);
   const checked = all.filter(it=> it.checked);
 
-  function row(it){
-    const idx = it._i;
-    const open = isWidgetOpen('checklist');
-    const textVal = checklistFieldValue(it, idx, 'text');
-    const subVal = checklistFieldValue(it, idx, 'subtitle');
-    const linkVal = checklistFieldValue(it, idx, 'link');
-    const textKey = `text:${idx}`, subKey = `sub:${idx}`, linkKey = `link:${idx}`;
-    const textOpen = open && checklistOpenKeys.has(textKey);
-    const subOpen = open && checklistOpenKeys.has(subKey);
-    const linkOpen = open && checklistOpenKeys.has(linkKey);
-
-    // 항목 본문 — 편집모드에선 눌러서 그 자리에서 고침(라이트박스와 같은 유리
-    // 패널 스타일). 보기 전용 모드에선 예전처럼 링크가 있으면 눌러서 바로 이동함.
-    const textHtml = textOpen
-      ? `<div class="modal inline-edit-panel" data-ikpanel="${textKey}">
-           <input type="text" class="ik-input" data-ik="${textKey}" data-ck-idx="${idx}" data-ck-field="text" value="${escapeHtml(textVal)}" placeholder="항목 내용">
-           <div class="inline-edit-actions"><span></span><button type="button" class="btn small ghost ik-close" data-key="${textKey}">닫기</button></div>
-         </div>`
-      : `<span class="check-item-text ${(!open && linkVal) ? 'has-link' : ''} ${open?'ik-editable':''}" ${open?`data-ikopen="${textKey}"`:''} ${(!open && linkVal) ? `data-linkopen="${idx}" title="${escapeHtml(linkVal)}"` : ''}>${escapeHtml(textVal)}</span>`;
-
-    const subHtml = subOpen
-      ? `<div class="modal inline-edit-panel" data-ikpanel="${subKey}">
-           <input type="text" class="ik-input" data-ik="${subKey}" data-ck-idx="${idx}" data-ck-field="subtitle" value="${escapeHtml(subVal)}" placeholder="부제목">
-           <div class="inline-edit-actions"><span></span><button type="button" class="btn small ghost ik-close" data-key="${subKey}">닫기</button></div>
-         </div>`
-      : ((subVal || open) ? `<span class="check-item-subtitle ${open?'ik-editable':''} ${!subVal?'empty-hint':''}" ${open?`data-ikopen="${subKey}"`:''}>${subVal ? escapeHtml(subVal) : (open ? '+ 부제목 추가' : '')}</span>` : '');
-
-    const linkBtnHtml = open ? `<button type="button" class="check-link-edit" data-ikopen="${linkKey}" title="${linkVal ? '링크 수정/삭제' : '링크 추가'}">${linkVal ? '✎' : '🔗+'}</button>` : '';
-    const linkPanelHtml = linkOpen ? `
-      <div class="modal inline-edit-panel check-link-panel" data-ikpanel="${linkKey}">
-        <label>링크 URL</label>
-        <input type="url" class="ik-input" data-ik="${linkKey}" data-ck-idx="${idx}" data-ck-field="link" value="${escapeHtml(linkVal)}" placeholder="https://...">
-        <div class="inline-edit-actions">
-          <button type="button" class="btn small danger ik-ck-link-clear" data-ck-idx="${idx}" ${linkVal ? '' : 'style="visibility:hidden;"'}>링크 지우기</button>
-          <button type="button" class="btn small ghost ik-close" data-key="${linkKey}">닫기</button>
-        </div>
-      </div>` : '';
-
+  // 항목의 부제목/링크를 고치던 예전 팝업 두 개(부제목 창·링크 창) 대신, 항목
+  // 자신을 기존 편집창(.modal)과 똑같은 모양의 인라인 패널로 바꿔서 그 자리에서
+  // 바로 고치게 함. 카드 우상단의 위젯 전체 편집 버튼은 없앴고, 그 대신 이
+  // 편집 패널을 펼치는 연필 버튼을 항목마다 하나씩 둠.
+  function editRow(it){
+    const subtitle = it.subtitle || '';
+    const link = it.link || '';
     return `
-      <div class="check-item ${it.checked?'checked':''}" data-idx="${idx}">
+      <div class="check-item modal modal-inline" data-idx="${it._i}">
+        <div class="check-item-edit-title">${escapeHtml(it.text)}</div>
+        <label>부제목 (선택 — 항목 아래에 작게 표시돼요)</label>
+        <input type="text" class="ck-edit-subtitle" value="${escapeHtml(subtitle)}" placeholder="예: 8월 말까지">
+        <label>링크 (선택 — 구글드라이브 공유 링크 등)</label>
+        <input type="url" class="ck-edit-link" value="${escapeHtml(link)}" placeholder="https://...">
+        <div class="modal-actions">
+          <button type="button" class="btn danger ck-edit-delete">항목 삭제</button>
+          <span class="check-item-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>
+          <button type="button" class="btn ghost ck-edit-cancel">닫기</button>
+          <button type="button" class="btn primary ck-edit-save">저장</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function row(it){
+    if(checklistEditingIdx.has(it._i)) return editRow(it);
+    const subtitle = it.subtitle || '';
+    return `
+      <div class="check-item ${it.checked?'checked':''}" data-idx="${it._i}">
         <input type="checkbox" ${it.checked?'checked':''} ${editMode?'':'disabled'}>
         <div class="check-item-main">
-          ${textHtml}
-          ${subHtml}
-          ${linkPanelHtml}
+          <span class="check-item-text ${it.link ? 'has-link' : ''}" ${it.link ? `data-linkopen="${it._i}" title="${escapeHtml(it.link)}"` : ''}>${escapeHtml(it.text)}</span>
+          ${subtitle ? `<span class="check-item-subtitle">${escapeHtml(subtitle)}</span>` : ''}
         </div>
-        ${linkBtnHtml}
-        ${open ? `<span class="check-item-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
-        ${open ? `<button class="del">✕</button>` : ''}
+        ${editMode ? `<button class="check-item-edit-toggle" data-checkedit="${it._i}" title="이 항목 편집">✎</button>` : ''}
       </div>
     `;
   }
@@ -7108,40 +6874,16 @@ function renderChecklist(){
   // 왼쪽→오른쪽, 위→아래 순으로 채워지므로, 배열 끝에 몰아둔 완료 항목들이
   // 자연히 그리드의 마지막 줄(맨 아래)에 두 칸을 걸쳐 깔리게 됨
   const sortedAll = [...unchecked, ...checked];
-  const draftPending = isWidgetOpen('checklist') && checklistAnyPending();
-  const saveBarHtml = draftPending ? `
-    <div class="inline-save-bar">
-      <span class="inline-save-msg">저장하지 않은 변경사항이 있어요</span>
-      <button type="button" class="btn small ghost inline-discard-btn">변경 취소</button>
-      <button type="button" class="btn small primary inline-save-btn">저장</button>
-    </div>
-  ` : '';
   if(!sortedAll.length){
-    body.innerHTML = saveBarHtml + `<div class="w-empty">등록된 항목이 없어요</div>`;
+    body.innerHTML = `<div class="w-empty">등록된 항목이 없어요</div>`;
   } else {
-    body.innerHTML = saveBarHtml + sortedAll.map(row).join('');
-  }
-  if(focusRestore){
-    const el = body.querySelector(`[data-ik="${focusRestore.key}"]`);
-    if(el){
-      el.focus();
-      if(typeof el.setSelectionRange === 'function' && focusRestore.start != null){
-        try{ el.setSelectionRange(focusRestore.start, focusRestore.end); }catch(e){}
-      }
-    }
-  }
-
-  if(!body.dataset.ikBound){
-    body.dataset.ikBound = '1';
-    body.addEventListener('input', handleChecklistInlineInput);
-    body.addEventListener('click', handleChecklistInlineClick);
-    body.addEventListener('keydown', handleChecklistInlineKeydown);
+    body.innerHTML = sortedAll.map(row).join('');
   }
 
   body.querySelectorAll('.check-item').forEach(el=>{
     const idx = Number(el.dataset.idx);
     const cb = el.querySelector('input[type=checkbox]');
-    cb.addEventListener('change', async ()=>{
+    if(cb) cb.addEventListener('change', async ()=>{
       if(!editMode) return;
       const arr = [...checklistData.items];
       arr[idx] = { ...arr[idx], checked: cb.checked };
@@ -7152,14 +6894,43 @@ function renderChecklist(){
       const cur = checklistData.items[idx];
       if(cur && cur.link) window.open(cur.link, '_blank', 'noopener');
     });
-    const del = el.querySelector('.del');
-    if(del) del.addEventListener('click', async ()=>{
+    // 이 항목의 편집 패널을 펼치는 연필 버튼 (평상시 행에만 있음)
+    const editToggle = el.querySelector('[data-checkedit]');
+    if(editToggle) editToggle.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      checklistEditingIdx.add(idx);
+      renderChecklist();
+    });
+    // 아래 세 개는 편집 패널(.modal.modal-inline)이 펼쳐졌을 때만 존재함
+    const cancelBtn = el.querySelector('.ck-edit-cancel');
+    if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
+      checklistEditingIdx.delete(idx);
+      renderChecklist();
+    });
+    const delBtn = el.querySelector('.ck-edit-delete');
+    if(delBtn) delBtn.addEventListener('click', async ()=>{
       const target = checklistData.items[idx];
       if(!(await confirmDelete(`"${escapeHtml(target && target.text || '이 항목')}"을 정말 삭제할까요?`))) return;
-      // 삭제로 배열 인덱스가 전부 밀리므로, 남아있는 초안/열림 상태는 안전하게 비움
-      checklistResetDraft();
       const arr = [...checklistData.items]; arr.splice(idx,1);
+      checklistEditingIdx.delete(idx);
       await docRef('checklist').set({items:arr}, {merge:true});
+    });
+    const saveBtn = el.querySelector('.ck-edit-save');
+    if(saveBtn) saveBtn.addEventListener('click', async ()=>{
+      saveBtn.disabled = true;
+      saveBtn.textContent = '저장 중…';
+      try{
+        const subtitle = el.querySelector('.ck-edit-subtitle').value.trim();
+        const link = el.querySelector('.ck-edit-link').value.trim();
+        const arr = [...checklistData.items];
+        arr[idx] = { ...arr[idx], subtitle, link };
+        await docRef('checklist').set({items:arr}, {merge:true});
+      }catch(err){
+        toast('저장하지 못했어요');
+        saveBtn.disabled = false; saveBtn.textContent = '저장';
+        return;
+      }
+      checklistEditingIdx.delete(idx);
     });
   });
 
@@ -7195,17 +6966,19 @@ function renderChecklist(){
   // 편집모드에서 드래그로 순서를 바꿀 수 있게 함(체크된 항목이 자동으로 아래로 몰리는
   // 정렬은 그대로 유지된 채, 그 안에서의 순서만 바뀜). data-idx가 화면에 보이는 위치가
   // 아니라 원본 배열 위치(it._i)라서, 정렬로 화면 순서가 바뀌어도 항상 올바른 자리로
-  // 반영됨. 폭이 좁아 1열로 쌓이는 화면에서는 좌우 대신 위아래 기준으로 표시함
-  bindPinDragReorder(
-    body, '.check-item',
-    ()=> (checklistData.items || []).slice(),
-    async (arr)=>{
-      // 순서가 바뀌면 배열 인덱스도 다 바뀌므로, 남아있던 초안/열림 상태는 안전하게 비움
-      checklistResetDraft();
-      await docRef('checklist').set({items:arr}, {merge:true});
-    },
-    { pointerLine: true, axis: window.innerWidth <= 520 ? 'y' : 'x', widgetKey: 'checklist' }
-  );
+  // 반영됨. 폭이 좁아 1열로 쌓이는 화면에서는 좌우 대신 위아래 기준으로 표시함.
+  // 예전엔 위젯 전체를 잠금 해제(widgetKey)해야만 드래그가 가능했는데, 그 잠금 버튼을
+  // 없애고 항목별 편집 패널로 바꾸면서 이 게이트도 "지금 펼쳐진 편집 패널이 하나라도
+  // 있는가"로 바꿈 — 손잡이(⠿)도 그 펼쳐진 항목에만 보이므로, 실수로 아무 항목이나
+  // 바로 끌리는 일은 여전히 없음.
+  if(checklistEditingIdx.size){
+    bindPinDragReorder(
+      body, '.check-item',
+      ()=> (checklistData.items || []).slice(),
+      async (arr)=> docRef('checklist').set({items:arr}, {merge:true}),
+      { pointerLine: true, axis: window.innerWidth <= 520 ? 'y' : 'x' }
+    );
+  }
 }
 
 docRef('checklist').onSnapshot(doc=>{ checklistData = doc.exists ? doc.data() : {items:[]}; renderChecklist(); });
