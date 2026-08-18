@@ -2527,8 +2527,50 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal input[type=color]{ width:44px; height:32px; padding:0; border:1px solid var(--card-border); border-radius:8px; background:none; }
 .modal .hint{ font-size:.75rem; color:var(--ink-soft); margin: 4px 0 0; }
 
-/* 프로필 편집 창의 항목별 "일괄적용(다른 시점/IF에도 적용)" 체크박스 — 짧은 문장이라
-   한 줄에 붙여도 되지만, 항상 해당 항목 입력칸 "아래"에 오도록 줄바꿈을 강제함 */
+/* ---------------- 위젯 내 인라인 편집(프로필/체크리스트) ----------------
+   예전엔 항목을 누르면 별도 라이트박스 창이 떴는데, 위젯 안에서 바로 그 자리에서
+   고칠 수 있게 바꿈. 다만 입력칸 배경까지 밋밋하면 읽기 힘들고 "지금 편집 중"이라는
+   느낌도 약해서, 라이트박스 모달과 똑같은 유리 패널 스타일(.modal 클래스)을 그대로
+   재사용해서 입력 영역을 감쌈 — 배경/블러/테두리/글자색/다크·라이트 전환까지 전부
+   모달과 항상 같은 값을 쓰게 되어 별도 색상 규칙을 추가할 필요가 없음. 다만 타이핑할
+   때마다 backdrop-filter 블러가 매번 다시 계산되는 걸 막기 위해(프로필 통합편집
+   모달과 같은 이유) 블러는 빼고 불투명도만 높여서 비슷한 느낌을 유지함. */
+.modal.inline-edit-panel{
+  position:relative; width:auto; max-width:100%; max-height:none; overflow:visible;
+  padding:8px 10px; border-radius:14px; margin:4px 0;
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+  background: rgba(24,11,14,0.9);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35), inset 0 0 0 0.6px var(--card-hi);
+  animation: popIn .15s ease;
+  text-align:left;
+}
+body.theme-light .modal.inline-edit-panel{ background: rgba(255,255,255,0.94); }
+.modal.inline-edit-panel label{ margin:0 0 4px; }
+.modal.inline-edit-panel input, .modal.inline-edit-panel textarea{ margin:0; }
+.inline-edit-actions{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:6px; flex-wrap:wrap; }
+.inline-edit-actions .pe-bulk-row{ margin:0; }
+
+/* 값(혹은 안내문구)을 누르면 그 자리에서 입력칸으로 바뀐다는 걸 알려주는 공통 표시 —
+   기존 .editable/.empty-hint와 같은 느낌이지만 프로필뿐 아니라 체크리스트 등 여러
+   위젯에서 함께 재사용하기 위해 이름을 따로 둠 */
+.ik-editable{ cursor:pointer; border-radius:8px; transition: background .15s ease; }
+.ik-editable:hover{ background: rgba(var(--row-tint),0.08); }
+
+/* 위젯 전체의 "저장/변경 취소" 묶음 바 — 항목마다 따로 저장하는 대신, 여러 항목을
+   고친 뒤 한 번에 저장하게 함(하나씩 저장하면 번거롭다는 요청으로 도입) */
+.inline-save-bar{
+  display:flex; align-items:center; gap:8px; width:100%;
+  padding:6px 10px; margin-bottom:8px; border-radius:12px;
+  background: var(--rose-soft);
+}
+.inline-save-bar .inline-save-msg{ flex:1; min-width:0; font-size:.72rem; color: var(--ink); }
+/* 체크리스트 카드는 위젯 자체가 좁아서(2열 그리드) 저장 바가 그리드 칸 하나가
+   아니라 항상 위쪽 전체 폭을 차지하도록 함 */
+#checklistBody .inline-save-bar{ grid-column: 1 / -1; }
+/* 체크리스트 항목의 링크 편집 패널은 항목 폭 안에서 줄바꿈되게(항목 자체가 좁음) */
+.check-link-panel{ width:100%; }
+
+
 .modal label.pe-bulk-row{
   display:flex; align-items:center; gap:4px; width:auto; margin:0; flex:0 0 auto;
   font-size:.7rem; color:var(--ink-soft); cursor:pointer; white-space:nowrap;
