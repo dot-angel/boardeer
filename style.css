@@ -2695,9 +2695,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   position: fixed; width: 160px; height: 206px; z-index: 150;
   touch-action: none; user-select: none; cursor: grab;
 }
-/* 캐릭터1(slot 0)이 캐릭터2(slot 1)보다 120%(1.2배) 크게 보이도록,
+/* 캐릭터1(slot 0)이 캐릭터2(slot 1)보다 110%(1.1배) 크게 보이도록,
    기본 크기(160×206) 대비 slot 0 전용 크기를 따로 둠 */
-.site-sticker[data-slot="0"]{ width: 192px; height: 247px; }
+.site-sticker[data-slot="0"]{ width: 176px; height: 227px; }
 .site-sticker.dragging{ cursor: grabbing; transition: none; }
 /* 이미지 자체(투명 배경 포함)만 떠 보이게, 뒤에 깔리던 블러/배경색/그림자를 다 없앰 */
 .sticker-avatar{
