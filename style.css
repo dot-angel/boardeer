@@ -1437,6 +1437,22 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-section-tab.active{ color: var(--ink); font-weight:700; border-bottom-color: var(--rose); }
 .profile-section-tab .ps-edit{ border:none; background:none; color:inherit; font-size:.72rem; opacity:.7; cursor:pointer; padding:0; }
 .profile-section-tab .ps-edit:hover{ opacity:1; }
+/* AU 탭 옆 ⓘ — 설명이 있는 AU에만 보이고, 누르면 탭 바 아래에 설명이 펼쳐짐 */
+.au-info-btn{
+  border:none; background:none; color: var(--ink-soft); font-size:.74rem; line-height:1;
+  cursor:pointer; padding:0; opacity:.75; transition: opacity .15s ease, color .15s ease;
+}
+.au-info-btn:hover{ opacity:1; color: var(--rose); }
+/* 탭 바가 flex-wrap이라, 이 요소만 flex-basis:100%로 줘서 항상 탭들 아래 새 줄에 펼쳐짐
+   (말풍선처럼 탭 위에 떠 있게 하는 대신, 줄바꿈으로 자연스럽게 자리를 만드는 방식) */
+.profile-au-desc-pop{
+  flex-basis:100%; width:100%; margin-top:8px; padding:9px 12px;
+  background: rgba(var(--row-tint),0.06); border:1px solid var(--card-border); border-radius:12px;
+  font-size:.76rem; line-height:1.5; color: var(--ink-soft); text-align:center;
+  white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word;
+  animation: panelOpen .16s ease;
+}
+.profile-au-bar-single .profile-au-desc-pop{ margin-top:6px; }
 /* 드래그로 AU 탭 순서 바꾸기(뮤직 재생목록/사진 그리드와 동일한 방식) */
 .profile-section-tab[draggable="true"]{ cursor: grab; }
 .profile-section-tab.dragging{ opacity:.4; cursor: grabbing; }
@@ -2396,9 +2412,14 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .checklist::-webkit-scrollbar{ width:4px; }
 .checklist::-webkit-scrollbar-thumb{ background: var(--scroll-thumb); border-radius:4px; }
 .check-item{
-  display:flex; align-items:center; gap:8px; padding:8px 9px; border-radius:12px; font-size:.85rem; min-width:0;
+  display:flex; flex-direction:column; border-radius:12px; font-size:.85rem; min-width:0;
 }
 .check-item:hover{ background: rgba(var(--row-tint),0.07); }
+.check-item-row{ display:flex; align-items:center; gap:8px; padding:8px 9px; }
+/* 항목을 눌러 인라인 패널을 펼친 상태 — 부제목/링크칸을 넉넉하게 쓸 수 있도록
+   2열 그리드 안에서도 이 항목만 두 칸을 다 차지하게 폭을 넓힘 */
+.check-item.editing{ grid-column: 1 / -1; background: rgba(var(--row-tint),0.05); }
+.check-item .inline-panel{ margin:0 9px 9px; }
 .check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
 .check-item-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
 /* 편집모드에서는 항목 전체(텍스트+부제목)를 눌러 한 번에 수정 모달을 열 수 있음 */
@@ -2476,30 +2497,40 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .modal .row{ display:flex; gap:8px; }
 .modal .row > *{ flex:1; }
 .modal-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:18px; flex-wrap:wrap; }
-/* 프로필 통합 편집 모달: 다른 모달보다 넓게(두 프로필을 나란히 놓아야 해서) — 게다가
-   입력칸/textarea가 많고 목록도 길어서, 라이트박스 때와 똑같은 이유로 backdrop-filter
-   블러가 타이핑할 때마다(커서 깜빡임, textarea 크기 조절 등 이 레이어 안의 아주 작은
-   변화에도) 매번 다시 계산되어 렉을 일으킴. 이 모달만 블러를 빼고 불투명도를 높여서
-   비슷한 느낌은 유지하면서 타이핑 렉을 없앰. */
-.modal.modal-profile-edit{
-  width:min(680px, 94vw);
-  backdrop-filter:none; -webkit-backdrop-filter:none;
-  background: rgba(20,9,11,0.94);
-}
-.profile-edit-cols{ display:flex; gap:18px; align-items:flex-start; }
-.profile-edit-col{ flex:1; min-width:0; }
-.profile-edit-col h4{ margin:0 0 2px; font-family: var(--font-display); color: var(--rose); font-size:.9rem; }
-.profile-edit-divider{ width:1px; align-self:stretch; background: var(--card-border); flex:0 0 auto; }
-@media (max-width: 560px){
-  .profile-edit-cols{ flex-direction:column; }
-  .profile-edit-divider{ width:100%; height:1px; margin:6px 0; }
-}
 .modal input[type=color]{ width:44px; height:32px; padding:0; border:1px solid var(--card-border); border-radius:8px; background:none; }
 .modal .hint{ font-size:.75rem; color:var(--ink-soft); margin: 4px 0 0; }
 
-/* 프로필 편집 창의 항목별 "일괄적용(다른 시점/IF에도 적용)" 체크박스 — 짧은 문장이라
-   한 줄에 붙여도 되지만, 항상 해당 항목 입력칸 "아래"에 오도록 줄바꿈을 강제함 */
-.modal label.pe-bulk-row{
+/* ---------- 인라인 편집 패널 ----------
+   체크리스트 항목, 프로필의 사진/한마디/소개/이름·정보·시점 이름을 예전엔 모두
+   모달(팝업)로 열어서 고쳤는데, 지금은 그 자리에서 바로 위젯 카드 안에 펼쳐지는
+   패널로 바뀜. 입력칸/라벨/버튼 스타일은 .modal의 것과 거의 같게 맞춰서 모달을 쓰던
+   느낌을 그대로 이어가되, 모달 오버레이 없이 카드 레이아웃 안에 자연스럽게 자리잡음. */
+.inline-panel{
+  display:flex; flex-direction:column; gap:2px;
+  padding:12px 13px; margin-top:6px;
+  background: rgba(var(--row-tint),0.05);
+  border:1px solid var(--card-border); border-radius:14px;
+  animation: panelOpen .16s ease; color: var(--ink);
+}
+@keyframes panelOpen{ from{ opacity:0; transform: translateY(-4px); } to{ opacity:1; transform: translateY(0); } }
+.inline-panel h4{ margin:0 0 2px; font-family: var(--font-display); color: var(--rose); font-size:.88rem; }
+.inline-panel label{ display:block; font-size:.78rem; color:var(--ink-soft); margin: 8px 0 4px; }
+.inline-panel label:first-of-type{ margin-top:0; }
+.inline-panel input[type=text], .inline-panel input[type=url], .inline-panel input[type=number],
+.inline-panel textarea, .inline-panel select, .inline-panel input[type=file]{
+  width:100%; padding:8px 10px; border-radius:11px; border:1px solid var(--card-border);
+  font-family: var(--font-body); font-size:.82rem; background: rgba(255,255,255,0.05); color: var(--ink);
+}
+.inline-panel input::placeholder, .inline-panel textarea::placeholder{ color: var(--ink-soft); }
+.inline-panel textarea{ min-height:64px; resize:vertical; }
+.inline-panel .hint{ font-size:.72rem; color:var(--ink-soft); margin: 4px 0 0; }
+.inline-panel .panel-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.inline-panel .pep-add-row{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+
+/* 체크리스트/프로필 인라인 패널의 항목별 "일괄적용(다른 시점/IF에도 적용)" 체크박스
+   — 짧은 문장이라 한 줄에 붙여도 되지만, 항상 해당 항목 입력칸 "아래"에 오도록
+   줄바꿈을 강제함 */
+.modal label.pe-bulk-row, .inline-panel label.pe-bulk-row{
   display:flex; align-items:center; gap:4px; width:auto; margin:0; flex:0 0 auto;
   font-size:.7rem; color:var(--ink-soft); cursor:pointer; white-space:nowrap;
 }
@@ -2695,9 +2726,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   position: fixed; width: 160px; height: 206px; z-index: 150;
   touch-action: none; user-select: none; cursor: grab;
 }
-/* 캐릭터1(slot 0)이 캐릭터2(slot 1)보다 110%(1.1배) 크게 보이도록,
+/* 캐릭터1(slot 0)이 캐릭터2(slot 1)보다 120%(1.2배) 크게 보이도록,
    기본 크기(160×206) 대비 slot 0 전용 크기를 따로 둠 */
-.site-sticker[data-slot="0"]{ width: 176px; height: 227px; }
+.site-sticker[data-slot="0"]{ width: 192px; height: 247px; }
 .site-sticker.dragging{ cursor: grabbing; transition: none; }
 /* 이미지 자체(투명 배경 포함)만 떠 보이게, 뒤에 깔리던 블러/배경색/그림자를 다 없앰 */
 .sticker-avatar{
@@ -2796,6 +2827,13 @@ body.theme-light .modal select, body.theme-light .modal input[type=file]{
   background: rgba(var(--ink-rgb),0.05);
 }
 body.theme-light .modal select option{ background:#EFF4F0; color:#a71a36; }
+/* 인라인 패널도 모달과 같은 방식으로 라이트모드 입력칸 배경을 맞춤 */
+body.theme-light .inline-panel{ background: rgba(var(--ink-rgb),0.04); }
+body.theme-light .inline-panel input[type=text], body.theme-light .inline-panel input[type=url],
+body.theme-light .inline-panel input[type=number], body.theme-light .inline-panel textarea,
+body.theme-light .inline-panel select, body.theme-light .inline-panel input[type=file]{
+  background: rgba(var(--ink-rgb),0.05);
+}
 /* 쉐이커 전체화면 — 라이트박스와 다크모드 배경값이 완전히 같아서(둘 다
    rgba(10,5,6,0.5)) 같은 값으로 맞춤 */
 body.theme-light .modal.modal-shaker-full{ background: rgba(255,255,255,0.15); }
