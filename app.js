@@ -5206,6 +5206,18 @@ let skipNextGalleryRender = false;
 /* 이미 이번 세션에서 한 번 불러와 캐시된 사진(또는 애초에 다운로드가 필요 없는 외부 URL)은
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
    setupPinGalleryLazyLoad가 화면 근처로 스크롤됐을 때 시작함 */
+// 사진(또는 묶음)의 실제 미디어 마크업 — 초기 렌더(galleryTileMarkup)와 지연 로딩 후
+// 채워넣기(fillGalleryTile)가 항상 같은 내용을 만들어야 해서 공용 함수로 뺌
+function galleryMediaHtml(it, url){
+  return it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
+}
+// 편집모드에서만 보이는 삭제/블러/옵션 버튼 3종 — 위와 같은 이유로 공용 함수로 뺌
+function galleryActionButtonsHtml(idx, it, picking){
+  if(!(isWidgetOpen('gallery') && !picking)) return '';
+  return `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>
+      <button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>
+      <button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>`;
+}
 function galleryTileHtml(it, i){
   const cover = galleryItemCover(it);
   if(cover.chunked && chunkedImageCache.has(cover.fileId)) return galleryTileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
@@ -5214,14 +5226,11 @@ function galleryTileHtml(it, i){
 }
 function galleryTileMarkup(it, url, i){
   const picking = isGalleryGroupPicking('gallery');
-  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   return `
     <div class="pin-item ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
-      ${mediaHtml}
+      ${galleryMediaHtml(it, url)}
       ${galleryPickOverlayHtml('gallery', i)}
-      ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+      ${galleryActionButtonsHtml(i, it, picking)}
     </div>`;
 }
 function fillGalleryTile(tile, idx, url, it){
@@ -5230,13 +5239,10 @@ function fillGalleryTile(tile, idx, url, it){
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!it.group);
   tile.classList.toggle('pin-item-picking', picking);
-  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
-    ${mediaHtml}
+    ${galleryMediaHtml(it, url)}
     ${galleryPickOverlayHtml('gallery', idx)}
-    ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-    ${(isWidgetOpen('gallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:8px;right:8px;top:auto;">🏷</button>` : ''}
+    ${galleryActionButtonsHtml(idx, it, picking)}
   `;
   if(it.blur) tile.classList.add('blurred');
   const grid = tile.closest('#galleryGrid');
@@ -5529,6 +5535,15 @@ const refreshGallery2LayoutDebounced = debounce(refreshGallery2Layout, 80);
 window.addEventListener('resize', refreshGallery2LayoutDebounced);
 
 
+function gallery2MediaHtml(it, url){
+  return it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
+}
+function gallery2ActionButtonsHtml(idx, it, picking){
+  if(!(isWidgetOpen('gallery2') && !picking)) return '';
+  return `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>
+      <button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>
+      <button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>`;
+}
 function gallery2TileHtml(it, i){
   const cover = galleryItemCover(it);
   if(cover.chunked && chunkedImageCache.has(cover.fileId)) return gallery2TileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
@@ -5537,14 +5552,11 @@ function gallery2TileHtml(it, i){
 }
 function gallery2TileMarkup(it, url, i){
   const picking = isGalleryGroupPicking('gallery2');
-  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   return `
     <div class="pin-item-dense ${it.blur ? 'blurred' : ''} ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
-      ${mediaHtml}
+      ${gallery2MediaHtml(it, url)}
       ${galleryPickOverlayHtml('gallery2', i)}
-      ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-blur-btn" data-blur="${i}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-      ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+      ${gallery2ActionButtonsHtml(i, it, picking)}
     </div>`;
 }
 function fillGallery2Tile(tile, idx, url, it){
@@ -5553,13 +5565,10 @@ function fillGallery2Tile(tile, idx, url, it){
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!it.group);
   tile.classList.toggle('pin-item-picking', picking);
-  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
-    ${mediaHtml}
+    ${gallery2MediaHtml(it, url)}
     ${galleryPickOverlayHtml('gallery2', idx)}
-    ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-blur-btn" data-blur="${idx}" title="${it.blur ? '블러 해제' : '블러 처리'}">${it.blur ? '🙈' : '👁'}</button>` : ''}
-    ${(isWidgetOpen('gallery2') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="bottom:4px;right:4px;top:auto;">🏷</button>` : ''}
+    ${gallery2ActionButtonsHtml(idx, it, picking)}
   `;
   if(it.blur) tile.classList.add('blurred');
   if(it.group) loadGalleryGroupStrips(tile, it);
@@ -5958,6 +5967,14 @@ function renderRefGallery(){
 /* 이미 이번 세션에서 한 번 불러와 캐시된 사진(또는 애초에 다운로드가 필요 없는 외부 URL)은
    바로 표시하고, 아직 안 불러온 청크 사진만 빈 플레이스홀더로 그림 — 실제 로딩은
    setupRefGalleryLazyLoad가 화면 근처로 스크롤됐을 때 시작함 */
+function refGalleryMediaHtml(it, url){
+  return (it && it.group) ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
+}
+function refGalleryActionButtonsHtml(idx, it, picking){
+  if(!(isWidgetOpen('refgallery') && !picking)) return '';
+  return `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>
+      <button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>`;
+}
 function renderRefGalleryTileHtml(it, i){
   const cover = galleryItemCover(it);
   if(cover.chunked && chunkedImageCache.has(cover.fileId)) return refGalleryTileMarkup(it, chunkedImageCache.get(cover.fileId) || '', i);
@@ -5967,13 +5984,11 @@ function renderRefGalleryTileHtml(it, i){
 
 function refGalleryTileMarkup(it, url, i){
   const picking = isGalleryGroupPicking('refgallery');
-  const mediaHtml = it.group ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   return `
     <div class="pin-item-dense ${it.group ? 'pin-item-group' : ''} ${picking ? 'pin-item-picking' : ''}" data-idx="${i}">
-      ${mediaHtml}
+      ${refGalleryMediaHtml(it, url)}
       ${galleryPickOverlayHtml('refgallery', i)}
-      ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-del-btn" data-del="${i}" title="삭제">✕</button>` : ''}
-      ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${i}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+      ${refGalleryActionButtonsHtml(i, it, picking)}
     </div>`;
 }
 
@@ -5990,12 +6005,10 @@ function fillRefGalleryTile(tile, idx, url, it){
   tile.classList.remove('pin-loading');
   tile.classList.toggle('pin-item-group', !!(it && it.group));
   tile.classList.toggle('pin-item-picking', picking);
-  const mediaHtml = (it && it.group) ? galleryGroupStripHtml(it) : `<img src="${escapeHtml(url)}" loading="lazy" decoding="async">`;
   tile.innerHTML = `
-    ${mediaHtml}
+    ${refGalleryMediaHtml(it, url)}
     ${galleryPickOverlayHtml('refgallery', idx)}
-    ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-del-btn" data-del="${idx}" title="삭제">✕</button>` : ''}
-    ${(isWidgetOpen('refgallery') && !picking) ? `<button class="pin-opt-btn" data-opt-edit="${idx}" title="옵션 지정" style="top:4px;right:4px;">🏷</button>` : ''}
+    ${refGalleryActionButtonsHtml(idx, it, picking)}
   `;
   if(it && it.group) loadGalleryGroupStrips(tile, it);
   else attachImgFallback(tile.querySelector('img'));
@@ -6779,11 +6792,11 @@ function renderChecklist(){
     return `
       <div class="check-item ${it.checked?'checked':''}" data-idx="${it._i}">
         <input type="checkbox" ${it.checked?'checked':''} ${editMode?'':'disabled'}>
-        <div class="check-item-main">
-          <span class="check-item-text ${it.link ? 'has-link' : ''}" ${it.link ? `data-linkopen="${it._i}" title="${escapeHtml(it.link)}"` : ''}>${escapeHtml(it.text)}</span>
-          ${(subtitle || open) ? `<span class="check-item-subtitle ${open ? 'editable' : ''} ${!subtitle ? 'empty-hint' : ''}" ${open ? `data-subedit="${it._i}"` : ''}>${subtitle ? escapeHtml(subtitle) : (open ? '+ 부제목 추가' : '')}</span>` : ''}
+        <div class="check-item-main" ${open ? `data-itemedit="${it._i}"` : ''}>
+          <span class="check-item-text ${it.link ? 'has-link' : ''}" ${(it.link && !open) ? `data-linkopen="${it._i}" title="${escapeHtml(it.link)}"` : ''}>${escapeHtml(it.text)}</span>
+          ${(subtitle || open) ? `<span class="check-item-subtitle ${!subtitle ? 'empty-hint' : ''}">${subtitle ? escapeHtml(subtitle) : (open ? '부제목 없음' : '')}</span>` : ''}
         </div>
-        ${open ? `<button class="check-link-edit" data-linkedit="${it._i}" title="${it.link ? '링크 수정/삭제' : '링크 추가'}">${it.link ? '✎' : '🔗+'}</button>` : ''}
+        ${open ? `<button class="check-link-edit" data-itemedit="${it._i}" title="항목 수정">✎</button>` : ''}
         ${open ? `<span class="check-item-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
         ${open ? `<button class="del">✕</button>` : ''}
       </div>
@@ -6815,8 +6828,11 @@ function renderChecklist(){
       const cur = checklistData.items[idx];
       if(cur && cur.link) window.open(cur.link, '_blank', 'noopener');
     });
-    const subEdit = el.querySelector('[data-subedit]');
-    if(subEdit) subEdit.addEventListener('click', (e)=>{ e.stopPropagation(); openChecklistItemSubtitleModal(idx); });
+    // 텍스트/부제목/링크를 따로따로 여는 대신, 항목을 누르면 하나의 모달에서
+    // 한 번에 수정하게 함
+    el.querySelectorAll('[data-itemedit]').forEach(trigger=>{
+      trigger.addEventListener('click', (e)=>{ e.stopPropagation(); openChecklistItemModal(idx); });
+    });
     const del = el.querySelector('.del');
     if(del) del.addEventListener('click', async ()=>{
       const target = checklistData.items[idx];
@@ -6824,8 +6840,6 @@ function renderChecklist(){
       const arr = [...checklistData.items]; arr.splice(idx,1);
       await docRef('checklist').set({items:arr}, {merge:true});
     });
-    const linkEdit = el.querySelector('[data-linkedit]');
-    if(linkEdit) linkEdit.addEventListener('click', ()=> openChecklistLinkModal(idx));
   });
 
   const wrap = document.getElementById('checklistAddWrap');
@@ -6871,72 +6885,45 @@ function renderChecklist(){
 
 docRef('checklist').onSnapshot(doc=>{ checklistData = doc.exists ? doc.data() : {items:[]}; renderChecklist(); });
 
-function openChecklistItemSubtitleModal(idx){
+// 항목의 텍스트/부제목/링크를 따로따로 열던 모달 두 개를 하나로 합침 —
+// 세 필드를 한 화면에서 같이 보고 한 번에 저장/삭제할 수 있게 함
+function openChecklistItemModal(idx){
   const cur = (checklistData.items||[])[idx];
   if(!cur) return;
+  const text = cur.text || '';
   const subtitle = cur.subtitle || '';
+  const link = cur.link || '';
   openModal(`
-    <h3>항목 부제목</h3>
+    <h3>항목 수정</h3>
+    <label>내용</label>
+    <input type="text" id="ckItemText" value="${escapeHtml(text)}" placeholder="항목 내용">
     <label>부제목 (선택 — 항목 아래에 작게 표시돼요)</label>
-    <input type="text" id="checkItemSubInput" value="${escapeHtml(subtitle)}" placeholder="예: 8월 말까지">
+    <input type="text" id="ckItemSub" value="${escapeHtml(subtitle)}" placeholder="예: 8월 말까지">
+    <label>링크 (선택 — 구글드라이브 공유 링크 등)</label>
+    <input type="url" id="ckItemLink" value="${escapeHtml(link)}" placeholder="https://...">
     <div class="modal-actions">
-      ${subtitle ? `<button class="btn danger" id="d" type="button">지우기</button>` : ''}
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">저장</button>
     </div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
-    const delBtn = m.querySelector('#d');
-    if(delBtn) delBtn.onclick = async ()=>{
-      const arr = [...checklistData.items];
-      arr[idx] = { ...arr[idx], subtitle:'' };
-      await docRef('checklist').set({items:arr}, {merge:true});
-      closeModal();
-    };
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
-      const subtitle = m.querySelector('#checkItemSubInput').value.trim();
+      const newText = m.querySelector('#ckItemText').value.trim();
+      if(!newText) return;
+      const newSub = m.querySelector('#ckItemSub').value.trim();
+      const newLink = m.querySelector('#ckItemLink').value.trim();
       saveBtn.disabled = true;
       saveBtn.textContent = '저장 중…';
       try{
         const arr = [...checklistData.items];
-        arr[idx] = { ...arr[idx], subtitle };
+        arr[idx] = { ...arr[idx], text: newText, subtitle: newSub, link: newLink };
         await docRef('checklist').set({items:arr}, {merge:true});
       }catch(err){
         toast('저장하지 못했어요');
         saveBtn.disabled = false; saveBtn.textContent = '저장';
         return;
       }
-      closeModal();
-    };
-  });
-}
-
-function openChecklistLinkModal(idx){
-  const cur = (checklistData.items||[])[idx];
-  if(!cur) return;
-  openModal(`
-    <h3>항목 링크</h3>
-    <label>연결할 링크 (구글드라이브 공유 링크 등)</label>
-    <input type="url" id="ckLink" placeholder="https://..." value="${escapeHtml(cur.link||'')}">
-    <div class="modal-actions">
-      ${cur.link ? `<button class="btn danger" id="rm">링크 삭제</button>` : ''}
-      <button class="btn ghost" id="c">취소</button>
-      <button class="btn primary" id="s">저장</button>
-    </div>
-  `, m=>{
-    m.querySelector('#c').onclick = closeModal;
-    if(m.querySelector('#rm')) m.querySelector('#rm').onclick = async ()=>{
-      const arr = [...checklistData.items];
-      arr[idx] = { ...arr[idx], link: '' };
-      await docRef('checklist').set({items:arr}, {merge:true});
-      closeModal();
-    };
-    m.querySelector('#s').onclick = async ()=>{
-      const link = m.querySelector('#ckLink').value.trim();
-      const arr = [...checklistData.items];
-      arr[idx] = { ...arr[idx], link };
-      await docRef('checklist').set({items:arr}, {merge:true});
       closeModal();
     };
   });
@@ -7133,6 +7120,11 @@ function initBoardTabs(){
 let stickerPosData = { positions: {} };
 const stickerEls = {}; // slot -> { root, avatarEl, bubbleEl, bubbleTextEl, bubbleTimer, dragging }
 const STICKER_W = 160, STICKER_H = 206;
+// 캐릭터1(slot 0)이 캐릭터2(slot 1)보다 120% 크게 보이도록 하는 배율.
+// style.css의 .site-sticker[data-slot="0"] 크기(192×247, 미디어쿼리 110×142)와
+// 반드시 같은 값을 유지해야 함 — 여기서 배치를 계산할 때도 이 배율로 캐릭터1의
+// 실제 렌더 폭을 추정하기 때문.
+const STICKER_SCALE_0 = 1.2;
 
 // 접속(새로고침)할 때마다 등장하는 한 쌍(멧돼지+사슴)이 랜덤하게 바뀌도록,
 // 데이터가 있는 모든 AU×시점/IF 조합 중 하나를 세션당 한 번만 랜덤으로 골라 고정해둠
@@ -7236,16 +7228,27 @@ function scheduleBothStickerBubbles(){
 // 크기(root.offsetWidth)에 비례해서 계산함 — 화면이 좁아지면 미디어쿼리로
 // 스티커 자체가 92px까지 작아지는데, 간격을 고정 px로 두면 스티커는 작아지는데
 // 둘 사이 거리는 그대로라 오히려 서로 멀어져 보이는 문제가 있었음.
+// 단, 캐릭터2(slot 1)의 가로 오프셋(hGap)만은 slot 1 자신이 아니라 캐릭터1
+// (slot 0, 120% 확대되어 더 넓음)의 실제 렌더 폭을 기준으로 잡아야 함 —
+// 안 그러면 커진 캐릭터1 박스와 원래 의도(15px 정도만 살짝 겹침)보다 훨씬 크게
+// 겹쳐서 캐릭터2가 상당 부분 가려 보임.
 function positionStickerDefault(root, slot){
-  const actualW = root.offsetWidth || STICKER_W;
-  const scale = actualW / STICKER_W;
-  const leftMargin = 64 * scale, topClearance = 92 * scale, hGap = (STICKER_W - 15) * scale, vGap = 54 * scale;
+  const actualW = root.offsetWidth || (slot === 0 ? STICKER_W * STICKER_SCALE_0 : STICKER_W);
+  const scale = actualW / (slot === 0 ? STICKER_W * STICKER_SCALE_0 : STICKER_W);
+  const leftMargin = 64 * scale, topClearance = 92 * scale, vGap = 54 * scale;
   const anchorLeft = leftMargin;
   const anchorTop = topClearance;
-  const defaultLeft = slot === 1 ? anchorLeft + hGap : anchorLeft;
-  const defaultTop = slot === 1 ? anchorTop + vGap : anchorTop;
-  root.style.left = defaultLeft + 'px';
-  root.style.top = defaultTop + 'px';
+  if(slot === 1){
+    const slot0Root = stickerEls[0] && stickerEls[0].root;
+    const slot0W = (slot0Root && slot0Root.offsetWidth) || (STICKER_W * STICKER_SCALE_0 * scale);
+    const overlap = 15 * scale;
+    const hGap = slot0W - overlap;
+    root.style.left = (anchorLeft + hGap) + 'px';
+    root.style.top = (anchorTop + vGap) + 'px';
+  } else {
+    root.style.left = anchorLeft + 'px';
+    root.style.top = anchorTop + 'px';
+  }
   stickerClamp(root);
 }
 
@@ -7267,6 +7270,9 @@ function ensureStickerEl(slot){
   if(stickerEls[slot]) return stickerEls[slot];
   const root = document.createElement('div');
   root.className = 'site-sticker';
+  // 캐릭터1(slot 0)이 캐릭터2(slot 1)보다 120% 크게 보이도록 CSS에서
+  // data-slot="0" 전용 크기를 적용함(위 style.css .site-sticker[data-slot="0"])
+  root.dataset.slot = String(slot);
   root.innerHTML = `
     <div class="sticker-bubble" id="stickerBubble${slot}"><span class="sticker-bubble-text"></span></div>
     <div class="sticker-avatar" id="stickerAvatar${slot}"></div>
@@ -7398,22 +7404,6 @@ function normalizeSpeechTab(t){
 
 async function saveSpeechWidget(){
   await docRef('speechWidget').set({ tabs: speechWidgetData.tabs, cover: speechWidgetData.cover });
-}
-
-// px, py는 스테이지 기준 0~100 퍼센트 좌표
-function speechPointInRegion(region, px, py){
-  if(region.shape === 'box'){
-    const p = region.points || {};
-    return px >= p.x && px <= p.x + p.w && py >= p.y && py <= p.y + p.h;
-  }
-  const pts = region.points || [];
-  let inside = false;
-  for(let i=0, j=pts.length-1; i<pts.length; j=i++){
-    const xi=pts[i].x, yi=pts[i].y, xj=pts[j].x, yj=pts[j].y;
-    const hit = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi || 0.0001) + xi);
-    if(hit) inside = !inside;
-  }
-  return inside;
 }
 
 function speechRegionSvgShape(region, className){

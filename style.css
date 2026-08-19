@@ -316,22 +316,11 @@ body::before{
   mask-size: contain;
   filter: drop-shadow(0 6px 20px rgba(0,0,0,0.5)) drop-shadow(0 2px 8px rgba(0,0,0,0.4));
 }
-.site-name{
-  font-family: 'Zhi Mang Xing', var(--font-display), cursive;
-  font-size: clamp(3.2rem, 8vw, 6.5rem);
-  font-weight: 400;
-  line-height: 0.95;
-  letter-spacing: .01em;
-  color: #FBF7F8;
-  text-shadow: 0 6px 30px rgba(0,0,0,0.55), 0 2px 10px rgba(0,0,0,0.45);
-}
-.site-name[contenteditable="true"]:hover{ background: rgba(255,255,255,0.1); cursor:text; border-radius:8px; }
 /* 모바일에서는 배너가 화면 세로 공간을 지나치게 많이 차지해서(560px 고정) 위젯들을
    보기까지 스크롤이 길어졌음 → 배너 높이를 훨씬 낮추고, 제목 폰트/여백도 그에 맞춰 줄임 */
 @media (max-width: 900px){
   .site-banner{ height: 190px; }
   .banner-bottom{ padding: 15px 18px 15px; gap:10px; }
-  .site-name{ font-size: clamp(1.9rem, 10vw, 3rem); }
   .site-name-img{ height: 95px; width: 179px; }
 }
 .btn{
@@ -811,7 +800,7 @@ body::before{
   position:absolute; left:50%; bottom:0; transform: translate(-50%, 6px) scale(.95);
   max-width: min(260px, 70vw); width:max-content;
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color:#FBF7F8;
+  background: rgba(20,9,11,0.5); color:var(--badge-ink);
   border-radius:18px; padding:13px 18px 22px 18px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.22)) drop-shadow(0 12px 28px rgba(0,0,0,0.32));
@@ -2043,33 +2032,11 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .pin-item:hover img{ transform: scale(1.03); }
 .pin-item.blurred img{ filter: blur(22px) saturate(1.1); transform: scale(1.12); }
 .pin-item.blurred:hover img{ transform: scale(1.16); }
-/* 블러 처리된 썸네일 위의 어두운 톤(문구는 .pin-blur-label이 별도 요소로 얹음) */
+/* 블러 처리된 썸네일 위에 얹는 어두운 톤 */
 .pin-item.blurred::after{
   content:""; position:absolute; inset:0; z-index:1;
   background: rgba(0,0,0,0.12); pointer-events:none;
 }
-/* 블러된 썸네일 위에 얹는 문구(기본 "눌러서 보기" 또는 직접 입력한 문구) +
-   편집모드에서만 보이는 문구 편집 버튼(✎). 문구 자체는 클릭이 그대로 타일을
-   통과해 라이트박스가 열리도록 pointer-events:none, 편집 버튼만 다시 켜줌 */
-.pin-blur-label{
-  position:absolute; inset:0; z-index:2;
-  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
-  padding:8px; text-align:center; pointer-events:none;
-}
-.pin-blur-label-text{
-  font-size:.72rem; color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.6);
-  word-break:break-word;
-}
-.pin-blur-edit-btn{
-  pointer-events:auto;
-  width:22px; height:22px; border-radius:50%; border:1px solid var(--card-border);
-  background: rgba(15,4,6,0.6); backdrop-filter: var(--glass-blur-med); -webkit-backdrop-filter: var(--glass-blur-med);
-  color:#fff; font-size:.65rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
-}
-.pin-blur-edit-btn:hover{ background: rgba(15,4,6,0.85); }
-.pin-item-dense .pin-blur-label{ gap:3px; padding:4px; }
-.pin-item-dense .pin-blur-label-text{ font-size:.6rem; }
-.pin-item-dense .pin-blur-edit-btn{ width:18px; height:18px; font-size:.55rem; }
 .pin-blur-btn{
   position:absolute; top:8px; right:8px; z-index:2;
   width:28px; height:28px; border-radius:50%; border:1px solid var(--card-border);
@@ -2434,6 +2401,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .check-item:hover{ background: rgba(var(--row-tint),0.07); }
 .check-item input[type=checkbox]{ width:16px; height:16px; accent-color: var(--rose); flex:0 0 auto; }
 .check-item-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+/* 편집모드에서는 항목 전체(텍스트+부제목)를 눌러 한 번에 수정 모달을 열 수 있음 */
+.check-item-main[data-itemedit]{ cursor:pointer; border-radius:6px; padding:0 3px; margin:0 -3px; transition: background .15s ease; }
+.check-item-main[data-itemedit]:hover{ background: rgba(var(--row-tint),0.06); }
 .check-item-text{ overflow-wrap:break-word; }
 .check-item-text.has-link{ cursor:pointer; color: var(--rose); }
 .check-item-text.has-link::after{ content:'↗'; font-size:.7em; opacity:.65; margin-left:3px; }
@@ -2725,6 +2695,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   position: fixed; width: 160px; height: 206px; z-index: 150;
   touch-action: none; user-select: none; cursor: grab;
 }
+/* 캐릭터1(slot 0)이 캐릭터2(slot 1)보다 120%(1.2배) 크게 보이도록,
+   기본 크기(160×206) 대비 slot 0 전용 크기를 따로 둠 */
+.site-sticker[data-slot="0"]{ width: 192px; height: 247px; }
 .site-sticker.dragging{ cursor: grabbing; transition: none; }
 /* 이미지 자체(투명 배경 포함)만 떠 보이게, 뒤에 깔리던 블러/배경색/그림자를 다 없앰 */
 .sticker-avatar{
@@ -2757,7 +2730,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
      그때그때 텍스트에 맞춰 마지막 줄에 글자 한두 개만 남는 것(orphan)을
      브라우저가 지원하는 선에서 알아서 피해줌 */
   word-break:keep-all; overflow-wrap:break-word; white-space:normal; text-wrap:pretty;
-  background: rgba(20,9,11,0.5); color:#FBF7F8;
+  background: rgba(20,9,11,0.5); color:var(--badge-ink);
   border-radius:16px; padding:9px 13px 17px 13px;
   backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   /* border+box-shadow 대신 filter:drop-shadow 두 개를 겹쳐서 씀 — clip-path로
@@ -2772,6 +2745,7 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .sticker-bubble.show{ opacity:1; transform: translate(-50%, 0) scale(1); }
 @media (max-width: 900px){
   .site-sticker{ width:92px; height:118px; }
+  .site-sticker[data-slot="0"]{ width:110px; height:142px; }
   .sticker-bubble{ max-width:104px; font-size:.76rem; padding:7px 10px 15px 10px; }
 }
 /* =========================================================
