@@ -409,7 +409,7 @@ function openOptionsManagerModal(storeName, currentOptions, onSaved){
   let workingOptions = [...(currentOptions||[])];
   openModal(`
     <h3>옵션 관리</h3>
-    <p class="hint">여기서 만든 옵션은 추가할 때 고를 수 있고, 옵션별로 필터링해서 모아볼 수 있어요.</p>
+    <p class="hint">추가할 때 고르거나 필터링할 옵션이에요.</p>
     <div class="opt-list" id="optList"></div>
     <div class="w-edit-row" style="display:flex;gap:6px;">
       <input type="text" id="optNew" placeholder="새 옵션">
@@ -570,7 +570,7 @@ function renderOptionFilterChips(container, options, active, onSelect){
 /* 옵션 여러 개를 체크박스로 동시에 고를 수 있게 하는 공용 UI.
    문서 위젯/모든 갤러리의 "추가" 모달과 항목별 옵션 지정 모달에서 공용으로 씀 */
 function renderOptionCheckboxes(options, selected){
-  if(!options || !options.length) return `<p class="hint">등록된 옵션이 없어요. 먼저 "⚙ 옵션 관리"에서 옵션을 추가해주세요.</p>`;
+  if(!options || !options.length) return `<p class="hint">등록된 옵션이 없어요. "⚙ 옵션 관리"에서 추가해주세요.</p>`;
   const sel = selected || [];
   return `<div class="opt-checkbox-group">${options.map(o=> `
     <label class="opt-checkbox">
@@ -588,9 +588,8 @@ function getCheckedOptionValues(container){
 function openItemOptEditModal(currentOpts, optionsList, onSave){
   openModal(`
     <h3>옵션 지정</h3>
-    <p class="hint">여러 개를 한꺼번에 고를 수 있어요.</p>
     <div id="itemOptBox">${renderOptionCheckboxes(optionsList, currentOpts)}</div>
-    <p class="hint">옵션 목록 자체를 늘리거나 고치려면 위젯의 "⚙ 옵션 관리"를 이용해주세요.</p>
+    <p class="hint">옵션 추가/수정은 "⚙ 옵션 관리"에서.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -606,9 +605,9 @@ function openItemOptEditModal(currentOpts, optionsList, onSave){
 function openBulkOptAddModal(optionsList, onSave){
   openModal(`
     <h3>선택한 사진에 태그 추가</h3>
-    <p class="hint">선택한 사진들에 아래 태그를 추가해요. 기존 태그는 그대로 유지돼요.</p>
+    <p class="hint">기존 태그는 유지한 채 추가돼요.</p>
     <div id="bulkOptBox">${renderOptionCheckboxes(optionsList, [])}</div>
-    <p class="hint">옵션 목록 자체를 늘리거나 고치려면 위젯의 "⚙ 옵션 관리"를 이용해주세요.</p>
+    <p class="hint">옵션 추가/수정은 "⚙ 옵션 관리"에서.</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -1835,10 +1834,10 @@ bannerEditBtn.addEventListener('click', async ()=>{
     <h3>배너 편집 <span style="font-size:.7rem;font-weight:400;color:var(--ink-soft);">(${siteMode === 'light' ? '라이트모드' : '다크모드'})</span></h3>
     <label>배너 사진 올리기 (기기에서 바로 선택)</label>
     <input type="file" id="bImgFile" accept="image/*">
-    <p class="hint">기기의 사진을 바로 선택하면 화면에 맞게 자동으로 압축해서 저장해요. 별도 사이트에 올릴 필요 없어요.</p>
+    <p class="hint">선택하면 자동으로 압축해서 저장돼요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="bImg" placeholder="https://..." value="${curIsUrl ? cur.image : ''}">
-    <p class="hint">imgbb.com, postimages.org 등에 올린 "직접 링크" 주소를 붙여넣어도 돼요. 위에서 사진을 선택하면 이 URL 입력은 무시돼요.</p>
+    <p class="hint">직접 링크 URL도 가능해요. (사진 선택 시 이 입력은 무시돼요)</p>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
@@ -1884,7 +1883,7 @@ bgEditBtn.addEventListener('click', async ()=>{
   const curIsUrl = cur.image && !cur.image.startsWith('data:');
   openModal(`
     <h3>홈페이지 배경 이미지 <span style="font-size:.7rem;font-weight:400;color:var(--ink-soft);">(${siteMode === 'light' ? '라이트모드' : '다크모드'})</span></h3>
-    <p class="hint">배너와는 별개로, 사이트 전체 뒤에 깔리는 배경이에요. 위젯들이 반투명 유리 카드라 배경이 은은하게 비쳐 보여요.</p>
+    <p class="hint">배너와 별개로 사이트 전체 뒤에 깔리는 배경이에요.</p>
     <label>배경 사진 올리기 (기기에서 바로 선택)</label>
     <input type="file" id="bgImgFile" accept="image/*">
     <label>또는, 이미지 URL 직접 입력</label>
@@ -2365,7 +2364,7 @@ globalStyleBtn.addEventListener('click', async ()=>{
       <input type="range" id="tCardBgAlpha" min="0" max="90" value="${cardBgAlphaPct}" style="flex:1;">
       <span id="tCardBgAlphaLabel" style="font-size:.78rem;color:var(--ink-soft);min-width:34px;">${cardBgAlphaPct}%</span>
     </div>
-    <p class="hint">투명도를 낮출수록(왼쪽) 배경이 카드 뒤로 더 비쳐서 유리 느낌이 강해져요.</p>
+    <p class="hint">왼쪽일수록 배경이 더 비쳐요.</p>
     <label>글자색</label>
     <div class="color-row"><input type="color" id="tInk" value="${cur.ink}"></div>
     <label>제목 폰트</label>
@@ -2375,10 +2374,10 @@ globalStyleBtn.addEventListener('click', async ()=>{
 
     <label style="margin-top:16px;">커스텀 폰트 파일로 전체 글자체 통일 (선택)</label>
     <input type="file" id="tFontUpload" accept=".ttf,.otf,font/ttf,font/otf">
-    <p class="hint">폰트 파일을 올리면 위에서 고른 제목/본문 폰트 대신, 사이트 전체 글자체가 이 폰트 하나로 통일돼요. 500KB 이하 파일만 여기서 바로 올릴 수 있어요.</p>
+    <p class="hint">올리면 제목/본문 폰트 대신 이 폰트로 통일돼요. (500KB 이하만 가능)</p>
     <label>또는, GitHub의 fonts 폴더에 직접 올린 폰트 파일명</label>
     <input type="text" id="tFontFileName" placeholder="예: ZenSerif.ttf" value="${escapeHtml(saved.customFontFile||'')}">
-    <p class="hint">500KB보다 큰 폰트는 저장소의 fonts 폴더에 파일을 올린 뒤, 정확한 파일 이름만 여기에 입력해주세요.</p>
+    <p class="hint">500KB보다 크면 fonts 폴더에 올린 뒤 파일명만 입력해주세요.</p>
     <div style="margin-top:6px;">
       <button class="btn small ghost" id="tFontClear" type="button">커스텀 폰트 해제 (기본 ZEN SERIF로)</button>
     </div>
@@ -2603,7 +2602,7 @@ function openImageCaptionModal(idx, items){
   const c = cur.captions || {};
   openModal(`
     <h3>사진 위 문구</h3>
-    <p class="hint">사진 네 모서리에 각각 문구를 넣을 수 있어요. 비워두면 그 자리엔 문구가 안 보여요.</p>
+    <p class="hint">비워두면 그 자리엔 문구가 안 보여요.</p>
     <label>좌상단</label>
     <textarea id="capTL" style="min-height:50px;">${escapeHtml(c.tl||'')}</textarea>
     <label>우상단</label>
@@ -2634,7 +2633,7 @@ function openImagesAddModal(){
     <h3>사진 추가</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
     <input type="file" id="imgFiles" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 슬라이드에 바로 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
+    <p class="hint">자동으로 압축해서 추가돼요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="imgUrl" placeholder="https://...">
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
@@ -3462,7 +3461,7 @@ function bindProfile(slides){
 // 필드 구성 자체는 예전 모달의 한 컬럼(profile-edit-col)과 동일하게 그대로 묶어서 둠.
 function profileBasicEditPanelHtml(slot, pf, personBulk, bulkNote){
   const bulkToggle = (cls, label, checked)=> bulkNote
-    ? `<label class="pe-bulk-row"><input type="checkbox" class="${cls}" ${checked ? 'checked' : ''}> ${escapeHtml(label)}, 이 AU의 다른 시점/IF에도 똑같이 적용</label>`
+    ? `<label class="pe-bulk-row" title="${escapeHtml(label)}을(를) 이 AU의 다른 시점/IF에도 함께 적용"><input type="checkbox" class="${cls}" ${checked ? 'checked' : ''}> 일괄적용</label>`
     : '';
   const cachedAvatar = pf.avatarChunked ? (chunkedImageCache.get(pf.avatarFileId) || '') : (pf.avatar || '');
   const hasAvatar = pf.avatarChunked || !!pf.avatar;
@@ -3633,7 +3632,7 @@ function profileFieldsEditRowsHtml(list, bulkNote){
 function profileFieldsEditPanelHtml(slot, draftFields, bulkNote){
   return `
     <div class="profile-fields-edit-panel" data-slot="${slot}">
-      <p class="hint">나이·생년월일·키/몸무게·BWH는 숫자만 넣으면 자동 정리, 성격은 쉼표로 구분하면 해시태그로 표시돼요.${bulkNote ? ' 체크박스를 켜면 그 항목만 이 AU의 다른 시점/IF에도 함께 적용돼요.' : ''}</p>
+      <p class="hint">나이·생년월일·키/몸무게·BWH는 숫자만, 성격은 쉼표로 구분하면 해시태그로 표시돼요.</p>
       <div class="pf-edit-list">${profileFieldsEditRowsHtml(draftFields, bulkNote)}</div>
       <div class="pf-edit-add-row">
         <button type="button" class="btn small ghost pf-add-field">+ 항목 추가</button>
@@ -3729,8 +3728,8 @@ function openProfileSlideModal(slideIdx, slides){
       <label class="sec-kind-opt"><input type="radio" name="slKind" value="timeline" ${slide.kind === 'timeline' ? 'checked' : ''}> 시점 (연대기 흐름)</label>
       <label class="sec-kind-opt"><input type="radio" name="slKind" value="if" ${slide.kind !== 'timeline' ? 'checked' : ''}> IF (가정)</label>
     </div>
-    <p class="hint">"시점"으로 설정하면 이 AU 안의 시점/IF들이 아래에서 점 나열 대신 타임라인 모양으로 보여요. 이 구분은 AU 전체에 한 번에 적용돼요.</p>
-    <p class="hint">시점/IF 이름은 카드에서 그 부분을 눌러서, 키/몸무게·성격 같은 정보는 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
+    <p class="hint">"시점"으로 하면 타임라인 모양으로 보여요. (AU 전체에 적용)</p>
+    <p class="hint">이름은 카드에서, 세부 정보는 프로필 이름 아래를 눌러 편집해요.</p>
     <div class="modal-actions">
       ${canDelete ? `<button class="btn danger" id="d" type="button">이 AU 전체 삭제</button>` : ''}
       <button class="btn ghost" id="c">취소</button>
@@ -3785,7 +3784,7 @@ function openProfileSectionOrderModal(slideIdx, slides){
   };
   openModal(`
     <h3>시점/IF ${isWidgetOpen('profile') ? '순서 편집' : '목록'}</h3>
-    <p class="hint">${isWidgetOpen('profile') ? '▲▼로 순서를 옮기면 바로 저장돼요. ☆를 누르면 이 AU를 열었을 때 처음 보여줄 시점/IF로 지정돼요(지정 안 하면 첫 번째가 보여요).' : '눌러서 그 시점/IF로 바로 이동할 수 있어요.'}</p>
+    <p class="hint">${isWidgetOpen('profile') ? '드래그로 순서를 바꾸고, ☆로 기본 시점/IF를 정해요.' : '눌러서 그 시점/IF로 바로 이동할 수 있어요.'}</p>
     <div id="secOrderList" class="sec-order-list">${renderRows()}</div>
     <div class="modal-actions">
       <button class="btn primary" id="s">닫기</button>
@@ -3850,7 +3849,7 @@ function openProfileSectionAddModal(slideIdx, slides){
     <input type="text" id="secName" value="" placeholder="비워두면 이름 없이 보여요">
     <label style="margin-top:10px;">짧은 설명 (선택 — 이 시점/IF가 어떤 상황인지 한두 줄로)</label>
     <textarea id="secDesc" rows="3" placeholder="예: 두 사람이 아직 서로 어색하던 시절"></textarea>
-    <p class="hint">키/몸무게·성격 같은 정보 항목은 추가한 뒤 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요.</p>
+    <p class="hint">세부 정보는 추가한 뒤 프로필 이름 아래를 눌러 편집해요.</p>
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">추가</button>
@@ -3933,7 +3932,7 @@ function openProfileSectionModal(slideIdx, secIdx, slides){
     <input type="text" id="secName" value="${escapeHtml(section.name)}" placeholder="비워두면 이름 없이 보여요">
     <label style="margin-top:10px;">짧은 설명 (선택 — 이 시점/IF가 어떤 상황인지 한두 줄로)</label>
     <textarea id="secDesc" rows="3" placeholder="예: 두 사람이 아직 서로 어색하던 시절">${escapeHtml(section.desc || '')}</textarea>
-    <p class="hint">키/몸무게·성격 같은 정보 항목은 각 프로필 이름 아래 영역을 눌러서 따로 편집할 수 있어요. 이 시점/IF를 삭제하려면 창을 닫고 제목 옆 ✕ 버튼을 눌러주세요.</p>
+    <p class="hint">세부 정보는 프로필 이름 아래를 눌러 편집해요. 삭제는 제목 옆 ✕ 버튼으로.</p>
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">저장</button>
@@ -4424,7 +4423,7 @@ function openMusicTrackModal(existing){
     <h3>${isEdit ? '곡 수정' : '곡 추가'}</h3>
     <label>곡 제목</label><input type="text" id="mTitle" value="${isEdit ? escapeHtml(existing.title) : ''}">
     <label>아티스트 (선택)</label><input type="text" id="mArtist" value="${isEdit ? escapeHtml(existing.artist||'') : ''}">
-    ${isEdit ? `<p class="hint">현재 음원: ${currentSourceDesc}. 그대로 두거나 아래에서 바꿀 수 있어요.</p>` : ''}
+    ${isEdit ? `<p class="hint">현재 음원: ${currentSourceDesc}</p>` : ''}
     <div class="radio-row">
       ${isEdit ? `<label><input type="radio" name="music-src" value="keep" checked> 그대로 유지</label>` : ''}
       <label><input type="radio" name="music-src" value="youtube" ${!isEdit ? 'checked' : ''}> 유튜브 링크</label>
@@ -4435,15 +4434,14 @@ function openMusicTrackModal(existing){
     </div>
     <div id="mMp3LinkWrap" style="display:none">
       <label>mp3 직링크</label><input type="url" id="mMp3Link" placeholder="https://.../song.mp3">
-      <p class="hint">누르면 바로 재생되는 mp3 파일 주소를 넣어주세요. 구글드라이브 등 대부분의 공유 링크는 재생이 안 될 수 있어요.</p>
+      <p class="hint">바로 재생되는 mp3 주소만 가능해요. (구글드라이브 등 공유 링크는 대부분 안 돼요)</p>
     </div>
     <label style="margin-top:6px;">자켓 이미지 (선택 — 비워두면 투명하게 보여요, 움직이는 GIF도 가능)</label>
     <input type="file" id="mCoverFile" accept="image/*">
-    <p class="hint">움직이는 GIF는 최대 ${Math.round(COVER_CHUNKED_MAX_BYTES/1024/1024)}MB까지 올릴 수 있어요. (용량이 크면 자동으로 나눠 저장하고, 불러올 때 몇 초 더 걸릴 수 있어요)</p>
+    <p class="hint">GIF는 최대 ${Math.round(COVER_CHUNKED_MAX_BYTES/1024/1024)}MB까지 가능해요.</p>
     <label style="margin-top:6px;">또는 이미지 URL</label>
     <input type="url" id="mCoverUrl" placeholder="https://...">
-    ${isEdit && (existing.cover || existing.coverChunked) ? `<div class="mp-modal-cover-preview" id="mCoverPreviewWrap">${existing.cover ? `<img src="${existing.cover}" alt="">` : `<p class="hint">현재 자켓: 저장된 이미지 (용량이 커서 미리보기는 생략돼요)</p>`}<button type="button" class="btn ghost small" id="mCoverClear">이미지 지우기</button></div>` : ''}
-    <p class="hint">유튜브 링크와 mp3 링크를 지원해요. 자켓 이미지는 비워둬도 괜찮아요.</p>
+    ${isEdit && (existing.cover || existing.coverChunked) ? `<div class="mp-modal-cover-preview" id="mCoverPreviewWrap">${existing.cover ? `<img src="${existing.cover}" alt="">` : `<p class="hint">현재 자켓: 저장된 이미지</p>`}<button type="button" class="btn ghost small" id="mCoverClear">이미지 지우기</button></div>` : ''}
     <div class="modal-actions">
       <button class="btn ghost" id="c">취소</button>
       <button class="btn primary" id="s">${isEdit ? '저장' : '추가'}</button>
@@ -4884,7 +4882,7 @@ function openDayModal(dateStr){
   }
   openModal(`
     <h3>${dateStr} 일정</h3>
-    ${ddayMarks.length ? `<p class="hint">🎉 디데이 연동: ${escapeHtml(ddayMarks.join(', '))} (자동으로 표시되는 항목이라 여기서 지울 필요 없어요)</p>` : ''}
+    ${ddayMarks.length ? `<p class="hint">🎉 디데이 연동: ${escapeHtml(ddayMarks.join(', '))} (자동 표시, 지울 필요 없어요)</p>` : ''}
     <label>내용 (줄바꿈으로 여러 개 가능)</label>
     <textarea id="evText">${escapeHtml(manual.join('\n'))}</textarea>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
@@ -5440,12 +5438,12 @@ function openGalleryAddModal(){
     <h3>사진 추가</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
     <input type="file" id="galFiles" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 갤러리 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
+    <p class="hint">자동으로 압축해서 맨 앞에 추가돼요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="galUrl" placeholder="https://...">
     <label>옵션 (분류, 여러 개 선택 가능)</label>
     <div id="galOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
+    <p class="hint">고른 옵션이 여러 장 전부에 적용돼요. (옵션 추가는 "⚙ 옵션 관리")</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="galBlur" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">미리보기 방지</span>
@@ -5764,12 +5762,12 @@ function openGallery2AddModal(){
     <h3>사진 추가</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
     <input type="file" id="gal2Files" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 갤러리 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
+    <p class="hint">자동으로 압축해서 맨 앞에 추가돼요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="gal2Url" placeholder="https://...">
     <label>옵션 (분류, 여러 개 선택 가능)</label>
     <div id="gal2OptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
+    <p class="hint">고른 옵션이 여러 장 전부에 적용돼요. (옵션 추가는 "⚙ 옵션 관리")</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="gal2Blur" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">미리보기 방지</span>
@@ -6108,12 +6106,12 @@ function openRefGalleryAddModal(){
     <h3>레퍼런스 사진 추가</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
     <input type="file" id="refGalFiles" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 맨 앞에 추가돼요. 별도 사이트에 올릴 필요 없어요.</p>
+    <p class="hint">자동으로 압축해서 맨 앞에 추가돼요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="refGalUrl" placeholder="https://...">
     <label>옵션 (분류, 여러 개 선택 가능)</label>
     <div id="refGalOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">여러 장을 한 번에 올리면 여기서 고른 옵션이 전부에 적용돼요. 옵션 목록은 "⚙ 옵션 관리"에서 추가할 수 있어요.</p>
+    <p class="hint">고른 옵션이 여러 장 전부에 적용돼요. (옵션 추가는 "⚙ 옵션 관리")</p>
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
       <input type="checkbox" id="refGalGroup" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(칸 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
@@ -6253,7 +6251,6 @@ function renderVideos(){
 function openVideoAddModal(){
   openModal(`
     <h3>영상 추가</h3>
-    <p class="hint">유튜브 링크를 넣으면 목록에 추가돼요.</p>
     <label>유튜브 링크</label>
     <input type="url" id="vUrl" placeholder="https://youtu.be/... 또는 https://www.youtube.com/watch?v=...">
     <label>제목 (선택)</label>
@@ -6386,7 +6383,7 @@ function openDocAddModal(){
     <label>설명 (선택)</label><input type="text" id="dcDesc" placeholder="한 줄 설명">
     <label>옵션 (부제, 여러 개 선택 가능)</label>
     <div id="dcOptBox">${renderOptionCheckboxes(docOptionsData.options, [])}</div>
-    <p class="hint">옵션 목록은 아래쪽 "⚙ 옵션 관리"에서 직접 추가/수정할 수 있어요.</p>
+    <p class="hint">옵션 추가/수정은 "⚙ 옵션 관리"에서.</p>
     <div class="radio-row">
       <label><input type="radio" name="doc-src" value="link" checked> 링크로 연결</label>
       <label><input type="radio" name="doc-src" value="file"> 파일 올리기</label>
@@ -6396,7 +6393,7 @@ function openDocAddModal(){
     </div>
     <div id="dcFileWrap" style="display:none">
       <label>파일 선택</label><input type="file" id="dcFile">
-      <p class="hint">약 ${Math.round(DOC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 파이어스토리지 없이 바로 올릴 수 있어요. 그보다 크면 "링크로 연결"을 이용해주세요. (용량이 크면 저장/열기에 몇 초 더 걸릴 수 있어요)</p>
+      <p class="hint">최대 ${Math.round(DOC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 가능해요. (넘으면 "링크로 연결" 이용)</p>
     </div>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
@@ -6478,7 +6475,7 @@ function openDocEditModal(idx){
     <label>설명 (선택)</label><input type="text" id="dcDesc" value="${escapeHtml(c.desc||'')}">
     <label>옵션 (부제, 여러 개 선택 가능)</label>
     <div id="dcOptEBox">${renderOptionCheckboxes(docOptionsData.options, c.opts || (c.opt ? [c.opt] : []))}</div>
-    <p class="hint">현재 연결: ${currentDesc}. 그대로 두거나 아래에서 바꿀 수 있어요.</p>
+    <p class="hint">현재 연결: ${currentDesc}</p>
     <div class="radio-row">
       <label><input type="radio" name="doc-src-e" value="keep" checked> 그대로 유지</label>
       <label><input type="radio" name="doc-src-e" value="link"> 링크로 바꾸기</label>
@@ -6489,7 +6486,7 @@ function openDocEditModal(idx){
     </div>
     <div id="dcFileWrapE" style="display:none">
       <label>파일 선택</label><input type="file" id="dcFileE">
-      <p class="hint">약 ${Math.round(DOC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 가능해요.</p>
+      <p class="hint">최대 ${Math.round(DOC_FILE_CHUNKED_MAX_BYTES/1024/1024)}MB까지 가능해요.</p>
     </div>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">저장</button></div>
   `, m=>{
@@ -6663,7 +6660,7 @@ function openSessionAddModal(){
     <h3>자료 추가</h3>
     <label>썸네일 이미지 (사진 한 장)</label>
     <input type="file" id="sThumbFile" accept="image/*">
-    <p class="hint">화면에 맞게 자동으로 압축해서 저장돼요. 카드에는 이 사진만 보여요.</p>
+    <p class="hint">자동으로 압축해서 저장돼요.</p>
     <label>제목 (선택 — 마우스를 올리면 보여요)</label><input type="text" id="sTitle" placeholder="예: 1화 - 첫 만남">
     <div class="radio-row">
       <label><input type="radio" name="pdf-src" value="none" checked> 연결 안 함</label>
@@ -6672,7 +6669,7 @@ function openSessionAddModal(){
     </div>
     <div id="pdfFileWrap" style="display:none">
       <label>PDF 파일</label><input type="file" id="sPdfFile" accept="application/pdf">
-      <p class="hint">약 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB까지 파이어스토리지 없이 바로 올릴 수 있어요. 그보다 크면 오른쪽 "링크로 연결"을 골라서 구글드라이브 공유 링크를 붙여넣어주세요. (용량이 크면 저장/열기에 몇 초 더 걸릴 수 있어요)</p>
+      <p class="hint">최대 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB까지 가능해요. (넘으면 "링크로 연결" 이용)</p>
     </div>
     <div id="pdfLinkWrap" style="display:none">
       <label>링크 (구글드라이브 공유 링크 등)</label><input type="url" id="sPdfLink" placeholder="https://drive.google.com/...">
@@ -6751,7 +6748,7 @@ function openSessionEditModal(idx){
     <label>제목 (선택 — 마우스를 올리면 보여요)</label><input type="text" id="sTitle" value="${escapeHtml(c.title||'')}">
     <label>썸네일 이미지 교체 (선택 — 비워두면 기존 사진 유지)</label>
     <input type="file" id="sThumbFileE" accept="image/*">
-    <p class="hint">현재 연결된 자료: ${pdfStatus}. 그대로 두거나 아래에서 바꿀 수 있어요.</p>
+    <p class="hint">현재 연결된 자료: ${pdfStatus}</p>
     <div class="radio-row">
       <label><input type="radio" name="pdf-src-e" value="keep" checked> 그대로 유지</label>
       <label><input type="radio" name="pdf-src-e" value="file"> PDF 파일로 바꾸기</label>
@@ -6759,7 +6756,7 @@ function openSessionEditModal(idx){
     </div>
     <div id="pdfFileWrapE" style="display:none">
       <label>PDF 파일</label><input type="file" id="sPdfFileE" accept="application/pdf">
-      <p class="hint">약 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB까지 가능해요.</p>
+      <p class="hint">최대 ${Math.round(SESSION_PDF_CHUNKED_MAX_BYTES/1024/1024)}MB까지 가능해요.</p>
     </div>
     <div id="pdfLinkWrapE" style="display:none">
       <label>링크 (구글드라이브 공유 링크 등)</label><input type="url" id="sPdfLinkE" placeholder="https://drive.google.com/...">
@@ -7768,7 +7765,7 @@ function openSpeechCoverEditor(){
 
   openModal(`
     <h3>위젯 카드 겉모습 설정</h3>
-    <p class="hint">여기서 설정하면 평소 화면의 카드가 캐릭터 미리보기 대신 이 사진 한 장으로 꽉 채워져요. 대사·탭 내용에는 영향 없어요.</p>
+    <p class="hint">카드가 이 사진 한 장으로 꽉 채워져요. (대사·탭 내용엔 영향 없음)</p>
     <div class="speech-editor-slot" id="scImgSlot">
       <input type="file" accept="image/png,image/jpeg,image/gif" id="scFile">
     </div>
@@ -7890,7 +7887,7 @@ function renderEditorTabBody(modal){
     <div class="speech-editor-tools">
       <label style="margin:0;"><input type="radio" name="seShape" value="box" checked> 박스로 그리기</label>
       <label style="margin:0;"><input type="radio" name="seShape" value="lasso"> 올가미로 그리기</label>
-      <span class="hint" style="margin:0;">가운데 이미지 위에서 드래그해서 영역을 그려주세요. 다 그리면 양옆에서 대사를 입력하고 저장해주세요.</span>
+      <span class="hint" style="margin:0;">이미지 위에서 드래그해 영역을 그리고, 양옆에 대사를 입력해주세요.</span>
     </div>
     <div class="speech-editor-layout" id="seLayout">
       <div class="speech-editor-side" data-char="0"><h4>캐릭터1</h4></div>
@@ -7992,7 +7989,7 @@ function renderTabActions(modal, tab, confirmingDelete){
   const wrap = modal.querySelector('#seTabActions');
   if(confirmingDelete){
     wrap.innerHTML = `
-      <span class="hint" style="margin:0;">이 탭을 정말 삭제할까요? 안의 이미지와 대사도 함께 사라져요.</span>
+      <span class="hint" style="margin:0;">이 탭을 삭제할까요? 이미지·대사도 함께 사라져요.</span>
       <button class="btn small danger" id="seDeleteConfirmBtn">삭제</button>
       <button class="btn small ghost" id="seDeleteCancelBtn">취소</button>
     `;
@@ -8753,7 +8750,7 @@ function openShakerManageModal(){
     </div>
     <label>사진 올리기 (여러 장 선택 가능)</label>
     <input type="file" id="shakerFiles" accept="image/*" multiple>
-    <p class="hint">화면에 맞게 자동으로 압축해서 쉐이커에 바로 추가돼요.</p>
+    <p class="hint">자동으로 압축해서 추가돼요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
     <input type="url" id="shakerUrl" placeholder="https://...">
     <div class="modal-actions"><button class="btn ghost" id="c">닫기</button><button class="btn primary" id="s">추가</button></div>
@@ -8846,7 +8843,7 @@ async function openShakerBgModal(){
   const curIsUrl = cur.frameBg && !cur.frameBg.startsWith('data:');
   openModal(`
     <h3>쉐이커 프레임 배경</h3>
-    <p class="hint">쉐이커 안쪽 프레임에만 적용되는 배경이에요. 비워두면 다른 위젯처럼 투명한 유리로 보여요.</p>
+    <p class="hint">비워두면 투명한 유리로 보여요.</p>
     <label>배경 사진 올리기</label>
     <input type="file" id="shakerBgFile" accept="image/*">
     <label>또는, 이미지 URL 직접 입력</label>
