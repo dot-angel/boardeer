@@ -7379,27 +7379,6 @@ async function renderSpeechCard(){
 
 /* ---------------- 방문자용 오버레이 ---------------- */
 
-/* html2canvas는 말풍선 오버레이를 열 때 배경을 한 장 캡쳐하는 용도로만 쓰이는데,
-   예전엔 <script> 태그로 모든 방문자에게 무조건 로드되고 있었음(위젯 탭만 보고
-   떠나는 방문자도 이 라이브러리를 전부 내려받은 것). 오버레이를 처음 열 때만
-   그 시점에 스크립트를 동적으로 끼워넣도록 바꿔서, 실제로 쓸 때만 불러오게 함.
-   이미 불러왔으면 다시 안 불러오고, 로딩 중에 또 열리면 같은 로딩을 같이 기다림.
-   실패해도(네트워크 문제 등) 조용히 false를 반환해서 기존과 동일하게 어두운
-   틴트만 남는 폴백으로 이어짐. */
-let _html2canvasLoadPromise = null;
-function ensureHtml2Canvas(){
-  if(typeof html2canvas === 'function') return Promise.resolve(true);
-  if(_html2canvasLoadPromise) return _html2canvasLoadPromise;
-  _html2canvasLoadPromise = new Promise(resolve=>{
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload = ()=> resolve(typeof html2canvas === 'function');
-    s.onerror = ()=> resolve(false);
-    document.head.appendChild(s);
-  });
-  return _html2canvasLoadPromise;
-}
-
 function closeSpeechOverlay(){
   const el = document.getElementById('speechOverlayRoot');
   if(el){ el.remove(); }
@@ -7428,32 +7407,6 @@ function openSpeechOverlay(initialTabId){
     </button>
   `;
   document.body.appendChild(el);
-
-  // 열리는 그 순간의 화면을 사진처럼 한 장 찍어서(html2canvas), 그 "정적인" 결과물에만
-  // blur를 먹임. backdrop-filter처럼 열려있는 내내 매 프레임 뒤를 실시간으로 다시
-  // 그리는 게 아니라 딱 한 번만 계산해두고 그대로 재사용하는 방식이라, 위젯 탭이나
-  // 스크롤이 바뀌지 않는 이 화면 특성상 실시간 블러와 눈으로는 구분이 안 되면서도
-  // 훨씬 가벼움. html2canvas 로드가 안 됐거나 캡쳐가 실패해도(네트워크 문제 등)
-  // 조용히 무시하고 어두운 틴트만 남도록 처리함.
-  ensureHtml2Canvas().then(ok=>{
-    if(!ok || !document.body.contains(el)) return; // 못 불러왔거나, 불러오는 사이 이미 닫혔으면 틴트만 남김
-    // 오버레이 자기 자신은 캡쳐 대상에서 빼야 "블러 걸린 오버레이가 찍힌 사진"이 되는
-    // 사고를 안 만듦 — 캡쳐 순간만 잠깐 숨겨둠
-    el.style.visibility = 'hidden';
-    html2canvas(document.body, {
-      x: window.scrollX, y: window.scrollY,
-      width: window.innerWidth, height: window.innerHeight,
-      scale: Math.min(1, window.devicePixelRatio || 1) * 0.6, // 어차피 블러 처리되니 살짝 낮은 해상도로도 충분하고 캡쳐 속도도 빨라짐
-      useCORS: true, backgroundColor: null, logging: false
-    }).then(canvas=>{
-      el.style.visibility = '';
-      if(!document.body.contains(el)) return; // 캡쳐가 끝나기 전에 이미 닫혔으면 아무것도 안 함
-      const bg = document.createElement('div');
-      bg.className = 'speech-overlay-bg';
-      bg.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.72)})`;
-      el.prepend(bg);
-    }).catch(()=>{ el.style.visibility = ''; });
-  });
 
   el.addEventListener('click', (e)=>{ if(e.target === el) closeSpeechOverlay(); });
   window.__speechEscHandler = (e)=>{ if(e.key === 'Escape') closeSpeechOverlay(); };
