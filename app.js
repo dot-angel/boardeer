@@ -98,12 +98,10 @@ const globalStyleBtn = document.getElementById('globalStyleBtn');
 const modeToggleBtn = document.getElementById('modeToggleBtn');
 
 /* ---------------- 라이트모드 / 다크모드 ----------------
-   방문자마다 원하는 모드를 볼 수 있도록 이 브라우저(localStorage)에만 저장하고,
-   다크모드가 기본값. 모드별로 배너/배경/테마 편집이 서로 완전히 분리되도록,
-   Firestore 문서 이름 뒤에 'Light'를 붙여 라이트모드 전용 문서를 따로 씀
-   (meta/banner ↔ meta/bannerLight, meta/background ↔ meta/backgroundLight,
-   meta/theme ↔ meta/themeLight) — 이렇게 하면 다크모드에서 꾸며둔 배경 사진/색상을
-   그대로 두고 라이트모드만 처음부터 새로 자유롭게 꾸밀 수 있음. */
+   방문자마다 원하는 모드를 볼 수 있도록 브라우저(localStorage)에만 저장, 다크모드가
+   기본값. 배너/배경/테마는 모드별로 완전히 분리되도록 Firestore 문서명 뒤에 'Light'를
+   붙인 전용 문서를 씀(meta/banner ↔ meta/bannerLight 등) — 다크모드에서 꾸민 걸 그대로
+   두고 라이트모드만 새로 자유롭게 꾸밀 수 있음. */
 let siteMode = localStorage.getItem('gh_mode') === 'light' ? 'light' : 'dark';
 function metaDoc(base){
   return db.collection('meta').doc(siteMode === 'light' ? base + 'Light' : base);
@@ -260,15 +258,12 @@ function debounce(fn, wait){
   return (...args)=>{ clearTimeout(t); t = setTimeout(()=> fn(...args), wait); };
 }
 
-/* ---------------- 말풍선(본체+꼬리) 도형을 하나로 합쳐서 clip-path로 자르기 ----------------
-   기존 방식(회전시킨 정사각형을 반투명 배경 뒤에 겹쳐서 꼬리처럼 보이게 하는 방식)은
-   본체와 꼬리 둘 다 반투명이라 겹치는 부분이 두 겹만큼 진해지거나, 테두리를 넣으면
-   두 도형의 테두리 선이 만나는 지점에서 이중선처럼 보이는 문제가 있었음.
-   그래서 지금은 본체(둥근 사각형)+꼬리(삼각형)를 SVG path 하나로 합쳐서 그 모양
-   그대로 clip-path로 오려내고, 배경/블러/테두리(정확히는 filter:drop-shadow)를
-   그 '오려낸 모양 하나'에만 적용함 — 겹치는 두 겹이 원천적으로 존재하지 않음.
-   요소 폭은 내용(텍스트) 길이에 따라 달라지므로(width:fit-content 등),
-   매번 렌더링된 실제 크기를 재서 경로를 다시 계산함. */
+/* ---------------- 말풍선(본체+꼬리)을 SVG path 하나로 합쳐 clip-path로 자르기 ----------------
+   기존 방식(회전시킨 사각형을 겹쳐 꼬리처럼 보이게 함)은 본체·꼬리가 둘 다 반투명이라
+   겹치는 부분이 두 겹만큼 진해지고, 테두리를 넣으면 겹치는 선이 이중선으로 보였음.
+   지금은 본체(둥근 사각형)+꼬리(삼각형)를 path 하나로 합쳐 그 모양 그대로 오려내고,
+   배경/블러/테두리를 그 하나의 도형에만 적용해 겹침 자체를 없앰. 폭은 내용에 따라
+   달라지므로 매번 렌더된 실제 크기를 재서 경로를 다시 계산함. */
 const BUBBLE_TAIL_KAPPA = 0.5522847498; // 사분원을 3차 베지어로 근사할 때 쓰는 표준 상수
 
 function buildBubbleTailPath(w, bodyH, radius, tailLeft, tailWidth, tailHeight){
@@ -327,12 +322,10 @@ function shapeSpeechBubble(el, opts){
 }
 
 /* ---------------- 메인 갤러리 매스너리(핀터레스트형) 실제 배치 ----------------
-   예전엔 CSS column-count로 다단을 흉내냈는데, 그 방식은 브라우저가 "전체 높이를
-   균형있게" 나눠서 채우기 때문에 배열 앞쪽(=최신, storeGalleryImage에서 항상 맨 앞에
-   추가함)에 있는 사진이 두 번째/세 번째 열 중간쯤에 놓일 수 있어서 "최신 사진일수록
-   위"가 보장되지 않았음. 그래서 진짜 핀터레스트처럼, 사진을 배열 순서대로 보면서
-   "그 시점에 가장 짧은 열"에 하나씩 쌓음 — 이렇게 하면 앞쪽(최신) 사진들이 자연스럽게
-   위쪽 여러 열에 먼저 채워지고, 뒤쪽(오래된) 사진일수록 아래로 내려가게 됨. */
+   예전엔 CSS column-count로 다단을 흉내냈는데, 브라우저가 전체 높이를 균형있게
+   나눠 채우다 보니 배열 앞쪽(최신 — storeGalleryImage가 항상 맨 앞에 추가함) 사진이
+   둘째/셋째 열 중간에 놓일 수 있어 "최신일수록 위"가 보장 안 됐음. 그래서 배열
+   순서대로 보며 "그 시점 가장 짧은 열"에 하나씩 쌓는 진짜 핀터레스트 방식으로 바꿈. */
 const PIN_MASONRY_GAP = 12;
 function pinMasonryColumnCount(width){
   if(width < 700) return 2;   // 모바일: 2열
@@ -355,13 +348,10 @@ function layoutPinMasonry(gridEl){
   if(!width){ ensurePinMasonryResizeWatch(gridEl); return; }
   const cols = pinMasonryColumnCount(width);
   const colW = (width - PIN_MASONRY_GAP * (cols - 1)) / cols;
-  // 타일마다 "폭 쓰기 → 높이 읽기"를 번갈아 하면(예전 방식), 폭 쓰기가 레이아웃을
-  // 무효화시켜서 그 다음 높이 읽기(getBoundingClientRect)마다 강제 동기 리플로우가
-  // 발생함 — 사진이 N장이면 리플로우도 N번. 모든 타일 폭이 사실 다 똑같은 colW이므로
-  // (1) 폭 쓰기를 전부 먼저 끝내고 (2) 그 다음에 높이를 한 번에 몰아서 읽고
-  // (3) 마지막으로 위치(transform)만 계산해서 쓰면, 강제 리플로우가 1번으로 줄어듦
-  // (transform 쓰기는 레이아웃에 영향을 안 주는 속성이라 다음 읽기를 무효화하지 않음).
-  // 사진이 많이 쌓인 갤러리일수록 체감 차이가 커짐.
+  // 타일마다 "폭 쓰기 → 높이 읽기"를 번갈아 하면 폭 쓰기가 레이아웃을 무효화시켜
+  // 매번 강제 동기 리플로우가 발생함(사진 N장이면 N번). 모든 타일 폭이 어차피
+  // 같은 colW이므로, 폭 쓰기를 전부 먼저 끝내고 → 높이를 한 번에 몰아 읽고 →
+  // 위치(transform, 레이아웃에 영향 없음)만 계산해 쓰면 리플로우가 1번으로 줄어듦.
   tiles.forEach(tile=>{ tile.style.width = colW + 'px'; });
   const tileHeights = tiles.map(tile=> tile.getBoundingClientRect().height);
   const colHeights = new Array(cols).fill(0);
@@ -973,14 +963,11 @@ function openGalleryLightboxCore(clickedSrcIdx, { getItems, normalize, save, get
 }
 
 
-/* 예전엔 드래그로 옮길 때 "여기로 들어갑니다"라는 선(pin-drop-line)만 보여주고,
-   실제 재배치는 drop이 끝난 뒤에야 눈에 보였음. 이제는 그 선 대신, 커서가 지나가는
-   동안 다른 타일들이 그 자리에서 실시간으로 밀려나는 모습을 바로 보여줌(FLIP 기법:
-   ①옮기기 전 위치를 재고 ②실제로 DOM 순서를 바꾼 뒤 ③바뀐 위치를 다시 재서
-   ④그 차이만큼 순간이동시켜뒀다가 곧바로 원래 자리로 트랜지션을 걸어 자연스럽게
-   미끄러져 들어가는 것처럼 보이게 함). 여러 열로 나뉜 그리드(갤러리2/레퍼런스
-   갤러리)는 열마다 별도의 목록으로 추적해서, 다른 열로 넘어가는 이동도 그 자리에서
-   바로 따라와 보이게 함. 저장(drop) 시점의 최종 순서 계산 로직 자체는 예전 그대로임 */
+/* 드래그로 옮길 때 "여기로 들어갑니다" 선 대신, 커서가 지나가는 동안 다른 타일들이
+   실시간으로 밀려나는 모습을 FLIP 기법으로 바로 보여줌(위치 재기→DOM 순서 변경→
+   바뀐 위치 다시 재기→그 차이만큼 순간이동 후 원래 자리로 트랜지션). 열이 나뉜
+   그리드(갤러리2/레퍼런스갤러리)는 열마다 따로 추적해 다른 열로 넘어가는 이동도
+   그 자리에서 따라와 보이게 함. 저장(drop) 시점의 최종 순서 계산은 예전 그대로임 */
 function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts = {}){
   // opts.widgetKey를 넘기면, editMode여도 그 위젯이 연필 버튼으로 잠금해제된 상태일 때만
   // 실제로 드래그가 가능해짐(이동손잡이가 안 보이는데 드래그만 되는 상황을 막기 위함)
@@ -989,15 +976,12 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
   // 어디 있는지로 "앞/뒤"를 가름. axis 'y': 음악 재생목록처럼 세로로 쌓인 목록이라
   // 커서가 위/아래 중 어디 있는지로 "앞/뒤"를 가름
   const axis = opts.axis || 'x';
-  // opts.rowMajor: true — 갤러리2/레퍼런스 갤러리처럼 화면에는 여러 개의 DOM 열로
-  // 나뉘어 보이지만, 실제 저장 순서는 왼쪽→오른쪽, 위→아래로 흐르는 하나의 가로형
-  // 배열(row-major)인 그리드용 옵션. 이 옵션이 없으면 열마다 독립된 목록으로 보고
-  // 다루는데(진짜 매스너리인 메인 갤러리, 재생목록처럼 열 구분이 없는 목록 등에는
-  // 맞지만), 그 방식으로 갤러리2/레퍼런스 갤러리를 다루면 다른 열로 넘어가는 순간
-  // 그 열 전체가 위/아래로 밀리는 것처럼 보여서 가로로 배열된 원래 순서와 드래그 중
-  // 이동 방향이 어긋나 보임. rowMajor는 열 구분 없이 하나의 순서(liveFlat)만 놓고
-  // 앞/뒤로 끼워넣은 뒤, 그 결과를 다시 화면과 같은 규칙(order % colCount)으로 열에
-  // 나눠 담아서 원래 가로형 배열과 이동 축이 일치하게 함
+  // opts.rowMajor: 갤러리2/레퍼런스갤러리처럼 화면엔 여러 DOM 열로 보이지만 실제
+  // 저장 순서는 왼쪽→오른쪽·위→아래로 흐르는 하나의 배열인 그리드용 옵션. 없으면
+  // 열마다 독립된 목록으로 다루는데(매스너리·재생목록엔 맞음), 그 방식으로 열이 있는
+  // 가로형 그리드를 다루면 열을 넘는 순간 그 열 전체가 밀리는 것처럼 보여 원래
+  // 순서와 어긋남. rowMajor는 열 구분 없이 하나의 순서(liveFlat)로 끼워넣은 뒤
+  // 화면과 같은 규칙(order % colCount)으로 다시 열에 나눠 담아 이동 축을 맞춤
   const rowMajor = !!opts.rowMajor;
   const FLIP_MS = 260;
   const FLIP_EASE = 'cubic-bezier(.22,1,.36,1)';
@@ -1191,16 +1175,13 @@ function bindPinDragReorder(container, tileSelector, getItems, saveItems, opts =
       e.preventDefault();
       dropped = true;
       if(dragIdx === null) return;
-      // dragover 도중 liveColumns는 이미 "지금 화면에 실제로 보이는 열 배치"를 그대로
-      // 반영해왔음(같은 열 안에서 움직였으면 그 열 안에서, 다른 열로 넘어갔으면 두 열
-      // 사이에서 계속 갱신됨). 예전엔 여기서 드롭한 타일 하나의 인덱스(targetIdx)만 보고
-      // "그 앞/뒤"로 한 줄짜리 배열에 끼워넣었는데, 갤러리2/레퍼런스 갤러리처럼 여러 열로
-      // 라운드로빈 배치되는 위젯은 저장 순서(한 줄)와 화면 배치(N열) 규칙이 서로 달라서,
-      // 방금 세로로(같은 열 안에서) 옮긴 사진이 저장 후 다시 불러오면 전혀 다른 열/행으로
-      // 튀어버리는(순서가 꼬이는) 문제가 있었음. liveColumns를 렌더링 때와 똑같은
-      // 라운드로빈 규칙(왼쪽 열부터 한 칸씩 채우고, 다 채우면 다음 행)으로 다시 한 줄로
-      // 풀어서 저장하면, 화면에서 본 배치가 그대로 저장 순서가 됨(열이 하나뿐인 위젯은
-      // 그 열 순서를 그대로 쓰는 셈이라 기존 동작과 동일함).
+      // liveColumns는 dragover 도중 "지금 화면에 실제로 보이는 열 배치"를 계속
+      // 반영해왔음. 갤러리2/레퍼런스갤러리처럼 여러 열로 라운드로빈 배치되는
+      // 위젯은 저장 순서(한 줄)와 화면 배치(N열) 규칙이 서로 달라서, 세로로(같은
+      // 열 안에서) 옮긴 사진을 targetIdx 기준 한 줄 배열에 그대로 끼워넣으면
+      // 다시 불러왔을 때 열/행이 튀는 문제가 있었음. liveColumns를 렌더링과 같은
+      // 라운드로빈 규칙(왼쪽 열부터 한 칸씩, 다 채우면 다음 행)으로 한 줄로 풀어
+      // 저장하면 화면 배치가 그대로 저장 순서가 됨(열 하나뿐인 위젯은 동일 동작).
       const rowMajorTiles = [];
       const maxLen = Math.max(0, ...liveColumns.map(col=> col.length));
       for(let row = 0; row < maxLen; row++){
@@ -1248,11 +1229,10 @@ function restoreScrollPos(el, pos){
       img.addEventListener('error', apply, { once:true });
     }
   });
-  /* 사진이 여러 장(멀티컬럼 매스너리)일 땐 사진들이 로드되며 컬럼 균형이
-     다시 잡히느라 목록 크기가 여러 번 바뀔 수 있어서, 위 방법들만으로는
-     타이밍을 놓치는 경우가 있었음. 그래서 목록 크기 자체가 바뀔 때마다
-     감지해서(ResizeObserver) 그때마다 다시 스크롤을 맞춰주고, 두 번 연속
-     크기가 안 바뀌면(=레이아웃이 안정됐다고 보고) 감시를 멈춤 */
+  /* 사진이 여러 장(멀티컬럼 매스너리)일 땐 로드되며 컬럼 균형이 다시 잡히느라
+     목록 크기가 여러 번 바뀔 수 있어 위 방법만으론 타이밍을 놓치는 경우가 있음.
+     그래서 크기가 바뀔 때마다(ResizeObserver) 다시 스크롤을 맞추고, 두 번 연속
+     안 바뀌면 안정됐다고 보고 감시를 멈춤 */
   if(typeof ResizeObserver !== 'undefined'){
     let lastW = el.scrollWidth, lastH = el.scrollHeight;
     let stableCount = 0;
@@ -1317,16 +1297,13 @@ function setElementBgImageWithFallback(el, url){
 }
 
 /* ---------------- 배경 이미지 크로스페이드 (배너 · 페이지 전체 배경 공용) ----------------
-   예전엔 el.style.backgroundImage를 바로 갈아치워서 사진이 뚝 끊기듯 바뀌었음
-   (background-image는 브라우저가 두 url() 사이를 보간해주지 않아서 transition을
-   걸어도 크로스페이드가 안 됨). 그래서 사진을 담는 레이어를 2장 준비해두고, 새
-   사진이 다 준비된 뒤에 "다음 레이어"에 얹고 opacity만 1로 올리면서 "현재
-   레이어"는 0으로 내려 서로 겹쳐 지나가듯 전환되게 함. opacity 전환은
-   backdrop-filter처럼 매 프레임 다시 계산하는 무거운 연산이 아니라 레이어
-   합성(compositing)만 하면 되므로 가벼움.
-   배너와 페이지 전체 배경 둘 다 같은 방식이 필요해서, 컨테이너 엘리먼트와 레이어
-   클래스만 받으면 그 조합 전용 setter 함수를 만들어주는 팩토리로 일반화함(아래
-   setBannerBgImageCrossfade / setPageBgImageCrossfade가 각각의 인스턴스). */
+   background-image는 브라우저가 두 url() 사이를 보간해주지 않아 그냥 갈아치우면
+   뚝 끊기듯 바뀜. 그래서 레이어를 2장 준비해두고, 새 사진이 준비되면 "다음
+   레이어"에 얹고 opacity만 1로 올리며 "현재 레이어"는 0으로 내려 겹쳐 지나가듯
+   전환함(opacity 전환은 backdrop-filter와 달리 합성만 하면 되어 가벼움).
+   배너와 전체 배경 둘 다 같은 방식이 필요해, 컨테이너/레이어 클래스만 받으면
+   전용 setter를 만들어주는 팩토리로 일반화함(아래 setBannerBgImageCrossfade /
+   setPageBgImageCrossfade가 각 인스턴스). */
 function createBgImageCrossfader(containerEl, layerClass){
   const a = document.createElement('div');
   a.className = layerClass;
@@ -8567,7 +8544,15 @@ function openShakerManageModal(){
         for(let i=0;i<files.length;i++){
           saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
           try{
-            const compressed = await compressImageFile(files[i], 1200, 300000);
+            // 쉐이커 조각은 원 안에 꽉 채워 보여주는 작은 참(charm)이라 갤러리 사진과는
+            // 필요한 해상도가 전혀 다름 — 전체화면으로 크게 띄워도 프레임이 최대
+            // 520×520px로 제한돼 있고(.shaker-full-slot, style.css), 조각 지름 상한은
+            // 그 프레임 짧은 변의 22%(shakerPieceRadius)라 실제로는 최대 약 229px
+            // (고밀도 화면 3배 감안해도 물리 픽셀 약 690px)로만 보임. 갤러리와 같은
+            // 1200px/300KB로 압축하면 실제 필요량의 3배 가까운 픽셀을 그냥 버리는
+            // 셈이라, 700px/90KB로 낮춤(같은 화질 밀도를 유지하도록 갤러리와 같은
+            // 바이트/픽셀 비율로 환산한 값 — 화질 저하 없이 용량만 줄어듦).
+            const compressed = await compressImageFile(files[i], 700, 90000);
             newItems.push(await storeGalleryImage(compressed));
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
           await new Promise(r=> setTimeout(r, 0));
