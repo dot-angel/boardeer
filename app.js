@@ -2018,27 +2018,12 @@ function applyTheme(theme){
   }
 }
 
-/* 배너 / 배경 / 테마 3가지 모두 라이트·다크모드별로 완전히 분리된 문서를 구독함.
-   모드를 전환할 때마다(toggleSiteMode) 기존 구독을 끊고 새 모드의 문서로 다시 구독해서,
-   화면에 지금 보고 있는 모드의 편집값만 반영되게 함.
-   ⚠️ 배너와 배경의 전환 타이밍이 서로 어긋나 보이던 문제: 배경은 onSnapshot에서 온
-   d.image를 그 자리에서 바로 setPageBgImageCrossfade()에 넘기지만, 배너는 큰 사진이라
-   fileChunks 컬렉션에 조각내어 저장돼 있어(위 배너 업로드 로직 참고) loadFileChunked()로
-   조각들을 추가로 비동기 재조립한 뒤에야 준비됨 — 이 한 단계가 항상 배경보다 늦어서,
-   같은 순간에 전환을 시작해도 배너 사진만 한 박자 늦게 바뀌는 것처럼 보였음.
-   그래서 구독을 새로 맺을 때마다("이번 세대"에 한해) 배너·배경 둘 다의 "첫 번째" 스냅샷이
-   모두 준비될 때까지 기다렸다가 같은 틱에 한꺼번에 크로스페이드를 트리거함 — 그 이후
-   (같은 모드에 머무는 동안 실제로 사진을 편집해 저장하는 경우)는 서로 기다릴 필요가 없으니
-   예전처럼 각자 도착하는 대로 바로 반영함.
-   ⚠️ 모바일(특히 삼성인터넷+모바일 데이터)에서 "화면 전환이 이미 끝난 뒤에 배너/배경
-   사진이 뒤늦게 바뀌는" 문제: 이 함수가 반환하는 Promise가 "배너·배경 둘 다 준비됨(또는
-   안전 타임아웃)" 시점에 resolve되는데, 예전엔 이 Promise를 아무도 기다리지 않고 모드
-   전환 베일이 고정된 시간표(MODE_TEXT_HOLD_MS 등)로만 걷혀서, 네트워크가 느리면 베일이
-   이미지보다 먼저 걷혀버렸음. 지금은 runModeBlurTransition()이 이 Promise를 실제로
-   기다렸다가 베일을 걷으므로(아래 tryHideVeil 참고), 그 문제가 사라짐. 안전 타임아웃도
-   700ms→1600ms로 늘려서 청크 재조립까지 포함한 배너 로딩이 모바일 데이터망에서도
-   웬만하면 그 안에 끝나게 여유를 더 줌(그래도 안 끝나면 그냥 그 시점에 있는 값으로 진행 —
-   무한정 기다리진 않음). */
+/* 배너/배경/테마는 모드별로 완전히 분리된 문서를 구독하며, 모드 전환 시 재구독함.
+   배너는 청크 재조립(loadFileChunked)이 필요해 배경보다 항상 늦게 준비되므로, 재구독
+   직후엔 둘 다의 "첫 스냅샷"이 도착할 때까지 기다렸다가 한 틱에 같이 크로스페이드함
+   (그 이후엔 각자 도착 즉시 반영). 이 함수가 반환하는 Promise를
+   runModeBlurTransition()이 실제로 기다린 뒤 베일을 걷으므로, 느린 모바일 네트워크에서
+   베일이 사진보다 먼저 걷혀버리는 문제도 해결됨 — 안전 타임아웃도 700ms→1600ms로 늘림. */
 const MODE_META_READY_TIMEOUT_MS = 1600;
 let unsubBanner = null, unsubBackground = null, unsubTheme = null;
 let modeMetaGen = 0;
@@ -2112,29 +2097,16 @@ function subscribeModeMeta(){
 subscribeModeMeta();
 
 /* ---------------- 모드 전환 연출 ----------------
-   색이 실제로 자연스럽게 이어지는 건 이제 style.css의 body에 걸어둔
-   --rose/--paper/--ink 등 @property + transition이 담당함(값 자체가 진짜로
-   서서히 크로스페이드됨) — 그래서 여기 오버레이는 더 이상 "다 가려질 때까지
-   기다렸다가 바꿔치기"할 필요가 없고, 그저:
-   1) 스위치 썸이 먼저 슥 움직이는 걸 보여줌(프리롤)
-   2) 조금 더 또렷한 블러 베일을 얹으면서 곧바로 테마를 바꿔치기 → 색 전환이
-      바로 시작됨(베일은 배경 이미지·배너처럼 CSS transition으로 못 덮는
-      요소들이 Firestore에서 새로 도착하는 그 짧은 순간만 뭉개주는 용도 —
-      화면 전체에 짧게(수백ms)만 걸리는 데다 전용 변수(--glass-blur-mode-veil)로
-      분리해뒀기 때문에 세기를 올려도 다른 UI의 블러 비용에는 영향이 없음)
-   3) "OOO에 오신 것을 환영합니다" 문구를 잠깐 띄웠다가
-   4) 문구가 사라지고 베일도 걷힘
-   숫자를 조절하고 싶으면 이 상수들만 만지면 됨(베일 인/아웃 시간은 style.css의
-   .mode-blur-overlay transition 시간 이상으로 맞춰야 함 — 아래 MODE_VEIL_IN_MS 참고) */
+   색 전환 자체는 style.css의 @property + transition이 크로스페이드로 처리하므로,
+   여기 오버레이는 완전히 가릴 필요 없이 짧게만 걸침: 1) 스위치 썸 프리롤 →
+   2) 블러 베일을 얹으며 테마 즉시 교체(Firestore 값이 막 도착하는 순간만 살짝
+   가리는 용도, 전용 변수 --glass-blur-mode-veil이라 다른 UI 블러엔 영향 없음) →
+   3) 환영 문구 표시 → 4) 문구/베일 해제. 베일 인/아웃 시간은 항상 style.css
+   .mode-blur-overlay의 transition 시간 이상으로 맞출 것(아래 MODE_VEIL_IN_MS). */
 const MODE_BLUR_PREROLL_MS = 180;   // 스위치 프리롤 ~ 베일 시작 사이 간격
-/* ⚠️ 예전엔 이 값이 320이었는데, style.css .mode-blur-overlay의 실제 opacity transition은
-   .34s(=340ms)라서 CSS보다 20ms 더 짧게 잡혀 있었음 — 그러면 베일이 완전히 불투명해지기
-   20ms *전에* applyModeClass()가 테마를 바꿔치기해 --rose/--paper/--ink 등이 크로스페이드를
-   시작하면서 페이지 전반이 다시 리페인트되는데, 그 순간 베일은 아직 배경을 100% 덮지
-   못한 상태라 무거운 리페인트와 겹쳐 걸림. 컴포지팅이 상대적으로 느린 환경(삼성인터넷 등)
-   에서는 이 찰나에 프레임이 밀리며 블러가 "끊기는" 것처럼 보였을 가능성이 큼. CSS 쪽
-   transition(340ms)이 다 끝난 뒤에만 테마를 바꿔치기하도록 340 + 여유(10ms)로 맞춤 —
-   이 값은 항상 style.css 쪽 transition 시간 이상으로 유지할 것. */
+// ⚠️ style.css .mode-blur-overlay의 opacity transition(.34s)보다 짧으면, 베일이 배경을
+// 다 덮기 전에 테마 교체발 리페인트가 겹쳐 일부 환경(삼성인터넷 등)에서 버벅였음 —
+// 항상 그 340ms 이상으로 유지(현재 +10ms 여유).
 const MODE_VEIL_IN_MS = 350;        // 베일이 걸리는 시간(=테마가 실제로 바뀌는 시점)
 /* 문구 글자색은 style.css에서 흰색으로 고정해뒀음(뜨는 배경이 사진이든 어떤
    팔레트든 항상 대비가 확보되게). 예전엔 모드의 강조색(lastKnownAccent)을
@@ -2233,21 +2205,12 @@ function setSiteMode(newMode){
   modeTransitionBusy = true;
   modeToggleBtn.classList.add('mt-busy');
 
-  // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머무는 동안 이
-  // 베일의 GPU 레이어를 내려놨다가, 트랜지션이 막 시작되는 그 프레임에야 다시
-  // 승격을 시도함 — 그 승격 처리가 트랜지션 시작과 겹치면 블러가 아직 안 걸린
-  // 프레임이 한 장 섞여 들어가 "끊기는" 것처럼 보임(위 CSS의 will-change/
-  // translateZ(0) 힌트만으로는 완전히 못 막는 경우가 있다고 보고됨).
-  // 이전엔 이 워밍업을 트랜지션 시작 1프레임 전(runModeBlurTransition, 약 16ms
-  // 리드타임)에만 줬는데도 프레임 누락이 남아있었음 — 그래서 지금은 토글을
-  // 누른 바로 이 순간부터 미리 트랜지션 없이 시각적으로 감지 불가능한
-  // opacity(.001)를 찍어 강제 리플로우해둠. 실제 트랜지션은 프리롤+베일인
-  // (MODE_BLUR_PREROLL_MS+MODE_VEIL_IN_MS, 약 530ms) 뒤에야 시작되므로, 레이어가
-  // 자리잡을 리드타임이 1프레임→약 530ms로 크게 늘어남. 대기 상태(opacity:0)는
-  // 평소엔 전혀 안 건드리므로(전환이 시작될 때만 잠깐 .001로 깨어남) 상시 블러
-  // 비용은 그대로 0 — 그래도 여전히 새는 프레임이 보이면, 이 리드타임을 더
-  // 늘리기보다 삼성인터넷 한정으로 베일의 backdrop-filter 자체를 빼고 단색
-  // 페이드로 대체하는 쪽(레이어 승격 자체가 필요 없어짐)을 고려할 것.
+  // 삼성인터넷 등 일부 모바일 브라우저는 opacity:0으로 오래 머문 베일의 GPU 레이어를
+  // 내려놨다가 트랜지션 시작 프레임에야 재승격을 시도해, 블러 없는 프레임이 한 장
+  // 섞여 "끊기는" 것처럼 보임. 트랜지션 시작 1프레임 전 워밍업만으로는 부족해서,
+  // 토글을 누른 즉시 감지 불가능한 opacity(.001)로 강제 리플로우해 리드타임을
+  // 약 530ms(프리롤+베일)까지 늘림. 평소엔 opacity:0으로 비용 없음 — 그래도 프레임이
+  // 새면 삼성인터넷 한정 backdrop-filter 제거 후 단색 페이드 대체를 고려할 것.
   const overlay = ensureModeBlurOverlay();
   overlay.style.transition = 'none';
   overlay.style.opacity = '0.001';
@@ -5433,35 +5396,40 @@ function openGalleryViewModal(idx){
   });
 }
 
-function openGalleryAddModal(){
+// 갤러리 3형제(gallery/gallery2/refgallery)는 "사진 추가" 모달이 사실상 동일한 로직이라
+// 공용 코어로 묶고, 위젯별 차이(아이디 접두사·블러 옵션 유무·묶기 라벨 문구·데이터 소스)만
+// config로 흘려보냄 — 아래 openGalleryViewModal 3형제가 openGalleryLightboxCore를 감싸는
+// 것과 같은 패턴.
+function openGalleryAddModalCore({ idPrefix, title='사진 추가', hasBlur=true, groupLabel='모아올리기', getData, normalize, collection }){
+  const eid = name => idPrefix + name;
   openModal(`
-    <h3>사진 추가</h3>
+    <h3>${title}</h3>
     <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
-    <input type="file" id="galFiles" accept="image/*" multiple>
+    <input type="file" id="${eid('Files')}" accept="image/*" multiple>
     <p class="hint">자동으로 압축해서 맨 앞에 추가돼요.</p>
     <label>또는, 이미지 URL 직접 입력</label>
-    <input type="url" id="galUrl" placeholder="https://...">
+    <input type="url" id="${eid('Url')}" placeholder="https://...">
     <label>옵션 (분류, 여러 개 선택 가능)</label>
-    <div id="galOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">고른 옵션이 여러 장 전부에 적용돼요. (옵션 추가는 "⚙ 옵션 관리")</p>
+    <div id="${eid('OptBox')}">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
+    <p class="hint">고른 옵션이 여러 장 전부에 적용돼요. (옵션 추가는 "⚙ 옵션 관리")</p>${hasBlur ? `
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
-      <input type="checkbox" id="galBlur" style="width:auto;">
+      <input type="checkbox" id="${eid('Blur')}" style="width:auto;">
       <span style="font-size:.82rem;color:var(--ink);">미리보기 방지</span>
-    </label>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-      <input type="checkbox" id="galGroup" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">모아올리기</span>
+    </label>` : ''}
+    <label style="display:flex;align-items:center;gap:8px;margin-top:${hasBlur ? 8 : 12}px;">
+      <input type="checkbox" id="${eid('Group')}" style="width:auto;">
+      <span style="font-size:.82rem;color:var(--ink);">${groupLabel}</span>
     </label>
     <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
   `, m=>{
     m.querySelector('#c').onclick = closeModal;
     m.querySelector('#s').onclick = async ()=>{
       const saveBtn = m.querySelector('#s');
-      const files = Array.from(m.querySelector('#galFiles').files || []);
-      const url = normalizeImageUrl(m.querySelector('#galUrl').value.trim());
-      const blur = m.querySelector('#galBlur').checked;
-      const asGroup = m.querySelector('#galGroup').checked;
-      const opts = getCheckedOptionValues(m.querySelector('#galOptBox'));
+      const files = Array.from(m.querySelector('#'+eid('Files')).files || []);
+      const url = normalizeImageUrl(m.querySelector('#'+eid('Url')).value.trim());
+      const blur = hasBlur ? m.querySelector('#'+eid('Blur')).checked : false;
+      const asGroup = m.querySelector('#'+eid('Group')).checked;
+      const opts = getCheckedOptionValues(m.querySelector('#'+eid('OptBox')));
       const newItems = [];
       if(files.length){
         saveBtn.disabled = true;
@@ -5470,23 +5438,23 @@ function openGalleryAddModal(){
           try{
             const dataUrl = await compressImageFile(files[i], 1200, 260000);
             const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, blur, opts });
+            newItems.push(hasBlur ? { ...stored, blur, opts } : { ...stored, opts });
           }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
           await new Promise(r=> setTimeout(r, 0));
         }
       } else if(url){
-        newItems.push({ url, blur, opts });
+        newItems.push(hasBlur ? { url, blur, opts } : { url, opts });
       } else {
         toast('사진을 선택하거나 URL을 입력해주세요');
         return;
       }
       // 두 장 이상이고 "묶어서 올리기"를 체크했으면, 낱장 여러 개 대신 묶음 하나로 합침
       const finalNewItems = (asGroup && newItems.length > 1)
-        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), blur, opts }]
+        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), ...(hasBlur ? {blur} : {}), opts }]
         : newItems;
       try{
-        const existing = (galleryData.items||[]).map(normalizeGalleryItem);
-        await docRef('gallery').set({ items: [...finalNewItems, ...existing] }, {merge:true});
+        const existing = (getData().items||[]).map(normalize);
+        await docRef(collection).set({ items: [...finalNewItems, ...existing] }, {merge:true});
       }catch(err){
         toast(`저장하지 못했어요: ${err.message || err}`);
         saveBtn.disabled = false; saveBtn.textContent = '추가';
@@ -5495,6 +5463,10 @@ function openGalleryAddModal(){
       closeModal();
     };
   });
+}
+
+function openGalleryAddModal(){
+  openGalleryAddModalCore({ idPrefix:'gal', getData:()=>galleryData, normalize:normalizeGalleryItem, collection:'gallery' });
 }
 
 /* 갤러리 탭(탭2)은 화면을 옆으로 넘기기 전엔 보이지도 않는데, 아래 구독들
@@ -5758,66 +5730,7 @@ function openGallery2ViewModal(idx){
 }
 
 function openGallery2AddModal(){
-  openModal(`
-    <h3>사진 추가</h3>
-    <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
-    <input type="file" id="gal2Files" accept="image/*" multiple>
-    <p class="hint">자동으로 압축해서 맨 앞에 추가돼요.</p>
-    <label>또는, 이미지 URL 직접 입력</label>
-    <input type="url" id="gal2Url" placeholder="https://...">
-    <label>옵션 (분류, 여러 개 선택 가능)</label>
-    <div id="gal2OptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">고른 옵션이 여러 장 전부에 적용돼요. (옵션 추가는 "⚙ 옵션 관리")</p>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
-      <input type="checkbox" id="gal2Blur" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">미리보기 방지</span>
-    </label>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-      <input type="checkbox" id="gal2Group" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">모아올리기</span>
-    </label>
-    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
-  `, m=>{
-    m.querySelector('#c').onclick = closeModal;
-    m.querySelector('#s').onclick = async ()=>{
-      const saveBtn = m.querySelector('#s');
-      const files = Array.from(m.querySelector('#gal2Files').files || []);
-      const url = normalizeImageUrl(m.querySelector('#gal2Url').value.trim());
-      const blur = m.querySelector('#gal2Blur').checked;
-      const asGroup = m.querySelector('#gal2Group').checked;
-      const opts = getCheckedOptionValues(m.querySelector('#gal2OptBox'));
-      const newItems = [];
-      if(files.length){
-        saveBtn.disabled = true;
-        for(let i=0;i<files.length;i++){
-          saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
-          try{
-            const dataUrl = await compressImageFile(files[i], 1200, 260000);
-            const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, blur, opts });
-          }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
-          await new Promise(r=> setTimeout(r, 0));
-        }
-      } else if(url){
-        newItems.push({ url, blur, opts });
-      } else {
-        toast('사진을 선택하거나 URL을 입력해주세요');
-        return;
-      }
-      const finalNewItems = (asGroup && newItems.length > 1)
-        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), blur, opts }]
-        : newItems;
-      try{
-        const existing = (gallery2Data.items||[]).map(normalizeGalleryItem);
-        await docRef('gallery2').set({ items: [...finalNewItems, ...existing] }, {merge:true});
-      }catch(err){
-        toast(`저장하지 못했어요: ${err.message || err}`);
-        saveBtn.disabled = false; saveBtn.textContent = '추가';
-        return;
-      }
-      closeModal();
-    };
-  });
+  openGalleryAddModalCore({ idPrefix:'gal2', getData:()=>gallery2Data, normalize:normalizeGalleryItem, collection:'gallery2' });
 }
 
 deferToTab2(()=> docRef('gallery2').onSnapshot(doc=>{
@@ -6102,60 +6015,10 @@ function openRefGalleryViewModal(idx){
 }
 
 function openRefGalleryAddModal(){
-  openModal(`
-    <h3>레퍼런스 사진 추가</h3>
-    <label>사진 올리기 (기기에서 여러 장 선택 가능)</label>
-    <input type="file" id="refGalFiles" accept="image/*" multiple>
-    <p class="hint">자동으로 압축해서 맨 앞에 추가돼요.</p>
-    <label>또는, 이미지 URL 직접 입력</label>
-    <input type="url" id="refGalUrl" placeholder="https://...">
-    <label>옵션 (분류, 여러 개 선택 가능)</label>
-    <div id="refGalOptBox">${renderOptionCheckboxes(sharedGalleryOptionsData.options, [])}</div>
-    <p class="hint">고른 옵션이 여러 장 전부에 적용돼요. (옵션 추가는 "⚙ 옵션 관리")</p>
-    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;">
-      <input type="checkbox" id="refGalGroup" style="width:auto;">
-      <span style="font-size:.82rem;color:var(--ink);">여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(칸 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요</span>
-    </label>
-    <div class="modal-actions"><button class="btn ghost" id="c">취소</button><button class="btn primary" id="s">추가</button></div>
-  `, m=>{
-    m.querySelector('#c').onclick = closeModal;
-    m.querySelector('#s').onclick = async ()=>{
-      const saveBtn = m.querySelector('#s');
-      const files = Array.from(m.querySelector('#refGalFiles').files || []);
-      const url = normalizeImageUrl(m.querySelector('#refGalUrl').value.trim());
-      const asGroup = m.querySelector('#refGalGroup').checked;
-      const opts = getCheckedOptionValues(m.querySelector('#refGalOptBox'));
-      const newItems = [];
-      if(files.length){
-        saveBtn.disabled = true;
-        for(let i=0;i<files.length;i++){
-          saveBtn.textContent = `처리 중… (${i+1}/${files.length})`;
-          try{
-            const dataUrl = await compressImageFile(files[i], 1200, 260000);
-            const stored = await storeGalleryImage(dataUrl);
-            newItems.push({ ...stored, opts });
-          }catch(err){ toast(`"${files[i].name}" 처리 실패: ${err.message || err}`); }
-          await new Promise(r=> setTimeout(r, 0));
-        }
-      } else if(url){
-        newItems.push({ url, opts });
-      } else {
-        toast('사진을 선택하거나 URL을 입력해주세요');
-        return;
-      }
-      const finalNewItems = (asGroup && newItems.length > 1)
-        ? [{ group:true, images: newItems.map(it=> it.chunked ? {chunked:true, fileId:it.fileId, chunkTotal:it.chunkTotal} : {url:it.url}), opts }]
-        : newItems;
-      try{
-        const existing = (refGalleryData.items||[]).map(normalizeRefGalleryItem);
-        await docRef('refgallery').set({ items: [...finalNewItems, ...existing] }, {merge:true});
-      }catch(err){
-        toast(`저장하지 못했어요: ${err.message || err}`);
-        saveBtn.disabled = false; saveBtn.textContent = '추가';
-        return;
-      }
-      closeModal();
-    };
+  openGalleryAddModalCore({
+    idPrefix:'refGal', title:'레퍼런스 사진 추가', hasBlur:false,
+    groupLabel:'여러 장을 골랐다면, 낱장으로 따로 올리지 않고 한 장(칸 한 칸)으로 묶어서 올리기 — 눌러서 넘겨볼 수 있어요',
+    getData:()=>refGalleryData, normalize:normalizeRefGalleryItem, collection:'refgallery'
   });
 }
 
@@ -7279,23 +7142,12 @@ function scheduleBothStickerBubbles(){
   }, delay);
 }
 
-// 기본 위치(저장된 값이 없을 때): 배너 좌상단 쪽에 두 스티커가 가깝게 모여있게.
-// 앵커(왼쪽 위 기준점)는 멧돼지(slot 0) 자리로 두고, 사슴(slot 1)은 그보다
-// 오른쪽 아래로 떨어진 자리에 둠 — 프로필 위젯의 좌우 순서(멧돼지=왼쪽)를
-// 그대로 지키면서, 멧돼지가 사슴보다 위에 오도록. 말풍선은 스티커 위쪽으로
-// 떠오르므로 배너 맨 위에서 말풍선이 잘리지 않도록 위쪽 여백(topClearance)을
-// 충분히 두고, 왼쪽도 화면 끝에 바짝 붙지 않도록 여백(leftMargin)을 넉넉히 둬서
-// 좀 더 중앙 쪽으로 오게 함. 말풍선 너비를 좁혀둔 만큼 가로 간격(hGap)만으로도
-// 말풍선끼리 안 겹치게 하고, 세로 간격(vGap)은 캐릭터 키 차이가 너무 크지
-// 않도록 작게 유지함.
-// 모든 값은 STICKER_W(데스크탑 기준 160px)가 아니라 실제로 렌더링된 스티커
-// 크기(root.offsetWidth)에 비례해서 계산함 — 화면이 좁아지면 미디어쿼리로
-// 스티커 자체가 92px까지 작아지는데, 간격을 고정 px로 두면 스티커는 작아지는데
-// 둘 사이 거리는 그대로라 오히려 서로 멀어져 보이는 문제가 있었음.
-// 단, 캐릭터2(slot 1)의 가로 오프셋(hGap)만은 slot 1 자신이 아니라 캐릭터1
-// (slot 0, 120% 확대되어 더 넓음)의 실제 렌더 폭을 기준으로 잡아야 함 —
-// 안 그러면 커진 캐릭터1 박스와 원래 의도(15px 정도만 살짝 겹침)보다 훨씬 크게
-// 겹쳐서 캐릭터2가 상당 부분 가려 보임.
+// 기본 위치(저장된 값이 없을 때): 앵커는 멧돼지(slot 0), 사슴(slot 1)은 그보다
+// 오른쪽 아래에 둬서 프로필 위젯의 좌우 순서를 그대로 지킴. 말풍선이 위로 떠오르므로
+// 위/왼쪽 여백을 넉넉히 둠. 모든 값은 고정 STICKER_W가 아니라 실제 렌더 크기
+// (root.offsetWidth)에 비례해 계산해야, 화면이 좁아져 스티커가 작아질 때 간격도
+// 같이 줄어듦(안 그러면 오히려 서로 멀어져 보임). 단, 캐릭터2의 가로 오프셋(hGap)은
+// 120% 확대된 캐릭터1(slot 0)의 실제 렌더 폭 기준으로 잡아야 의도한 만큼만 겹침.
 function positionStickerDefault(root, slot){
   const actualW = root.offsetWidth || (slot === 0 ? STICKER_W * STICKER_SCALE_0 : STICKER_W);
   const scale = actualW / (slot === 0 ? STICKER_W * STICKER_SCALE_0 : STICKER_W);
@@ -8332,73 +8184,38 @@ function shakerFrameResized(){
   shakerFrameSize = { w: nw, h: nh };
 }
 
-// 반발력이 높고(0.72/0.62) 중력이 약하니(0.32) 부딪힌 뒤에도 에너지를 거의
-// 그대로 유지한 채 큰 포물선을 그리며 되튀어다녔음 — 이게 "탱탱볼" 인상의
-// 핵심 원인. 그래서 중력을 세게 주고(뜬 상태로 오래 안 머물게) 최고속도를
-// 낮춰(큰 포물선 대신 좁은 반경에서 짧게 들썩이게) 잡아뒀는데, 반발력까지 같이
-// 확 낮췄더니(0.2/0.25) 이번엔 부딪혀도 안 튕기고 스르륵 밀리기만 하는
-// 문제가 생김(아래 SHAKER_PIECE_RESTITUTION 주석 참고). 최종적으로는 "부딪히는
-// 순간엔 확실히 딱딱하게 튕기되, 중력·마찰 때문에 튕긴 후엔 금방 잦아드는" 쪽으로
-// 반발력만 다시 올려 균형을 잡음.
-// 자유낙하 자체(마찰 없이 중력만 받게 고친 뒤)는 맞게 고쳤는데도, 조각들이
-// 떨어지는 모습이 여전히 깃털처럼 가볍게 팔랑이는 느낌이라는 피드백을 받음.
-// 원인은 두 가지: (1) 중력 자체가 프레임 크기에 비해 약해서 종단속도까지
-// 도달하는 데 시간이 걸리다 보니, 짧은 낙하 구간 대부분이 "가속되는 중"인
-// 완만한 구간으로 보임 — 중력을 올려 더 빨리 무겁게 떨어지게 함.
-// (2) 부딪힐 때마다 회전이 꽤 크게 실려서(아래 jag), 떨어지면서 계속 팽이처럼
-// 돌아 마치 공기 저항을 받는 나뭇잎/깃털처럼 보임 — 회전 실리는 양 자체를
-// 줄여서 딱딱한 조각이 툭 떨어지는 느낌에 더 가깝게 함(회전이 아예 없어지진
-// 않게, 절반 정도로만 낮춤)
+// 물리 튜닝값: 반발력은 세게(부딪히는 순간 딱딱하게 튕김) 주되, 중력·마찰·최고속도로
+// 튕긴 뒤엔 금방 잦아들게 잡아서 "탱탱볼"이 아니라 "묵직한 조각"처럼 보이게 함.
+// 중력은 프레임 대비 충분히 강하게 잡아 낙하가 무겁게 느껴지게 함.
 const SHAKER_GRAVITY = 0.95;
 const SHAKER_FRICTION = 0.9;
-// 회전은 이동보다 더 빨리 잦아들되, 부딪히는 순간엔 매끈한 스핀이 아니라
-// 툭툭 꺾이듯 불규칙하게 튀는 편이 "말랑한 공"이 아니라 "딱딱한 조각"처럼
-// 보여서 마찰은 그대로 두고 부딪힐 때 주는 스핀 자체를 더 거칠게 만듦
+// 회전은 이동보다 빨리 잦아들되, 부딪히는 순간엔 매끈한 스핀 대신 툭툭 꺾이는
+// 불규칙한 회전(아래 jag)을 줘서 "딱딱한 조각" 느낌을 냄
 const SHAKER_ANGULAR_FRICTION = 0.82;
-// 반발력이 너무 낮으면(예전 0.72/0.62 → 이번엔 0.2/0.25로 확 낮췄던 버전) 겹침
-// 자체는 한 번에 확실히 풀려도(포지션 보정) 튕겨나가는 속도가 거의 안 실려서
-// "탁!" 하고 튕기는 느낌 없이 그냥 스르륵 밀려나는 것처럼 보임 — 이번엔 반대
-// 방향으로 과교정된 상태였음. 피스끼리 부딪힐 때는 반발력을 다시 확실히 올려서
-// 부딪히는 순간엔 딱딱하게 튕기게 하고, 벽은 밖으로 크게 튕겨다니지 않을
-// 정도로만 살짝 올림. 중력·마찰·최고속도는 그대로 둬서 튕긴 뒤엔 여전히 금방
-// 잦아들게(무겁게) 유지함
-// 조각들이 꽤 빠르게 날아다니는 것치고 부딪혔을 때 튕겨나가는 느낌이 약하다는
-// 피드백을 받아 반발력을 한 번 더 크게 올림 — 속도는 이미 충분히 빠른데
-// 반발력이 낮으면(0.3/0.5) 부딪혀도 속도가 크게 안 바뀌어서 "그냥 스치고
-// 지나가는" 것처럼 보임. 벽/조각 모두 확실히 튕기게 올리되, 중력·마찰이
-// 그대로라 튕긴 후엔 여전히 금방 잦아듦
 const SHAKER_WALL_RESTITUTION = 0.6;
 const SHAKER_PIECE_RESTITUTION = 0.8;
-// 벽 반사 코드는 부딪힌 방향(수직 성분)만 반발력으로 튕겨내고, 벽을 따라
-// 미끄러지는 방향(접선 성분)은 전혀 안 건드리고 있었음 — 그래서 중력에 밀려
-// 옆벽에 붙은 채로 마찰 없이 주르륵 미끄러져 내려가는(유리벽 같은) 느낌이 남.
-// 벽에 부딪히는 순간엔 접선 방향 속도도 같이 깎아서, 벽을 타고 미끄러지지
-// 않고 걸리는 느낌이 나게 함
+// 벽 반사는 부딪힌 수직 성분만 튕기고, 벽을 타고 미끄러지는 접선 성분은 마찰로
+// 깎아서 유리벽처럼 미끄러지지 않고 걸리는 느낌을 냄
 const SHAKER_WALL_TANGENT_FRICTION = 0.75;
 const SHAKER_MAX_SPEED = 26;
-const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 이 이상으로는 회전이 너무 어지럽게 빨라지지 않도록 상한
-// 중력+반발이 반복되면 이론상 완전히 0으로 수렴하지 않고 아주 미세하게 계속
-// 튀거나 도는 상태가 남는데(부동소수점 특성상), 이 정도로 작아지면 그냥 확
-// 재워서(0으로) 진짜로 멈추게 함 — "가만히 놔둬도 계속 혼자 도는" 원인이었음
+const SHAKER_MAX_ANGULAR_SPEED = 5; // deg/frame — 회전이 너무 어지럽게 빨라지지 않도록 상한
+// 부동소수점 특성상 중력+반발이 반복되면 완전히 0으로 수렴하지 않고 미세하게
+// 계속 튀는 상태가 남으므로, 이 밑으로 떨어지면 그냥 0으로 재워서 확실히 멈춤
 const SHAKER_SLEEP_LINEAR = 0.4;   // px/frame
 const SHAKER_SLEEP_ANGULAR = 0.4;  // deg/frame
 
-// 조각 크기는 전체화면 등에서 프레임에 비례해 커지는데(shakerPieceRadius),
-// 중력/최고속도/임펄스가 고정값 그대로면 커진 조각 입장에서는 상대적으로
-// 훨씬 약한 힘을 받는 셈이라 오히려 더 무겁고 둔하게 느껴짐(실제로 겪은 문제).
-// 이 스케일을 중력·최고속도·흔들 때 주는 힘에 다 같이 곱해서, 위젯 카드
-// 안에서든 전체화면에서든 "느낌"이 항상 똑같이 유지되게 함.
-const SHAKER_BASE_R = 16; // 예전 고정 반지름(11~22) 대략 중간값 — 이 기준 대비 비율로 스케일을 잡음
+// 전체화면 등에서 조각이 커지면 고정된 중력/속도/임펄스가 상대적으로 약해져
+// 오히려 둔하게 느껴지므로, 이 스케일을 다 같이 곱해서 위젯 카드든 전체화면이든
+// 항상 같은 느낌을 유지함
+const SHAKER_BASE_R = 16; // 예전 고정 반지름(11~22)의 대략 중간값 — 이 기준 대비 비율
 function shakerPhysicsScale(){
   const r = shakerPieces[0] ? shakerPieces[0].r : SHAKER_BASE_R;
   return r / SHAKER_BASE_R;
 }
 
-// 드래그(마우스든 터치든)로 흔드는 동안, pointermove 이벤트 하나하나가 직접
-// 힘을 쏘는 대신 여기 목표 속도만 갱신해두고, stepShakerPhysics가 매 프레임
-// (입력 이벤트 빈도와 무관하게 항상 같은 리듬으로) 조금씩 힘을 흘려 넣음 —
-// PC 드래그(이벤트 촘촘함)와 모바일 스와이프(이벤트 듬성듬성) 둘 다 "힘이
-// 들어오는 리듬" 자체가 같아지므로, 입력 방식 때문에 느낌이 달라지지 않음.
+// 드래그 중엔 pointermove가 직접 힘을 쏘지 않고 목표 속도만 갱신해두고,
+// stepShakerPhysics가 매 프레임 일정하게 힘을 흘려 넣음 — PC(이벤트 촘촘)와
+// 모바일(이벤트 듬성) 둘 다 "힘이 들어오는 리듬"이 같아져 입력 방식 차이가 사라짐
 let shakerDragActive = false;
 let shakerDragVX = 0, shakerDragVY = 0;
 
@@ -8411,11 +8228,8 @@ function stepShakerPhysics(){
   shakerFrameResized();
   const { w, h } = shakerFrameSize;
   const scale = shakerPhysicsScale();
-  // 드래그 중이면 목표 속도(shakerDragVX/VY)만큼 매 프레임 조금씩 힘을 흘려
-  // 넣음 — pointermove가 몰아서 들어오든(모바일) 촘촘히 들어오든(PC) 여기서는
-  // 항상 "프레임당 한 번" 같은 세기로 들어가므로 입력 방식 차이가 사라짐.
-  // 다음 입력이 없는 동안엔 목표 속도 자체를 서서히 줄여서, 손을 멈춰도
-  // 힘이 계속 나가는 일이 없게 함
+  // 드래그 중이면 목표 속도만큼 매 프레임 일정하게 힘을 흘려 넣고, 입력이 없는
+  // 동안엔 목표 속도를 서서히 줄여 손을 멈춰도 힘이 계속 나가지 않게 함
   if(shakerDragActive){
     const speed = Math.hypot(shakerDragVX, shakerDragVY);
     if(speed > 0.4) shakerApplyImpulse(shakerDragVX * 0.16, shakerDragVY * 0.16, Math.min(speed*0.22, 10));
@@ -8426,23 +8240,16 @@ function stepShakerPhysics(){
   const sleepLinear = SHAKER_SLEEP_LINEAR * scale;
   const sleepAngular = SHAKER_SLEEP_ANGULAR * scale;
   shakerPieces.forEach(p=>{
-    // 바닥(또는 벽)에 거의 붙어서 속도가 아주 작아졌으면, 중력을 더 안 더하고
-    // 그냥 0으로 재움 — 안 그러면 중력이 매 프레임 계속 속도를 만들어내서
-    // 이론상 영원히(아주 미세하게라도) 계속 통통 튀는 상태가 됨
-    // (보이는 박스 크기 p.r이 아니라 실제 히트박스 p.r 기준 — 투명 여백이
-    // 많은 스티커는 그만큼 바닥/벽에 더 파고들 수 있게 둠)
+    // 바닥/벽에 거의 붙어 속도가 작아지면 중력을 더 안 더하고 0으로 재움(안 그러면
+    // 미세하게 계속 튐). 히트박스 p.r 기준이라 투명 여백 있는 스티커는 그만큼 더 파고듦
     const restingOnFloor = (h - (p.y + p.r)) < 0.6 * scale && Math.abs(p.vy) < sleepLinear;
     if(restingOnFloor){
       p.vy = 0; p.y = h - p.r;
     } else {
       p.vy += gravity;
     }
-    // 예전엔 공중에 떠있는 동안에도 vy에 매 프레임 마찰을 걸어서, 중력이 만든
-    // 가속을 마찰이 계속 깎아먹는 바람에 "무게감 있게 뚝 떨어지는" 게 아니라
-    // 뭔가 저항을 받으며 둥둥 가라앉는 느낌이 났음. 흔들 때 준 수직 임펄스도
-    // 공중에서 같은 식으로 깎여서 튕겨나가는 힘 자체가 약해 보였음(낙하 속도
-    // 문제와 구분이 안 갔던 이유). 이제는 바닥에 붙어 정착하는 동안에만 vy에
-    // 마찰을 걸고, 진짜 공중에 떠있을 땐 중력만 그대로 받아 자유낙하하게 둠
+    // 공중에서는 마찰 없이 중력만 받아 자유낙하하게 해 무게감을 살리고, 바닥에
+    // 정착 중일 때만 vy에 마찰을 걺
     p.vx *= SHAKER_FRICTION;
     if(restingOnFloor) p.vy *= SHAKER_FRICTION;
     const speed = Math.hypot(p.vx, p.vy);
@@ -8450,10 +8257,8 @@ function stepShakerPhysics(){
     if(Math.abs(p.vx) < sleepLinear) p.vx = 0;
     if(Math.abs(p.vy) < sleepLinear && restingOnFloor) p.vy = 0;
     p.x += p.vx; p.y += p.vy;
-    // 회전은 이동보다 마찰을 더 세게 줘서(전용 상수) 눈에 띄게 빨리 잦아들게 하고,
-    // "멈췄다"고 볼 기준(sleepAngular)도 이동처럼 scale에 비례하게 둬서, 전체화면처럼
-    // 조각이 커져 회전 임펄스도 같이 커지는 상황에서도 카드형태와 비슷한 체감
-    // 속도로 멈추게 함(예전엔 기준이 고정값이라 전체화면에서 훨씬 오래 돌았음)
+    // 회전 마찰은 이동보다 세게(전용 상수) 줘서 빨리 잦아들게 하고, 정지 기준도
+    // scale에 비례시켜 전체화면처럼 조각이 커져도 비슷한 체감 속도로 멈추게 함
     p.vr *= SHAKER_ANGULAR_FRICTION;
     if(Math.abs(p.vr) < sleepAngular) p.vr = 0; // 회전도 충분히 느려지면 완전히 정지
     if(p.x - p.r < 0){ const before = p.vx; p.x = p.r; p.vx = -p.vx * SHAKER_WALL_RESTITUTION; p.vr += (p.vx - before) * 0.03; p.vy *= SHAKER_WALL_TANGENT_FRICTION; }
@@ -8462,18 +8267,10 @@ function stepShakerPhysics(){
     if(p.y + p.r > h){ const before = p.vy; p.y = h - p.r; p.vy = -p.vy * SHAKER_WALL_RESTITUTION; p.vr += (p.vy - before) * 0.03; p.vx *= SHAKER_WALL_TANGENT_FRICTION; }
     p.rot += p.vr;
   });
-  // 조각끼리 겹치면 밀어내고 속도를 교환(단순 탄성충돌) — 서로 부딪히며 섞이는
-  // 느낌의 핵심. 겹침 보정(위치 밀어내기)은 pass마다 계속 하되, 튕김(속도 변화)은
-  // "몇 번째 pass인가"가 아니라 "이번 프레임에 이 짝이 이미 튕겼는가"로 판단함.
-  // 예전엔 pass===0에서만 튕겼는데, 무더기 위로 조각이 떨어질 때처럼 pass 0
-  // 시점엔 아직 안 겹쳐 있다가 다른 짝들이 먼저 밀리면서 pass 1에 가서야 겹친
-  // 게 드러나는 경우, 그 짝은 위치만 슬쩍 밀리고 튕기는 힘을 아예 못 받아서
-  // "떨어져서 부딪혀도 안 튀는" 것처럼 보였음. 그렇다고 두 pass 다 무조건
-  // 튕기게 하면 같은 짝이 중복으로 튕겨서 에너지가 눈덩이처럼 불어나는(예전에
-  // 겪었던) 문제가 재발함 — 그래서 "짝 하나당 프레임에 한 번만" 튕기도록,
-  // 겹침을 발견한 시점이 아니라 실제로 튕김을 준 시점에만 처리 완료로 표시함
-  // (겹쳤어도 서로 멀어지는 중이면 애초에 안 튕기므로, 그런 경우는 다음 pass에서
-  // 방향이 바뀌었으면 정당하게 다시 기회를 줘야 하기 때문)
+  // 겹치면 밀어내고 속도를 교환(단순 탄성충돌). 위치 보정은 매 pass마다 하되, 튕김은
+  // "이번 프레임에 이 짝이 이미 튕겼는가"로 짝당 한 번만 처리해 에너지가 중복으로
+  // 불어나는 걸 막음. 2 pass인 이유: 무더기 위로 떨어질 때 pass 0엔 아직 안 겹쳐
+  // 있다가 다른 짝이 먼저 밀리며 pass 1에야 겹치는 경우도 튕길 기회를 줘야 하기 때문
   const boundedPairs = new Set();
   for(let pass=0; pass<2; pass++){
   for(let i=0;i<shakerPieces.length;i++){
@@ -8494,10 +8291,8 @@ function stepShakerPhysics(){
             const imp = -(1+SHAKER_PIECE_RESTITUTION) * relVel / 2;
             a.vx -= imp*nx; a.vy -= imp*ny;
             b.vx += imp*nx; b.vy += imp*ny;
-            // 매끈하게 스핀을 주고받으면 공이 굴러가는 것처럼 보여서, 접선
-            // 방향 반응에 더해 부딪힐 때마다 무작위로 툭 꺾이는 회전을 살짝
-            // 얹음 — 매끄러운 회전이 아니라 딱딱한 조각이 모서리에 걸려
-            // 불규칙하게 튀는 느낌
+            // 접선 방향 반응에 무작위로 툭 꺾이는 회전(jag)을 더해, 매끈한 스핀이
+            // 아니라 딱딱한 조각이 모서리에 걸려 불규칙하게 튀는 느낌을 냄
             const tx = -ny, ty = nx;
             const relVelT = (b.vx-a.vx)*tx + (b.vy-a.vy)*ty;
             const jag = Math.min(1, Math.abs(relVel)*0.045) * (Math.random()-0.5) * 1.1;
@@ -8522,14 +8317,9 @@ function shakerApplyImpulse(dvx, dvy, spread){
   const mag = Math.hypot(dvx, dvy);
   const baseDir = Math.atan2(dvy, dvx);
   shakerPieces.forEach(p=>{
-    // 예전엔 모든 조각이 거의 같은 방향(dvx,dvy)에 약한 노이즈만 더해서 받았음
-    // — 그러면 조각들이 다 같이 한 방향으로 나란히 움직이는 셈이라, 서로 간의
-    // 상대속도(=부딪혔을 때 튕겨나가게 만드는 값)가 애초에 거의 없었음. 반발력을
-    // 아무리 올려도 부딪히는 두 조각이 원래 비슷한 속도로 같이 가고 있었으면
-    // 튕길 힘 자체가 없는 것과 같음. 실제 통 안 참(charm)들은 벽에 이리저리
-    // 부딪히며 각자 다른 방향·세기로 튀기 때문에, 여기서도 조각마다 방향(최대
-    // 좌우 약 45도)과 세기(0.55~1.35배)를 개별적으로 크게 흩뜨려서 한 번
-    // 흔들어도 조각마다 실제로 다른 속도로 흩어지게 함
+    // 모든 조각이 같은 방향으로만 움직이면 서로 상대속도가 없어 부딪혀도 안 튕기므로,
+    // 조각마다 방향(최대 좌우 45도)과 세기(0.55~1.35배)를 흩뜨려 실제 통 안 참들처럼
+    // 제각각 다른 속도로 흩어지게 함
     const dir = baseDir + (Math.random()-0.5) * 1.5;
     const power = mag * (0.55 + Math.random()*0.8) + (Math.random()-0.5) * spread * 0.5;
     p.vx += Math.cos(dir) * power * scale;
@@ -8538,16 +8328,11 @@ function shakerApplyImpulse(dvx, dvy, spread){
   });
 }
 
-// PC에서는 가속도계가 없어서, 위젯(카드) 전체를 마우스/터치로 눌러 빠르게
-// 움직이는 동작을 "흔들기"로 인식함(속도가 클수록 조각들에 더 강한 임펄스).
-// 이때 위젯 카드 자체도 살짝 기울고 튕기게 해서 "그 안의 사진을 손가락으로
-// 젓는" 느낌이 아니라 "위젯 자체를 손에 쥐고 흔드는" 느낌이 나게 함(손을
-// 떼면 스프링처럼 원래 각도로 되돌아옴). 모바일은 그 드래그 방식에 더해,
-// 실제로 기기를 흔들면(devicemotion) 가속도 변화량 기준으로도 감지함.
-// 프레임(#shakerFrame)을 원래 있던 위젯 카드 밖, 전체화면 오버레이로 옮겨서 크게
-// 보여줌. 조각들의 물리 상태(shakerPieces)는 그대로 유지되고(같은 DOM 노드를
-// 옮기는 것뿐이라 이미지 다시 로딩 없음), 여닫을 때마다 위치만 새 프레임 크기에
-// 맞춰 다시 스케일됨(shakerFrameResized가 다음 물리 프레임에서 자동 처리).
+// PC는 가속도계가 없어 위젯을 마우스/터치로 빠르게 움직이는 걸 "흔들기"로 인식하고
+// (속도 비례 임펄스), 카드 자체도 살짝 기울고 튕기게 해 "쥐고 흔드는" 느낌을 냄
+// (손을 떼면 원래 각도로 복귀). 모바일은 여기에 더해 devicemotion 가속도 변화도
+// 감지함. 전체화면 시엔 프레임(#shakerFrame)을 오버레이로 옮기되 물리 상태
+// (shakerPieces)는 그대로 유지되고, 프레임 크기에 맞춰 위치만 다시 스케일됨.
 let shakerFullOpen = false;
 let shakerFullOverlay = null;
 // 흔들 때 "기울고 튕기는" 시각 피드백을 줄 대상은 지금 보이는 게 카드인지
