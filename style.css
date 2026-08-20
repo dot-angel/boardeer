@@ -1437,6 +1437,21 @@ body.edit-mode .dday-item{ padding-right: 34px; }
 .profile-section-tab.active{ color: var(--ink); font-weight:700; border-bottom-color: var(--rose); }
 .profile-section-tab .ps-edit{ border:none; background:none; color:inherit; font-size:.72rem; opacity:.7; cursor:pointer; padding:0; }
 .profile-section-tab .ps-edit:hover{ opacity:1; }
+/* AU 설명 아이콘 — 제목 옆에 작게 떠 있다가 누르면 팝오버로 설명을 보여줌 */
+.profile-au-desc-icon{
+  border:none; background:none; color:inherit; opacity:.6; font-size:.78rem; line-height:1;
+  cursor:pointer; padding:0; display:inline-flex; align-items:center; vertical-align:middle;
+}
+.profile-au-desc-icon:hover{ opacity:1; }
+.profile-au-name .profile-au-desc-icon{ margin-left:2px; }
+/* 입력이 잦은 편집 컴포넌트와 같은 이유로 블러 대신 불투명도로 처리해서 가볍게 둠 */
+.profile-au-desc-popover{
+  position:fixed; z-index:250; max-width:min(260px, 80vw); padding:9px 12px; border-radius:12px;
+  background: rgba(24,11,14,0.92); border:1px solid var(--card-border); color: var(--ink);
+  font-size:.78rem; line-height:1.5; box-shadow: 0 10px 26px rgba(0,0,0,0.4);
+  opacity:0; transform: translateY(-4px); transition: opacity .12s ease, transform .12s ease; pointer-events:none;
+}
+.profile-au-desc-popover.show{ opacity:1; transform:translateY(0); pointer-events:auto; }
 /* 드래그로 AU 탭 순서 바꾸기(뮤직 재생목록/사진 그리드와 동일한 방식) */
 .profile-section-tab[draggable="true"]{ cursor: grab; }
 .profile-section-tab.dragging{ opacity:.4; cursor: grabbing; }
@@ -1523,6 +1538,35 @@ a.pf-link-item:hover{ background: rgba(var(--row-tint),0.1); }
 .profile-basic{ display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:100%; }
 .profile-basic.editable{ cursor:pointer; border-radius:18px; transition: background .15s ease; padding:4px 8px; }
 .profile-basic.editable:hover{ background: rgba(var(--row-tint),0.06); }
+
+/* 사진·한마디·소개·이름 / 정보 항목 — 예전엔 모달 하나에서 두 프로필을 같이 고쳤지만,
+   이제 프로필 카드 자리에서 바로 펼쳐지는 인라인 패널로 한 명씩 따로 고침. 입력칸 스타일은
+   기존 모달 입력칸과 똑같이 맞춰서 다른 편집 화면과 이질감이 없게 함(모달 밖이라 그
+   스타일이 안 먹어서 따로 선언) */
+.profile-basic-edit-panel, .profile-fields-edit-panel{
+  display:flex; flex-direction:column; width:100%; text-align:left;
+  padding:10px; border-radius:14px; background: rgba(var(--row-tint),0.07);
+  border:1px solid var(--card-border);
+}
+.profile-basic-edit-panel label{ display:block; font-size:.78rem; color:var(--ink-soft); margin:8px 0 4px; }
+.profile-basic-edit-panel label:first-child{ margin-top:0; }
+.profile-fields-edit-panel > .hint{ font-size:.72rem; color:var(--ink-soft); margin:0 0 8px; }
+.profile-basic-edit-panel input[type=text], .profile-basic-edit-panel input[type=url],
+.profile-basic-edit-panel input[type=file],
+.profile-fields-edit-panel input[type=text], .profile-fields-edit-panel input[type=url],
+.profile-fields-edit-panel textarea{
+  width:100%; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
+  font-family: var(--font-body); font-size:.82rem; background: rgba(255,255,255,0.05); color: var(--ink);
+}
+.profile-basic-edit-panel input::placeholder,
+.profile-fields-edit-panel input::placeholder, .profile-fields-edit-panel textarea::placeholder{ color: var(--ink-soft); }
+.profile-fields-edit-panel .pf-edit-value-desc{ min-height:70px; resize:vertical; }
+.profile-basic-edit-panel .pe-bulk-row, .profile-fields-edit-panel .pe-bulk-row{
+  display:flex; align-items:center; gap:4px; width:auto; margin:4px 0 0; flex:0 0 auto;
+  font-size:.7rem; color:var(--ink-soft); cursor:pointer; white-space:nowrap;
+}
+.profile-fields-edit-panel .pf-edit-add-row{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+.profile-edit-panel-actions{ display:flex; justify-content:flex-end; gap:6px; margin-top:10px; }
 .profile-photo{ display:flex; flex-direction:column; align-items:center; gap:4px; width:100%; max-width:100%; }
 .profile-info{ display:flex; flex-direction:column; align-items:center; gap:2px; max-width:100%; }
 /* 사진이 위아래로 잘리지 않도록 background-size:contain을 씀(대신 비율이 안 맞으면
@@ -2427,6 +2471,17 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
   cursor: grab; line-height:1;
 }
 .check-item-drag-handle:active{ cursor: grabbing; }
+/* 항목을 누르면 모달을 새로 띄우는 대신, 그 항목 자리에서 바로 펼쳐지는 인라인
+   패널로 편집함 — 2열 그리드 안에서 폭이 좁아지지 않도록 두 칸을 다 차지하게 함 */
+.check-item-editing{
+  grid-column: 1 / -1; align-items:stretch; padding:8px 9px; background: rgba(var(--row-tint),0.07);
+}
+.check-item-edit-panel{ display:flex; flex-direction:column; gap:6px; width:100%; }
+.check-item-edit-panel input{
+  width:100%; padding:8px 10px; border-radius:12px; border:1px solid var(--card-border);
+  font-family: var(--font-body); font-size:.82rem; background: rgba(var(--row-tint),0.05); color: var(--ink);
+}
+.check-item-edit-actions{ display:flex; justify-content:flex-end; gap:6px; margin-top:2px; }
 /* 폭이 좁은 폰에서는 2열로 나누면 각 칸이 너무 좁아져서 글자가 답답하게 접힘.
    이 폭에서는 1열로 위/아래로 쌓음 */
 @media (max-width: 520px){
@@ -2780,6 +2835,9 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 /* ---- ① 배경이 다크모드 값으로 고정돼 있던 요소들 ---- */
 body.theme-light .modal{
   background: rgba(255,255,255,0.82);
+}
+body.theme-light .profile-au-desc-popover{
+  background: rgba(255,255,255,0.94);
 }
 /* 라이트박스는 원래(다크모드) 배경값이 쉐이커 전체화면(.modal-shaker-full)과
    완전히 같은 rgba(10,5,6,0.5) — 사진을 보여주는 "뷰어" 계열이라 입력폼 모달보다
