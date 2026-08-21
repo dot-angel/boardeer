@@ -1076,11 +1076,21 @@ body.edit-mode .w-card:has(> .w-edit-toggle-btn){
 .mp-times{ display:flex; justify-content:space-between; font-size:.66rem; color:var(--ink-soft); margin-top:-4px; }
 .mp-meta{ text-align:center; padding:2px 4px 0; }
 .mp-title{ font-weight:800; font-size:1.05rem; letter-spacing:.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mp-artist{ font-size:.8rem; color:var(--ink-soft); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-/* 링크(유튜브)로 올라온 곡일 때만 보이는, 원본 링크로 바로 이동하는 작은 링크 */
+/* 아티스트명 + 원본링크 기호를 한 줄에 같이 두되, .mp-meta의 text-align(가운데/왼쪽,
+   PC/모바일에 따라 다름)을 그대로 따라가야 해서 display:flex 대신 inline-flex를 씀
+   — inline-flex는 인라인 요소처럼 취급되어 부모의 text-align을 따라 저절로
+   가운데/왼쪽 정렬이 맞춰짐(모바일 전용 규칙을 따로 안 만들어도 됨) */
+.mp-artist-line{
+  display:inline-flex; align-items:center; gap:4px; max-width:100%; min-width:0; margin-top:2px;
+}
+.mp-artist-line .mp-artist{ margin-top:0; min-width:0; flex:0 1 auto; }
+.mp-artist{ font-size:.8rem; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 링크(유튜브)로 올라온 곡일 때만 아티스트명 옆에 뜨는, 원본 링크로 바로 이동하는
+   기호 하나짜리 버튼(텍스트 없이 아이콘만) */
 .mp-source-link{
-  display:inline-block; margin-top:3px; font-size:.68rem; color:var(--ink-soft);
-  text-decoration:none; opacity:.85; transition: color .15s ease, opacity .15s ease;
+  flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center;
+  font-size:.72rem; color:var(--ink-soft); text-decoration:none; line-height:1;
+  opacity:.85; transition: color .15s ease, opacity .15s ease;
 }
 .mp-source-link:hover{ color: var(--rose); opacity:1; }
 .mp-controls{

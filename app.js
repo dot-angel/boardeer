@@ -4022,8 +4022,10 @@ function buildMusicSkeleton(box){
       <div class="mp-nowplaying" id="mpNowPlaying">
         <div class="mp-meta">
           <div class="mp-title" id="mpTitle">재생할 곡을 선택해주세요</div>
-          <div class="mp-artist" id="mpArtist"></div>
-          <a class="mp-source-link" id="mpSourceLink" href="#" target="_blank" rel="noopener" title="원본 링크 열기" style="display:none;">🔗 원본 링크</a>
+          <div class="mp-artist-line">
+            <div class="mp-artist" id="mpArtist"></div>
+            <a class="mp-source-link" id="mpSourceLink" href="#" target="_blank" rel="noopener" title="원본 링크 열기" style="display:none;">🔗</a>
+          </div>
         </div>
         <input type="range" class="mp-seek" id="mpSeek" min="0" max="1000" value="0">
         <div class="mp-times"><span id="mpCurTime">0:00</span><span id="mpDurTime">0:00</span></div>
