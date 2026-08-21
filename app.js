@@ -857,6 +857,22 @@ function openImageLightbox(cfg){
   render();
 }
 
+/* 프로필의 "기타 설명"을 큰 글씨로 크게 읽기 위한 팝업. 사진 라이트박스와 같은
+   .modal-lightbox 톤(어두운 반투명 배경+우상단 동그란 닫기 버튼)을 그대로 가져다
+   쓰고, 안쪽 내용만 사진 대신 큰 텍스트로 바꿔치기함 — 완전히 새 모달 스타일을
+   만들지 않고 이미 있는 라이트박스 느낌을 재사용해서 톤을 통일함 */
+function openProfileDescModal(name, desc){
+  openModal(`
+    <button class="lightbox-x" id="c" title="닫기" aria-label="닫기">✕</button>
+    <div class="desc-lightbox-body">
+      ${name ? `<div class="desc-lightbox-name">${escapeHtml(name)}</div>` : ''}
+      <div class="desc-lightbox-text">${escapeHtml(desc || '')}</div>
+    </div>
+  `, m=>{
+    m.querySelector('#c').onclick = closeModal;
+  }, 'modal-lightbox modal-desc-lightbox');
+}
+
 /* 그리드에 보이는 항목들(낱장+묶음)을 "낱장 사진 하나하나" 기준으로 펼친
    배열로 만들어줌. 묶음(모아올리기)에 속한 사진은 겹쳐진 카드(스택) 모양으로
    보이돼, 그 앞뒤로 자연스럽게 다른(묶음 밖) 사진으로도 넘어감 — 묶음 안에서만
@@ -2912,7 +2928,7 @@ function renderProfile(){
   // 항목명을 따로 안 붙이고 값만 보여줌. 기타 설명은 목록 속 한 줄이 아니라 따로 떨어진
   // 박스로 보여줘서 다른 항목들과 헷갈리지 않게 함.
   const NO_LABEL_FIELDS = ['나이', '생년월일', '키/몸무게', 'BWH', '성격'];
-  const fieldsHtml = (fields)=>{
+  const fieldsHtml = (fields, slot)=>{
     const textFields = fields.filter(f=> f.type !== 'link');
     const linkFields = fields.filter(f=> f.type === 'link');
     const descField = textFields.find(f=> (f.label||'').trim() === '기타 설명');
@@ -2981,9 +2997,14 @@ function renderProfile(){
     // "+ 기타 설명 추가" 안내를 보여주고, 보기 전용에서 값이 없으면 위 필드들과
     // 동일하게 profile-field-empty로 표시해서 PC에선 빈 자리 유지·모바일에선 숨김
     const descHasValue = !!(descField && descField.value);
+    // 기타 설명은 칸이 작아 글자가 작게 보이므로, 값이 있으면 칸 한쪽에 확대 버튼을
+    // 같이 두어 눌렀을 때 큰 창(라이트박스)으로 크게 읽을 수 있게 함. 이 버튼은
+    // 편집모드에서도(칸 전체를 누르면 편집 패널이 열리는 것과 별개로) 항상 눌리도록
+    // 클릭 시 이벤트 버블링을 막아서 편집 패널이 같이 열려버리지 않게 함(바인딩 쪽 처리)
     const descHtml = `
-        <div class="profile-desc-box ${isWidgetOpen('profile') ? (descHasValue ? '' : 'empty-hint') : (descHasValue ? '' : 'profile-field-empty')}">
-          ${descHasValue ? escapeHtml(descField.value) : (isWidgetOpen('profile') ? '+ 기타 설명 추가' : '&nbsp;')}
+        <div class="profile-desc-box ${descHasValue ? 'has-value' : ''} ${isWidgetOpen('profile') ? (descHasValue ? '' : 'empty-hint') : (descHasValue ? '' : 'profile-field-empty')}">
+          <span class="profile-desc-text">${descHasValue ? escapeHtml(descField.value) : (isWidgetOpen('profile') ? '+ 기타 설명 추가' : '&nbsp;')}</span>
+          ${descHasValue ? `<button type="button" class="icon-btn profile-desc-expand" data-descexpand="${slot}" title="크게 보기" aria-label="크게 보기">⤢</button>` : ''}
         </div>
       `;
     // 나이/생년월일·키몸무게/BWH·성격까지는 항상 같은 자리(고정 표)라 위젯 높이에
@@ -3095,7 +3116,7 @@ function renderProfile(){
                 <div class="profile-person-fields ${(isWidgetOpen('profile') && profileEditingFieldsSlot!==slot) ? 'editable' : ''} ${profileEditingFieldsSlot===slot ? 'editing' : ''}" data-fieldslot="${slot}">
                   ${(isWidgetOpen('profile') && profileEditingFieldsSlot===slot)
                     ? profileFieldsEditPanelHtml(slot, profileFieldsDraft[slot] || [], slide.sections.length > 1)
-                    : fieldsHtml(fields)}
+                    : fieldsHtml(fields, slot)}
                 </div>
               </div>
             </div>
@@ -3281,6 +3302,17 @@ function bindProfile(slides){
 
   // 정보 항목에 링크가 달려 있으면 그 링크를 누를 땐 편집 패널 대신 링크가 바로 열리게 함
   box.querySelectorAll('.pf-link-item').forEach(a=> a.addEventListener('click', (e)=> e.stopPropagation()));
+
+  // 기타 설명 확대 버튼 — 보기 모드/편집모드(칸을 눌러 편집 패널을 여는 동작) 상관없이
+  // 항상 눌리도록, 버블링을 막아서 상위 .profile-person-fields.editable의 클릭
+  // 핸들러(편집 패널 열기)로 이벤트가 넘어가지 않게 함
+  box.querySelectorAll('[data-descexpand]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const slot = Number(btn.dataset.descexpand);
+    const pf = slide.sections[profileSectionIndex].peopleFields[slot] || {};
+    const descField = (pf.fields || []).find(f=> (f.label||'').trim() === '기타 설명');
+    openProfileDescModal(pf.name || '', descField ? descField.value : '');
+  }));
 
   // "사진·한마디·소개·이름"과 "정보 항목"은 예전처럼 둘 다 한 모달에서 같이 고치던 걸
   // 그대로 유지하되(그룹 자체는 안 나눔), 두 프로필(슬롯)을 한 번에 여는 대신 프로필
@@ -3991,6 +4023,7 @@ function buildMusicSkeleton(box){
         <div class="mp-meta">
           <div class="mp-title" id="mpTitle">재생할 곡을 선택해주세요</div>
           <div class="mp-artist" id="mpArtist"></div>
+          <a class="mp-source-link" id="mpSourceLink" href="#" target="_blank" rel="noopener" title="원본 링크 열기" style="display:none;">🔗 원본 링크</a>
         </div>
         <input type="range" class="mp-seek" id="mpSeek" min="0" max="1000" value="0">
         <div class="mp-times"><span id="mpCurTime">0:00</span><span id="mpDurTime">0:00</span></div>
@@ -4052,6 +4085,7 @@ function renderMusicList(){
         <div class="mp-track-title">${escapeHtml(t.title)}</div>
         ${t.artist ? `<div class="mp-track-artist">${escapeHtml(t.artist)}</div>` : ''}
       </div>
+      ${(t.type === 'youtube' && t.url) ? `<a class="icon-btn mp-track-linkout" href="${escapeHtml(t.url)}" target="_blank" rel="noopener" title="원본 링크 열기" style="width:22px;height:22px;font-size:.6rem;">🔗</a>` : ''}
       ${isWidgetOpen('music') ? `<span class="mp-track-drag-handle" title="드래그해서 순서 바꾸기">⠿</span>` : ''}
       ${isWidgetOpen('music') ? `<button class="icon-btn" data-edit="${t.id}" title="수정" style="width:22px;height:22px;font-size:.6rem;">✎</button>` : ''}
       ${isWidgetOpen('music') ? `<button class="icon-btn" data-del="${t.id}" title="삭제" style="width:22px;height:22px;font-size:.6rem;">✕</button>` : ''}
@@ -4060,10 +4094,13 @@ function renderMusicList(){
   }).join('') : `<div class="w-empty">등록된 곡이 없어요</div>`;
   listEl.querySelectorAll('[data-id]').forEach(row=>{
     row.addEventListener('click', (e)=>{
-      if(e.target.closest('[data-edit]') || e.target.closest('[data-del]') || e.target.closest('.mp-track-drag-handle')) return;
+      if(e.target.closest('[data-edit]') || e.target.closest('[data-del]') || e.target.closest('.mp-track-drag-handle') || e.target.closest('.mp-track-linkout')) return;
       mpPlayById(row.dataset.id, true);
     });
   });
+  // 링크로 올라온(유튜브) 곡의 🔗 버튼은 원본 링크를 새 탭으로 바로 여는 용도라,
+  // 눌렀을 때 그 줄이 재생되거나(위 클릭 핸들러) 드래그 정렬이 같이 걸리지 않게 막음
+  listEl.querySelectorAll('.mp-track-linkout').forEach(a=> a.addEventListener('click', e=> e.stopPropagation()));
   listEl.querySelectorAll('[data-edit]').forEach(btn=> btn.addEventListener('click', e=>{
     e.stopPropagation();
     const t = tracks.find(x=>x.id===btn.dataset.edit);
@@ -4088,6 +4125,7 @@ function updateMpMetaDisplay(track){
   const bg = document.getElementById('mpCoverBg');
   const titleEl = document.getElementById('mpTitle');
   const artistEl = document.getElementById('mpArtist');
+  const linkEl = document.getElementById('mpSourceLink');
   if(!bg) return;
   const coverUrl = track ? mpResolveCoverUrl(track, ()=> updateMpMetaDisplay(track)) : '';
   if(coverUrl){
@@ -4099,6 +4137,17 @@ function updateMpMetaDisplay(track){
   }
   if(titleEl) titleEl.textContent = track ? track.title : '재생할 곡을 선택해주세요';
   if(artistEl) artistEl.textContent = track ? (track.artist || '') : '';
+  // 링크(유튜브)로 올라온 곡일 때만, 지금 재생 중인 곡의 원본 링크로 바로 이동할 수
+  // 있는 버튼을 보여줌 — href는 DOM 속성으로 직접 지정하므로 별도 escape가 필요 없음
+  if(linkEl){
+    if(track && track.type === 'youtube' && track.url){
+      linkEl.href = track.url;
+      linkEl.style.display = '';
+    } else {
+      linkEl.removeAttribute('href');
+      linkEl.style.display = 'none';
+    }
+  }
 }
 
 function setPlayButtonUI(playing){

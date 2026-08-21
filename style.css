@@ -1060,6 +1060,11 @@ body.edit-mode .w-card:has(> .w-edit-toggle-btn){
   color: rgba(255,255,255,0.88);
   text-shadow: 0 1px 4px rgba(0,0,0,0.6), 0 1px 10px rgba(0,0,0,0.4);
 }
+.w-music:has(.mp-cover-bg.has-cover) .mp-source-link{
+  color: rgba(255,255,255,0.8);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6), 0 1px 10px rgba(0,0,0,0.4);
+}
+.w-music:has(.mp-cover-bg.has-cover) .mp-source-link:hover{ color: var(--rose); }
 .mp-seek{
   -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:999px;
   background: var(--card-bg2); accent-color: var(--rose); cursor:pointer; margin-top:2px;
@@ -1072,6 +1077,12 @@ body.edit-mode .w-card:has(> .w-edit-toggle-btn){
 .mp-meta{ text-align:center; padding:2px 4px 0; }
 .mp-title{ font-weight:800; font-size:1.05rem; letter-spacing:.01em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mp-artist{ font-size:.8rem; color:var(--ink-soft); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 링크(유튜브)로 올라온 곡일 때만 보이는, 원본 링크로 바로 이동하는 작은 링크 */
+.mp-source-link{
+  display:inline-block; margin-top:3px; font-size:.68rem; color:var(--ink-soft);
+  text-decoration:none; opacity:.85; transition: color .15s ease, opacity .15s ease;
+}
+.mp-source-link:hover{ color: var(--rose); opacity:1; }
 .mp-controls{
   display:flex; align-items:center; justify-content:center; gap:8px; margin-top:2px;
   flex-wrap: nowrap; /* 줄바꿈으로 인해 버튼이 재배치되는 것 방지 */
@@ -1489,12 +1500,24 @@ body:not(.edit-mode) .profile-fields-scroll{
    감싸면 사람마다 설명 길이가 달라 높이가 들쭉날쭉한 게 상자 테두리 때문에 더
    도드라져 보였음 → 상자 대신 위에 가로 구분선 하나만 그어서 자연스럽게 분리함 */
 .profile-desc-box{
+  position:relative;
   width:100%; margin-top:8px; padding:8px 4px 0; border-top:1px solid var(--card-border);
   font-size:.72rem; line-height:1.5; color: var(--ink-soft);
   white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word; text-align:left;
 }
 .profile-desc-box.empty-hint{ cursor:pointer; opacity:.7; text-align:center; }
 .profile-desc-box.empty-hint:hover{ opacity:1; }
+/* 값이 있을 땐 오른쪽 위에 작은 확대 버튼이 겹치므로, 글자가 버튼 밑에 깔리지
+   않도록 오른쪽에 자리를 살짝 비워둠 */
+.profile-desc-box.has-value{ padding-right:20px; }
+.profile-desc-expand{
+  position:absolute; top:6px; right:2px; z-index:1;
+  width:18px; height:18px; border-radius:6px; border:none; background:none;
+  color: var(--ink-soft); font-size:.8rem; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; padding:0;
+  transition: color .15s ease, background .15s ease;
+}
+.profile-desc-expand:hover{ color: var(--rose); background: rgba(var(--row-tint),0.1); }
 /* 링크 전용 항목 — 일반 정보 항목들 맨 아래에 따로 모아서 작은 알약 버튼처럼 보여줌 */
 .profile-links{ display:flex; flex-wrap:wrap; gap:6px; margin-top:2px; padding:0 4px; }
 .pf-link-item{
@@ -2705,6 +2728,19 @@ body:not(.edit-mode) .w-profile .profile-field-empty{
 .lightbox-tag-chip{
   display:inline-block; font-size:.74rem; padding:4px 12px; border-radius:999px;
   background: var(--rose-soft); color: var(--rose); border:1px solid rgba(196,66,95,0.35);
+}
+/* 프로필 "기타 설명" 확대보기 — 사진 라이트박스와 같은 어두운 톤을 쓰되, 사진이
+   아니라 글자가 주인공이므로 폭은 읽기 좋은 문단 너비로 좁히고 글자를 큼직하게 키움 */
+.modal.modal-lightbox.modal-desc-lightbox{
+  width:min(480px, 90vw); max-width:90vw; padding:42px 26px 26px;
+}
+.desc-lightbox-body{ text-align:left; }
+.desc-lightbox-name{
+  font-family: var(--font-display); color: var(--rose); font-size:1rem; margin-bottom:12px;
+}
+.desc-lightbox-text{
+  font-size:1.15rem; line-height:1.85; color: var(--ink);
+  white-space:pre-wrap; word-break:keep-all; overflow-wrap:break-word;
 }
 .color-row{ display:flex; align-items:center; gap:8px; }
 .color-row span{ font-size:.78rem; color:var(--ink-soft); }
